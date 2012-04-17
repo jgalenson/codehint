@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<?eclipse version="3.4"?>
+<plugin>
+   <extension
+         point="org.eclipse.ui.menus">
+      <menuContribution
+            allPopups="false"
+            locationURI="popup:org.eclipse.debug.ui.VariableView">
+         <command
+               commandId="codehint.demonstrateValue"
+               label="Demonstrate value"
+               style="push">
+         </command>
+      </menuContribution>
+   </extension>
+   <extension
+         point="org.eclipse.ui.commands">
+      <command
+            defaultHandler="codehint.DemonstrateValueHandler"
+            id="codehint.demonstrateValue"
+            name="Demonstrate value">
+      </command>
+   </extension>
+   
+   <extension
+         point="org.eclipse.ui.menus">
+      <menuContribution
+            allPopups="false"
+            locationURI="popup:org.eclipse.debug.ui.VariableView">
+         <command
+               commandId="codehint.demonstrateProperty"
+               label="Demonstrate property"
+               style="push">
+         </command>
+      </menuContribution>
+   </extension>
+   <extension
+         point="org.eclipse.ui.commands">
+      <command
+            defaultHandler="codehint.DemonstratePropertyHandler"
+            id="codehint.demonstrateProperty"
+            name="Demonstrate property">
+      </command>
+   </extension>
+   
+   <extension
+         point="org.eclipse.ui.menus">
+      <menuContribution
+            allPopups="false"
+            locationURI="popup:org.eclipse.debug.ui.VariableView">
+         <command
+               commandId="codehint.demonstrateType"
+               label="Demonstrate type"
+               style="push">
+         </command>
+      </menuContribution>
+   </extension>
+   <extension
+         point="org.eclipse.ui.commands">
+      <command
+            defaultHandler="codehint.DemonstrateTypeHandler"
+            id="codehint.demonstrateType"
+            name="Demonstrate type">
+      </command>
+   </extension>
+
+</plugin>

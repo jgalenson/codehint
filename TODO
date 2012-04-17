@@ -1,0 +1,62 @@
+Feature requests
+----------------
+Support auto-complete and error-highlighting when demonstrating.  See e.g. ChangeVariableValueInputDialog and ExpressionInputDialog.
+Let users easily select the correct expression from a choose statement.  Having to do it with typing is annoying.  Maybe put a warning over the choose and write Eclipse Quick Fix to let the user choose.  This could bring up a visual list where the user could select the correct one or shift-click to select multiple ones to keep (e.g., avoid constructors).  We should show the candidates like in the variable view window so users can look through them concretely.  Hovering over a method should show its Javadoc
+Allow searching over the heap.  In variables view window, should be able to search values, types, names for a string.  Leo's idea.
+Allow expressions properties that talk about any proeprty of the final state.  This will allow us to call void methods and talk about side effects.  Potential syntax: use primes for post-state.
+We should allow users to easily make demonstrations for new variables (currently you need the variable to exist so you can right-click it in the variables window, so you must make a fake assignment to it).
+We should allow users to make a demonstration directly in the code.  That is, they can write something like "int x = pdspec(prime(x) == x + 1);" and then when they run the code we replace that with "x = choose(...)."  Currently, you need a "fake" statement after where you want to insert a statement, which is annoying.  Note that the semantics of this new method might be worth thinking about.  
+We should allow demonstrating expressions, not just statements (e.g., "if (choose(...))").
+We should synthesize choose expressions when the LHS is an array access.  Currently, we do "a[1] = choose(...)", but we should do "a[choose(...)] = choose(...)".  Should we do this for field accesses too?  There at least the current path is legal and unambiguous.
+We should add casts to our language of expressions.  Without them, we might generate illegal code (e.g., by calling a method that is not available on the static type).  Note that this can presumably be used to fix the "illegal LHS" bug above.
+Support anonymous classes better.  We currently cannot refer to variables in the outer scope or ContainingClass.this.
+We can use annotations to inform the expression generator.  @NotNull can tell it not to pass anything known to be null (and add non null as a precondition during evaluation).  @DoNotExplore could tell it not to try calling a specific method.  We could even allow custom annotations with expressions if Java allows them.  We could use this for things in the Java standard library.  We could infer these by parsing the Javadoc.
+We should let users directly control what sort of expressions are searched (e.g., methods, constructors).  This can make the search faster and give the user fewer possible expressions.  Users should also be able to select which variables are involved in the expression.  One way to do it is to have checkboxes below the textbox.  Or you could right-click on the variable in the variables view and say "use this".  A regex-like language is another possibility.
+We need to be able to dynamically load classes in the user's code.  This can come up when searching methods/fields of objects (we get those with types that have not been loaded) and when scanning imports (classes imported but not used are not loaded).  Currently, this means we do not explore many possibilities.
+Give the user a dropdown thing that lets them re-use their recently-entered properties.
+Allow undoing when demonstrating values/properties.
+Suggest corrections: if the user types "x instanceof String[]" say 'Did you mean, "x instanceof Collection<String>">' (see Wontae's RW.3).
+Allow sloppy searches: say something like "size of frame" and it should find things like frame.getSize().  Nicholas' idea.
+Give immediate feedback when the user types a property about how many expressions it will generate.  (This likely requires doing the expression generation as the user types optimization.)
+Use heuristics to sort the candidates.
+Add constants given in the property to the space of expressions to search.  For example, if the property is "x => x.indexOf(':') > 0" we should add ':' to our search space (just like we add the demonstrated value). 
+If you're highlighting a variable in the text area, add a shortcut to pop up the demonstrate box.
+Add a default value for textbox when there's disagreement during refinement.
+
+Bugs
+----
+Actually insert the choose statement into the document.  Currently, the chosen statements don't get executed!  We could execute them with the breakpoint handler if necessary
+When the user demonstrates a value, we set the value of the variable (in the debug session) to that of the first valid expression.  The expressions might generate different values, so this might not be the best thing to do.
+If the user saves a document with a choose statement and then executes it, the debug event will rewrite the call to remove the expressions with the wrong values, but the debugger will immediately step into the choose implementation with the old/bad arguments, where the assertion will fail.
+We don't handle generics well due to erasure.  See Parse and RandomWriter examples.
+We need to timeout execution of methods when we're testing candidate expressions.  We disallow explicit recursion, but a method could infinite loop or recurse.
+When demonstrating values, do not allow implicit conversions like int->double (e.g., must type 5.0 and not 5 for Intro.hypotenuse).
+I think our evaluations do change memory....
+Improve method blacklist.
+We currently use the string of the inserted text as the key to store information about a choose statement.  We should at least also use the filename and line number, if not just use a tag like before.
+Improve guessing of the property during refinement.  It currently ignores demonstrating types.  I probably need to fix the bug about using better keys to store the information and make different subtypes of Property.
+Defaulting to showing crashing properties has problems: it uses the desugared properties (can be fixed by subtyping Property) and if you then demonstrate for a different variable, we still show the old failing one.
+The popup during refinement that shows the legal values is not helpful for objects, as it just displays their ids.  It should at least use their toStrings.  A better UI would be great.
+Disable right-click menus when not applicable (more than one element is selected or trying to demosntrate the type of a primitive).
+Thanks to modeless input dialog, the user can continue/step and later fill in the box.
+We can generate an illegal LHS after a demonstration when the LHS is complicated and uses inheritance, e.g., "objectArray[1].subclassField = choose(...)" gives an error because the static type of the array access is Object not the subclass.  Note that allowing choose expressions on the LHS will probably fix/avoid this.
+Our default names for evaluation and properties will cause problems if they exist in the user's code.
+Add "import pbd.PBD;" and add pbd-lib.jar to the classpath if necessary.
+
+Optimizations
+-------------
+Begin expression generation when the user clicks demonstration, i.e., when we open the text box.  This way we can do the work while they're typing.
+If multiple expressions have the same value, only generate with one and then replace later.
+Investigate using IClassFileEvaluationEngine instead of ASTEvaluation.  See JavaSnippetEditor.evaluate().
+Optimize evaluation string: use temporary instead of index into array of values and, when given a property with a type (x: Foo => ...) don't insert the casts if the variable has static type Foo.
+
+Research questions
+------------------
+How do we generate expressions?
+What do we do when we don't generate the right expression to start with?  or when we get to zero possibilities remaining?
+How do we synthesize control flow?
+Parallel schedules.
+Automatically explore schedules "near" what the user is showing.
+How can we support users who do not know the algorithm?  Can we integrate with angelic programming?
+How can we integrate visual demonstrations?
+How can we use automatic testing to prune bad candidates?
