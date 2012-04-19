@@ -60,3 +60,4 @@ Automatically explore schedules "near" what the user is showing.
 How can we support users who do not know the algorithm?  Can we integrate with angelic programming?
 How can we integrate visual demonstrations?
 How can we use automatic testing to prune bad candidates?
+Does this approach work well for dynamic languages?  They don't even have autocomplete.

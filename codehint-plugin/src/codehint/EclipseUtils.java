@@ -176,9 +176,9 @@ public class EclipseUtils {
     private static IType getThisType(IJavaProject project, IJavaStackFrame stackFrame) throws DebugException, JavaModelException {
     	String thisTypeName = stackFrame.getDeclaringTypeName();
 		IType thisType = project.findType(thisTypeName);
-		if (thisType != null)
+		if (thisType != null && !thisTypeName.contains("$"))  // Do not use anonymous classes (e.g., Foo$1).
 			return thisType;
-		// The above will return null for anonymous classes (e.g., Foo$1), so we just get the outer part before the $.
+		// The above will fail for anonymous classes (e.g., Foo$1), so we just get the outer part before the $.
 		thisTypeName = sanitizeTypename(thisTypeName);
 		if (thisTypeName.contains(".")) {
 			String outerTypeName = thisTypeName.substring(0, thisTypeName.indexOf('.'));
