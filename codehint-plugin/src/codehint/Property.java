@@ -98,7 +98,7 @@ public class Property {
 	public String getReplacedString(String arg) {
 		NaiveASTFlattener flattener = new PropertyASTFlattener(lhs, arg, type);
 		rhs.accept(flattener);
-		String typeStr = type == null ? "" : "(" + arg + " instanceof " + type + ") && ";
+		String typeStr = type == null ? "" : "(" + arg + " == " + null +" || " + arg + " instanceof " + type + ") && ";
 		return typeStr + flattener.getResult();
 	}
 	
