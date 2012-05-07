@@ -1,11 +1,17 @@
 package codehint;
 
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+
 import org.eclipse.core.commands.AbstractHandler;
 import org.eclipse.core.commands.ExecutionEvent;
 import org.eclipse.core.commands.ExecutionException;
+import org.eclipse.debug.core.DebugException;
 import org.eclipse.debug.core.model.IVariable;
 import org.eclipse.jdt.debug.core.IJavaFieldVariable;
 import org.eclipse.jdt.internal.debug.core.model.JDIArrayEntryVariable;
+import org.eclipse.jface.text.BadLocationException;
+import org.eclipse.jface.text.IDocument;
 import org.eclipse.jface.viewers.IStructuredSelection;
 import org.eclipse.jface.viewers.TreePath;
 import org.eclipse.jface.viewers.TreeSelection;
@@ -57,6 +63,22 @@ public abstract class CommandHandler extends AbstractHandler {
     			sb.append(segment.toString());
     	}
     	return sb.toString();
+    }
+    
+    protected static Matcher getInitialConditionFromCurLine(IVariable variable, Pattern pattern) throws DebugException {
+    	try {
+			int lineNum = EclipseUtils.getStackFrame().getLineNumber() - 1;
+			IDocument document = EclipseUtils.getDocument();
+			String fullCurLine = document.get(document.getLineOffset(lineNum), document.getLineLength(lineNum));
+       		Matcher matcher = pattern.matcher(fullCurLine);
+       		if(matcher.matches()) {
+       			return matcher;
+       		} else
+       			return null;
+    	} catch (BadLocationException e) {
+			throw new RuntimeException(e);
+		}
+    	
     }
 
 }

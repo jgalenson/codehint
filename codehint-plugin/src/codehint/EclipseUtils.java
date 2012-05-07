@@ -187,7 +187,7 @@ public class EclipseUtils {
 		return null;
     }
     
-    public static Property getProperty(String varName, Shell shell, IJavaType varStaticType, String initialValue, String extraMessage, IJavaStackFrame stackFrame) {
+    public static LambdaProperty getLambdaProperty(String varName, Shell shell, IJavaType varStaticType, String initialValue, String extraMessage, IJavaStackFrame stackFrame) {
     	try {
     		IJavaProject project = getProject(stackFrame);
     		String varStaticTypeName = varStaticType == null ? null : sanitizeTypename(varStaticType.getName());
@@ -198,10 +198,10 @@ public class EclipseUtils {
 	        String message= "Demonstrate a property (in the form of a boolean lambda expression) that should hold for " + varName + " after this statement is executed.";
 	        if (initialValue == null)
 	        	initialValue = getDefaultLambdaArgName(stackFrame) + getDefaultTypeName(varStaticType, project, varType, thisType, varStaticTypeName) + " => ";
-	        PropertyValidator validator= new PropertyValidator(stackFrame, project, varType, thisType);
+	        LambdaPropertyValidator validator= new LambdaPropertyValidator(stackFrame, project, varType, thisType);
 	        String stringValue = getDialogResult(title, message, extraMessage, initialValue, validator);
 	    	if (stringValue != null)
-	    		return Property.fromPropertyString(stringValue);
+	    		return LambdaProperty.fromPropertyString(stringValue);
 	    	else
 	    		return null;
  		} catch (DebugException e) {
@@ -237,11 +237,13 @@ public class EclipseUtils {
         String title= "Demonstrate an expression"; 
         String message= "Demonstrate an expression for " + varName + ".  We will find expressions that evaluate to the same value.";
         ExpressionValidator validator= new ExpressionValidator();
+        if (initialValue == null)
+        	initialValue = "";
         String stringValue = getDialogResult(title, message, extraMessage, initialValue, validator);
     	return stringValue;
     }
     
-    public static String getType(String varName, Shell shell, String varTypeName, String extraMessage, IJavaStackFrame stackFrame) {
+    public static String getType(String varName, Shell shell, String varTypeName, String initialValue, IJavaStackFrame stackFrame) {
     	try {
     		varTypeName = sanitizeTypename(varTypeName);
 			IJavaProject project = getProject(stackFrame);
@@ -249,19 +251,32 @@ public class EclipseUtils {
     		IType thisType = getThisType(project, stackFrame);
 			
 			// Default to the unqualified typename if I can.
-			if (thisType != null && thisType.resolveType(getUnqualifiedName(varTypeName)) != null)
-				varTypeName = getUnqualifiedName(varTypeName);
+    		if (initialValue.contains("$"))
+    			initialValue = sanitizeTypename(initialValue);
+			if (thisType != null && thisType.resolveType(getUnqualifiedName(initialValue)) != null)
+				initialValue = getUnqualifiedName(initialValue);
 	    	
 	    	String title= "Demonstrate a type"; 
 	        String message= "Demonstrate a type for " + varName + ".  We will find expressions return that type when evaluated.";
 	        TypeValidator validator= new TypeValidator(project, varType, thisType);
-	        String stringValue = getDialogResult(title, message, extraMessage, varTypeName, validator);
+	        String stringValue = getDialogResult(title, message, null, initialValue, validator);
 	    	return stringValue;
     	} catch (JavaModelException e) {
  			throw new RuntimeException(e);
  		} catch (DebugException e) {
  			throw new RuntimeException(e);
  		}
+    }
+    
+    public static StateProperty getStateProperty(String varName, Shell shell, String initialValue, String extraMessage) {
+		String title= "Demonstrate state property"; 
+        String message= "Demonstrate a state property that should hold for " + varName + " after this statement is executed.";
+        StatePropertyValidator validator= new StatePropertyValidator();
+        String stringValue = getDialogResult(title, message, extraMessage, initialValue, validator);
+    	if (stringValue != null)
+    		return StateProperty.fromPropertyString(varName, stringValue);
+    	else
+    		return null;
     }
     
     private static String getDialogResult(String title, String message, String extraMessage, String initialValue, IInputValidator validator) {
@@ -320,14 +335,14 @@ public class EclipseUtils {
     	}
     }
 
-    private static class PropertyValidator implements IInputValidator {
+    private static class LambdaPropertyValidator implements IInputValidator {
     	
     	private final IJavaStackFrame stackFrame;
     	private final IJavaProject project;
     	private final IType varType;
     	private final IType thisType;
     	
-    	public PropertyValidator(IJavaStackFrame stackFrame, IJavaProject project, IType varType, IType thisType) {
+    	public LambdaPropertyValidator(IJavaStackFrame stackFrame, IJavaProject project, IType varType, IType thisType) {
     		this.stackFrame = stackFrame;
     		this.project = project;
     		this.varType = varType;
@@ -336,7 +351,7 @@ public class EclipseUtils {
         
         @Override
 		public String isValid(String newText) {
-        	return Property.isLegalProperty(newText, stackFrame, project, varType, thisType);
+        	return LambdaProperty.isLegalProperty(newText, stackFrame, project, varType, thisType);
         }
     }
 
@@ -401,6 +416,14 @@ public class EclipseUtils {
 			throw new RuntimeException(e);
 		}
     }
+
+    private static class StatePropertyValidator implements IInputValidator {
+        
+        @Override
+		public String isValid(String newText) {
+        	return StateProperty.isLegalProperty(newText);
+        }
+    }
    	
    	public static void insertIndentedLine(IDocument document, int line, String text) throws BadLocationException {
    		int offset = document.getLineOffset(line);
@@ -416,29 +439,34 @@ public class EclipseUtils {
    	}
     
    	public static void insertIndentedLineAtCurrentDebugPoint(String text) throws BadLocationException, DebugException {
-   		//get the current frame from the current active editor to get the cursor line
-    	// Note: This is not how the variable visit does this, 
-    	// hopefully, we get the same value
-       	IJavaStackFrame frame = EclipseUtils.getStackFrame();
-       	int line = frame.getLineNumber() - 1 ;
-       	assert line >= 0;
-       	
-       	//Needed only for sanity checking and debugging
-       	String path = frame.getSourcePath();
-    	int start = frame.getCharEnd();
-    	int end = frame.getCharStart();
-    	assert (start == -1 && end == -1);
-			
-       	
-   		ITextEditor editor = EclipseUtils.getActiveTextEditor();
-   		assert (editor != null);
-   		
-   		IDocument document = editor.getDocumentProvider().getDocument(editor.getEditorInput());
+   		int line = getStackFrame().getLineNumber() - 1;
+   		IDocument document = getDocument();
    		insertIndentedLine(document, line, text);
    		
    		//Log the change for debugging
    		//System.out.println("Inserting text: \"\"\"" + text + "\"\"\" at " + path + " line " + line + " position " + start + " to " + end);
 
+   	}
+   	
+   	public static void replaceLineAtCurrentDebugPoint(String newText) throws DebugException, BadLocationException {
+   		int line = getStackFrame().getLineNumber() - 1;
+   		IDocument document = getDocument();
+   		
+   		int offset = document.getLineOffset(line);
+   		int firstChar = offset;
+   		while (document.getChar(firstChar) == ' ' || document.getChar(firstChar) == '\t')
+   			firstChar++;
+   		int lastChar = firstChar;
+   		while (document.getChar(lastChar) != '\n')
+   			lastChar++;
+   		//Bug fix: need to keep the debug cursor before the inserted line so we can
+   		// execute it.  Inserting at beginning of line shifts it down one.
+   		document.replace(firstChar, lastChar - firstChar, newText);
+   	}
+   	
+   	public static IDocument getDocument() {
+   		ITextEditor editor = EclipseUtils.getActiveTextEditor();
+   		return editor.getDocumentProvider().getDocument(editor.getEditorInput());
    	}
 
    	// This only seems to work when called from the UI thread (e.g., when called with Display.syncExec).

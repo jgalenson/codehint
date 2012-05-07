@@ -6,7 +6,7 @@ import org.eclipse.jdt.debug.core.IJavaType;
 import org.eclipse.jdt.debug.core.IJavaVariable;
 import org.eclipse.swt.widgets.Shell;
 
-public class DemonstratePropertyHandler extends CommandHandler {
+public class DemonstrateLambdaPropertyHandler extends CommandHandler {
     
     @Override
 	public void handle(IVariable variable, String path, Shell shell) {
@@ -14,9 +14,9 @@ public class DemonstratePropertyHandler extends CommandHandler {
 	    	Property lastDemonstratedProperty = Synthesizer.getLastDemonstratedProperty();
 	    	String initValue = lastDemonstratedProperty == null ? null : lastDemonstratedProperty.toString();
 	    	IJavaType varStaticType = ((IJavaVariable)variable).getJavaType();
-	    	Property property = EclipseUtils.getProperty(path, shell, varStaticType, initValue, null, EclipseUtils.getStackFrame());
+	    	LambdaProperty property = EclipseUtils.getLambdaProperty(path, shell, varStaticType, initValue, null, EclipseUtils.getStackFrame());
 	    	if (property != null)
-	        	Synthesizer.synthesizeAndInsertExpressions(variable, path, property, null, shell);
+	        	Synthesizer.synthesizeAndInsertExpressions(variable, path, property, null, shell, false);
 		} catch (DebugException e) {
 			throw new RuntimeException(e);
 		}

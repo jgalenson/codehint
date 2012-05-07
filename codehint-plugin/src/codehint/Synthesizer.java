@@ -67,7 +67,7 @@ public class Synthesizer {
 	// We store the last property we have seen demonstrated demonstrated while we are processing it.  If everything works, we clear this, but if there is an error, we keep this and use it as the initial value for the user's next demonstrated property.
 	private static Property lastDemonstratedProperty;
 	
-	public static void synthesizeAndInsertExpressions(final IVariable variable, final String fullVarName, final Property property, final IJavaValue demonstration, Shell shell) {
+	public static void synthesizeAndInsertExpressions(final IVariable variable, final String fullVarName, final Property property, final IJavaValue demonstration, Shell shell, final boolean replaceCurLine) {
 		System.out.println("Beginning synthesis for " + variable.toString() + " with property " + property.toString() + ".");
 
 		lastDemonstratedProperty = property;
@@ -103,7 +103,10 @@ public class Synthesizer {
 			
 								//Insert the new text
 								try {
-									EclipseUtils.insertIndentedLineAtCurrentDebugPoint(statement);
+									if (replaceCurLine)
+										EclipseUtils.replaceLineAtCurrentDebugPoint(statement);
+									else
+										EclipseUtils.insertIndentedLineAtCurrentDebugPoint(statement);
 								} catch (BadLocationException e1) {
 									// TODO Auto-generated catch block
 									e1.printStackTrace();
@@ -184,7 +187,7 @@ public class Synthesizer {
 	     */
 	    @Override
 		public void handleDebugEvents(DebugEvent[] events) {
-	    	ITextEditor editor = getEditor();
+       		IDocument document = getDocument();
 	    	for (DebugEvent event : events) {
 	            Object source= event.getSource();
 	            if (source instanceof IThread && event.getKind() == DebugEvent.SUSPEND &&
@@ -206,10 +209,10 @@ public class Synthesizer {
 	                	assert (start == -1 && end == -1);
 	
 	                	//TODO: Expression could be spread across multiple lines
-	               		IDocument document = editor.getDocumentProvider().getDocument(editor.getEditorInput());
 	               		int offset = document.getLineOffset(line);
 	               		int length = document.getLineLength(line);
 	               		String fullCurLine = document.get(offset, length);
+	               		
 	               		Matcher matcher = choosePattern.matcher(fullCurLine);
 	               		if(matcher.matches())
 	               			refineExpressions(frame, matcher, thread, line, document, offset, length);
@@ -284,13 +287,13 @@ public class Synthesizer {
            			String initValue = lhsVar != null ? EclipseUtils.javaStringOfValue((IJavaValue)lhsVar.getValue()) : "";
        				String resultStr = getExpressionFromUser(varname, initValue, "Choose one of: " + EvaluatedExpression.resultsOfEvaluatedExpressions(exprs).toString());
        				if (JDIModelPresentation.isObjectValue(varSignature))
-       					property = Property.fromObject(resultStr);
+       					property = LambdaProperty.fromObject(resultStr);
        				else
-	       				property = Property.fromPrimitive(resultStr);
+	       				property = LambdaProperty.fromPrimitive(resultStr);
        			} else {
        				IJavaType varStaticType = lhsVar == null ? null : lhsVar.getJavaType();
        				String initValue = initialProperty != null ? initialProperty.toString() : null;
-       				property = getPropertyFromUser(varname, varStaticType, initValue, "Potential values are: " + EvaluatedExpression.resultsOfEvaluatedExpressions(exprs).toString(), frame);
+       				property = getPropertyFromUser(varname, varStaticType, initValue, "Potential values are: " + EvaluatedExpression.resultsOfEvaluatedExpressions(exprs).toString(), frame, initialProperty);
        			}
        			if( property == null ) {
        				//The user cancelled, just drop back into the debugger and let the 
@@ -377,12 +380,12 @@ public class Synthesizer {
 	    	return true;
 	    }
 	    
-	    private static ITextEditor getEditor() {
-	    	final ITextEditor[] result = new ITextEditor[] { null };
+	    private static IDocument getDocument() {
+	    	final IDocument[] result = new IDocument[] { null };
         	Display.getDefault().syncExec(new Runnable(){
 				@Override
 				public void run() {
-                	result[0] = EclipseUtils.getActiveTextEditor();
+                	result[0] = EclipseUtils.getDocument();
 				}
         	});
         	return result[0];
@@ -398,12 +401,15 @@ public class Synthesizer {
 			});
 			return result[0];
 	    }
-	    private static Property getPropertyFromUser(final String varName, final IJavaType varStaticType, final String initValue, final String extraMessage, final IJavaStackFrame stackFrame) {
+	    private static Property getPropertyFromUser(final String varName, final IJavaType varStaticType, final String initValue, final String extraMessage, final IJavaStackFrame stackFrame, final Property oldProperty) {
 	    	final Property[] result = new Property[] { null };
 	    	Display.getDefault().syncExec(new Runnable() {
 	    		@Override
 	    		public void run() {
-	    			result[0] = EclipseUtils.getProperty(varName, EclipseUtils.getShell(), varStaticType, initValue, extraMessage, stackFrame);
+	    			if (oldProperty == null || oldProperty instanceof StateProperty)
+	    				result[0] = EclipseUtils.getStateProperty(varName, EclipseUtils.getShell(), initValue, extraMessage);
+	    			else if (oldProperty instanceof LambdaProperty)
+	    				result[0] = EclipseUtils.getLambdaProperty(varName, EclipseUtils.getShell(), varStaticType, initValue, extraMessage, stackFrame);
 	    		}
 	    	});
 	    	return result[0];

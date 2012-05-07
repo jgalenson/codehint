@@ -1,11 +1,10 @@
 Feature requests
 ----------------
-Support auto-complete and error-highlighting when demonstrating.  See e.g. ChangeVariableValueInputDialog and ExpressionInputDialog.
+Support auto-complete and error-highlighting in the dialog box when demonstrating.  See e.g. ChangeVariableValueInputDialog and ExpressionInputDialog.
 Let users easily select the correct expression from a choose statement.  Having to do it with typing is annoying.  Maybe put a warning over the choose and write Eclipse Quick Fix to let the user choose.  This could bring up a visual list where the user could select the correct one or shift-click to select multiple ones to keep (e.g., avoid constructors).  We should show the candidates like in the variable view window so users can look through them concretely.  Hovering over a method should show its Javadoc
 Allow searching over the heap.  In variables view window, should be able to search values, types, names for a string.  Leo's idea.
-Allow expressions properties that talk about any proeprty of the final state.  This will allow us to call void methods and talk about side effects.  Potential syntax: use primes for post-state.
-We should allow users to easily make demonstrations for new variables (currently you need the variable to exist so you can right-click it in the variables window, so you must make a fake assignment to it).
-We should allow users to make a demonstration directly in the code.  That is, they can write something like "int x = pdspec(prime(x) == x + 1);" and then when they run the code we replace that with "x = choose(...)."  Currently, you need a "fake" statement after where you want to insert a statement, which is annoying.  Note that the semantics of this new method might be worth thinking about.  
+We should allow users to easily make demonstrations for new variables (currently you need the variable to exist so you can right-click it in the variables window, so you must make a fake assignment to it).  
+We should allow demonstrating generic statements using our new prime syntax.  This will allow us to call void methods and talk about side effects.
 We should allow demonstrating expressions, not just statements (e.g., "if (choose(...))").
 We should synthesize choose expressions when the LHS is an array access.  Currently, we do "a[1] = choose(...)", but we should do "a[choose(...)] = choose(...)".  Should we do this for field accesses too?  There at least the current path is legal and unambiguous.
 We should add casts to our language of expressions.  Without them, we might generate illegal code (e.g., by calling a method that is not available on the static type).  Note that this can presumably be used to fix the "illegal LHS" bug above.
@@ -37,7 +36,7 @@ We currently use the string of the inserted text as the key to store information
 Improve guessing of the property during refinement.  It currently ignores demonstrating types.  I probably need to fix the bug about using better keys to store the information and make different subtypes of Property.
 Defaulting to showing crashing properties has problems: it uses the desugared properties (can be fixed by subtyping Property) and if you then demonstrate for a different variable, we still show the old failing one.
 The popup during refinement that shows the legal values is not helpful for objects, as it just displays their ids.  It should at least use their toStrings.  A better UI would be great.
-Disable right-click menus when not applicable (more than one element is selected or trying to demosntrate the type of a primitive).
+Disable right-click menus when not applicable (more than one element is selected or trying to demonstrate the type of a primitive).
 Thanks to modeless input dialog, the user can continue/step and later fill in the box.
 We can generate an illegal LHS after a demonstration when the LHS is complicated and uses inheritance, e.g., "objectArray[1].subclassField = choose(...)" gives an error because the static type of the array access is Object not the subclass.  Note that allowing choose expressions on the LHS will probably fix/avoid this.
 Our default names for evaluation and properties will cause problems if they exist in the user's code.

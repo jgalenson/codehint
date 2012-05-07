@@ -28,8 +28,8 @@
             allPopups="false"
             locationURI="popup:org.eclipse.debug.ui.VariableView">
          <command
-               commandId="codehint.demonstrateProperty"
-               label="Demonstrate property"
+               commandId="codehint.demonstrateLambdaProperty"
+               label="Demonstrate lambda property"
                style="push">
          </command>
       </menuContribution>
@@ -37,9 +37,9 @@
    <extension
          point="org.eclipse.ui.commands">
       <command
-            defaultHandler="codehint.DemonstratePropertyHandler"
-            id="codehint.demonstrateProperty"
-            name="Demonstrate property">
+            defaultHandler="codehint.DemonstrateLambdaPropertyHandler"
+            id="codehint.demonstrateLambdaProperty"
+            name="Demonstrate lambda property">
       </command>
    </extension>
    
@@ -61,6 +61,27 @@
             defaultHandler="codehint.DemonstrateTypeHandler"
             id="codehint.demonstrateType"
             name="Demonstrate type">
+      </command>
+   </extension>
+   
+   <extension
+         point="org.eclipse.ui.menus">
+      <menuContribution
+            allPopups="false"
+            locationURI="popup:org.eclipse.debug.ui.VariableView">
+         <command
+               commandId="codehint.demonstrateStateProperty"
+               label="Demonstrate state property"
+               style="push">
+         </command>
+      </menuContribution>
+   </extension>
+   <extension
+         point="org.eclipse.ui.commands">
+      <command
+            defaultHandler="codehint.DemonstrateStatePropertyHandler"
+            id="codehint.demonstrateStateProperty"
+            name="Demonstrate state property">
       </command>
    </extension>
 

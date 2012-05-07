@@ -14,5 +14,25 @@ public class CodeHint {
     public static <T> T chosen(T v) {
     	return v;
     }
+    
+    public static <T> T pre(T v) {
+    	return v;
+    }
+    
+    public static <T> T post(T v) {
+    	return v;
+    }
+    
+    public static <T> void pdspec(T var, boolean b) {
+    	assert b;
+    }
+    
+    public static <T> void value(T var, T val) {
+    	assert var == val;
+    }
+    
+    public static <T> void type(Object var) {
+    	assert false;
+    }
 
 }

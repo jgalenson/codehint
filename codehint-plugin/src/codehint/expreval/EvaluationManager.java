@@ -30,6 +30,7 @@ import org.eclipse.jdt.internal.debug.core.model.JDIDebugTarget;
 
 import codehint.EclipseUtils;
 import codehint.Property;
+import codehint.StateProperty;
 
 /**
  * Class for evaluating expressions.
@@ -109,36 +110,42 @@ public class EvaluationManager {
 		// TODO: If the user has variables with the same names as the ones I introduce, this will crash....
 		int numExprsToEvaluate = 0;
 		StringBuilder expressionsStr = new StringBuilder();
-		int i = startIndex == -1 ? 0 : startIndex; 
-    	for (; i < exprs.size() && (startIndex == -1 || numExprsToEvaluate < batchSize); i++) {
-    		Expression curExpr = exprs.get(i);
-    		PreconditionFinder pf = new PreconditionFinder();
-    		curExpr.accept(pf);
-    		String preconditions = pf.getPreconditions();
-    		if (startIndex == -1 && pf.canThrowException()) {  // If we do not want to immediately evaluate things that can throw exceptions, collect them and do them later.
-    			unevaluatedExpressions.add(curExpr);
-    			continue;
-    		}
-    		String valueLHS = "_$value[" + numExprsToEvaluate + "]";
-    		String validLHS = "_$valid[" + numExprsToEvaluate + "]";
-    		String validVal = property == null ? "true" : property.getReplacedString(valueLHS);
-    		String body = "{\n _$legal[" + numExprsToEvaluate + "] = true;\n " + valueLHS + " = " + curExpr.toString() + ";\n " + validLHS + " = " + validVal + ";\n}\n";
-    		if (preconditions.length() > 0)
-    			expressionsStr.append("if (" + preconditions + ") ");
-			expressionsStr.append(body);
-			if (startIndex == -1)
-				evaluatedExpressions.add(curExpr);
-    		numExprsToEvaluate++;
-    	}
-    	String newTypeString = "[" + numExprsToEvaluate + "]";
-    	if (type.contains("[]")) {  // If this is an array type, we must specify our new size as the first array dimension, not the last one.
-    		int index = type.indexOf("[]");
-    		newTypeString = type.substring(0, index) + newTypeString + type.substring(index); 
-    	} else
-    		newTypeString = type + newTypeString;
-		expressionsStr.insert(0, "{\nboolean[] _$legal = new boolean[" + numExprsToEvaluate + "];\n" + type + "[] _$value = new " + newTypeString + ";\nboolean[] _$valid = new boolean[" + numExprsToEvaluate + "];\n");
-    	expressionsStr.append("return new Object[] { _$legal, _$value, _$valid };\n}");
+		
 		try {
+			if (property instanceof StateProperty)
+				for (String preVar: ((StateProperty)property).getPreVariables())
+					expressionsStr.append(stack.findVariable(preVar).getJavaType().getName() + " " + StateProperty.getRenamedVar(preVar) + " = " + preVar + ";\n");
+			
+			int i = startIndex == -1 ? 0 : startIndex; 
+	    	for (; i < exprs.size() && (startIndex == -1 || numExprsToEvaluate < batchSize); i++) {
+	    		Expression curExpr = exprs.get(i);
+	    		PreconditionFinder pf = new PreconditionFinder();
+	    		curExpr.accept(pf);
+	    		String preconditions = pf.getPreconditions();
+	    		if (startIndex == -1 && pf.canThrowException()) {  // If we do not want to immediately evaluate things that can throw exceptions, collect them and do them later.
+	    			unevaluatedExpressions.add(curExpr);
+	    			continue;
+	    		}
+	    		String valueLHS = "_$value[" + numExprsToEvaluate + "]";
+	    		String validLHS = "_$valid[" + numExprsToEvaluate + "]";
+	    		String validVal = property == null ? "true" : property.getReplacedString(valueLHS);
+	    		String body = "{\n _$legal[" + numExprsToEvaluate + "] = true;\n " + valueLHS + " = " + curExpr.toString() + ";\n " + validLHS + " = " + validVal + ";\n}\n";
+	    		if (preconditions.length() > 0)
+	    			expressionsStr.append("if (" + preconditions + ") ");
+				expressionsStr.append(body);
+				if (startIndex == -1)
+					evaluatedExpressions.add(curExpr);
+	    		numExprsToEvaluate++;
+	    	}
+	    	String newTypeString = "[" + numExprsToEvaluate + "]";
+	    	if (type.contains("[]")) {  // If this is an array type, we must specify our new size as the first array dimension, not the last one.
+	    		int index = type.indexOf("[]");
+	    		newTypeString = type.substring(0, index) + newTypeString + type.substring(index); 
+	    	} else
+	    		newTypeString = type + newTypeString;
+			expressionsStr.insert(0, "{\nboolean[] _$legal = new boolean[" + numExprsToEvaluate + "];\n" + type + "[] _$value = new " + newTypeString + ";\nboolean[] _$valid = new boolean[" + numExprsToEvaluate + "];\n");
+	    	expressionsStr.append("return new Object[] { _$legal, _$value, _$valid };\n}");
+	    	
 			// Evaluate things that cannot throw exceptions (and things that can if evaluateCanErrors is true).
 	    	//if (startIndex == -1) System.out.println("Doing " + numExprsToEvaluate + " quickly with startIndex=" + startIndex + ".");
 	    	ICompiledExpression compiled = engine.getCompiledExpression(expressionsStr.toString(), stack);
