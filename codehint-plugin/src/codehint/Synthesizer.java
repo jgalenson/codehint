@@ -36,6 +36,7 @@ import org.eclipse.jdt.core.dom.QualifiedName;
 import org.eclipse.jdt.core.dom.SimpleName;
 import org.eclipse.jdt.debug.core.IJavaArray;
 import org.eclipse.jdt.debug.core.IJavaObject;
+import org.eclipse.jdt.debug.core.IJavaPrimitiveValue;
 import org.eclipse.jdt.debug.core.IJavaStackFrame;
 import org.eclipse.jdt.debug.core.IJavaType;
 import org.eclipse.jdt.debug.core.IJavaValue;
@@ -46,8 +47,15 @@ import org.eclipse.jdt.internal.debug.core.model.JDIValue;
 import org.eclipse.jdt.internal.debug.ui.JDIModelPresentation;
 import org.eclipse.jface.text.BadLocationException;
 import org.eclipse.jface.text.IDocument;
+import org.eclipse.jface.viewers.ILabelProvider;
+import org.eclipse.jface.viewers.ILabelProviderListener;
+import org.eclipse.jface.viewers.IStructuredContentProvider;
+import org.eclipse.jface.viewers.Viewer;
+import org.eclipse.jface.window.Window;
+import org.eclipse.swt.graphics.Image;
 import org.eclipse.swt.widgets.Display;
 import org.eclipse.swt.widgets.Shell;
+import org.eclipse.ui.dialogs.ListSelectionDialog;
 import org.eclipse.ui.texteditor.ITextEditor;
 
 import codehint.expreval.EvaluatedExpression;
@@ -85,16 +93,26 @@ public class Synthesizer {
 
 					final List<EvaluatedExpression> validExpressions = ExpressionGenerator.generateExpression(target, frame, property, demonstration, varStaticType, monitor);
 
-					if (validExpressions.isEmpty())
+					if (validExpressions.isEmpty()) {
+						lastDemonstratedProperty = null;
 						return new Status(IStatus.ERROR, Activator.PLUGIN_ID, "No valid expressions were found.");
-					
-					final List<String> validExpressionStrings = EvaluatedExpression.snippetsOfEvaluatedExpressions(validExpressions);
+					}
 					//System.out.println("Valid expressions: " + validExpressionStrings.toString());
-
-		        	Display.getDefault().syncExec(new Runnable(){
+					
+		        	Display.getDefault().asyncExec(new Runnable(){
 						@Override
 						public void run() {
 							try {
+								CandidateSelector candidateSelector = new CandidateSelector(validExpressions.toArray(new EvaluatedExpression[0]));
+								List<EvaluatedExpression> finalExpressions = candidateSelector.getUserFilteredCandidates();
+								
+						        if (finalExpressions == null || finalExpressions.isEmpty()) {
+									lastDemonstratedProperty = null;
+						        	return;
+						        }
+								
+								List<String> validExpressionStrings = EvaluatedExpression.snippetsOfEvaluatedExpressions(finalExpressions);
+								
 								//Construct the textual line to insert.  Working in text seems easier than
 								// using the AST manipulators for now, but this may need revisited later.  
 								//TODO: For non primitive values, the static type would be wrong.  Need to get the _dynamic_ type
@@ -175,6 +193,100 @@ public class Synthesizer {
 		job.setPriority(Job.LONG);
 		job.setUser(true);
 		job.schedule();
+	}
+	
+	// TODO: Make the view prettier when it shows the values.  Perhaps http://stackoverflow.com/questions/8862589/how-to-add-multiple-columns-in-listselectiondialog-in-eclipse.
+	private static class CandidateSelector {
+		
+		private final ListSelectionDialog dialog;
+		
+		public CandidateSelector(EvaluatedExpression[] validExprs) {
+			dialog = new ListSelectionDialog(EclipseUtils.getShell(), "", new MyContentProvider(validExprs), new MyLabelProvider(), "Select the candidates to keep.");
+			dialog.setInitialSelections(validExprs);
+			dialog.setTitle("Select candidates");
+		}
+
+		private static class MyContentProvider implements IStructuredContentProvider {
+			
+			private final EvaluatedExpression[] validExprs;
+			
+			public MyContentProvider(EvaluatedExpression[] validExprs) {
+				this.validExprs = validExprs;
+			}
+
+			@Override
+			public void dispose() {}
+
+			@Override
+			public void inputChanged(Viewer viewer, Object oldInput, Object newInput) {}
+
+			@Override
+			public Object[] getElements(Object inputElement) {
+				return validExprs;
+			}
+			
+		}
+
+		private static class MyLabelProvider implements ILabelProvider {
+
+			private List<ILabelProviderListener> listeners = new ArrayList<ILabelProviderListener>();
+
+			@Override
+			public void addListener(ILabelProviderListener listener) {
+				listeners.add(listener);
+			}
+
+			@Override
+			public void dispose() {
+			}
+
+			@Override
+			public boolean isLabelProperty(Object element, String property) {
+				return false;
+			}
+
+			@Override
+			public void removeListener(ILabelProviderListener listener) {
+				listeners.remove(listener);
+			}
+
+			@Override
+			public Image getImage(Object element) {
+				return null;
+			}
+
+			@Override
+			public String getText(Object element) {
+				EvaluatedExpression cur = (EvaluatedExpression)element;
+				String str = cur.getSnippet() + "\t\t";
+				try {
+					// TODO: This could infinite loop.
+					if (cur.getResult() instanceof IJavaPrimitiveValue)
+						str += cur.getResult();
+					else if (cur.getResult().isNull())
+						str += "null";
+					else if (cur.getResult() instanceof IJavaArray)
+						str += EclipseUtils.evaluate("java.util.Arrays.toString(" + cur.getSnippet() + ")").getValueString();
+					else
+						str += cur.getResult() + ": " + EclipseUtils.evaluate("(" + cur.getSnippet() + ").toString()").getValueString();
+				} catch (DebugException e) {
+					throw new RuntimeException(e);
+				}
+				return str;
+			}
+			
+		};
+		
+		public List<EvaluatedExpression> getUserFilteredCandidates() {
+	        List<EvaluatedExpression> finalExpressions = null;
+	        if (dialog.open() == Window.OK) {
+	        	Object[] selected = dialog.getResult();
+	        	finalExpressions = new ArrayList<EvaluatedExpression>(selected.length);
+	        	for (Object e: selected)
+	        		finalExpressions.add((EvaluatedExpression)e);
+	        }
+	        return finalExpressions;
+		}
 	}
 
 	private static class ChoiceBreakpointListener implements IDebugEventSetListener {

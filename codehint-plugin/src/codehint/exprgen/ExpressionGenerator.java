@@ -268,11 +268,15 @@ public class ExpressionGenerator {
 									if (index < 0)
 										isNull = true;
 									else if (l.getValue() != null) {
-										IJavaArray array = (IJavaArray)l.getValue();
-										if (array.isNull() || index >= array.getLength())
+										if (l.getValue().isNull())
 											isNull = true;
-										else
-											value = array.getValue(index);
+										else {
+											IJavaArray array = (IJavaArray)l.getValue();
+											if (array.isNull() || index >= array.getLength())
+												isNull = true;
+											else
+												value = array.getValue(index);
+										}
 									}
 								}
 								if (!isNull)

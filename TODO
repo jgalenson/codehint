@@ -1,7 +1,9 @@
 Feature requests
 ----------------
+When users write a pdspec in the code, make it easier to start the synthesis.  We could set the breakpoint and start the debugger automatically when the user does something (e.g., right-click menu).  We could automatically pop the synthesis box when we hit a breakpoint on such a line.
+Make it easier to write pdspecs in the code.  Have variables without primes default to pre or post.  It would be great if we could use auto-complete to make them easier to type, but Eclipse doesn't seem to let us do that.
 Support auto-complete and error-highlighting in the dialog box when demonstrating.  See e.g. ChangeVariableValueInputDialog and ExpressionInputDialog.
-Let users easily select the correct expression from a choose statement.  Having to do it with typing is annoying.  Maybe put a warning over the choose and write Eclipse Quick Fix to let the user choose.  This could bring up a visual list where the user could select the correct one or shift-click to select multiple ones to keep (e.g., avoid constructors).  We should show the candidates like in the variable view window so users can look through them concretely.  Hovering over a method should show its Javadoc
+Improve the candidate selector dialog.  You should be able to browse values like in the variables view, and hovering over a method should show its Javadoc.
 Allow searching over the heap.  In variables view window, should be able to search values, types, names for a string.  Leo's idea.
 We should allow users to easily make demonstrations for new variables (currently you need the variable to exist so you can right-click it in the variables window, so you must make a fake assignment to it).  
 We should allow demonstrating generic statements using our new prime syntax.  This will allow us to call void methods and talk about side effects.
