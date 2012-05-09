@@ -407,7 +407,11 @@ public class ExpressionGenerator {
 					receiver = null;  // Don't use a receiver if it is null or the this type.
 				else if (field.isStatic())
 					receiver = makeStaticName(EclipseUtils.sanitizeTypename(objTypeName), JDIType.createType(target, objTypeImpl));
-				IJavaValue fieldValue = obj != null ? (IJavaValue)obj.getField(field.name(), !field.declaringType().equals(objTypeImpl)).getValue() : null;
+				IJavaValue fieldValue = null;
+				if (obj != null)
+					fieldValue = (IJavaValue)obj.getField(field.name(), !field.declaringType().equals(objTypeImpl)).getValue();
+				else if (field.isStatic())
+					fieldValue = (IJavaValue)((IJavaReferenceType)e.getType()).getField(field.name()).getValue();
 				TypedExpression fieldExpr = receiver == null ? makeVar(field.name(), fieldValue, fieldType, true) : makeFieldAccess(receiver, field.name(), fieldType, fieldValue); 
 				addUniqueExpressionToList(ops, fieldExpr, depth, maxDepth, equivalences);
 			}
