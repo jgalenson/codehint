@@ -219,7 +219,7 @@ public class ExpressionGenerator {
 				for (IJavaVariable l : locals) {
 					IJavaType lType = l.getJavaType();
 					if (isHelpfulType(lType, typeBound, supertypesMap, depth))
-						addUniqueExpressionToList(curLevel, makeVar(l.getName(), (IJavaValue)l.getValue(), lType), depth, maxDepth, equivalences);
+						addUniqueExpressionToList(curLevel, makeVar(l.getName(), (IJavaValue)l.getValue(), lType, false), depth, maxDepth, equivalences);
 				}
 				// Add "this" if we're not in a static context.
 				if (isHelpfulType(thisType, typeBound, supertypesMap, depth)
@@ -357,8 +357,10 @@ public class ExpressionGenerator {
 						if (!imp.isOnDemand()) {  // TODO: What should we do with import *s?  It might be too expensive to try all static methods.  This ignores them.
 							IJavaType[] importedTypes = target.getJavaTypes(fullName);
 							if (importedTypes != null) {
-			    				addFieldAccesses(makeStaticName(shortName, importedTypes[0]), typeBound, curLevel, thisType, target, supertypesMap, equivalences, depth, maxDepth);
-								addMethodCalls(makeStaticName(shortName, importedTypes[0]), nextLevel, typeBound, curLevel, thisType, thread, target, (JDIStackFrame)stack, supertypesMap, equivalences, depth, maxDepth);
+								if (!objectInterfaceTypes.contains(importedTypes[0])) {  // We've already handled these above.
+									addFieldAccesses(makeStaticName(shortName, importedTypes[0]), typeBound, curLevel, thisType, target, supertypesMap, equivalences, depth, maxDepth);
+									addMethodCalls(makeStaticName(shortName, importedTypes[0]), nextLevel, typeBound, curLevel, thisType, thread, target, (JDIStackFrame)stack, supertypesMap, equivalences, depth, maxDepth);
+								}
 							} else  // TODO: Handle this case, where the class is not yet loaded in the child VM.  I can either try to get the VM to load the class or get the IType from EclipseUtils.getProject(stack).findType(name) and use that interface instead.
 								;//System.err.println("I cannot get the class of the import " + fullName);
 						}
@@ -406,7 +408,7 @@ public class ExpressionGenerator {
 				else if (field.isStatic())
 					receiver = makeStaticName(EclipseUtils.sanitizeTypename(objTypeName), JDIType.createType(target, objTypeImpl));
 				IJavaValue fieldValue = obj != null ? (IJavaValue)obj.getField(field.name(), !field.declaringType().equals(objTypeImpl)).getValue() : null;
-				TypedExpression fieldExpr = receiver == null ? makeVar(field.name(), fieldValue, fieldType) : makeFieldAccess(receiver, field.name(), fieldType, fieldValue); 
+				TypedExpression fieldExpr = receiver == null ? makeVar(field.name(), fieldValue, fieldType, true) : makeFieldAccess(receiver, field.name(), fieldType, fieldValue); 
 				addUniqueExpressionToList(ops, fieldExpr, depth, maxDepth, equivalences);
 			}
 		}
@@ -506,7 +508,7 @@ public class ExpressionGenerator {
 	 * @param e Expression to add if it is unique.
 	 */
 	private static void addUniqueExpressionToList(List<TypedExpression> list, TypedExpression e, int depth, int maxDepth, Map<IJavaValue, Set<EvaluatedExpression>> equivalences) {
-		if (e != null && getDepth(e.getExpression()) == (maxDepth - depth) && isUnique(e))
+		if (e != null && getDepth(e) == (maxDepth - depth) && isUnique(e))
 			list.add(e);
 			//addWithEquivalenceCheck(list, e, equivalences);
 	}
@@ -844,6 +846,14 @@ public class ExpressionGenerator {
     	return checker.isUnique();
     }
     
+    private static int getDepth(TypedExpression expr) {
+    	Object depthProp = expr.getExpression().getProperty("depth");
+    	if (depthProp != null)
+    		return ((Integer)depthProp).intValue();
+    	else
+    		return getDepth(expr.getExpression());
+    }
+    
     private static int getDepth(Expression expr) {
     	if (expr instanceof NumberLiteral || expr instanceof BooleanLiteral || expr instanceof Name || expr instanceof ThisExpression || expr instanceof NullLiteral)
 			return 0;
@@ -1082,9 +1092,11 @@ public class ExpressionGenerator {
     	return new TypedExpression(e, null, JDIValue.createValue(target, null));
     }
     
-    private static TypedExpression makeVar(String name, IJavaValue value, IJavaType type) {
+    private static TypedExpression makeVar(String name, IJavaValue value, IJavaType type, boolean isFieldAccess) {
     	Expression e = ast.newSimpleName(name);
     	setExpressionValue(e, value);
+    	if (isFieldAccess)
+    		e.setProperty("depth", 1);
     	return new TypedExpression(e, type, value);
     }
     

@@ -261,6 +261,7 @@ public class Synthesizer {
 				String str = cur.getSnippet() + "\t\t";
 				try {
 					// TODO: This could infinite loop.
+					// TODO-optimization: I can compute this in EvaluationManager (only if the spec is true) and store it in the EvaluatedExpression to reduce overheads.
 					if (cur.getResult() instanceof IJavaPrimitiveValue)
 						str += cur.getResult();
 					else if (cur.getResult().isNull())
