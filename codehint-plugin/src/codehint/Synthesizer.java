@@ -45,6 +45,9 @@ import org.eclipse.jdt.debug.core.JDIDebugModel;
 import org.eclipse.jdt.internal.debug.core.model.JDIDebugTarget;
 import org.eclipse.jdt.internal.debug.core.model.JDIValue;
 import org.eclipse.jdt.internal.debug.ui.JDIModelPresentation;
+import org.eclipse.jface.resource.FontDescriptor;
+import org.eclipse.jface.resource.JFaceResources;
+import org.eclipse.jface.resource.LocalResourceManager;
 import org.eclipse.jface.text.BadLocationException;
 import org.eclipse.jface.text.IDocument;
 import org.eclipse.jface.viewers.ILabelProvider;
@@ -52,7 +55,11 @@ import org.eclipse.jface.viewers.ILabelProviderListener;
 import org.eclipse.jface.viewers.IStructuredContentProvider;
 import org.eclipse.jface.viewers.Viewer;
 import org.eclipse.jface.window.Window;
+import org.eclipse.swt.SWT;
+import org.eclipse.swt.graphics.Font;
 import org.eclipse.swt.graphics.Image;
+import org.eclipse.swt.widgets.Composite;
+import org.eclipse.swt.widgets.Control;
 import org.eclipse.swt.widgets.Display;
 import org.eclipse.swt.widgets.Shell;
 import org.eclipse.ui.dialogs.ListSelectionDialog;
@@ -201,9 +208,29 @@ public class Synthesizer {
 		private final ListSelectionDialog dialog;
 		
 		public CandidateSelector(EvaluatedExpression[] validExprs) {
-			dialog = new ListSelectionDialog(EclipseUtils.getShell(), "", new MyContentProvider(validExprs), new MyLabelProvider(), "Select the candidates to keep.");
+			dialog = new MyDialog(EclipseUtils.getShell(), "", new MyContentProvider(validExprs), new MyLabelProvider(validExprs), "Select the candidates to keep.  The expressions are on the left and their values are on the right.  Objects have their toStrings shown.");
 			dialog.setInitialSelections(validExprs);
 			dialog.setTitle("Select candidates");
+		}
+		
+		private static class MyDialog extends ListSelectionDialog {
+			
+			public MyDialog(Shell parentShell, Object input, IStructuredContentProvider contentProvider, ILabelProvider labelProvider, String message) {
+				super(parentShell, input, contentProvider, labelProvider, message);
+			}
+
+			// TODO: Find a nicer way to give a two-column dialog.  This hackily changes the font to be monospaced.
+			@Override
+			protected Control createDialogArea(Composite parent) {
+				Control c = super.createDialogArea(parent);
+				// Pick some monospaced font.
+				Font font = (new LocalResourceManager(JFaceResources.getResources(), c)).createFont(FontDescriptor.createFrom("DejaVu Sans Mono", 10, SWT.NORMAL));
+				// Apply it to the elements in the dialog but not the buttons and text at the top.
+				// Note that this relies heavily on the implementation of ListSelectionDialog.
+				((Composite)c).getChildren()[1].setFont(font);
+				return c;
+			}
+			
 		}
 
 		private static class MyContentProvider implements IStructuredContentProvider {
@@ -229,7 +256,16 @@ public class Synthesizer {
 
 		private static class MyLabelProvider implements ILabelProvider {
 
-			private List<ILabelProviderListener> listeners = new ArrayList<ILabelProviderListener>();
+			private final int maxSnippetLength;
+			private final List<ILabelProviderListener> listeners = new ArrayList<ILabelProviderListener>();
+			
+			public MyLabelProvider(EvaluatedExpression[] validExprs) {
+				int maxSnippetLen = -1;
+				for (EvaluatedExpression e: validExprs)
+					if (e.getSnippet().length() > maxSnippetLen)
+						maxSnippetLen = e.getSnippet().length();
+				maxSnippetLength = maxSnippetLen;
+			}
 
 			@Override
 			public void addListener(ILabelProviderListener listener) {
@@ -258,7 +294,10 @@ public class Synthesizer {
 			@Override
 			public String getText(Object element) {
 				EvaluatedExpression cur = (EvaluatedExpression)element;
-				String str = cur.getSnippet() + "\t\t";
+				String str = cur.getSnippet();
+				for (int i = str.length(); i < maxSnippetLength; i++)
+					str += " ";
+				str += "  ";
 				try {
 					// TODO: This could infinite loop.
 					// TODO-optimization: I can compute this in EvaluationManager (only if the spec is true) and store it in the EvaluatedExpression to reduce overheads.
@@ -269,7 +308,7 @@ public class Synthesizer {
 					else if (cur.getResult() instanceof IJavaArray)
 						str += EclipseUtils.evaluate("java.util.Arrays.toString(" + cur.getSnippet() + ")").getValueString();
 					else
-						str += cur.getResult() + ": " + EclipseUtils.evaluate("(" + cur.getSnippet() + ").toString()").getValueString();
+						str += EclipseUtils.evaluate("(" + cur.getSnippet() + ").toString()").getValueString();
 				} catch (DebugException e) {
 					throw new RuntimeException(e);
 				}
