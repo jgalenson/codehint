@@ -367,7 +367,7 @@ public class Synthesizer {
 	               		
 	               		Matcher matcher = choosePattern.matcher(fullCurLine);
 	               		if(matcher.matches())
-	               			refineExpressions(frame, matcher, thread, line, document, offset, length);
+	               			refineExpressions(frame, matcher, thread, line);
 					} catch (DebugException e) {
 						e.printStackTrace();
 			        	EclipseUtils.showError("Error", "An error occurred during refinement.", e);
@@ -382,7 +382,7 @@ public class Synthesizer {
 	        
 	    }
 	    
-	    private static void refineExpressions(IJavaStackFrame frame, Matcher matcher, IThread thread, int line, IDocument document, int offset, int length) throws DebugException {
+	    private static void refineExpressions(IJavaStackFrame frame, Matcher matcher, IThread thread, int line) throws DebugException {
 	    	String curLine = matcher.group(0).trim();
    			
    			System.out.println("Beginning refinement for " + curLine + ".");
@@ -419,7 +419,7 @@ public class Synthesizer {
    			// If all expressions evaluate to the same value, use that and move on.
    			if (allHaveSameResult(exprs)) {
    				if (exprs.size() < initialExprs.size())  // Some expressions crashed, so remove them from the code.
-           			newLine = rewriteLine(line, document, offset, length, matcher, varname, curLine, initialProperty, demonstratedProperty, exprs);
+           			newLine = rewriteLine(matcher, varname, curLine, initialProperty, demonstratedProperty, exprs, line);
    				value = exprs.get(0).getResult();
    				automatic = true;
    			} else {
@@ -464,7 +464,7 @@ public class Synthesizer {
        			}
    				value = validExprs.get(0).getResult();  // The returned values could be different, so we arbitrarily use the first one.  This might not be the best thing to do.
        			
-       			newLine = rewriteLine(line, document, offset, length, matcher, varname, curLine, property, demonstratedProperty, validExprs);
+       			newLine = rewriteLine(matcher, varname, curLine, property, demonstratedProperty, validExprs, line);
 
        			if (validExprs.size() == 1) {
            			// If there's only a single possibility remaining, remove the breakpoint.
@@ -495,7 +495,7 @@ public class Synthesizer {
    			thread.resume();
 	    }
 
-		private static String rewriteLine(final int line, final IDocument document, final int offset, final int length, Matcher matcher, final String varname, String curLine, Property property, boolean demonstratedProperty, ArrayList<EvaluatedExpression> validExprs) {
+		private static String rewriteLine(Matcher matcher, final String varname, String curLine, Property property, boolean demonstratedProperty, ArrayList<EvaluatedExpression> validExprs, final int line) {
 			List<String> newExprsStrs = EvaluatedExpression.snippetsOfEvaluatedExpressions(validExprs);
 			String varDeclaration = matcher.group(1) != null ? matcher.group(1) + " " : "";
 			final String newLine = varDeclaration + generateChooseOrChosenStmt(varname, newExprsStrs);
@@ -505,11 +505,11 @@ public class Synthesizer {
 				@Override
 				public void run() {
 					try {
-						document.replace(offset, length, ""); //delete the old line
-						EclipseUtils.insertIndentedLine(document, line, newLine); //insert the new line
+						EclipseUtils.replaceLine(newLine, line);
 					} catch (BadLocationException e) {
-						e.printStackTrace();
-						assert false;
+						throw new RuntimeException(e);
+					} catch (DebugException e) {
+						throw new RuntimeException(e);
 					}
 				}
 			});

@@ -424,8 +424,11 @@ public class EclipseUtils {
         	return StateProperty.isLegalProperty(newText);
         }
     }
-   	
-   	public static void insertIndentedLine(IDocument document, int line, String text) throws BadLocationException {
+    
+   	public static void insertIndentedLineAtCurrentDebugPoint(String text) throws BadLocationException, DebugException {
+   		int line = getStackFrame().getLineNumber() - 1;
+   		IDocument document = getDocument();
+   		
    		int offset = document.getLineOffset(line);
    		int firstchar = offset;
    		while( document.getChar(firstchar) == ' ' ||
@@ -436,12 +439,6 @@ public class EclipseUtils {
    		//Bug fix: need to keep the debug cursor before the inserted line so we can
    		// execute it.  Inserting at beginning of line shifts it down one.
    		document.replace(firstchar, 0, text + "\n" + indent); //$NON-NLS-1$
-   	}
-    
-   	public static void insertIndentedLineAtCurrentDebugPoint(String text) throws BadLocationException, DebugException {
-   		int line = getStackFrame().getLineNumber() - 1;
-   		IDocument document = getDocument();
-   		insertIndentedLine(document, line, text);
    		
    		//Log the change for debugging
    		//System.out.println("Inserting text: \"\"\"" + text + "\"\"\" at " + path + " line " + line + " position " + start + " to " + end);
@@ -450,6 +447,10 @@ public class EclipseUtils {
    	
    	public static void replaceLineAtCurrentDebugPoint(String newText) throws DebugException, BadLocationException {
    		int line = getStackFrame().getLineNumber() - 1;
+   		replaceLine(newText, line);
+   	}
+   	
+   	public static void replaceLine(String newText, int line) throws DebugException, BadLocationException {
    		IDocument document = getDocument();
    		
    		int offset = document.getLineOffset(line);
