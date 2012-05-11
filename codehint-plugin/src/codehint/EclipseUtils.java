@@ -222,7 +222,7 @@ public class EclipseUtils {
         		return "x" + i;
     }
     
-    private static String getDefaultTypeName(IJavaType varStaticType, IJavaProject project, IType varType, IType thisType, String varStaticTypeName) throws JavaModelException, DebugException {
+    private static String getDefaultTypeName(IJavaType varStaticType, IJavaProject project, IType varType, IType thisType, String varStaticTypeName) throws DebugException {
     	if (varStaticType == null || isPrimitive(varStaticType.getSignature()))
     		return "";
 		
@@ -450,7 +450,7 @@ public class EclipseUtils {
    		replaceLine(newText, line);
    	}
    	
-   	public static void replaceLine(String newText, int line) throws DebugException, BadLocationException {
+   	public static void replaceLine(String newText, int line) throws BadLocationException {
    		IDocument document = getDocument();
    		
    		int offset = document.getLineOffset(line);

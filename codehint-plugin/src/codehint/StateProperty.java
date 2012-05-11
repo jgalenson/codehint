@@ -142,8 +142,8 @@ public class StateProperty extends Property {
 				String nodeId = ((SimpleName)node.arguments().get(0)).getIdentifier();
 				this.buffer.append(nodeId.equals(lhs) ? arg : nodeId);
 				return false;
-			}
-			return true;
+			} else
+				return super.visit(node);
 		}
 		
 	}

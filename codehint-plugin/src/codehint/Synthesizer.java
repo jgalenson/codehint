@@ -508,8 +508,6 @@ public class Synthesizer {
 						EclipseUtils.replaceLine(newLine, line);
 					} catch (BadLocationException e) {
 						throw new RuntimeException(e);
-					} catch (DebugException e) {
-						throw new RuntimeException(e);
 					}
 				}
 			});
