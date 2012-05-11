@@ -29,12 +29,9 @@ import org.eclipse.jdt.debug.core.IJavaVariable;
 import org.eclipse.jdt.debug.eval.IAstEvaluationEngine;
 import org.eclipse.jdt.debug.eval.IEvaluationListener;
 import org.eclipse.jdt.debug.eval.IEvaluationResult;
-import org.eclipse.jdt.internal.debug.core.JDIDebugPlugin;
 import org.eclipse.jdt.internal.debug.ui.EvaluationContextManager;
 import org.eclipse.jdt.internal.debug.ui.IJavaDebugHelpContextIds;
-import org.eclipse.jdt.internal.debug.ui.JDIDebugUIPlugin;
 import org.eclipse.jdt.internal.debug.ui.JDIModelPresentation;
-import org.eclipse.jdt.internal.debug.ui.actions.ActionMessages;
 import org.eclipse.jdt.internal.debug.ui.actions.EvaluateAction;
 import org.eclipse.jface.dialogs.ErrorDialog;
 import org.eclipse.jface.dialogs.IInputValidator;
@@ -52,6 +49,8 @@ import org.eclipse.ui.IWorkbench;
 import org.eclipse.ui.IWorkbenchPage;
 import org.eclipse.ui.PlatformUI;
 import org.eclipse.ui.texteditor.ITextEditor;
+
+import codehint.expreval.EvaluationManager.EvaluationError;
 
 public class EclipseUtils {
     
@@ -286,9 +285,7 @@ public class EclipseUtils {
         	@Override
 			protected Control createDialogArea(Composite parent) {
         		IWorkbench workbench = PlatformUI.getWorkbench();
-        		workbench.getHelpSystem().setHelp(
-        				parent,
-        				IJavaDebugHelpContextIds.DEFAULT_INPUT_DIALOG);
+        		workbench.getHelpSystem().setHelp(parent, IJavaDebugHelpContextIds.DEFAULT_INPUT_DIALOG);
         		return super.createDialogArea(parent);
         	}
         };
@@ -499,7 +496,7 @@ public class EclipseUtils {
             final IJavaProject project= EclipseUtils.getProject(frame);
             if (project != null) {
                 final IEvaluationResult[] results= new IEvaluationResult[1];
-                IAstEvaluationEngine engine = JDIDebugPlugin.getDefault().getEvaluationEngine(project, (IJavaDebugTarget) thread.getDebugTarget());
+                IAstEvaluationEngine engine = org.eclipse.jdt.debug.eval.EvaluationManager.newAstEvaluationEngine(project, (IJavaDebugTarget)thread.getDebugTarget());
                 IEvaluationListener listener= new IEvaluationListener() {
                     @Override
 					public void evaluationComplete(IEvaluationResult result) {
@@ -515,14 +512,14 @@ public class EclipseUtils {
     					project.wait();
     				} catch (InterruptedException e) {
     					if (results[0] == null)
-	        			    throw new DebugException(new Status(IStatus.ERROR, JDIDebugUIPlugin.getUniqueIdentifier(), IStatus.ERROR, ActionMessages.JavaObjectValueEditor_0, e));
+    						throw new RuntimeException(e);
     				}
     			}
     			IEvaluationResult result= results[0];
     			if (result == null)
     			    return null;
     			if (result.hasErrors())
-    			    throw new DebugException(new Status(IStatus.ERROR, JDIDebugUIPlugin.getUniqueIdentifier(), IStatus.ERROR, getErrors(result), null));
+    				throw new EvaluationError("Evaluation error: " + "The following errors were encountered during evaluation.\nDid you enter a valid property?\n\n" + getErrors(result));
     			return result.getValue();
             }
         }

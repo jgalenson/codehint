@@ -35,6 +35,7 @@ import org.eclipse.jdt.core.dom.NumberLiteral;
 import org.eclipse.jdt.core.dom.QualifiedName;
 import org.eclipse.jdt.core.dom.SimpleName;
 import org.eclipse.jdt.debug.core.IJavaArray;
+import org.eclipse.jdt.debug.core.IJavaDebugTarget;
 import org.eclipse.jdt.debug.core.IJavaObject;
 import org.eclipse.jdt.debug.core.IJavaPrimitiveValue;
 import org.eclipse.jdt.debug.core.IJavaStackFrame;
@@ -43,8 +44,6 @@ import org.eclipse.jdt.debug.core.IJavaValue;
 import org.eclipse.jdt.debug.core.IJavaVariable;
 import org.eclipse.jdt.debug.core.JDIDebugModel;
 import org.eclipse.jdt.internal.debug.core.model.JDIDebugTarget;
-import org.eclipse.jdt.internal.debug.core.model.JDIValue;
-import org.eclipse.jdt.internal.debug.ui.JDIModelPresentation;
 import org.eclipse.jface.resource.FontDescriptor;
 import org.eclipse.jface.resource.JFaceResources;
 import org.eclipse.jface.resource.LocalResourceManager;
@@ -387,7 +386,7 @@ public class Synthesizer {
    			
    			System.out.println("Beginning refinement for " + curLine + ".");
 	    	
-	    	JDIDebugTarget target = (JDIDebugTarget)frame.getDebugTarget();
+   			IJavaDebugTarget target = (IJavaDebugTarget)frame.getDebugTarget();
    			final String varname = matcher.group(2);
 	    	final IJavaVariable lhsVar = getLHSVariable(EclipseUtils.parseExpr(parser, varname), frame);
    			// This is the declared type while vartype is the type of the array.  The difference is that if the static type is a primitive, the array type is the wrapper class.
@@ -396,7 +395,7 @@ public class Synthesizer {
    			// Parse the expression.
    			ASTNode node = EclipseUtils.parseExpr(parser, matcher.group(3));
    			// Get the possible expressions in a generic list.
-   			Iterator it = ((MethodInvocation)node).arguments().iterator();
+   			Iterator<?> it = ((MethodInvocation)node).arguments().iterator();
    			ArrayList<Expression> initialExprs = new ArrayList<Expression>();
    			while (it.hasNext())
    				initialExprs.add((Expression)it.next());
@@ -438,10 +437,10 @@ public class Synthesizer {
        			if (!demonstratedProperty) {
            			String initValue = lhsVar != null ? EclipseUtils.javaStringOfValue((IJavaValue)lhsVar.getValue()) : "";
        				String resultStr = getExpressionFromUser(varname, initValue, "Choose one of: " + EvaluatedExpression.resultsOfEvaluatedExpressions(exprs).toString());
-       				if (JDIModelPresentation.isObjectValue(varSignature))
-       					property = LambdaProperty.fromObject(resultStr);
-       				else
+       				if (EclipseUtils.isPrimitive(varSignature))
 	       				property = LambdaProperty.fromPrimitive(resultStr);
+       				else
+       					property = LambdaProperty.fromObject(resultStr);
        			} else {
        				IJavaType varStaticType = lhsVar == null ? null : lhsVar.getJavaType();
        				String initValue = initialProperty != null ? initialProperty.toString() : null;
@@ -523,7 +522,7 @@ public class Synthesizer {
 	     * have the same results.
 	     */
 	    private static boolean allHaveSameResult(ArrayList<EvaluatedExpression> exprs) { 
-	    	JDIValue first = (JDIValue)exprs.get(0).getResult();  // For efficiency, let's only do one cast.
+	    	IJavaValue first = exprs.get(0).getResult();  // For efficiency, let's only do one cast.
 	    	for (int i = 1; i < exprs.size(); i++)
 	    		if (!first.equals(exprs.get(i).getResult()))
 	    			return false;

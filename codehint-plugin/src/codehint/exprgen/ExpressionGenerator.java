@@ -390,7 +390,7 @@ public class ExpressionGenerator {
 		boolean isStatic = e.getExpression().getProperty("isStatic") != null;
 		String objTypeName = isStatic ? e.getExpression().toString() : objTypeImpl.name();
 		// ...Why is this version of com.sun.jdi pre-1.5?  *cry*
-		Iterator it = ((ReferenceType)objTypeImpl).visibleFields().iterator();
+		Iterator<?> it = ((ReferenceType)objTypeImpl).visibleFields().iterator();
 		while (it.hasNext()) {
 			Field field = (Field)it.next();
 			if ((!field.isPublic() && !field.declaringType().equals(thisTypeImpl)) || (isStatic != field.isStatic()) || field.isSynthetic())
@@ -426,10 +426,10 @@ public class ExpressionGenerator {
 		boolean isStatic = !isConstructor && e.getExpression().getProperty("isStatic") != null;
 		String objTypeName = isStatic ? e.getExpression().toString() : objTypeImpl.name();
 		// This code is so much nicer in a functional language.</complain>
-		List visibleMethods = ((ReferenceType)objTypeImpl).visibleMethods();
+		List<?> visibleMethods = ((ReferenceType)objTypeImpl).visibleMethods();
 		List<Method> legalMethods = new ArrayList<Method>(visibleMethods.size());
 		Map<String, Map<Integer, List<Method>>> methodsByName = new HashMap<String, Map<Integer, List<Method>>>();
-		Iterator it = visibleMethods.iterator();
+		Iterator<?> it = visibleMethods.iterator();
 		while (it.hasNext()) {
 			Method method = (Method)it.next();
 			String name = method.name();
@@ -460,7 +460,7 @@ public class ExpressionGenerator {
 				//System.err.println("I cannot get the class of the return type of " + objTypeImpl.name() + "." + method.name() + "() (" + method.returnTypeName() + ")");
 			}
 			if (returnType != null && (isHelpfulType(returnType, typeBound, supertypesMap, depth) || method.isConstructor())) {  // Constructors have void type... 
-				List argumentTypes = null;
+				List<?> argumentTypes = null;
 				try {
 					argumentTypes = method.argumentTypes();
 				} catch (ClassNotLoadedException ex) {
@@ -476,7 +476,7 @@ public class ExpressionGenerator {
 						if (!m.argumentTypeNames().get(i).equals(method.argumentTypeNames().get(i)))
 							allHaveSameType[i] = false;
 				ArrayList<ArrayList<TypedExpression>> allPossibleActuals = new ArrayList<ArrayList<TypedExpression>>(argumentTypes.size());
-				Iterator aIt = argumentTypes.iterator();
+				Iterator<?> aIt = argumentTypes.iterator();
 				while (aIt.hasNext()) {
 					IJavaType argType = JDIType.createType(target, (Type)aIt.next());
 					ArrayList<TypedExpression> curPossibleActuals = new ArrayList<TypedExpression>();
@@ -573,7 +573,7 @@ public class ExpressionGenerator {
 		if (cur == null)
 			return expected == null || expected instanceof IJavaReferenceType;
 		if (expected == null)
-			return cur == null || cur instanceof IJavaReferenceType;
+			return cur instanceof IJavaReferenceType;
 		if (cur.equals(expected))
 			return true;
 		// Check arrays.
@@ -1316,9 +1316,9 @@ public class ExpressionGenerator {
     		return null;
     	Expression copy = (Expression)ASTNode.copySubtree(e.getAST(), e);
     	// Thanks for not copying properties...
-    	Iterator it = e.properties().entrySet().iterator();
+    	Iterator<?> it = e.properties().entrySet().iterator();
     	while (it.hasNext()) {
-    		Map.Entry property = (Map.Entry)it.next();
+    		Map.Entry<?,?> property = (Map.Entry<?,?>)it.next();
     		copy.setProperty((String)property.getKey(), property.getValue());
     	}
     	return copy;

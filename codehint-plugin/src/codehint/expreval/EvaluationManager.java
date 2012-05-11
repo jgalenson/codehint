@@ -20,13 +20,13 @@ import org.eclipse.jdt.core.dom.FieldAccess;
 import org.eclipse.jdt.core.dom.InfixExpression;
 import org.eclipse.jdt.core.dom.MethodInvocation;
 import org.eclipse.jdt.debug.core.IJavaArray;
+import org.eclipse.jdt.debug.core.IJavaDebugTarget;
 import org.eclipse.jdt.debug.core.IJavaStackFrame;
 import org.eclipse.jdt.debug.core.IJavaValue;
 import org.eclipse.jdt.debug.eval.IAstEvaluationEngine;
 import org.eclipse.jdt.debug.eval.ICompiledExpression;
 import org.eclipse.jdt.debug.eval.IEvaluationListener;
 import org.eclipse.jdt.debug.eval.IEvaluationResult;
-import org.eclipse.jdt.internal.debug.core.model.JDIDebugTarget;
 
 import codehint.EclipseUtils;
 import codehint.Property;
@@ -42,6 +42,8 @@ public class EvaluationManager {
 	
 	public static class EvaluationError extends RuntimeException {
 		
+		private static final long serialVersionUID = 1L;
+
 		public EvaluationError(String msg) {
 			super(msg);
 		}
@@ -53,15 +55,16 @@ public class EvaluationManager {
 	 * If the desired property is non-null, it returns those that satisfy it;
 	 * otherwise, it returns all those whose execution does not crash.
 	 * @param exprs The expressions to evaluate
-	 * @param target The Debug Target.
+	 * @param target The debug target.
 	 * @param stack The current stack frame.
 	 * @param type The static type of the desired expression.
 	 * @param property The desired property, or null if there is none.
+	 * @param monitor a progress monitor, or null if progress reporting and cancellation are not desired.
      * @return the results of the evaluations of the given expressions
      * that satisfy the given property, if it is non-null.
 	 */
-	public static ArrayList<EvaluatedExpression> evaluateExpressions(ArrayList<Expression> exprs, JDIDebugTarget target, IJavaStackFrame stack, String type, Property property, IProgressMonitor monitor) {
-		IAstEvaluationEngine engine = target.getEvaluationEngine(JavaCore.create(ResourcesPlugin.getWorkspace().getRoot().getProjects()[0]));
+	public static ArrayList<EvaluatedExpression> evaluateExpressions(ArrayList<Expression> exprs, IJavaDebugTarget target, IJavaStackFrame stack, String type, Property property, IProgressMonitor monitor) {
+		IAstEvaluationEngine engine = org.eclipse.jdt.debug.eval.EvaluationManager.newAstEvaluationEngine(JavaCore.create(ResourcesPlugin.getWorkspace().getRoot().getProjects()[0]), target);
 		int batchSize = exprs.size() >= 2 * BATCH_SIZE ? BATCH_SIZE : exprs.size() >= MIN_NUM_BATCHES ? exprs.size() / MIN_NUM_BATCHES : 1;
 		ArrayList<EvaluatedExpression> evaluatedExprs = evaluateExpressions(exprs, engine, stack, type, property, -1, batchSize, monitor);
 		return evaluatedExprs;
@@ -70,15 +73,16 @@ public class EvaluationManager {
 	/**
 	 * Filters the given evaluated expressions and keeps only
 	 * those that satisfy the given property.
-	 * @param exprs The expressions to filter
-	 * @param target The Debug Target.
+	 * @param evaledExprs The expressions to filter
+	 * @param target The debug target.
 	 * @param stack The current stack frame.
 	 * @param type The static type of the desired expression.
 	 * @param property The desired property.
+	 * @param monitor a progress monitor, or null if progress reporting and cancellation are not desired.
      * @return the evaluated expressions that satisfy
      * the given property.
 	 */
-	public static ArrayList<EvaluatedExpression> filterExpressions(ArrayList<EvaluatedExpression> evaledExprs, JDIDebugTarget target, IJavaStackFrame stack, String type, Property property) {
+	public static ArrayList<EvaluatedExpression> filterExpressions(ArrayList<EvaluatedExpression> evaledExprs, IJavaDebugTarget target, IJavaStackFrame stack, String type, Property property) {
 		ArrayList<Expression> exprs = new ArrayList<Expression>(evaledExprs.size());
 		for (EvaluatedExpression expr : evaledExprs)
 			exprs.add(expr.getExpression());
