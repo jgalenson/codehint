@@ -38,12 +38,12 @@ Improve method blacklist.
 We currently use the string of the inserted text as the key to store information about a choose statement.  We should at least also use the filename and line number, if not just use a tag like before.
 Improve guessing of the property during refinement.  It currently ignores demonstrating types.  I probably need to fix the bug about using better keys to store the information and make different subtypes of Property.
 Defaulting to showing crashing properties has problems: it uses the desugared properties (can be fixed by subtyping Property) and if you then demonstrate for a different variable, we still show the old failing one.
-The popup during refinement that shows the legal values is not helpful for objects, as it just displays their ids.  It should at least use their toStrings.  A better UI would be great.
+Show a better popup during refinement (instead of just displaying a list of values).
 Disable right-click menus when not applicable (more than one element is selected or trying to demonstrate the type of a primitive).
 Thanks to modeless input dialog, the user can continue/step and later fill in the box.
 We can generate an illegal LHS after a demonstration when the LHS is complicated and uses inheritance, e.g., "objectArray[1].subclassField = choose(...)" gives an error because the static type of the array access is Object not the subclass.  Note that allowing choose expressions on the LHS will probably fix/avoid this.
 Our default names for evaluation and properties will cause problems if they exist in the user's code.
-Add "import pbd.PBD;" and add pbd-lib.jar to the classpath if necessary.
+Add "import codehint.CodeHint;" and add codehint-lib.jar to the classpath if necessary.
 
 Optimizations
 -------------

@@ -300,21 +300,7 @@ public class Synthesizer {
 				String str = cur.getSnippet();
 				for (int i = str.length(); i < maxSnippetLength; i++)
 					str += " ";
-				str += "  ";
-				try {
-					// TODO: This could infinite loop.
-					// TODO-optimization: I can compute this in EvaluationManager (only if the spec is true) and store it in the EvaluatedExpression to reduce overheads.
-					if (cur.getResult() instanceof IJavaPrimitiveValue)
-						str += cur.getResult();
-					else if (cur.getResult().isNull())
-						str += "null";
-					else if (cur.getResult() instanceof IJavaArray)
-						str += EclipseUtils.evaluate("java.util.Arrays.toString(" + cur.getSnippet() + ")").getValueString();
-					else
-						str += EclipseUtils.evaluate("(" + cur.getSnippet() + ").toString()").getValueString();
-				} catch (DebugException e) {
-					throw new RuntimeException(e);
-				}
+				str += "  " + getValue(cur);
 				return str;
 			}
 			
@@ -369,8 +355,10 @@ public class Synthesizer {
 	               		String fullCurLine = document.get(offset, length);
 	               		
 	               		Matcher matcher = choosePattern.matcher(fullCurLine);
-	               		if(matcher.matches())
+	               		if(matcher.matches()) {
 	               			refineExpressions(frame, matcher, thread, line);
+	               			return;  // We often get duplicate events that would trigger this, but they must all be equivalent, so only handle the first. 
+	               		}
 					} catch (DebugException e) {
 						e.printStackTrace();
 			        	EclipseUtils.showError("Error", "An error occurred during refinement.", e);
@@ -440,7 +428,7 @@ public class Synthesizer {
        			Property property = null;
        			if (!demonstratedProperty) {
            			String initValue = lhsVar != null ? EclipseUtils.javaStringOfValue((IJavaValue)lhsVar.getValue()) : "";
-       				String resultStr = getExpressionFromUser(varname, initValue, "Choose one of: " + EvaluatedExpression.resultsOfEvaluatedExpressions(exprs).toString());
+       				String resultStr = getExpressionFromUser(varname, initValue, "\nChoose one of: " + getLegalValues(exprs));
        				if (EclipseUtils.isPrimitive(varSignature))
 	       				property = LambdaProperty.fromPrimitive(resultStr);
        				else
@@ -448,7 +436,7 @@ public class Synthesizer {
        			} else {
        				IJavaType varStaticType = lhsVar == null ? null : lhsVar.getJavaType();
        				String initValue = initialProperty != null ? initialProperty.toString() : null;
-       				property = getPropertyFromUser(varname, varStaticType, initValue, "Potential values are: " + EvaluatedExpression.resultsOfEvaluatedExpressions(exprs).toString(), frame, initialProperty);
+       				property = getPropertyFromUser(varname, varStaticType, initValue, "\nPotential values are: " + getLegalValues(exprs), frame, initialProperty);
        			}
        			if( property == null ) {
        				//The user cancelled, just drop back into the debugger and let the 
@@ -601,6 +589,33 @@ public class Synthesizer {
 	    	return null;
 	    }
 	    
+	    private static String getLegalValues(List<EvaluatedExpression> exprs) {
+	    	StringBuilder sb = new StringBuilder();
+	    	for (EvaluatedExpression e: exprs) {
+	    		if (sb.length() > 0)
+	    			sb.append(", ");
+	    		sb.append(getValue(e));
+	    	}
+	    	return sb.toString();
+	    }
+	    
+	}
+	
+	private static String getValue(EvaluatedExpression cur) {
+		try {
+			// TODO: This could infinite loop.
+			// TODO-optimization: I can compute this in EvaluationManager (only if the spec is true) and store it in the EvaluatedExpression to reduce overheads.
+			if (cur.getResult() instanceof IJavaPrimitiveValue)
+				return cur.getResult().getValueString();
+			else if (cur.getResult().isNull())
+				return "null";
+			else if (cur.getResult() instanceof IJavaArray)
+				return EclipseUtils.evaluate("java.util.Arrays.toString(" + cur.getSnippet() + ")").getValueString();
+			else
+				return EclipseUtils.evaluate("(" + cur.getSnippet() + ").toString()").getValueString();
+		} catch (DebugException e) {
+			throw new RuntimeException(e);
+		}
 	}
 	
     private static String generateChooseOrChosenStmt(String varname, List<String> expressions) {
