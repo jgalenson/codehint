@@ -8,8 +8,6 @@ import org.eclipse.jdt.core.dom.ASTMatcher;
 import org.eclipse.jdt.core.dom.Expression;
 import org.eclipse.jdt.debug.core.IJavaValue;
 
-import codehint.EclipseUtils;
-
 /**
  * The result of an evaluation, which contains the snippet of
  * code that was evaluated and the result.
@@ -61,23 +59,6 @@ public class EvaluatedExpression {
 		List<String> resultStrs = new ArrayList<String>(results.size());
 		for (EvaluatedExpression result : results)
 			resultStrs.add(result.getSnippet());
-		return resultStrs;
-	}
-
-	/**
-	 * Gets a list of the results of the given evaluated expressions.
-	 * @param results List of evaluated expressions.
-	 * @return The results of the given evaluated expressions.
-	 */
-	public static List<String> resultsOfEvaluatedExpressions(List<EvaluatedExpression> results) {
-		List<String> resultStrs = new ArrayList<String>(results.size());
-		try {
-			for (EvaluatedExpression result : results)
-				resultStrs.add(EclipseUtils.javaStringOfValue(result.getResult()));
-		} catch (DebugException e) {
-			e.printStackTrace();
-			throw new RuntimeException("Cannot get result.");
-		}
 		return resultStrs;
 	}
 	

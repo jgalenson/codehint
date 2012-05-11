@@ -87,9 +87,12 @@ public class StateProperty extends Property {
 
     	@Override
     	public boolean visit(MethodInvocation node) {
-    		if (isPre(node) || isPost(node))
-	    		if (node.arguments().size() != 1 || !(node.arguments().get(0) instanceof SimpleName))
+    		if (isPre(node) || isPost(node)) {
+	    		if (node.arguments().size() != 1)
+	    			error = "Call to " + node.getName() + " must take in only a variable, not " + node.arguments().toString();
+	    		else if (!(node.arguments().get(0) instanceof SimpleName))
 	    			error = "Call to " + node.getName() + " must take in only a variable, not " + node.arguments().get(0).toString();
+    		}
     		return true;
     	}
     	
