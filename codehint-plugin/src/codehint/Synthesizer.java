@@ -62,6 +62,7 @@ import org.eclipse.swt.widgets.Control;
 import org.eclipse.swt.widgets.Display;
 import org.eclipse.swt.widgets.Shell;
 import org.eclipse.ui.dialogs.ListSelectionDialog;
+import org.eclipse.ui.progress.UIJob;
 import org.eclipse.ui.texteditor.ITextEditor;
 
 import codehint.expreval.EvaluatedExpression;
@@ -104,17 +105,17 @@ public class Synthesizer {
 						return new Status(IStatus.ERROR, Activator.PLUGIN_ID, "No valid expressions were found.");
 					}
 					//System.out.println("Valid expressions: " + validExpressionStrings.toString());
-					
-		        	Display.getDefault().asyncExec(new Runnable(){
-						@Override
-						public void run() {
+
+			        UIJob job = new UIJob("Inserting synthesized code"){
+                        @Override
+                        public IStatus runInUIThread(IProgressMonitor monitor) {
 							try {
 								CandidateSelector candidateSelector = new CandidateSelector(validExpressions.toArray(new EvaluatedExpression[0]));
 								List<EvaluatedExpression> finalExpressions = candidateSelector.getUserFilteredCandidates();
 								
 						        if (finalExpressions == null || finalExpressions.isEmpty()) {
 									lastDemonstratedProperty = null;
-						        	return;
+									return new Status(IStatus.ERROR, Activator.PLUGIN_ID, "No valid expressions were found.");
 						        }
 								
 								List<String> validExpressionStrings = EvaluatedExpression.snippetsOfEvaluatedExpressions(finalExpressions);
@@ -176,13 +177,16 @@ public class Synthesizer {
 								lastDemonstratedProperty = null;
 			
 								System.out.println("Finishing synthesis for " + variable.toString() + " with property " + property.toString() + ".  Found " + validExpressions.size() + " expressions and inserted " + statement);
+								return Status.OK_STATUS;
 							} catch (DebugException e) {
 								e.printStackTrace();
 								EclipseUtils.showError("Error", "An error occurred processing your demonstration.", e);
 								throw new RuntimeException(e.getMessage());
 							}
 						}
-		        	});
+		        	};
+		            job.setUser(true);
+		            job.schedule();
 					return Status.OK_STATUS;
 				} catch (DebugException e) {
 					e.printStackTrace();
