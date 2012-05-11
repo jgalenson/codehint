@@ -112,8 +112,11 @@ public class Synthesizer {
 							try {
 								CandidateSelector candidateSelector = new CandidateSelector(validExpressions.toArray(new EvaluatedExpression[0]));
 								List<EvaluatedExpression> finalExpressions = candidateSelector.getUserFilteredCandidates();
-								
-						        if (finalExpressions == null || finalExpressions.isEmpty()) {
+
+						        if (finalExpressions == null) {
+									lastDemonstratedProperty = null;
+									return Status.CANCEL_STATUS;
+						        } else if (finalExpressions.isEmpty()) {
 									lastDemonstratedProperty = null;
 									return new Status(IStatus.ERROR, Activator.PLUGIN_ID, "No valid expressions were found.");
 						        }
@@ -427,18 +430,19 @@ public class Synthesizer {
        			String varSignature = lhsVar != null ? lhsVar.getSignature() : Signature.createTypeSignature(matcher.group(1), false);
        			Property property = null;
        			if (!demonstratedProperty) {
-           			String initValue = lhsVar != null ? EclipseUtils.javaStringOfValue((IJavaValue)lhsVar.getValue()) : "";
-       				String resultStr = getExpressionFromUser(varname, initValue, "\nChoose one of: " + getLegalValues(exprs));
-       				if (EclipseUtils.isPrimitive(varSignature))
-	       				property = LambdaProperty.fromPrimitive(resultStr);
-       				else
-       					property = LambdaProperty.fromObject(resultStr);
+       				String resultStr = getExpressionFromUser(varname, "", "\nChoose one of: " + getLegalValues(exprs));
+       				if (resultStr != null) {
+	       				if (EclipseUtils.isPrimitive(varSignature))
+		       				property = LambdaProperty.fromPrimitive(resultStr);
+	       				else
+	       					property = LambdaProperty.fromObject(resultStr);
+       				}
        			} else {
        				IJavaType varStaticType = lhsVar == null ? null : lhsVar.getJavaType();
        				String initValue = initialProperty != null ? initialProperty.toString() : null;
        				property = getPropertyFromUser(varname, varStaticType, initValue, "\nPotential values are: " + getLegalValues(exprs), frame, initialProperty);
        			}
-       			if( property == null ) {
+       			if (property == null) {
        				//The user cancelled, just drop back into the debugger and let the 
        				//use do what they want.  Attempting to execute the line will result
        				//in a crash anyway, so they can't screw anything up
