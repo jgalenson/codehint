@@ -1,0 +1,14 @@
+<contexts>
+	<context id="lambda" title="Synthesis">
+		<description>Enter a pdspec in the form of a boolean lambda expression that checks the result of the desired expression.</description>
+	</context>
+	<context id="value" title="Synthesis">
+		<description>Enter an expression that evaluates to the value you desire.</description>
+	</context>
+	<context id="type" title="Synthesis">
+		<description>Enter the desired type.</description>
+	</context>
+	<context id="state" title="Synthesis">
+		<description>Enter a pdspec that relates the input and output values of the variables in scope.</description>
+	</context>
+</contexts>

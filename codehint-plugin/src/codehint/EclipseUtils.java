@@ -30,7 +30,6 @@ import org.eclipse.jdt.debug.eval.IAstEvaluationEngine;
 import org.eclipse.jdt.debug.eval.IEvaluationListener;
 import org.eclipse.jdt.debug.eval.IEvaluationResult;
 import org.eclipse.jdt.internal.debug.ui.EvaluationContextManager;
-import org.eclipse.jdt.internal.debug.ui.IJavaDebugHelpContextIds;
 import org.eclipse.jdt.internal.debug.ui.JDIModelPresentation;
 import org.eclipse.jdt.internal.debug.ui.actions.EvaluateAction;
 import org.eclipse.jface.dialogs.ErrorDialog;
@@ -198,7 +197,7 @@ public class EclipseUtils {
 	        if (initialValue == null)
 	        	initialValue = getDefaultLambdaArgName(stackFrame) + getDefaultTypeName(varStaticType, project, varType, thisType, varStaticTypeName) + " => ";
 	        LambdaPropertyValidator validator= new LambdaPropertyValidator(stackFrame, project, varType, thisType);
-	        String stringValue = getDialogResult(title, message, extraMessage, initialValue, validator);
+	        String stringValue = getDialogResult(title, message, extraMessage, initialValue, validator, "lambda");
 	    	if (stringValue != null)
 	    		return LambdaProperty.fromPropertyString(stringValue);
 	    	else
@@ -238,7 +237,7 @@ public class EclipseUtils {
         ExpressionValidator validator= new ExpressionValidator();
         if (initialValue == null)
         	initialValue = "";
-        String stringValue = getDialogResult(title, message, extraMessage, initialValue, validator);
+        String stringValue = getDialogResult(title, message, extraMessage, initialValue, validator, "value");
     	return stringValue;
     }
     
@@ -258,7 +257,7 @@ public class EclipseUtils {
 	    	String title= "Demonstrate a type"; 
 	        String message= "Demonstrate a type for " + varName + ".  We will find expressions return that type when evaluated.";
 	        TypeValidator validator= new TypeValidator(project, varType, thisType);
-	        String stringValue = getDialogResult(title, message, null, initialValue, validator);
+	        String stringValue = getDialogResult(title, message, null, initialValue, validator, "type");
 	    	return stringValue;
     	} catch (JavaModelException e) {
  			throw new RuntimeException(e);
@@ -271,21 +270,21 @@ public class EclipseUtils {
 		String title= "Demonstrate state property"; 
         String message= "Demonstrate a state property that should hold for " + varName + " after this statement is executed.";
         StatePropertyValidator validator= new StatePropertyValidator();
-        String stringValue = getDialogResult(title, message, extraMessage, initialValue, validator);
+        String stringValue = getDialogResult(title, message, extraMessage, initialValue, validator, "state");
     	if (stringValue != null)
     		return StateProperty.fromPropertyString(varName, stringValue);
     	else
     		return null;
     }
     
-    private static String getDialogResult(String title, String message, String extraMessage, String initialValue, IInputValidator validator) {
+    private static String getDialogResult(String title, String message, String extraMessage, String initialValue, IInputValidator validator, final String helpContext) {
         if (extraMessage != null)
         	message += System.getProperty("line.separator") + extraMessage;
     	InputDialog dialog= new ModelessInputDialog(null, title, message, initialValue, validator){
         	@Override
 			protected Control createDialogArea(Composite parent) {
         		IWorkbench workbench = PlatformUI.getWorkbench();
-        		workbench.getHelpSystem().setHelp(parent, IJavaDebugHelpContextIds.DEFAULT_INPUT_DIALOG);
+        		workbench.getHelpSystem().setHelp(parent, Activator.PLUGIN_ID + "." + helpContext);
         		return super.createDialogArea(parent);
         	}
         };

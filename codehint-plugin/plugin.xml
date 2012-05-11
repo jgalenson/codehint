@@ -84,5 +84,12 @@
             name="Demonstrate state property">
       </command>
    </extension>
+   <extension
+         point="org.eclipse.help.contexts">
+      <contexts
+            file="contexts.xml"
+            plugin="codehint">
+      </contexts>
+   </extension>
 
 </plugin>

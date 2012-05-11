@@ -23,6 +23,7 @@ Use heuristics to sort the candidates.
 Add constants given in the property to the space of expressions to search.  For example, if the property is "x => x.indexOf(':') > 0" we should add ':' to our search space (just like we add the demonstrated value). 
 If you're highlighting a variable in the text area, add a shortcut to pop up the demonstrate box.
 Add a default value for textbox when there's disagreement during refinement.
+Use the Eclipse help system to add detailed help.  See e.g., http://help.eclipse.org/indigo/index.jsp?topic=%2Forg.eclipse.platform.doc.isv%2Fguide%2Fua_help.htm and http://rajakannappan.blogspot.com/2009/05/working-with-eclipse-help-system.html.
 
 Bugs
 ----
