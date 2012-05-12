@@ -39,6 +39,7 @@ import org.eclipse.jdt.core.dom.ThisExpression;
 import org.eclipse.jdt.debug.core.IJavaArray;
 import org.eclipse.jdt.debug.core.IJavaArrayType;
 import org.eclipse.jdt.debug.core.IJavaClassType;
+import org.eclipse.jdt.debug.core.IJavaDebugTarget;
 import org.eclipse.jdt.debug.core.IJavaInterfaceType;
 import org.eclipse.jdt.debug.core.IJavaObject;
 import org.eclipse.jdt.debug.core.IJavaReferenceType;
@@ -105,64 +106,64 @@ public class ExpressionGenerator {
 	public static List<EvaluatedExpression> generateExpression(JDIDebugTarget target, IJavaStackFrame stack, Property property, IJavaValue demonstration, IJavaType varStaticType, IProgressMonitor monitor) {
 		monitor.beginTask("Expression generation", IProgressMonitor.UNKNOWN);
 		
-		IJavaThread thread = (IJavaThread)stack.getThread();
-		Map<IJavaType, Set<IJavaType>> supertypesMap = new HashMap<IJavaType, Set<IJavaType>>();
-		Map<IJavaValue, Set<EvaluatedExpression>> equivalences = new HashMap<IJavaValue, Set<EvaluatedExpression>>();
-		IJavaType typeBound = null;
-		if (demonstration == null || demonstration.isNull())
-			typeBound = varStaticType;
-		else {
-			try {
+		try {
+			IJavaThread thread = (IJavaThread)stack.getThread();
+			Map<IJavaType, Set<IJavaType>> supertypesMap = new HashMap<IJavaType, Set<IJavaType>>();
+			Map<IJavaValue, Set<EvaluatedExpression>> equivalences = new HashMap<IJavaValue, Set<EvaluatedExpression>>();
+			IJavaType typeBound = null;
+			if (demonstration == null || demonstration.isNull())
+				typeBound = varStaticType;
+			else {
 				typeBound = demonstration.getJavaType();
 				if (!isSubtypeOf(typeBound, varStaticType, supertypesMap)) {
 					EclipseUtils.showError("Illegal demonstration", "Illegal demonstration: the type of the demonstrated value, " + typeBound.toString() + ", is not a subtype of the type of the variable, " + varStaticType.toString(), null);
 					throw new RuntimeException("Illegal demonstration");
 				}
+			}
+	
+			long startTime = System.currentTimeMillis();
+			
+			List<TypedExpression> allTypedExprs = genAllExprs(target, demonstration, typeBound, stack, thread, supertypesMap, equivalences, 0, MAX_EXPR_DEPTH, monitor);
+			
+			/*for (Map.Entry<IJavaValue, Set<EvaluatedExpression>> entry : equivalences.entrySet())
+				System.out.println(entry.getKey() + " -> " + entry.getValue().toString());*/
+			 
+			ArrayList<EvaluatedExpression> evaluatedExprs = new ArrayList<EvaluatedExpression>();
+			ArrayList<Expression> unevaluatedExprs = new ArrayList<Expression>();
+	    	for (TypedExpression e : allTypedExprs)
+	    		if (e.getValue() == null)
+	    			unevaluatedExprs.add(e.getExpression());
+	    		else if (!"V".equals(e.getValue().getSignature()))
+	    			evaluatedExprs.add(new EvaluatedExpression(e.getExpression(), e.getValue()));
+	    	
+	    	System.out.println("Generated " + allTypedExprs.size() + " potential expressions, of which " + evaluatedExprs.size() + " already have values and " + unevaluatedExprs.size() + " still need to be evaluated.");
+			
+	    	String typeBoundName;
+			try {
+				typeBoundName = EclipseUtils.sanitizeTypename(typeBound.getName());
 			} catch (DebugException ex) {
 				ex.printStackTrace();
-				throw new RuntimeException(ex.getMessage());
+				throw new RuntimeException("Cannot get the name of the type: " + typeBound.toString());
 			}
-		}
+			
+			ArrayList<EvaluatedExpression> results = EvaluationManager.filterExpressions(evaluatedExprs, target, stack, typeBoundName, property);
+	    	if (unevaluatedExprs.size() > 0) {
+	    		SubMonitor evalMonitor = SubMonitor.convert(monitor, "Expression evaluation", unevaluatedExprs.size());
+	    		results.addAll(EvaluationManager.evaluateExpressions(unevaluatedExprs, target, stack, typeBoundName, property, evalMonitor));
+	    		evalMonitor.done();
+	    	}
+			for (EvaluatedExpression e : results)
+				setExpressionValue(e.getExpression(), e.getResult());
+	    	//List<EvaluatedExpression> allEvaluatedExprs = expandEquivalences(evaluatedExprs, equivalences);
+			
+	    	System.out.println("Expression generation took " + (System.currentTimeMillis() - startTime) + " milliseconds.");
+			
+	    	monitor.done();
+	    	return results;
 
-		long startTime = System.currentTimeMillis();
-		
-		List<TypedExpression> allTypedExprs = genAllExprs(target, demonstration, typeBound, stack, thread, supertypesMap, equivalences, 0, MAX_EXPR_DEPTH, monitor);
-		
-		/*for (Map.Entry<IJavaValue, Set<EvaluatedExpression>> entry : equivalences.entrySet())
-			System.out.println(entry.getKey() + " -> " + entry.getValue().toString());*/
-		 
-		ArrayList<EvaluatedExpression> evaluatedExprs = new ArrayList<EvaluatedExpression>();
-		ArrayList<Expression> unevaluatedExprs = new ArrayList<Expression>();
-    	for (TypedExpression e : allTypedExprs)
-    		if (e.getValue() == null)
-    			unevaluatedExprs.add(e.getExpression());
-    		else
-    			evaluatedExprs.add(new EvaluatedExpression(e.getExpression(), e.getValue()));
-    	
-    	System.out.println("Generated " + allTypedExprs.size() + " potential expressions, of which " + evaluatedExprs.size() + " already have values.");
-		
-    	String typeBoundName;
-		try {
-			typeBoundName = EclipseUtils.sanitizeTypename(typeBound.getName());
-		} catch (DebugException ex) {
-			ex.printStackTrace();
-			throw new RuntimeException("Cannot get the name of the type: " + typeBound.toString());
+		} catch (DebugException e) {
+			throw new RuntimeException(e);
 		}
-		
-		ArrayList<EvaluatedExpression> results = EvaluationManager.filterExpressions(evaluatedExprs, target, stack, typeBoundName, property);
-    	if (unevaluatedExprs.size() > 0) {
-    		SubMonitor evalMonitor = SubMonitor.convert(monitor, "Expression evaluation", unevaluatedExprs.size());
-    		results.addAll(EvaluationManager.evaluateExpressions(unevaluatedExprs, target, stack, typeBoundName, property, evalMonitor));
-    		evalMonitor.done();
-    	}
-		for (EvaluatedExpression e : results)
-			setExpressionValue(e.getExpression(), e.getResult());
-    	//List<EvaluatedExpression> allEvaluatedExprs = expandEquivalences(evaluatedExprs, equivalences);
-		
-    	System.out.println("Expression generation took " + (System.currentTimeMillis() - startTime) + " milliseconds.");
-    	
-    	monitor.done();
-    	return results;
 	}
 
 	/**
@@ -490,11 +491,9 @@ public class ExpressionGenerator {
 					allPossibleActuals.add(curPossibleActuals);
 				}
 				TypedExpression receiver = e;
-				if (e.getExpression() instanceof ThisExpression || e.getType().equals(thisType))
-						receiver = null;  // Don't use a receiver if it is null or the this type.
-				else if (method.isStatic())
+				if (method.isStatic())
 					receiver = makeStaticName(EclipseUtils.sanitizeTypename(objTypeName), JDIType.createType(target, objTypeImpl));
-				makeAllCalls(method, method.name(), receiver, returnType, thread, ops, equivalences, allPossibleActuals, new ArrayList<TypedExpression>(allPossibleActuals.size()), depth, maxDepth);
+				makeAllCalls(method, method.name(), receiver, returnType, thisType, thread, ops, equivalences, target, allPossibleActuals, new ArrayList<TypedExpression>(allPossibleActuals.size()), depth, maxDepth);
 			}
 		}
 	}
@@ -628,14 +627,14 @@ public class ExpressionGenerator {
 	 * up through recursion.
 	 * @throws DebugException 
 	 */
-	private static void makeAllCalls(Method method, String name, TypedExpression receiver, IJavaType returnType, IJavaThread thread, List<TypedExpression> ops, Map<IJavaValue, Set<EvaluatedExpression>> equivalences, ArrayList<ArrayList<TypedExpression>> possibleActuals, ArrayList<TypedExpression> curActuals, int depth, int maxDepth) throws DebugException {
+	private static void makeAllCalls(Method method, String name, TypedExpression receiver, IJavaType returnType, IJavaType thisType, IJavaThread thread, List<TypedExpression> ops, Map<IJavaValue, Set<EvaluatedExpression>> equivalences, IJavaDebugTarget target, ArrayList<ArrayList<TypedExpression>> possibleActuals, ArrayList<TypedExpression> curActuals, int depth, int maxDepth) throws DebugException {
 		if (curActuals.size() == possibleActuals.size())
-			addUniqueExpressionToList(ops, makeCall(name, receiver, curActuals, returnType, method, thread), depth, maxDepth, equivalences);
+			addUniqueExpressionToList(ops, makeCall(name, receiver, curActuals, returnType, thisType, method, thread, target), depth, maxDepth, equivalences);
 		else {
 			int argNum = curActuals.size();
 			for (TypedExpression e : possibleActuals.get(argNum)) {
 				curActuals.add(e);
-				makeAllCalls(method, name, receiver, returnType, thread, ops, equivalences, possibleActuals, curActuals, depth, maxDepth);
+				makeAllCalls(method, name, receiver, returnType, thisType, thread, ops, equivalences, target, possibleActuals, curActuals, depth, maxDepth);
 				curActuals.remove(argNum);
 			}
 		}
@@ -1036,33 +1035,33 @@ public class ExpressionGenerator {
     }
     
     /*
-     * The below looks like it should work, but it doesn't.
-     * Specifically, the sendMessage call seems to hang
-     * if the method crashes or hits a breakpoint or something,
-     * and once it does that all future calls fail (probably
-     * because the VM/thread/whatever is still waiting for
-     * the first call to finish.
-     * The commented code below in makeCall calls this.
+     * If we call this code, things that crash trigger breakpoints for some reason.
+     * Some things work when I modify the ChoiceBreakpointListener to resume the
+     * thread rather than handle things normally, but some things break....
      */
-    /*private static IJavaValue computeCall(final Method method, final IJavaValue receiver, ArrayList<TypedExpression> args, final IJavaThread thread, final Type receiverType) {
-    	assert receiver != null;
+    private static IJavaValue computeCall(final Method method, final IJavaValue receiver, ArrayList<TypedExpression> args, final IJavaThread thread, IJavaDebugTarget target, final JDIType receiverType) {
 		final IJavaValue[] argValues = new IJavaValue[args.size()];
 		for (int i = 0; i < args.size(); i++) {
 			if (args.get(i).getValue() == null)
 				return null;
 			argValues[i] = args.get(i).getValue();
 		}
-		//System.out.println("Calling " + method.name() + " with args " + Arrays.toString(argValues));
-		if (args.size() == 2 && argValues[1].toString().equals("0"))
-			System.out.println("Bad");
 		try {
-			return ((IJavaObject)receiver).sendMessage(method.name(), method.signature(), argValues, thread, !method.declaringType().equals(receiverType));
+			//System.out.println("Calling " + (receiver != null ? receiver : receiverType) + "." + method.name() + " with args " + Arrays.toString(argValues));
+			IJavaValue value = null;
+	    	if (receiver == null && "<init>".equals(method.name()))
+    			value = ((IJavaClassType)receiverType).newInstance(method.signature(), argValues, thread);
+	    	else if (receiver == null)
+	    		value = ((IJavaClassType)receiverType).sendMessage(method.name(), method.signature(), argValues, thread);
+	    	else
+	    		value = ((IJavaObject)receiver).sendMessage(method.name(), method.signature(), argValues, thread, !method.declaringType().equals(receiverType.getUnderlyingType()));
+			//System.out.println("Got " + value);
+			return value;
 		} catch (DebugException e) {
-			// TODO Auto-generated catch block
-			e.printStackTrace();
-			return null;
+			//System.out.println("Crashed.");
+			return target.voidValue();
 		}
-    }*/
+    }
     
     // Helper methods to create AST nodes, as they don't seem to have useful constructors.
     
@@ -1176,23 +1175,14 @@ public class ExpressionGenerator {
 		return e;
     }
     
-    private static TypedExpression makeCall(String name, TypedExpression receiver, ArrayList<TypedExpression> args, IJavaType returnType, Method method, IJavaThread thread) throws DebugException {
-    	/*boolean hasNullArg = false;
-    	for (TypedExpression e : args) {
-    		if (e.getValue() == null) {
-    			hasNullArg = true;
-    		}
-    	}
+    private static TypedExpression makeCall(String name, TypedExpression receiver, ArrayList<TypedExpression> args, IJavaType returnType, IJavaType thisType, Method method, IJavaThread thread, IJavaDebugTarget target) throws DebugException {
+    	//IJavaValue value = computeCall(method, receiver.getValue(), args, thread, target, ((JDIType)receiver.getType()));
     	IJavaValue value = null;
-    	if (!hasNullArg) {
-    		value = computeCall(method, receiver.getValue(), args, thread, receiver.getType());
-    		if (value == null)
-    			return null;
-    	}*/
-    	IJavaValue value = null;
+		if (receiver.getExpression() instanceof ThisExpression || receiver.getType().equals(thisType))
+			receiver = null;  // Don't use a receiver if it is null or the this type.
     	if (receiver != null && receiver.getExpression() == null) {
     		assert "<init>".equals(name);
-    		return makeNewObject(receiver.getType(), args);
+    		return makeNewObject(receiver.getType(), args, value);
     	} else
     		return makeCall(name, receiver == null ? null : copyExpr(receiver.getExpression()), args, returnType, value);
     }
@@ -1230,13 +1220,13 @@ public class ExpressionGenerator {
     	return e;
     }
     
-    private static TypedExpression makeNewObject(IJavaType type, ArrayList<TypedExpression> args) throws DebugException {
+    private static TypedExpression makeNewObject(IJavaType type, ArrayList<TypedExpression> args, IJavaValue value) throws DebugException {
     	ClassInstanceCreation e = ast.newClassInstanceCreation();
     	e.setType(ast.newSimpleType(ast.newName(EclipseUtils.sanitizeTypename(type.getName()))));
     	for (TypedExpression ex: args)
     		e.arguments().add(copyExpr(ex.getExpression()));
-    	setExpressionValue(e, null);
-    	return new TypedExpression(e, type, null);
+    	setExpressionValue(e, value);
+    	return new TypedExpression(e, type, value);
     }
     
     private static org.eclipse.jdt.core.dom.Type makeType(IJavaType type) throws DebugException {

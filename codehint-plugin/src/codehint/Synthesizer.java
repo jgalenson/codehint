@@ -326,9 +326,6 @@ public class Synthesizer {
 	    private final static ASTParser parser = ASTParser.newParser(AST.JLS4);
 	    private final static Pattern choosePattern = Pattern.compile("\\s*(?:(\\w+)\\s+)?([\\w\\[\\].]+)\\s*=\\s*(CodeHint.choose.*);\\s*\\r?\\n\\s*");
 	    
-	    /* (non-Javadoc)
-	     * @see org.eclipse.debug.core.IDebugEventSetListener#handleDebugEvents(org.eclipse.debug.core.DebugEvent[])
-	     */
 	    @Override
 		public void handleDebugEvents(DebugEvent[] events) {
        		IDocument document = getDocument();
@@ -339,13 +336,12 @@ public class Synthesizer {
 	                IThread thread = (IThread) source;
 	                //PAR TODO: Is this an event we care about?
 	                try {
-	                   	IJavaStackFrame frame = (IJavaStackFrame)thread.getTopStackFrame();
+		                IJavaStackFrame frame = (IJavaStackFrame)thread.getTopStackFrame();
 	                   	if (frame == null)
 	                   		continue;
 	                   	int line = frame.getLineNumber() - 1 ;
 	                   	assert line >= 0;
 	                   	//System.out.println( "Considering breakpoint at line " + line );
-	                   	
 	                   	
 	                   	//Needed only for sanity checking and debugging
 	                	int start = frame.getCharEnd();
@@ -367,9 +363,7 @@ public class Synthesizer {
 			        	EclipseUtils.showError("Error", "An error occurred during refinement.", e);
 						assert false;
 					} catch (BadLocationException e) {
-						// TODO Auto-generated catch block
-						e.printStackTrace();
-						assert false;
+						throw new RuntimeException(e);
 					}
 	            }
 	        }
