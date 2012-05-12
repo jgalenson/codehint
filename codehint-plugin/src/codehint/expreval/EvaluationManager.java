@@ -5,13 +5,11 @@ import java.util.HashSet;
 import java.util.Set;
 import java.util.concurrent.Semaphore;
 
-import org.eclipse.core.resources.ResourcesPlugin;
 import org.eclipse.core.runtime.IProgressMonitor;
 import org.eclipse.core.runtime.NullProgressMonitor;
 import org.eclipse.core.runtime.OperationCanceledException;
 import org.eclipse.debug.core.DebugEvent;
 import org.eclipse.debug.core.DebugException;
-import org.eclipse.jdt.core.JavaCore;
 import org.eclipse.jdt.core.dom.ASTVisitor;
 import org.eclipse.jdt.core.dom.ArrayAccess;
 import org.eclipse.jdt.core.dom.ClassInstanceCreation;
@@ -64,7 +62,7 @@ public class EvaluationManager {
      * that satisfy the given property, if it is non-null.
 	 */
 	public static ArrayList<EvaluatedExpression> evaluateExpressions(ArrayList<Expression> exprs, IJavaDebugTarget target, IJavaStackFrame stack, String type, Property property, IProgressMonitor monitor) {
-		IAstEvaluationEngine engine = org.eclipse.jdt.debug.eval.EvaluationManager.newAstEvaluationEngine(JavaCore.create(ResourcesPlugin.getWorkspace().getRoot().getProjects()[0]), target);
+		IAstEvaluationEngine engine = org.eclipse.jdt.debug.eval.EvaluationManager.newAstEvaluationEngine(EclipseUtils.getProject(stack), target);
 		int batchSize = exprs.size() >= 2 * BATCH_SIZE ? BATCH_SIZE : exprs.size() >= MIN_NUM_BATCHES ? exprs.size() / MIN_NUM_BATCHES : 1;
 		ArrayList<EvaluatedExpression> evaluatedExprs = evaluateExpressions(exprs, engine, stack, type, property, -1, batchSize, monitor);
 		return evaluatedExprs;
