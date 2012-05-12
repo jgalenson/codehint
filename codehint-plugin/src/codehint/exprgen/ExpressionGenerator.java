@@ -50,10 +50,8 @@ import org.eclipse.jdt.debug.core.IJavaValue;
 import org.eclipse.jdt.debug.core.IJavaVariable;
 import org.eclipse.jdt.internal.debug.core.model.JDIArrayType;
 import org.eclipse.jdt.internal.debug.core.model.JDIDebugTarget;
-import org.eclipse.jdt.internal.debug.core.model.JDIObjectValue;
 import org.eclipse.jdt.internal.debug.core.model.JDIStackFrame;
 import org.eclipse.jdt.internal.debug.core.model.JDIType;
-import org.eclipse.jdt.internal.debug.core.model.JDIValue;
 
 import codehint.EclipseUtils;
 import codehint.Property;
@@ -202,7 +200,7 @@ public class ExpressionGenerator {
     			addUniqueExpressionToList(curLevel, makeBoolean(Boolean.parseBoolean(demonstration.toString()), makeBooleanValue(target, Boolean.parseBoolean(demonstration.toString())), booleanType), depth, maxDepth, equivalences);
     		// Add calls to the desired type's constructors (but only at the top-level).
     		if (depth == 0 && typeBound instanceof IJavaClassType)
-    			addMethodCalls(new TypedExpression(null, typeBound, null), nextLevel, typeBound, curLevel, thisType, thread, target, (JDIStackFrame)stack, supertypesMap, equivalences, depth, maxDepth);
+    			addMethodCalls(new TypedExpression(null, typeBound, null), nextLevel, typeBound, curLevel, thisType, thread, target, stack, supertypesMap, equivalences, depth, maxDepth);
     		// Add zero and null (but only at the bottom level)
     		if (depth == maxDepth) {
     			addUniqueExpressionToList(curLevel, makeNumber("0", zero, intType), depth, maxDepth, equivalences);
@@ -325,7 +323,7 @@ public class ExpressionGenerator {
 	    			// Method calls to non-static methods from non-static scope.
 	    			if (isObjectOrInterface(e.getType())
 	    					&& (e.getValue() == null || !e.getValue().isNull()))  // Skip things we know are null dereferences.
-	    				addMethodCalls(e, nextLevel, typeBound, curLevel, thisType, thread, target, (JDIStackFrame)stack, supertypesMap, equivalences, depth, maxDepth);
+	    				addMethodCalls(e, nextLevel, typeBound, curLevel, thisType, thread, target, stack, supertypesMap, equivalences, depth, maxDepth);
 	    			// Collect the class and interface types we've seen.
 	    			if (isObjectOrInterface(e.getType()))
 	    				objectInterfaceTypes.add(e.getType());
@@ -341,7 +339,7 @@ public class ExpressionGenerator {
 	    				addFieldAccesses(makeStaticName(stack.getReceivingTypeName(), thisType), typeBound, curLevel, thisType, target, supertypesMap, equivalences, depth, maxDepth);
 	    			// Method calls from static scope.
 	    			if (stack.isStatic() && !stack.getReceivingTypeName().contains("<"))
-	    				addMethodCalls(makeStaticName(stack.getReceivingTypeName(), thisType), nextLevel, typeBound, curLevel, thisType, thread, target, (JDIStackFrame)stack, supertypesMap, equivalences, depth, maxDepth);
+	    				addMethodCalls(makeStaticName(stack.getReceivingTypeName(), thisType), nextLevel, typeBound, curLevel, thisType, thread, target, stack, supertypesMap, equivalences, depth, maxDepth);
 	    			// Accesses/calls to static fields/methods.
 	    			for (IJavaType type : objectInterfaceTypes) {
 	    				String typeName = type.getName();
@@ -349,7 +347,7 @@ public class ExpressionGenerator {
 	    				if (importsSet.contains(typeName) || (typeName.contains("$") && thisType.getName().equals(typeName.substring(0, typeName.lastIndexOf('$')))))
 	    					typeName = EclipseUtils.getUnqualifiedName(EclipseUtils.sanitizeTypename(typeName));
 	    				addFieldAccesses(makeStaticName(typeName, type), typeBound, curLevel, thisType, target, supertypesMap, equivalences, depth, maxDepth);
-	    				addMethodCalls(makeStaticName(typeName, type), nextLevel, typeBound, curLevel, thisType, thread, target, (JDIStackFrame)stack, supertypesMap, equivalences, depth, maxDepth);
+	    				addMethodCalls(makeStaticName(typeName, type), nextLevel, typeBound, curLevel, thisType, thread, target, stack, supertypesMap, equivalences, depth, maxDepth);
 	    			}
 	    			// Calls to static methods and fields of imported classes.
 					for (IImportDeclaration imp : imports) {
@@ -360,7 +358,7 @@ public class ExpressionGenerator {
 							if (importedTypes != null) {
 								if (!objectInterfaceTypes.contains(importedTypes[0])) {  // We've already handled these above.
 									addFieldAccesses(makeStaticName(shortName, importedTypes[0]), typeBound, curLevel, thisType, target, supertypesMap, equivalences, depth, maxDepth);
-									addMethodCalls(makeStaticName(shortName, importedTypes[0]), nextLevel, typeBound, curLevel, thisType, thread, target, (JDIStackFrame)stack, supertypesMap, equivalences, depth, maxDepth);
+									addMethodCalls(makeStaticName(shortName, importedTypes[0]), nextLevel, typeBound, curLevel, thisType, thread, target, stack, supertypesMap, equivalences, depth, maxDepth);
 								}
 							} else  // TODO: Handle this case, where the class is not yet loaded in the child VM.  I can either try to get the VM to load the class or get the IType from EclipseUtils.getProject(stack).findType(name) and use that interface instead.
 								;//System.err.println("I cannot get the class of the import " + fullName);
@@ -419,13 +417,14 @@ public class ExpressionGenerator {
 		}
 	}
 	
-	private static void addMethodCalls(TypedExpression e, List<TypedExpression> nextLevel, IJavaType typeBound, List<TypedExpression> ops, IJavaType thisType, IJavaThread thread, JDIDebugTarget target, JDIStackFrame stack, Map<IJavaType, Set<IJavaType>> supertypesMap, Map<IJavaValue, Set<EvaluatedExpression>> equivalences, int depth, int maxDepth) throws DebugException {
+	private static void addMethodCalls(TypedExpression e, List<TypedExpression> nextLevel, IJavaType typeBound, List<TypedExpression> ops, IJavaType thisType, IJavaThread thread, JDIDebugTarget target, IJavaStackFrame stack, Map<IJavaType, Set<IJavaType>> supertypesMap, Map<IJavaValue, Set<EvaluatedExpression>> equivalences, int depth, int maxDepth) throws DebugException {
 		// The public API doesn't tell us the methods of a class, so we need to use the jdi.  Note that we must now be careful converting between jdi types and Eclipse types.
 		Type objTypeImpl = ((JDIType)e.getType()).getUnderlyingType();
 		Type thisTypeImpl = ((JDIType)thisType).getUnderlyingType();
 		boolean isConstructor = e.getExpression() == null;
 		boolean isStatic = !isConstructor && e.getExpression().getProperty("isStatic") != null;
 		String objTypeName = isStatic ? e.getExpression().toString() : objTypeImpl.name();
+		Method stackMethod = ((JDIStackFrame)stack).getUnderlyingMethod();
 		// This code is so much nicer in a functional language.</complain>
 		List<?> visibleMethods = ((ReferenceType)objTypeImpl).visibleMethods();
 		List<Method> legalMethods = new ArrayList<Method>(visibleMethods.size());
@@ -452,7 +451,7 @@ public class ExpressionGenerator {
 					|| (isStatic != method.isStatic())
 					|| (isConstructor != method.isConstructor())
 					|| method.isSynthetic() || method.isStaticInitializer() || method.declaringType().name().equals("java.lang.Object")
-					|| method.equals(stack.getUnderlyingMethod()))  // Disable explicit recursion (that is, calling the current method), since it is definitely not yet complete.
+					|| method.equals(stackMethod))  // Disable explicit recursion (that is, calling the current method), since it is definitely not yet complete.
 				continue;
 			IJavaType returnType = null;
 			try {
@@ -936,7 +935,7 @@ public class ExpressionGenerator {
     
     // Evaluation helpers that compute IJavaValues and IJavaTypes.
     
-    private static IJavaType getType(JDIDebugTarget target, String name) {
+    private static IJavaType getType(IJavaDebugTarget target, String name) {
     	try {
 	    	IJavaType[] result = target.getJavaTypes(name);
 	    	assert result.length == 1;
@@ -947,15 +946,15 @@ public class ExpressionGenerator {
     	}
     }
     
-    private static IJavaValue makeIntValue(JDIDebugTarget target, int n) {
+    private static IJavaValue makeIntValue(IJavaDebugTarget target, int n) {
     	return target.newValue(n);
     }
     
-    private static IJavaValue makeBooleanValue(JDIDebugTarget target, boolean b) {
+    private static IJavaValue makeBooleanValue(IJavaDebugTarget target, boolean b) {
     	return target.newValue(b);
     }
     
-    private static IJavaValue computeInfixOp(JDIDebugTarget target, IJavaValue left, InfixExpression.Operator op, IJavaValue right, IJavaType type) throws NumberFormatException, DebugException {
+    private static IJavaValue computeInfixOp(IJavaDebugTarget target, IJavaValue left, InfixExpression.Operator op, IJavaValue right, IJavaType type) throws NumberFormatException, DebugException {
     	if (isInt(type))
     		return computeIntInfixOp(target, left, op, right);
     	else if (isBoolean(type))
@@ -966,7 +965,7 @@ public class ExpressionGenerator {
     		throw new RuntimeException("Unexpected type.");
     }
     
-    private static IJavaValue computeIntInfixOp(JDIDebugTarget target, IJavaValue left, InfixExpression.Operator op, IJavaValue right) throws NumberFormatException, DebugException {
+    private static IJavaValue computeIntInfixOp(IJavaDebugTarget target, IJavaValue left, InfixExpression.Operator op, IJavaValue right) throws NumberFormatException, DebugException {
     	if (left == null || right == null)
     		return null;
     	int l = Integer.parseInt(left.getValueString());
@@ -996,7 +995,7 @@ public class ExpressionGenerator {
     	throw new RuntimeException("Unknown infix operation: " + op.toString());
     }
     
-    private static IJavaValue computeBooleanInfixOp(JDIDebugTarget target, IJavaValue left, InfixExpression.Operator op, IJavaValue right) throws DebugException {
+    private static IJavaValue computeBooleanInfixOp(IJavaDebugTarget target, IJavaValue left, InfixExpression.Operator op, IJavaValue right) throws DebugException {
     	if (left == null || right == null)
     		return null;
     	boolean l = Boolean.parseBoolean(left.getValueString());
@@ -1012,11 +1011,11 @@ public class ExpressionGenerator {
     	throw new RuntimeException("Unknown infix operation: " + op.toString());
     }
     
-    private static IJavaValue computeRefInfixOp(JDIDebugTarget target, IJavaValue left, InfixExpression.Operator op, IJavaValue right) throws DebugException {
+    private static IJavaValue computeRefInfixOp(IJavaDebugTarget target, IJavaValue left, InfixExpression.Operator op, IJavaValue right) throws DebugException {
     	if (left == null || right == null)
     		return null;
-    	JDIObjectValue l = (JDIObjectValue)left;
-    	JDIObjectValue r = (JDIObjectValue)right;
+    	IJavaObject l = (IJavaObject)left;
+    	IJavaObject r = (IJavaObject)right;
     	if (op == InfixExpression.Operator.EQUALS)
     		return makeBooleanValue(target, l.getUniqueId() == r.getUniqueId());
     	if (op == InfixExpression.Operator.NOT_EQUALS)
@@ -1024,7 +1023,7 @@ public class ExpressionGenerator {
     	throw new RuntimeException("Unknown infix operation: " + op.toString());
     }
     
-    private static IJavaValue computePrefixOp(JDIDebugTarget target, IJavaValue e, PrefixExpression.Operator op) throws DebugException {
+    private static IJavaValue computePrefixOp(IJavaDebugTarget target, IJavaValue e, PrefixExpression.Operator op) throws DebugException {
     	if (e == null )
     		return null;
     	if (op == PrefixExpression.Operator.MINUS)
@@ -1088,11 +1087,11 @@ public class ExpressionGenerator {
     	return new TypedExpression(e, type, value);
     }
 
-    private static TypedExpression makeNull(JDIDebugTarget target) {
+    private static TypedExpression makeNull(IJavaDebugTarget target) {
     	Expression e = ast.newNullLiteral();
     	e.setProperty("isConstant", true);
-    	setExpressionValue(e, JDIValue.createValue(target, null));
-    	return new TypedExpression(e, null, JDIValue.createValue(target, null));
+    	setExpressionValue(e, target.nullValue());
+    	return new TypedExpression(e, null, target.nullValue());
     }
     
     private static TypedExpression makeVar(String name, IJavaValue value, IJavaType type, boolean isFieldAccess) {
@@ -1120,7 +1119,7 @@ public class ExpressionGenerator {
     	return new TypedExpression(e, type, value);
     }
     
-    private static TypedExpression makeInfix(JDIDebugTarget target, TypedExpression left, InfixExpression.Operator op, TypedExpression right, IJavaType type) throws NumberFormatException, DebugException {
+    private static TypedExpression makeInfix(IJavaDebugTarget target, TypedExpression left, InfixExpression.Operator op, TypedExpression right, IJavaType type) throws NumberFormatException, DebugException {
 		InfixExpression e = makeInfix(left.getExpression(), op, right.getExpression());
 		IJavaValue value = computeInfixOp(target, left.getValue(), op, right.getValue(), left.getType());
     	setExpressionValue(e, value);
@@ -1161,7 +1160,7 @@ public class ExpressionGenerator {
     	return e;
     }
     
-    private static TypedExpression makePrefix(JDIDebugTarget target, TypedExpression operand, PrefixExpression.Operator op, IJavaType type) throws DebugException {
+    private static TypedExpression makePrefix(IJavaDebugTarget target, TypedExpression operand, PrefixExpression.Operator op, IJavaType type) throws DebugException {
     	PrefixExpression e = makePrefix(operand.getExpression(), op);
 		IJavaValue value = computePrefixOp(target, operand.getValue(), op);
     	setExpressionValue(e, value);
