@@ -1,6 +1,6 @@
 Feature requests
 ----------------
-When users write a pdspec in the code, make it easier to start the synthesis.  We could set the breakpoint and start the debugger automatically when the user does something (e.g., right-click menu).  We could automatically pop the synthesis box when we hit a breakpoint on such a line.
+When users write a pdspec in the code, make it easier to start the synthesis.  We could set the breakpoint and start the debugger automatically when the user does something (e.g., right-click menu).
 Make it easier to write pdspecs in the code.  Have variables without primes default to pre or post.  It would be great if we could use auto-complete to make them easier to type, but Eclipse doesn't seem to let us do that.
 Support auto-complete and error-highlighting in the dialog box when demonstrating.  See e.g. ChangeVariableValueInputDialog and ExpressionInputDialog.
 Improve the candidate selector dialog.  You should be able to browse values like in the variables view, and hovering over a method should show its Javadoc.
@@ -24,6 +24,7 @@ Add constants given in the property to the space of expressions to search.  For 
 If you're highlighting a variable in the text area, add a shortcut to pop up the demonstrate box.
 Add a default value for textbox when there's disagreement during refinement.
 Use the Eclipse help system to add detailed help.  See e.g., http://help.eclipse.org/indigo/index.jsp?topic=%2Forg.eclipse.platform.doc.isv%2Fguide%2Fua_help.htm and http://rajakannappan.blogspot.com/2009/05/working-with-eclipse-help-system.html.
+When the user writes a pdspec in the code, sets a breakpoint, and runs the code, we only popup the box automatically if our plugin is already loaded, which Eclipse does on demand.  We could force it to load earlier (e.g., when the debugger starts) to ensure we always pop up the box.
 
 Bugs
 ----

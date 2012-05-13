@@ -65,7 +65,7 @@ public abstract class CommandHandler extends AbstractHandler {
     	return sb.toString();
     }
     
-    protected static Matcher getInitialConditionFromCurLine(IVariable variable, Pattern pattern) throws DebugException {
+    protected static Matcher getInitialConditionFromCurLine(Pattern pattern) throws DebugException {
     	try {
 			int lineNum = EclipseUtils.getStackFrame().getLineNumber() - 1;
 			IDocument document = EclipseUtils.getDocument();

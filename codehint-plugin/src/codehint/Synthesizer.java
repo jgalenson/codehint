@@ -358,6 +358,8 @@ public class Synthesizer {
 	               			refineExpressions(frame, matcher, thread, line);
 	               			return;  // We often get duplicate events that would trigger this, but they must all be equivalent, so only handle the first. 
 	               		}
+	               		
+	               		checkLineForSpecs(fullCurLine);
 					} catch (DebugException e) {
 						e.printStackTrace();
 			        	EclipseUtils.showError("Error", "An error occurred during refinement.", e);
@@ -369,8 +371,8 @@ public class Synthesizer {
 	        }
 	        
 	    }
-	    
-	    private static void refineExpressions(IJavaStackFrame frame, Matcher matcher, IThread thread, int line) throws DebugException {
+
+		private static void refineExpressions(IJavaStackFrame frame, Matcher matcher, IThread thread, int line) throws DebugException {
 	    	String curLine = matcher.group(0).trim();
    			
    			System.out.println("Beginning refinement for " + curLine + ".");
@@ -483,6 +485,41 @@ public class Synthesizer {
    			// Immediately continue the execution.
    			thread.resume();
 	    }
+	    
+	    private static void checkLineForSpecs(String fullCurLine) {
+	    	final Matcher statePropertyMatcher = DemonstrateStatePropertyHandler.PATTERN.matcher(fullCurLine);
+       		if(statePropertyMatcher.matches()) {
+            	Display.getDefault().asyncExec(new Runnable(){
+    				@Override
+    				public void run() {
+                    	DemonstrateStatePropertyHandler.handleFromText(statePropertyMatcher);
+    				}
+            	});
+            	return;
+       		}
+
+	    	final Matcher valuePropertyMatcher = DemonstrateValueHandler.PATTERN.matcher(fullCurLine);
+       		if(valuePropertyMatcher.matches()) {
+            	Display.getDefault().asyncExec(new Runnable(){
+    				@Override
+    				public void run() {
+                    	DemonstrateValueHandler.handleFromText(valuePropertyMatcher);
+    				}
+            	});
+            	return;
+       		}
+
+	    	final Matcher typePropertyMatcher = DemonstrateTypeHandler.PATTERN.matcher(fullCurLine);
+       		if(typePropertyMatcher.matches()) {
+            	Display.getDefault().asyncExec(new Runnable(){
+    				@Override
+    				public void run() {
+                    	DemonstrateTypeHandler.handleFromText(typePropertyMatcher);
+    				}
+            	});
+            	return;
+       		}
+		}
 
 		private static String rewriteLine(Matcher matcher, final String varname, String curLine, Property property, boolean demonstratedProperty, ArrayList<EvaluatedExpression> validExprs, final int line) {
 			List<String> newExprsStrs = EvaluatedExpression.snippetsOfEvaluatedExpressions(validExprs);

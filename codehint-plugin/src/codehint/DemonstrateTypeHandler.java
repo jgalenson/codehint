@@ -10,10 +10,18 @@ import org.eclipse.swt.widgets.Shell;
 
 public class DemonstrateTypeHandler extends CommandHandler {
 
-    private final static Pattern pattern = Pattern.compile("\\s*CodeHint.<(.*)>type\\((\\w*)\\);\\s*\\r?\\n\\s*");
+    public final static Pattern PATTERN = Pattern.compile("\\s*CodeHint.<(.*)>type\\((\\w*)\\);\\s*\\r?\\n\\s*");
     
     @Override
 	public void handle(IVariable variable, String path, Shell shell) {
+    	try {
+    		handle(variable, path, shell, getInitialConditionFromCurLine(PATTERN));
+    	}  catch (DebugException e) {
+			e.printStackTrace();
+		}
+    }
+    
+    private static void handle(IVariable variable, String path, Shell shell, Matcher matcher) {
 		if (EclipseUtils.isPrimitive(variable)) {  // TODO: Disable the menu in this case.
 			EclipseUtils.showError("Cannot demonstrate type", "You cannot demonstrate the type of a primitive variable.", null);
 			return;
@@ -21,7 +29,6 @@ public class DemonstrateTypeHandler extends CommandHandler {
     	try {
     		String varTypeName = ((IJavaVariable)variable).getJavaType().getName();
     		String initValue = null;
-    		Matcher matcher = getInitialConditionFromCurLine(variable, pattern);
     		if (matcher != null) {
     			if (!matcher.group(2).equals(variable.getName())) {
     				EclipseUtils.showError("Illegal variable.", "The first argument to the pdspec method, " + matcher.group(2) + ", must be the same as the variable on which you right-clicked, " + variable.getName() + ".", null);
@@ -39,5 +46,15 @@ public class DemonstrateTypeHandler extends CommandHandler {
 			e.printStackTrace();
 		}
     }
+
+	public static void handleFromText(Matcher matcher) {
+    	try {
+			String varName = matcher.group(2);
+			IVariable var = EclipseUtils.getStackFrame().findVariable(varName);
+			handle(var, varName, EclipseUtils.getShell(), matcher);
+		} catch (DebugException e) {
+			throw new RuntimeException(e);
+		}
+	}
 
 }

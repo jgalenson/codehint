@@ -7,8 +7,11 @@ import org.eclipse.core.runtime.IStatus;
 import org.eclipse.core.runtime.Status;
 import org.eclipse.debug.core.DebugEvent;
 import org.eclipse.debug.core.DebugException;
+import org.eclipse.debug.core.DebugPlugin;
 import org.eclipse.debug.core.ILaunch;
 import org.eclipse.debug.core.model.ISourceLocator;
+import org.eclipse.debug.core.model.IStackFrame;
+import org.eclipse.debug.core.model.IThread;
 import org.eclipse.debug.core.model.IVariable;
 import org.eclipse.debug.ui.DebugUITools;
 import org.eclipse.jdt.core.IJavaElement;
@@ -29,7 +32,6 @@ import org.eclipse.jdt.debug.core.IJavaVariable;
 import org.eclipse.jdt.debug.eval.IAstEvaluationEngine;
 import org.eclipse.jdt.debug.eval.IEvaluationListener;
 import org.eclipse.jdt.debug.eval.IEvaluationResult;
-import org.eclipse.jdt.internal.debug.ui.EvaluationContextManager;
 import org.eclipse.jdt.internal.debug.ui.JDIModelPresentation;
 import org.eclipse.jdt.internal.debug.ui.actions.EvaluateAction;
 import org.eclipse.jface.dialogs.ErrorDialog;
@@ -120,7 +122,24 @@ public class EclipseUtils {
    	 * @return the current stack frame context, or <code>null</code> if none
    	 */
    	public static IJavaStackFrame getStackFrame() {
-   		return EvaluationContextManager.getEvaluationContext(getActiveEditorPart());
+        IAdaptable adaptable = DebugUITools.getDebugContext();
+        if (adaptable != null) {
+        	Object x = adaptable.getAdapter(IJavaStackFrame.class);
+        	if (x != null)
+        		return (IJavaStackFrame)x;
+        }
+        try {
+	   		for (ILaunch launch: DebugPlugin.getDefault().getLaunchManager().getLaunches()) {
+	   			for (IThread thread: launch.getDebugTarget().getThreads()) {
+	   				IStackFrame[] frames = thread.getStackFrames();
+	   				if (frames.length > 0)
+	   					return (IJavaStackFrame)frames[0];
+	   			}
+	   		}
+        } catch (DebugException e) {
+        	throw new RuntimeException(e);
+        }
+   		return null;
    	}
     
     private static IEditorPart getActiveEditorPart() {

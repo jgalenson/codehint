@@ -10,13 +10,19 @@ import org.eclipse.swt.widgets.Shell;
 
 public class DemonstrateValueHandler extends CommandHandler {
 
-
-    private final static Pattern pattern = Pattern.compile("\\s*CodeHint.value\\((\\w*)\\s*,\\s*(.*)\\);\\s*\\r?\\n\\s*");
+    public final static Pattern PATTERN = Pattern.compile("\\s*CodeHint.value\\((\\w*)\\s*,\\s*(.*)\\);\\s*\\r?\\n\\s*");
 	
     @Override
 	public void handle(IVariable variable, String path, Shell shell) {
     	try {
-    		Matcher matcher = getInitialConditionFromCurLine(variable, pattern);
+    		handle(variable, path, shell, getInitialConditionFromCurLine(PATTERN));
+        } catch (DebugException e) {
+        	throw new RuntimeException(e);
+        }
+    }
+	
+	private static void handle(IVariable variable, String path, Shell shell, Matcher matcher) {
+    	try {
     		String initValue = null;
     		if (matcher != null) {
     			if (!matcher.group(1).equals(variable.getName())) {
@@ -51,5 +57,15 @@ public class DemonstrateValueHandler extends CommandHandler {
             Synthesizer.synthesizeAndInsertExpressions(variable, path, property, value, shell, initValue != null);
     	}
     }
+
+	public static void handleFromText(Matcher matcher) {
+    	try {
+			String varName = matcher.group(1);
+			IVariable var = EclipseUtils.getStackFrame().findVariable(varName);
+			handle(var, varName, EclipseUtils.getShell(), matcher);
+		} catch (DebugException e) {
+			throw new RuntimeException(e);
+		}
+	}
 
 }
