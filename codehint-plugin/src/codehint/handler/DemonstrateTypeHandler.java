@@ -1,4 +1,4 @@
-package codehint;
+package codehint.handler;
 
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -8,6 +8,8 @@ import org.eclipse.debug.core.model.IVariable;
 import org.eclipse.jdt.debug.core.IJavaVariable;
 import org.eclipse.swt.widgets.Shell;
 
+import codehint.EclipseUtils;
+import codehint.Synthesizer;
 import codehint.property.TypeProperty;
 
 public class DemonstrateTypeHandler extends CommandHandler {

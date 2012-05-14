@@ -1,4 +1,4 @@
-package codehint;
+package codehint.handler;
 
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -7,6 +7,8 @@ import org.eclipse.debug.core.DebugException;
 import org.eclipse.debug.core.model.IVariable;
 import org.eclipse.swt.widgets.Shell;
 
+import codehint.EclipseUtils;
+import codehint.Synthesizer;
 import codehint.property.Property;
 import codehint.property.StateProperty;
 

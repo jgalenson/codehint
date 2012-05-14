@@ -1,4 +1,4 @@
-package codehint;
+package codehint.handler;
 
 import org.eclipse.debug.core.DebugException;
 import org.eclipse.debug.core.model.IVariable;
@@ -6,6 +6,8 @@ import org.eclipse.jdt.debug.core.IJavaType;
 import org.eclipse.jdt.debug.core.IJavaVariable;
 import org.eclipse.swt.widgets.Shell;
 
+import codehint.EclipseUtils;
+import codehint.Synthesizer;
 import codehint.property.LambdaProperty;
 import codehint.property.Property;
 

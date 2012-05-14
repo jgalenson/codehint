@@ -7,7 +7,7 @@
             allPopups="false"
             locationURI="popup:org.eclipse.debug.ui.VariableView">
          <command
-               commandId="codehint.demonstrateValue"
+               commandId="codehint.handler.demonstrateValue"
                label="Demonstrate value"
                style="push">
          </command>
@@ -16,8 +16,8 @@
    <extension
          point="org.eclipse.ui.commands">
       <command
-            defaultHandler="codehint.DemonstrateValueHandler"
-            id="codehint.demonstrateValue"
+            defaultHandler="codehint.handler.DemonstrateValueHandler"
+            id="codehint.handler.demonstrateValue"
             name="Demonstrate value">
       </command>
    </extension>
@@ -28,7 +28,7 @@
             allPopups="false"
             locationURI="popup:org.eclipse.debug.ui.VariableView">
          <command
-               commandId="codehint.demonstrateLambdaProperty"
+               commandId="codehint.handler.demonstrateLambdaProperty"
                label="Demonstrate lambda property"
                style="push">
          </command>
@@ -37,8 +37,8 @@
    <extension
          point="org.eclipse.ui.commands">
       <command
-            defaultHandler="codehint.DemonstrateLambdaPropertyHandler"
-            id="codehint.demonstrateLambdaProperty"
+            defaultHandler="codehint.handler.DemonstrateLambdaPropertyHandler"
+            id="codehint.handler.demonstrateLambdaProperty"
             name="Demonstrate lambda property">
       </command>
    </extension>
@@ -49,7 +49,7 @@
             allPopups="false"
             locationURI="popup:org.eclipse.debug.ui.VariableView">
          <command
-               commandId="codehint.demonstrateType"
+               commandId="codehint.handler.demonstrateType"
                label="Demonstrate type"
                style="push">
          </command>
@@ -58,8 +58,8 @@
    <extension
          point="org.eclipse.ui.commands">
       <command
-            defaultHandler="codehint.DemonstrateTypeHandler"
-            id="codehint.demonstrateType"
+            defaultHandler="codehint.handler.DemonstrateTypeHandler"
+            id="codehint.handler.demonstrateType"
             name="Demonstrate type">
       </command>
    </extension>
@@ -70,7 +70,7 @@
             allPopups="false"
             locationURI="popup:org.eclipse.debug.ui.VariableView">
          <command
-               commandId="codehint.demonstrateStateProperty"
+               commandId="codehint.handler.demonstrateStateProperty"
                label="Demonstrate state property"
                style="push">
          </command>
@@ -79,8 +79,8 @@
    <extension
          point="org.eclipse.ui.commands">
       <command
-            defaultHandler="codehint.DemonstrateStatePropertyHandler"
-            id="codehint.demonstrateStateProperty"
+            defaultHandler="codehint.handler.DemonstrateStatePropertyHandler"
+            id="codehint.handler.demonstrateStateProperty"
             name="Demonstrate state property">
       </command>
    </extension>

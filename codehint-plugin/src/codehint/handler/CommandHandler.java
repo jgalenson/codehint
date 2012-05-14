@@ -1,4 +1,4 @@
-package codehint;
+package codehint.handler;
 
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -17,6 +17,8 @@ import org.eclipse.jface.viewers.TreePath;
 import org.eclipse.jface.viewers.TreeSelection;
 import org.eclipse.swt.widgets.Shell;
 import org.eclipse.ui.handlers.HandlerUtil;
+
+import codehint.EclipseUtils;
 
 /**
  * Superclass for our handlers.  This collects information
