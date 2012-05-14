@@ -1,4 +1,4 @@
-package codehint;
+package codehint.property;
 
 import java.util.HashSet;
 import java.util.Set;
@@ -12,6 +12,9 @@ import org.eclipse.jdt.core.dom.Expression;
 import org.eclipse.jdt.core.dom.MethodInvocation;
 import org.eclipse.jdt.core.dom.SimpleName;
 import org.eclipse.jdt.internal.core.dom.NaiveASTFlattener;
+
+import codehint.EclipseUtils;
+import codehint.property.Property;
 
 public class StateProperty extends Property {
 	

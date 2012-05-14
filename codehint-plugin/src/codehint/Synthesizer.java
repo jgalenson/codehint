@@ -23,7 +23,6 @@ import org.eclipse.debug.core.IDebugEventSetListener;
 import org.eclipse.debug.core.model.IBreakpoint;
 import org.eclipse.debug.core.model.IThread;
 import org.eclipse.debug.core.model.IVariable;
-import org.eclipse.jdt.core.Signature;
 import org.eclipse.jdt.core.dom.AST;
 import org.eclipse.jdt.core.dom.ASTNode;
 import org.eclipse.jdt.core.dom.ASTParser;
@@ -43,7 +42,6 @@ import org.eclipse.jdt.debug.core.IJavaType;
 import org.eclipse.jdt.debug.core.IJavaValue;
 import org.eclipse.jdt.debug.core.IJavaVariable;
 import org.eclipse.jdt.debug.core.JDIDebugModel;
-import org.eclipse.jdt.internal.debug.core.model.JDIDebugTarget;
 import org.eclipse.jface.resource.FontDescriptor;
 import org.eclipse.jface.resource.JFaceResources;
 import org.eclipse.jface.resource.LocalResourceManager;
@@ -69,6 +67,13 @@ import codehint.expreval.EvaluatedExpression;
 import codehint.expreval.EvaluationManager;
 import codehint.expreval.EvaluationManager.EvaluationError;
 import codehint.exprgen.ExpressionGenerator;
+import codehint.property.LambdaProperty;
+import codehint.property.ObjectValueProperty;
+import codehint.property.PrimitiveValueProperty;
+import codehint.property.Property;
+import codehint.property.StateProperty;
+import codehint.property.TypeProperty;
+import codehint.property.ValueProperty;
 
 public class Synthesizer {
     
@@ -82,7 +87,7 @@ public class Synthesizer {
 	// We store the last property we have seen demonstrated demonstrated while we are processing it.  If everything works, we clear this, but if there is an error, we keep this and use it as the initial value for the user's next demonstrated property.
 	private static Property lastDemonstratedProperty;
 	
-	public static void synthesizeAndInsertExpressions(final IVariable variable, final String fullVarName, final Property property, final IJavaValue demonstration, Shell shell, final boolean replaceCurLine) {
+	public static void synthesizeAndInsertExpressions(final IVariable variable, final String fullVarName, final Property property, Shell shell, final boolean replaceCurLine) {
 		System.out.println("Beginning synthesis for " + variable.toString() + " with property " + property.toString() + ".");
 
 		lastDemonstratedProperty = property;
@@ -95,8 +100,9 @@ public class Synthesizer {
 			protected IStatus run(IProgressMonitor monitor) {
 				try {
 					//PAR TODO - Is this the point to configure the save behavior?
-					JDIDebugTarget target = (JDIDebugTarget)variable.getDebugTarget();
+					IJavaDebugTarget target = (IJavaDebugTarget)variable.getDebugTarget();
 					IJavaType varStaticType = ((IJavaVariable)variable).getJavaType();
+					final IJavaValue demonstration = property instanceof ValueProperty ? ((ValueProperty)property).getValue() : null;
 
 					final List<EvaluatedExpression> validExpressions = ExpressionGenerator.generateExpression(target, frame, property, demonstration, varStaticType, monitor);
 
@@ -168,7 +174,8 @@ public class Synthesizer {
 								}
 			
 								// TODO: Using the text of the statement as a key is not a very good idea.
-								initialDemonstrations.put(statement, demonstration != null ? null : property);
+								if (finalExpressions.size() > 1)
+									initialDemonstrations.put(statement, property);
 								
 								IJavaValue value = demonstration != null ? demonstration : validExpressions.get(0).getResult();
 								if (value != null)
@@ -399,7 +406,6 @@ public class Synthesizer {
    			}
 
    			Property initialProperty = initialDemonstrations.containsKey(curLine) ? initialDemonstrations.get(curLine) : null;
-   			boolean demonstratedProperty = initialProperty != null || !initialDemonstrations.containsKey(curLine);  // If we cannot identify the statement, we must be general and ask for a property.
    			
    			IJavaValue value = null;
    			String newLine = null;
@@ -409,7 +415,7 @@ public class Synthesizer {
    			// If all expressions evaluate to the same value, use that and move on.
    			if (allHaveSameResult(exprs)) {
    				if (exprs.size() < initialExprs.size())  // Some expressions crashed, so remove them from the code.
-           			newLine = rewriteLine(matcher, varname, curLine, initialProperty, demonstratedProperty, exprs, line);
+           			newLine = rewriteLine(matcher, varname, curLine, initialProperty, exprs, line);
    				value = exprs.get(0).getResult();
    				automatic = true;
    			} else {
@@ -423,21 +429,8 @@ public class Synthesizer {
    	   				}
    	   			});
        			// Get the new concrete value from the user.
-       			String varSignature = lhsVar != null ? lhsVar.getSignature() : Signature.createTypeSignature(matcher.group(1), false);
-       			Property property = null;
-       			if (!demonstratedProperty) {
-       				String resultStr = getExpressionFromUser(varname, "", "\nChoose one of: " + getLegalValues(exprs));
-       				if (resultStr != null) {
-	       				if (EclipseUtils.isPrimitive(varSignature))
-		       				property = LambdaProperty.fromPrimitive(resultStr);
-	       				else
-	       					property = LambdaProperty.fromObject(resultStr);
-       				}
-       			} else {
-       				IJavaType varStaticType = lhsVar == null ? null : lhsVar.getJavaType();
-       				String initValue = initialProperty != null ? initialProperty.toString() : null;
-       				property = getPropertyFromUser(varname, varStaticType, initValue, "\nPotential values are: " + getLegalValues(exprs), frame, initialProperty);
-       			}
+   				IJavaType varStaticType = lhsVar == null ? null : lhsVar.getJavaType();
+   				Property property = getPropertyFromUser(varname, varStaticType, varStaticTypeName, "\nPotential values are: " + getLegalValues(exprs), frame, initialProperty);
        			if (property == null) {
        				//The user cancelled, just drop back into the debugger and let the 
        				//use do what they want.  Attempting to execute the line will result
@@ -455,7 +448,7 @@ public class Synthesizer {
        			}
    				value = validExprs.get(0).getResult();  // The returned values could be different, so we arbitrarily use the first one.  This might not be the best thing to do.
        			
-       			newLine = rewriteLine(matcher, varname, curLine, property, demonstratedProperty, validExprs, line);
+       			newLine = rewriteLine(matcher, varname, curLine, property, validExprs, line);
 
        			if (validExprs.size() == 1) {
            			// If there's only a single possibility remaining, remove the breakpoint.
@@ -521,7 +514,7 @@ public class Synthesizer {
        		}
 		}
 
-		private static String rewriteLine(Matcher matcher, final String varname, String curLine, Property property, boolean demonstratedProperty, ArrayList<EvaluatedExpression> validExprs, final int line) {
+		private static String rewriteLine(Matcher matcher, final String varname, String curLine, Property property, ArrayList<EvaluatedExpression> validExprs, final int line) {
 			List<String> newExprsStrs = EvaluatedExpression.snippetsOfEvaluatedExpressions(validExprs);
 			String varDeclaration = matcher.group(1) != null ? matcher.group(1) + " " : "";
 			final String newLine = varDeclaration + generateChooseOrChosenStmt(varname, newExprsStrs);
@@ -538,7 +531,7 @@ public class Synthesizer {
 				}
 			});
    			initialDemonstrations.remove(curLine);
-			initialDemonstrations.put(newLine, demonstratedProperty ? property : null);
+			initialDemonstrations.put(newLine, property);
 			return newLine;
 		}
 	    
@@ -567,25 +560,25 @@ public class Synthesizer {
         	return result[0];
 	    }
 	    
-	    private static String getExpressionFromUser(final String varName, final String initValue, final String extraMessage) {
-			final String[] result = new String[] { null };
-			Display.getDefault().syncExec(new Runnable() {
-				@Override
-				public void run() {
-					result[0] = EclipseUtils.getExpression(varName, EclipseUtils.getShell(), initValue, extraMessage);
-				}
-			});
-			return result[0];
-	    }
-	    private static Property getPropertyFromUser(final String varName, final IJavaType varStaticType, final String initValue, final String extraMessage, final IJavaStackFrame stackFrame, final Property oldProperty) {
+	    private static Property getPropertyFromUser(final String varName, final IJavaType varStaticType, final String varStaticTypeName, final String extraMessage, final IJavaStackFrame stackFrame, final Property oldProperty) {
 	    	final Property[] result = new Property[] { null };
 	    	Display.getDefault().syncExec(new Runnable() {
 	    		@Override
 	    		public void run() {
-	    			if (oldProperty == null || oldProperty instanceof StateProperty)
-	    				result[0] = EclipseUtils.getStateProperty(varName, EclipseUtils.getShell(), initValue, extraMessage);
-	    			else if (oldProperty instanceof LambdaProperty)
-	    				result[0] = EclipseUtils.getLambdaProperty(varName, EclipseUtils.getShell(), varStaticType, initValue, extraMessage, stackFrame);
+	    			try {
+		    			if (oldProperty == null || oldProperty instanceof StateProperty)
+		    				result[0] = EclipseUtils.getStateProperty(varName, EclipseUtils.getShell(), oldProperty.toString(), extraMessage);
+		    			else if (oldProperty instanceof PrimitiveValueProperty)
+		    				result[0] = EclipseUtils.getPrimitiveValueProperty(varName, EclipseUtils.getShell(), "", extraMessage);
+		    			else if (oldProperty instanceof ObjectValueProperty)
+		    				result[0] = EclipseUtils.getObjectValueProperty(varName, EclipseUtils.getShell(), "", extraMessage);
+		    			else if (oldProperty instanceof TypeProperty)
+		    				result[0] = EclipseUtils.getTypeProperty(varName, EclipseUtils.getShell(), varStaticTypeName, ((TypeProperty)oldProperty).getTypeName(), extraMessage, stackFrame);
+		    			else if (oldProperty instanceof LambdaProperty)
+		    				result[0] = EclipseUtils.getLambdaProperty(varName, EclipseUtils.getShell(), varStaticType, oldProperty.toString(), extraMessage, stackFrame);
+	    			} catch (DebugException e) {
+	    				throw new RuntimeException(e);
+	    			}
 	    		}
 	    	});
 	    	return result[0];

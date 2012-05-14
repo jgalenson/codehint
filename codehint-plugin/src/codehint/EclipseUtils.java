@@ -52,6 +52,11 @@ import org.eclipse.ui.PlatformUI;
 import org.eclipse.ui.texteditor.ITextEditor;
 
 import codehint.expreval.EvaluationManager.EvaluationError;
+import codehint.property.LambdaProperty;
+import codehint.property.ObjectValueProperty;
+import codehint.property.PrimitiveValueProperty;
+import codehint.property.StateProperty;
+import codehint.property.TypeProperty;
 
 public class EclipseUtils {
     
@@ -250,7 +255,7 @@ public class EclipseUtils {
 			return ": " + varStaticTypeName;
     }
     
-    public static String getExpression(String varName, Shell shell, String initialValue, String extraMessage) {
+    private static String getExpression(String varName, Shell shell, String initialValue, String extraMessage) {
         String title= "Demonstrate an expression"; 
         String message= "Demonstrate an expression for " + varName + ".  We will find expressions that evaluate to the same value.";
         ExpressionValidator validator= new ExpressionValidator();
@@ -260,7 +265,25 @@ public class EclipseUtils {
     	return stringValue;
     }
     
-    public static String getType(String varName, Shell shell, String varTypeName, String initialValue, IJavaStackFrame stackFrame) {
+    public static PrimitiveValueProperty getPrimitiveValueProperty(String varName, Shell shell, String initialValue, String extraMessage) throws DebugException {
+    	String stringValue = getExpression(varName, shell, initialValue, extraMessage);
+    	if (stringValue != null) {
+	    	IJavaValue demonstrationValue = evaluate(stringValue);
+	    	return PrimitiveValueProperty.fromPrimitive(EclipseUtils.javaStringOfValue(demonstrationValue), demonstrationValue);
+    	} else
+    		return null;
+    }
+    
+    public static ObjectValueProperty getObjectValueProperty(String varName, Shell shell, String initialValue, String extraMessage) throws DebugException {
+    	String stringValue = getExpression(varName, shell, initialValue, extraMessage);
+    	if (stringValue != null) {
+	    	IJavaValue demonstrationValue = evaluate(stringValue);
+	    	return ObjectValueProperty.fromObject(stringValue, demonstrationValue);
+    	} else
+    		return null;
+    }
+    
+    public static TypeProperty getTypeProperty(String varName, Shell shell, String varTypeName, String initialValue, String extraMessage, IJavaStackFrame stackFrame) {
     	try {
     		varTypeName = sanitizeTypename(varTypeName);
 			IJavaProject project = getProject(stackFrame);
@@ -276,8 +299,11 @@ public class EclipseUtils {
 	    	String title= "Demonstrate a type"; 
 	        String message= "Demonstrate a type for " + varName + ".  We will find expressions return that type when evaluated.";
 	        TypeValidator validator= new TypeValidator(project, varType, thisType);
-	        String stringValue = getDialogResult(title, message, null, initialValue, validator, "type");
-	    	return stringValue;
+	        String typeName = getDialogResult(title, message, extraMessage, initialValue, validator, "type");
+	    	if (typeName != null)
+	    		return TypeProperty.fromType(typeName);
+    		else
+    			return null;
     	} catch (JavaModelException e) {
  			throw new RuntimeException(e);
  		} catch (DebugException e) {

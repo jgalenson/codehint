@@ -7,6 +7,9 @@ import org.eclipse.debug.core.DebugException;
 import org.eclipse.debug.core.model.IVariable;
 import org.eclipse.swt.widgets.Shell;
 
+import codehint.property.Property;
+import codehint.property.StateProperty;
+
 public class DemonstrateStatePropertyHandler extends CommandHandler {
 
     public final static Pattern PATTERN = Pattern.compile("\\s*CodeHint.pdspec\\((\\w*)\\s*,\\s*(.*)\\);\\s*\\r?\\n\\s*");
@@ -34,7 +37,7 @@ public class DemonstrateStatePropertyHandler extends CommandHandler {
 		}
     	StateProperty property = EclipseUtils.getStateProperty(path, shell, initValue, null);
     	if (property != null)
-        	Synthesizer.synthesizeAndInsertExpressions(variable, path, property, null, shell, matcher != null);
+        	Synthesizer.synthesizeAndInsertExpressions(variable, path, property, shell, matcher != null);
     }
 
 	public static void handleFromText(Matcher matcher) {

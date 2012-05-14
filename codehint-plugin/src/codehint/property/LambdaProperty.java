@@ -1,4 +1,4 @@
-package codehint;
+package codehint.property;
 
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -15,6 +15,9 @@ import org.eclipse.jdt.core.dom.SimpleName;
 import org.eclipse.jdt.debug.core.IJavaStackFrame;
 import org.eclipse.jdt.internal.core.dom.NaiveASTFlattener;
 
+import codehint.EclipseUtils;
+import codehint.property.Property;
+
 /**
  * Class that stores a user-entered property (essentially
  * a lambda).
@@ -23,16 +26,16 @@ import org.eclipse.jdt.internal.core.dom.NaiveASTFlattener;
 public class LambdaProperty extends Property {
 	
     private final static Pattern lambdaPattern = Pattern.compile("(\\w+)(?: ?: ?(\\w+))?\\s*=>\\s*(.*)");
-    private final static ASTParser parser = ASTParser.newParser(AST.JLS4);
+    protected final static ASTParser parser = ASTParser.newParser(AST.JLS4);
 	
 	private final String lhs;
 	private final String type;
 	private final Expression rhs;
 
 	// TODO: If the user has a variable with this name, the property cannot refer to it.
-	private final static String DEFAULT_LHS = "_$x";
+	protected final static String DEFAULT_LHS = "_$x";
 	
-	private LambdaProperty(String lhs, String type, Expression rhs) {
+	protected LambdaProperty(String lhs, String type, Expression rhs) {
 		this.lhs = lhs;
 		this.type = type;
 		this.rhs = rhs;
@@ -45,24 +48,6 @@ public class LambdaProperty extends Property {
 		String type = matcher.group(2);
 		Expression rhs = (Expression)EclipseUtils.parseExpr(parser, matcher.group(3));
 		return new LambdaProperty(lhs, type, rhs);
-	}
-	
-	public static LambdaProperty fromPrimitive(String valueString) {
-		String lhs = DEFAULT_LHS;
-		Expression rhs = (Expression)EclipseUtils.parseExpr(parser, lhs + " == " + valueString);
-		return new LambdaProperty(lhs, null, rhs);
-	}
-	
-	public static LambdaProperty fromObject(String expr) {
-		String lhs = DEFAULT_LHS;
-		Expression rhs = (Expression)EclipseUtils.parseExpr(parser, lhs + " == null ? " + expr + " == null : " + lhs + ".equals(" + expr + ")");
-		return new LambdaProperty(lhs, null, rhs);
-	}
-	
-	public static LambdaProperty fromType(String typeName) {
-		String lhs = DEFAULT_LHS;
-		Expression rhs = (Expression)EclipseUtils.parseExpr(parser, lhs + " instanceof " + typeName);
-		return new LambdaProperty(lhs, null, rhs);
 	}
 	
 	public static String isLegalProperty(String str, IJavaStackFrame stackFrame, IJavaProject project, IType varType, IType thisType) {

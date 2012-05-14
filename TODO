@@ -37,7 +37,6 @@ When demonstrating values, do not allow implicit conversions like int->double (e
 I think our evaluations do change memory....
 Improve method blacklist.
 We currently use the string of the inserted text as the key to store information about a choose statement.  We should at least also use the filename and line number, if not just use a tag like before.
-Improve guessing of the property during refinement.  It currently ignores demonstrating types.  I probably need to fix the bug about using better keys to store the information and make different subtypes of Property.
 Defaulting to showing crashing properties has problems: it uses the desugared properties (can be fixed by subtyping Property) and if you then demonstrate for a different variable, we still show the old failing one.
 Show a better popup during refinement (instead of just displaying a list of values).
 Disable right-click menus when not applicable (more than one element is selected or trying to demonstrate the type of a primitive).

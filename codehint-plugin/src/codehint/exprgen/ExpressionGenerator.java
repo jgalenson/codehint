@@ -54,9 +54,9 @@ import org.eclipse.jdt.internal.debug.core.model.JDIStackFrame;
 import org.eclipse.jdt.internal.debug.core.model.JDIType;
 
 import codehint.EclipseUtils;
-import codehint.Property;
 import codehint.expreval.EvaluatedExpression;
 import codehint.expreval.EvaluationManager;
+import codehint.property.Property;
 
 import com.sun.jdi.ClassNotLoadedException;
 import com.sun.jdi.Field;
@@ -101,7 +101,7 @@ public class ExpressionGenerator {
 	 * to a certain depth) whose value in the current stack frame is
 	 * that of the demonstration.
 	 */
-	public static List<EvaluatedExpression> generateExpression(JDIDebugTarget target, IJavaStackFrame stack, Property property, IJavaValue demonstration, IJavaType varStaticType, IProgressMonitor monitor) {
+	public static List<EvaluatedExpression> generateExpression(IJavaDebugTarget target, IJavaStackFrame stack, Property property, IJavaValue demonstration, IJavaType varStaticType, IProgressMonitor monitor) {
 		monitor.beginTask("Expression generation", IProgressMonitor.UNKNOWN);
 		
 		try {
@@ -121,7 +121,7 @@ public class ExpressionGenerator {
 	
 			long startTime = System.currentTimeMillis();
 			
-			List<TypedExpression> allTypedExprs = genAllExprs(target, demonstration, typeBound, stack, thread, supertypesMap, equivalences, 0, MAX_EXPR_DEPTH, monitor);
+			List<TypedExpression> allTypedExprs = genAllExprs((JDIDebugTarget)target, demonstration, typeBound, stack, thread, supertypesMap, equivalences, 0, MAX_EXPR_DEPTH, monitor);
 			
 			/*for (Map.Entry<IJavaValue, Set<EvaluatedExpression>> entry : equivalences.entrySet())
 				System.out.println(entry.getKey() + " -> " + entry.getValue().toString());*/
