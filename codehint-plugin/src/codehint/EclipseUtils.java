@@ -415,7 +415,7 @@ public class EclipseUtils {
 		public String isValid(String newText) {
         	ASTNode node = EclipseUtils.parseExpr(parser, newText);
         	if (node instanceof CompilationUnit)
-        		return "Please enter a valid Java expression.";
+        		return "Enter a valid expression: " + ((CompilationUnit)node).getProblems()[0].getMessage();
         	return null;
         }
     }

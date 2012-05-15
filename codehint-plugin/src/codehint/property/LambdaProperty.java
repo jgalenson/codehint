@@ -62,7 +62,7 @@ public class LambdaProperty extends Property {
     	}
     	ASTNode rhs = EclipseUtils.parseExpr(parser, matcher.group(3));
     	if (rhs instanceof CompilationUnit)
-    		return "The right-hand side must be a valid Java expression.";
+    		return "Enter a valid expression on the RHS: " + ((CompilationUnit)rhs).getProblems()[0].getMessage();
     	String lhs = matcher.group(1);
     	try {
 			if (stackFrame.findVariable(lhs) != null)
