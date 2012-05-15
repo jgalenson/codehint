@@ -9,6 +9,7 @@ import org.eclipse.swt.widgets.Shell;
 
 import codehint.EclipseUtils;
 import codehint.Synthesizer;
+import codehint.property.Property;
 import codehint.property.ValueProperty;
 
 public class DemonstrateValueHandler extends CommandHandler {
@@ -32,6 +33,9 @@ public class DemonstrateValueHandler extends CommandHandler {
 				return;
 			}
 			initValue = matcher.group(2);
+		} else {
+	    	Property lastCrashedProperty = Synthesizer.getLastCrashedProperty(path);
+	    	initValue = lastCrashedProperty instanceof ValueProperty ? ((ValueProperty)lastCrashedProperty).getValueString() : null;
 		}
 		ValueProperty property = EclipseUtils.isPrimitive(variable) ? EclipseUtils.getPrimitiveValueProperty(path, shell, initValue, null) : EclipseUtils.getObjectValueProperty(path, shell, initValue, null);
 		if (property != null)

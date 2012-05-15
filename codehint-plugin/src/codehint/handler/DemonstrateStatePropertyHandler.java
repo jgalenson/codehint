@@ -34,8 +34,8 @@ public class DemonstrateStatePropertyHandler extends CommandHandler {
 			}
 			initValue = matcher.group(2);
 		} else {
-			Property lastDemonstratedProperty = Synthesizer.getLastDemonstratedProperty();
-			initValue = lastDemonstratedProperty == null ? null : lastDemonstratedProperty.toString();
+			Property lastCrashedProperty = Synthesizer.getLastCrashedProperty(path);
+			initValue = lastCrashedProperty instanceof StateProperty ? lastCrashedProperty.toString() : null;
 		}
     	StateProperty property = EclipseUtils.getStateProperty(path, shell, initValue, null);
     	if (property != null)

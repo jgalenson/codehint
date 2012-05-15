@@ -88,12 +88,11 @@ public class Synthesizer {
 	
 	private static Map<String, Property> initialDemonstrations;
 	// We store the last property we have seen demonstrated demonstrated while we are processing it.  If everything works, we clear this, but if there is an error, we keep this and use it as the initial value for the user's next demonstrated property.
-	private static Property lastDemonstratedProperty;
+	private static String lastCrashedVariable;
+	private static Property lastCrashedProperty;
 	
 	public static void synthesizeAndInsertExpressions(final IVariable variable, final String fullVarName, final Property property, Shell shell, final boolean replaceCurLine) {
 		System.out.println("Beginning synthesis for " + variable.toString() + " with property " + property.toString() + ".");
-
-		lastDemonstratedProperty = property;
 
 		final IJavaStackFrame frame = EclipseUtils.getStackFrame();
 
@@ -109,10 +108,8 @@ public class Synthesizer {
 
 					final List<EvaluatedExpression> validExpressions = ExpressionGenerator.generateExpression(target, frame, property, demonstration, varStaticType, monitor);
 
-					if (validExpressions.isEmpty()) {
-						lastDemonstratedProperty = null;
+					if (validExpressions.isEmpty())
 						return new Status(IStatus.ERROR, Activator.PLUGIN_ID, "No valid expressions were found.");
-					}
 					//System.out.println("Valid expressions: " + validExpressionStrings.toString());
 
 			        UIJob job = new UIJob("Inserting synthesized code"){
@@ -122,13 +119,10 @@ public class Synthesizer {
 								CandidateSelector candidateSelector = new CandidateSelector(validExpressions.toArray(new EvaluatedExpression[0]));
 								List<EvaluatedExpression> finalExpressions = candidateSelector.getUserFilteredCandidates();
 
-						        if (finalExpressions == null) {
-									lastDemonstratedProperty = null;
+						        if (finalExpressions == null)
 									return Status.CANCEL_STATUS;
-						        } else if (finalExpressions.isEmpty()) {
-									lastDemonstratedProperty = null;
+						        else if (finalExpressions.isEmpty())
 									return new Status(IStatus.ERROR, Activator.PLUGIN_ID, "No valid expressions were found.");
-						        }
 								
 								List<String> validExpressionStrings = EvaluatedExpression.snippetsOfEvaluatedExpressions(finalExpressions);
 								
@@ -183,11 +177,11 @@ public class Synthesizer {
 								IJavaValue value = demonstration != null ? demonstration : validExpressions.get(0).getResult();
 								if (value != null)
 									variable.setValue(value);  // PAR TODO: Philip, Joel added this line.  Is there a reason we don't want it?  We certainly do want to change the value in the current iteration somehow.  (Of course, if we do want this we should probably combine it with the one in the else block below.)
-			
+
+						    	setLastCrashedProperty(null, null);
+								
 								//NOTE: Our current implementation does not save.  Without a manual save, our added 
 								// code gets ignored for this invocation.  Should we force a save and restart?
-			
-								lastDemonstratedProperty = null;
 			
 								System.out.println("Finishing synthesis for " + variable.toString() + " with property " + property.toString() + ".  Found " + validExpressions.size() + " expressions and inserted " + statement);
 								return Status.OK_STATUS;
@@ -206,6 +200,7 @@ public class Synthesizer {
 					EclipseUtils.showError("Error", "An error occurred processing your demonstration.", e);
 					throw new RuntimeException(e.getMessage());
 				} catch (EvaluationError e) {
+			    	setLastCrashedProperty(variable.toString(), property);
 					return new Status(IStatus.ERROR, Activator.PLUGIN_ID, e.getMessage());
 				} catch (OperationCanceledException e) {
 					System.out.println("Cancelling synthesis for " + variable.toString() + " with property " + property.toString() + ".");
@@ -441,10 +436,16 @@ public class Synthesizer {
        	   			System.out.println("Ending refinement for " + curLine + " because the user told us to cancel.");
        				return;
        			}
-            	lastDemonstratedProperty = property;
        			
        			// Filter out the expressions that do not give the desired value in the current context.
-       			ArrayList<EvaluatedExpression> validExprs = EvaluationManager.filterExpressions(exprs, target, frame, varStaticTypeName, property);
+       			ArrayList<EvaluatedExpression> validExprs = null;
+       			try {
+       				validExprs = EvaluationManager.filterExpressions(exprs, target, frame, varStaticTypeName, property);
+       			} catch (EvaluationError e) {
+       		    	setLastCrashedProperty(varname, property);
+					throw e;
+				}
+       	    	setLastCrashedProperty(null, null);
        			if (validExprs.isEmpty()) {
        				EclipseUtils.showError("Error", "No legal expressions remain after refinement.", null);
        				throw new RuntimeException("No legal expressions remain after refinement");
@@ -473,8 +474,6 @@ public class Synthesizer {
    			// TODO: Handle case when this is null (maybe do it above when we workaround it being null).  Creating a JDILocalVariable requires knowing about where the current scope ends, though.
    			if (lhsVar != null)
    				lhsVar.setValue(value);
-
-        	lastDemonstratedProperty = null;
 
     		System.out.println("Ending refinement for " + curLine + (automatic ? " automatically" : "") + ".  " + (newLine == null ? "Statement unchanged." : "Went from " + initialExprs.size() + " expressions to " + finalExprs.size() + ".  New statement: " + newLine));
         	
@@ -666,7 +665,7 @@ public class Synthesizer {
     	if (listener == null)
     		listener = new ChoiceBreakpointListener();
     	initialDemonstrations = new HashMap<String, Property>();
-    	lastDemonstratedProperty = null;
+    	setLastCrashedProperty(null, null);
     	DebugPlugin.getDefault().addDebugEventListener(listener);
     	ExpressionGenerator.initBlacklist();
     }
@@ -676,11 +675,19 @@ public class Synthesizer {
     	DebugPlugin.getDefault().removeDebugEventListener(listener);
     	listener = null;
     	initialDemonstrations = null;
-    	lastDemonstratedProperty = null;
+    	setLastCrashedProperty(null, null);
     }
     
-    public static Property getLastDemonstratedProperty() {
-    	return lastDemonstratedProperty;
+    public static Property getLastCrashedProperty(String varName) {
+    	if (lastCrashedVariable != null && lastCrashedVariable.equals(varName))
+    		return lastCrashedProperty;
+    	else
+    		return null;
+    }
+    
+    public static void setLastCrashedProperty(String varName, Property property) {
+    	lastCrashedVariable = varName;
+    	lastCrashedProperty = property;
     }
 
 }

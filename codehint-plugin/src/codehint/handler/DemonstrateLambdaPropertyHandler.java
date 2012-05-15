@@ -10,14 +10,15 @@ import codehint.EclipseUtils;
 import codehint.Synthesizer;
 import codehint.property.LambdaProperty;
 import codehint.property.Property;
+import codehint.property.ValueProperty;
 
 public class DemonstrateLambdaPropertyHandler extends CommandHandler {
     
     @Override
 	public void handle(IVariable variable, String path, Shell shell) {
     	try {
-	    	Property lastDemonstratedProperty = Synthesizer.getLastDemonstratedProperty();
-	    	String initValue = lastDemonstratedProperty == null ? null : lastDemonstratedProperty.toString();
+	    	Property lastCrashedProperty = Synthesizer.getLastCrashedProperty(path);
+	    	String initValue = lastCrashedProperty instanceof LambdaProperty && !(lastCrashedProperty instanceof ValueProperty) ? lastCrashedProperty.toString() : null;
 	    	IJavaType varStaticType = ((IJavaVariable)variable).getJavaType();
 	    	LambdaProperty property = EclipseUtils.getLambdaProperty(path, shell, varStaticType, initValue, null, EclipseUtils.getStackFrame());
 	    	if (property != null)

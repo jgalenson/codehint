@@ -51,6 +51,7 @@ import org.eclipse.ui.IWorkbenchPage;
 import org.eclipse.ui.PlatformUI;
 import org.eclipse.ui.texteditor.ITextEditor;
 
+import codehint.expreval.EvaluationManager;
 import codehint.expreval.EvaluationManager.EvaluationError;
 import codehint.property.LambdaProperty;
 import codehint.property.ObjectValueProperty;
@@ -268,8 +269,13 @@ public class EclipseUtils {
     public static PrimitiveValueProperty getPrimitiveValueProperty(String varName, Shell shell, String initialValue, String extraMessage) throws DebugException {
     	String stringValue = getExpression(varName, shell, initialValue, extraMessage);
     	if (stringValue != null) {
-	    	IJavaValue demonstrationValue = evaluate(stringValue);
-	    	return PrimitiveValueProperty.fromPrimitive(EclipseUtils.javaStringOfValue(demonstrationValue), demonstrationValue);
+    		try {
+		    	IJavaValue demonstrationValue = evaluate(stringValue);
+		    	return PrimitiveValueProperty.fromPrimitive(EclipseUtils.javaStringOfValue(demonstrationValue), demonstrationValue);
+    		}  catch (EvaluationError e) {
+		    	Synthesizer.setLastCrashedProperty(varName, PrimitiveValueProperty.fromPrimitive(stringValue, null));
+				throw e;
+			}
     	} else
     		return null;
     }
@@ -277,8 +283,13 @@ public class EclipseUtils {
     public static ObjectValueProperty getObjectValueProperty(String varName, Shell shell, String initialValue, String extraMessage) throws DebugException {
     	String stringValue = getExpression(varName, shell, initialValue, extraMessage);
     	if (stringValue != null) {
-	    	IJavaValue demonstrationValue = evaluate(stringValue);
-	    	return ObjectValueProperty.fromObject(stringValue, demonstrationValue);
+    		try {
+    			IJavaValue demonstrationValue = evaluate(stringValue);
+    			return ObjectValueProperty.fromObject(stringValue, demonstrationValue);
+    		} catch (EvaluationError e) {
+		    	Synthesizer.setLastCrashedProperty(varName, ObjectValueProperty.fromObject(stringValue, null));
+				throw e;
+			}
     	} else
     		return null;
     }
@@ -562,8 +573,11 @@ public class EclipseUtils {
     			IEvaluationResult result= results[0];
     			if (result == null)
     			    return null;
-    			if (result.hasErrors())
-    				throw new EvaluationError("Evaluation error: " + "The following errors were encountered during evaluation.\nDid you enter a valid property?\n\n" + getErrors(result));
+    			if (result.hasErrors()) {
+    				String msg = "The following errors were encountered during evaluation.\n\n" + getErrors(result);
+    				showError("Evaluation error", msg, null);
+    				throw new EvaluationManager.EvaluationError(msg);
+    			}
     			return result.getValue();
             }
         }
