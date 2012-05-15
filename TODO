@@ -1,9 +1,9 @@
 Feature requests
 ----------------
 When users write a pdspec in the code, make it easier to start the synthesis.  We could set the breakpoint and start the debugger automatically when the user does something (e.g., right-click menu).
-Make it easier to write pdspecs in the code.  Have variables without primes default to pre or post.  It would be great if we could use auto-complete to make them easier to type, but Eclipse doesn't seem to let us do that.
+Make it easier to write pdspecs in the code.  It would be great if we could use auto-complete to make them easier to type, but Eclipse doesn't seem to let us do that.
 Support auto-complete and error-highlighting in the dialog box when demonstrating.  See e.g. ChangeVariableValueInputDialog and ExpressionInputDialog.
-Improve the candidate selector dialog.  You should be able to browse values like in the variables view, and hovering over a method should show its Javadoc.
+Improve the candidate selector dialog.  You should be able to browse values like in the variables view, and hovering over a method should show its Javadoc.  It should also have two real columns.
 Allow searching over the heap.  In variables view window, should be able to search values, types, names for a string.  Leo's idea.
 We should allow users to easily make demonstrations for new variables (currently you need the variable to exist so you can right-click it in the variables window, so you must make a fake assignment to it).  
 We should allow demonstrating generic statements using our new prime syntax.  This will allow us to call void methods and talk about side effects.
@@ -49,7 +49,7 @@ Optimizations
 Begin expression generation when the user clicks demonstration, i.e., when we open the text box.  This way we can do the work while they're typing.
 If multiple expressions have the same value, only generate with one and then replace later.
 Investigate using IClassFileEvaluationEngine instead of ASTEvaluation.  See JavaSnippetEditor.evaluate().
-Optimize evaluation string: use temporary instead of index into array of values and, when given a property with a type (x: Foo => ...) don't insert the casts if the variable has static type Foo.
+Optimize evaluation string: use temporary instead of index into array of values (also allows us to not call property.getReplacedString lots of times, as we can cache its result) and, when given a property with a type (x: Foo => ...) don't insert the casts if the variable has static type Foo.
 
 Research questions
 ------------------

@@ -324,7 +324,7 @@ public class EclipseUtils {
     
     public static StateProperty getStateProperty(String varName, Shell shell, String initialValue, String extraMessage) {
 		String title= "Demonstrate state property"; 
-        String message= "Demonstrate a state property that should hold for " + varName + " after this statement is executed.";
+        String message= "Demonstrate a state property that should hold for " + varName + " after this statement is executed.  You may refer to the values of variables after this statement is executed using the prime syntax, e.g., " + varName + "\'";
         StatePropertyValidator validator= new StatePropertyValidator();
         String stringValue = getDialogResult(title, message, extraMessage, initialValue, validator, "state");
     	if (stringValue != null)

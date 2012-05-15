@@ -3,6 +3,8 @@ package codehint.property;
 import java.util.HashSet;
 import java.util.Set;
 
+import org.eclipse.debug.core.DebugException;
+import org.eclipse.jdt.core.compiler.IProblem;
 import org.eclipse.jdt.core.dom.AST;
 import org.eclipse.jdt.core.dom.ASTNode;
 import org.eclipse.jdt.core.dom.ASTParser;
@@ -11,39 +13,68 @@ import org.eclipse.jdt.core.dom.CompilationUnit;
 import org.eclipse.jdt.core.dom.Expression;
 import org.eclipse.jdt.core.dom.MethodInvocation;
 import org.eclipse.jdt.core.dom.SimpleName;
+import org.eclipse.jdt.debug.core.IJavaStackFrame;
 import org.eclipse.jdt.internal.core.dom.NaiveASTFlattener;
 
 import codehint.EclipseUtils;
 import codehint.property.Property;
 
+/**
+ * Note that variables without primes default to pre.
+ */
 public class StateProperty extends Property {
 	
     private final static ASTParser parser = ASTParser.newParser(AST.JLS4);
 
 	private final String lhs;
 	private final Expression property;
+	private final String propertyStr;
+	private Set<String> cachedPreVariables;
 	
-	private StateProperty(String lhs, Expression property) {
+	private StateProperty(String lhs, Expression property, String propertyStr) {
 		this.lhs = lhs;
 		this.property = property;
+		this.propertyStr = propertyStr;
 	}
 	
 	public static StateProperty fromPropertyString(String lhs, String propertyStr) {
-		Expression property = (Expression)EclipseUtils.parseExpr(parser, propertyStr);
-		return new StateProperty(lhs, property);
+		Expression property = (Expression)rewritePrimeSyntax(propertyStr);
+		return new StateProperty(lhs, property, propertyStr);
 	}
 	
 	public static String isLegalProperty(String str) {
-		ASTNode property = EclipseUtils.parseExpr(parser, str);
-    	if (property instanceof CompilationUnit)
-    		return "Please enter a valid Java expression.";
-    	return ValidityChecker.getError((Expression)property);
+		ASTNode property = rewritePrimeSyntax(str);
+		if (property instanceof CompilationUnit)
+			return "Enter a valid expression: " + ((CompilationUnit)property).getProblems()[0].getMessage();
+		return ValidityChecker.getError((Expression)property);
 	}
 	
-	public Set<String> getPreVariables() {
-		PreVariableFinder preFinder = new PreVariableFinder();
-		property.accept(preFinder);
-		return preFinder.getPreVariables();
+	private static ASTNode rewritePrimeSyntax(String str) {
+		while (true) {
+			ASTNode node = EclipseUtils.parseExpr(parser, str);
+	    	if (node instanceof CompilationUnit) {
+	    		IProblem problem = ((CompilationUnit)node).getProblems()[0];
+	    		int problemStart = problem.getSourceStart();
+	    		if (problem.getID() == IProblem.InvalidCharacterConstant && problemStart < str.length() && str.charAt(problemStart) == '\'') {
+	    			int varStart = problemStart - 1;
+	    			while (varStart >= 0 && Character.isJavaIdentifierPart(str.charAt(varStart)))
+    					varStart--;
+	    			str = str.substring(0, varStart + 1) + "CodeHint.post(" + str.substring(varStart + 1, problemStart) + ")" + str.substring(problemStart + 1);
+	    		} else
+	    			return node;
+	    	} else
+	    		return node;
+		}
+		
+	}
+	
+	public Set<String> getPreVariables(IJavaStackFrame stack) {
+		if (cachedPreVariables == null) {
+			PreVariableFinder preFinder = new PreVariableFinder(stack);
+			property.accept(preFinder);
+			cachedPreVariables = preFinder.getPreVariables();
+		}
+		return cachedPreVariables;
 	}
 
 	/**
@@ -54,8 +85,8 @@ public class StateProperty extends Property {
 	 * property with lambda argument replaced by the given string.
 	 */
 	@Override
-	public String getReplacedString(String arg) {
-		StateASTFlattener flattener = new StateASTFlattener(lhs, arg);
+	public String getReplacedString(String arg, IJavaStackFrame stack) {
+		StateASTFlattener flattener = new StateASTFlattener(lhs, arg, stack);
 		property.accept(flattener);
 		return flattener.getResult();
 	}
@@ -78,7 +109,7 @@ public class StateProperty extends Property {
 	
 	@Override
 	public String toString() {
-		return property.toString();
+		return propertyStr;
 	}
 	
 	private static class ValidityChecker extends ASTVisitor {
@@ -110,18 +141,34 @@ public class StateProperty extends Property {
 	
 	private static class PreVariableFinder extends ASTVisitor {
 		
+		private final IJavaStackFrame stack;
 		private final Set<String> preVariables;
 		
-		public PreVariableFinder() {
+		public PreVariableFinder(IJavaStackFrame stack) {
+			this.stack = stack;
 			preVariables = new HashSet<String>();
 		}
 
 		@Override
     	public boolean visit(MethodInvocation node) {
-    		if (isPre(node))
+    		if (isPre(node)) {
 	    		preVariables.add(((SimpleName)node.arguments().get(0)).getIdentifier());
+	    		return false;
+    		}else if (isPost(node))
+    			return false;
     		return true;
     	}
+		
+		@Override
+		public boolean visit(SimpleName node) {
+			try {
+				if (stack.findVariable(node.getIdentifier()) != null)
+					preVariables.add(node.getIdentifier());
+			} catch (DebugException e) {
+				throw new RuntimeException(e);
+			}
+			return true;
+		}
 
     	public Set<String> getPreVariables() {
 			return preVariables;
@@ -133,11 +180,13 @@ public class StateProperty extends Property {
 
 		private final String lhs;
 		private final String arg;
+		private final IJavaStackFrame stack;
 		
-		public StateASTFlattener(String lhs, String arg) {
+		public StateASTFlattener(String lhs, String arg, IJavaStackFrame stack) {
 			super();
 			this.lhs = lhs;
 			this.arg = arg;
+			this.stack = stack;
 		}
 		
 		@Override
@@ -151,6 +200,19 @@ public class StateProperty extends Property {
 				return false;
 			} else
 				return super.visit(node);
+		}
+		
+		@Override
+		public boolean visit(SimpleName node) {
+			try {
+				if (stack.findVariable(node.getIdentifier()) != null) {
+					this.buffer.append(getRenamedVar(node.getIdentifier()));
+					return false;
+				} else
+					return super.visit(node);
+			} catch (DebugException e) {
+				throw new RuntimeException(e);
+			}
 		}
 		
 	}

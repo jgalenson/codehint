@@ -81,7 +81,7 @@ public class LambdaProperty extends Property {
 	 * property with lambda argument replaced by the given string.
 	 */
 	@Override
-	public String getReplacedString(String arg) {
+	public String getReplacedString(String arg, IJavaStackFrame stack) {
 		NaiveASTFlattener flattener = new PropertyASTFlattener(lhs, arg, type);
 		rhs.accept(flattener);
 		String typeStr = type == null ? "" : "(" + arg + " == " + null +" || " + arg + " instanceof " + type + ") && ";

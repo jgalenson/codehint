@@ -115,7 +115,7 @@ public class EvaluationManager {
 		
 		try {
 			if (property instanceof StateProperty)
-				for (String preVar: ((StateProperty)property).getPreVariables())
+				for (String preVar: ((StateProperty)property).getPreVariables(stack))
 					expressionsStr.append(stack.findVariable(preVar).getJavaType().getName() + " " + StateProperty.getRenamedVar(preVar) + " = " + preVar + ";\n");
 			
 			int i = startIndex == -1 ? 0 : startIndex; 
@@ -130,7 +130,7 @@ public class EvaluationManager {
 	    		}
 	    		String valueLHS = "_$value[" + numExprsToEvaluate + "]";
 	    		String validLHS = "_$valid[" + numExprsToEvaluate + "]";
-	    		String validVal = property == null ? "true" : property.getReplacedString(valueLHS);
+	    		String validVal = property == null ? "true" : property.getReplacedString(valueLHS, stack);
 	    		String body = "{\n _$legal[" + numExprsToEvaluate + "] = true;\n " + valueLHS + " = " + curExpr.toString() + ";\n " + validLHS + " = " + validVal + ";\n}\n";
 	    		if (preconditions.length() > 0)
 	    			expressionsStr.append("if (" + preconditions + ") ");
