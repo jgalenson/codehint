@@ -1179,13 +1179,13 @@ public class ExpressionGenerator {
     private static TypedExpression makeCall(String name, TypedExpression receiver, ArrayList<TypedExpression> args, IJavaType returnType, IJavaType thisType, Method method, IJavaThread thread, IJavaDebugTarget target) throws DebugException {
     	//IJavaValue value = computeCall(method, receiver.getValue(), args, thread, target, ((JDIType)receiver.getType()));
     	IJavaValue value = null;
-		if (receiver.getExpression() instanceof ThisExpression || receiver.getType().equals(thisType))
-			receiver = null;  // Don't use a receiver if it is null or the this type.
-    	if (receiver != null && receiver.getExpression() == null) {
+    	if (receiver.getExpression() == null) {
     		assert "<init>".equals(name);
     		return makeNewObject(receiver.getType(), args, value);
-    	} else
-    		return makeCall(name, receiver == null ? null : copyExpr(receiver.getExpression()), args, returnType, value);
+    	}
+		if (receiver.getExpression() instanceof ThisExpression || receiver.getType().equals(thisType))
+			receiver = null;  // Don't use a receiver if it is null or the this type.
+    	return makeCall(name, receiver == null ? null : copyExpr(receiver.getExpression()), args, returnType, value);
     }
     /*private static TypedExpression makeCall(String name, String classname, ArrayList<TypedExpression> args, IJavaType returnType) {
     	return makeCall(name, newStaticName(classname), args, returnType, null);

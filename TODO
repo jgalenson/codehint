@@ -43,6 +43,7 @@ Thanks to modeless input dialog, the user can continue/step and later fill in th
 We can generate an illegal LHS after a demonstration when the LHS is complicated and uses inheritance, e.g., "objectArray[1].subclassField = choose(...)" gives an error because the static type of the array access is Object not the subclass.  Note that allowing choose expressions on the LHS will probably fix/avoid this.
 Our default names for evaluation and properties will cause problems if they exist in the user's code.
 Add "import codehint.CodeHint;" and add codehint-lib.jar to the classpath if necessary.
+Don't allow assigning to the this variable.
 
 Optimizations
 -------------

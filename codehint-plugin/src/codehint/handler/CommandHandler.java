@@ -9,7 +9,7 @@ import org.eclipse.core.commands.ExecutionException;
 import org.eclipse.debug.core.DebugException;
 import org.eclipse.debug.core.model.IVariable;
 import org.eclipse.jdt.debug.core.IJavaFieldVariable;
-import org.eclipse.jdt.internal.debug.core.model.JDIArrayEntryVariable;
+import org.eclipse.jdt.debug.core.IJavaVariable;
 import org.eclipse.jface.text.BadLocationException;
 import org.eclipse.jface.text.IDocument;
 import org.eclipse.jface.viewers.IStructuredSelection;
@@ -56,13 +56,14 @@ public abstract class CommandHandler extends AbstractHandler {
     	assert paths.length == 1;  // Our selections should only have one path, right?
     	TreePath path = paths[0];
     	for (int i = 0; i < path.getSegmentCount(); i++) {
-    		Object segment = path.getSegment(i);
-    		if (segment instanceof JDIArrayEntryVariable)
-    			sb.append(((JDIArrayEntryVariable)segment).getName());
-    		else  if (segment instanceof IJavaFieldVariable)
-    			sb.append(".").append(segment.toString());
-    		else
-    			sb.append(segment.toString());
+    		IJavaVariable variable = (IJavaVariable)path.getSegment(i);
+    		if (variable instanceof IJavaFieldVariable)
+    			sb.append(".");
+    		try {
+				sb.append(variable.getName());
+			} catch (DebugException e) {
+				throw new RuntimeException(e);
+			}
     	}
     	return sb.toString();
     }
