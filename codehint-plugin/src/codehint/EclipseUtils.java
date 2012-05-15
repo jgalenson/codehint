@@ -169,14 +169,14 @@ public class EclipseUtils {
      */
     public static ASTNode parseExpr(ASTParser parser, String str) {
     	// We apparently have to manually tell it to use Java 1.5....
-			Map options = JavaCore.getOptions();
-			JavaCore.setComplianceOptions(JavaCore.VERSION_1_5, options);
-			parser.setCompilerOptions(options);
-			// We only want to parse an expression, not a whole program.
-			parser.setKind(ASTParser.K_EXPRESSION);
-			// Do the actual parsing.
-			parser.setSource(str.toCharArray());
-			return parser.createAST(null);
+		Map<?, ?> options = JavaCore.getOptions();
+		JavaCore.setComplianceOptions(JavaCore.VERSION_1_5, options);
+		parser.setCompilerOptions(options);
+		// We only want to parse an expression, not a whole program.
+		parser.setKind(ASTParser.K_EXPRESSION);
+		// Do the actual parsing.
+		parser.setSource(str.toCharArray());
+		return parser.createAST(null);
     }
     
     /**
@@ -541,6 +541,7 @@ public class EclipseUtils {
      * Evaluates the given snippet. Reports any errors to the user.
      * @param stringValue the snippet to evaluate
      * @return the value that was computed or <code>null</code> if any errors occurred.
+     * @throws DebugException 
      */
    	// TODO: Integrate with pbd.expreval code?
     public static IJavaValue evaluate(String stringValue) throws DebugException {

@@ -97,6 +97,7 @@ public class ExpressionGenerator {
 	 * modified by the user.  This can be a supertype of the
 	 * type of the demonstrated value.  If the demonstrated value
 	 * is null, this is the only type information we have.
+	 * @param monitor Progress monitor.
 	 * @return A list containing strings of all the expressions (up
 	 * to a certain depth) whose value in the current stack frame is
 	 * that of the demonstration.
@@ -175,6 +176,7 @@ public class ExpressionGenerator {
 	 * @param supertypesMap Cached supertype information.
 	 * @param depth The current depth, counting up from 0.
 	 * @param maxDepth The maximum depth to search (inclusive).
+	 * @param monitor Progress monitor.
 	 * @return all expressions whose value in the
 	 * current stack frame is that of the demonstration.
 	 */

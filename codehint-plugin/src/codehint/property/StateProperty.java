@@ -53,6 +53,7 @@ public class StateProperty extends Property {
 	 * @return  string representing the evaluation of this
 	 * property with lambda argument replaced by the given string.
 	 */
+	@Override
 	public String getReplacedString(String arg) {
 		StateASTFlattener flattener = new StateASTFlattener(lhs, arg);
 		property.accept(flattener);

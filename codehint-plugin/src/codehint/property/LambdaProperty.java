@@ -80,6 +80,7 @@ public class LambdaProperty extends Property {
 	 * @return  string representing the evaluation of this
 	 * property with lambda argument replaced by the given string.
 	 */
+	@Override
 	public String getReplacedString(String arg) {
 		NaiveASTFlattener flattener = new PropertyASTFlattener(lhs, arg, type);
 		rhs.accept(flattener);
