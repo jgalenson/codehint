@@ -443,6 +443,7 @@ public class Synthesizer {
        				validExprs = EvaluationManager.filterExpressions(exprs, target, frame, varStaticTypeName, property);
        			} catch (EvaluationError e) {
        		    	setLastCrashedProperty(varname, property);
+       		    	EclipseUtils.showError("Error", e.getMessage(), e);
 					throw e;
 				}
        	    	setLastCrashedProperty(null, null);
@@ -569,7 +570,7 @@ public class Synthesizer {
 	    		public void run() {
 	    			try {
 		    			if (oldProperty == null || oldProperty instanceof StateProperty)
-		    				result[0] = EclipseUtils.getStateProperty(varName, EclipseUtils.getShell(), oldProperty.toString(), extraMessage);
+		    				result[0] = EclipseUtils.getStateProperty(varName, EclipseUtils.getShell(), oldProperty == null ? "" : oldProperty.toString(), extraMessage);
 		    			else if (oldProperty instanceof PrimitiveValueProperty)
 		    				result[0] = EclipseUtils.getPrimitiveValueProperty(varName, EclipseUtils.getShell(), "", extraMessage);
 		    			else if (oldProperty instanceof ObjectValueProperty)

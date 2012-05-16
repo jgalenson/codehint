@@ -545,8 +545,7 @@ public class EclipseUtils {
      */
    	// TODO: Integrate with pbd.expreval code?
     public static IJavaValue evaluate(String stringValue) throws DebugException {
-        IAdaptable adaptable = DebugUITools.getDebugContext();
-        IJavaStackFrame frame= (IJavaStackFrame) adaptable.getAdapter(IJavaStackFrame.class);
+        IJavaStackFrame frame = getStackFrame();
         if (frame != null) {
             IJavaThread thread = (IJavaThread) frame.getThread();
             final IJavaProject project= EclipseUtils.getProject(frame);
