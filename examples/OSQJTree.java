@@ -16,7 +16,7 @@ public class OSQJTree {
 
 	/*
 	 * A JTree displays data in a hierarchical form, where child nodes can be hidden or expanded as necessary.
-	 * When run, this code will make a small little JTree that will pop up on the screen.
+	 * When run, this code will make a small JTree that will pop up on the screen.
 	 */
 	private static void createJTree(JFrame frame) {
 		final JTree jtree = createExampleTree();

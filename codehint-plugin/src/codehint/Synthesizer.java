@@ -637,11 +637,13 @@ public class Synthesizer {
 			// TODO: This could infinite loop.
 			// TODO-optimization: I can compute this in EvaluationManager (only if the spec is true) and store it in the EvaluatedExpression to reduce overheads.
 			if (cur.getResult() instanceof IJavaPrimitiveValue)
-				return cur.getResult().getValueString();
+				return EclipseUtils.javaStringOfValue(cur.getResult());
 			else if (cur.getResult().isNull())
 				return "null";
 			else if (cur.getResult() instanceof IJavaArray)
 				return EclipseUtils.evaluate("java.util.Arrays.toString(" + cur.getSnippet() + ")").getValueString();
+			else if ("Ljava/lang/String;".equals(cur.getResult().getSignature()))
+				return EclipseUtils.javaStringOfValue(EclipseUtils.evaluate("(" + cur.getSnippet() + ").toString()"));
 			else
 				return EclipseUtils.evaluate("(" + cur.getSnippet() + ").toString()").getValueString();
 		} catch (DebugException e) {
