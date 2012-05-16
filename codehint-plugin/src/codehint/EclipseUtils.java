@@ -544,6 +544,10 @@ public class EclipseUtils {
 			}
 		});
    	}
+   	
+   	public static void log(String msg) {
+   		Activator.getDefault().getLog().log(new Status(IStatus.INFO, Activator.PLUGIN_ID, msg));
+   	}
 
     /**
      * Evaluates the given snippet. Reports any errors to the user.

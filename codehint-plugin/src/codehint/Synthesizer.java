@@ -92,7 +92,7 @@ public class Synthesizer {
 	private static Property lastCrashedProperty;
 	
 	public static void synthesizeAndInsertExpressions(final IVariable variable, final String fullVarName, final Property property, Shell shell, final boolean replaceCurLine) {
-		System.out.println("Beginning synthesis for " + variable.toString() + " with property " + property.toString() + ".");
+		EclipseUtils.log("Beginning synthesis for " + variable.toString() + " with property " + property.toString() + ".");
 
 		final IJavaStackFrame frame = EclipseUtils.getStackFrame();
 
@@ -108,9 +108,8 @@ public class Synthesizer {
 
 					final List<EvaluatedExpression> validExpressions = ExpressionGenerator.generateExpression(target, frame, property, demonstration, varStaticType, monitor);
 
-					if (validExpressions.isEmpty())
+			    	if (validExpressions.isEmpty())
 						return new Status(IStatus.ERROR, Activator.PLUGIN_ID, "No valid expressions were found.");
-					//System.out.println("Valid expressions: " + validExpressionStrings.toString());
 
 			        UIJob job = new UIJob("Inserting synthesized code"){
                         @Override
@@ -119,8 +118,10 @@ public class Synthesizer {
 								CandidateSelector candidateSelector = new CandidateSelector(validExpressions.toArray(new EvaluatedExpression[0]));
 								List<EvaluatedExpression> finalExpressions = candidateSelector.getUserFilteredCandidates();
 
-						        if (finalExpressions == null)
+						        if (finalExpressions == null) {
+									EclipseUtils.log("Cancelling synthesis for " + variable.toString() + " with property " + property.toString() + ".");
 									return Status.CANCEL_STATUS;
+						        }
 						        else if (finalExpressions.isEmpty())
 									return new Status(IStatus.ERROR, Activator.PLUGIN_ID, "No valid expressions were found.");
 								
@@ -174,7 +175,7 @@ public class Synthesizer {
 								if (finalExpressions.size() > 1)
 									initialDemonstrations.put(statement, property);
 								
-								IJavaValue value = demonstration != null ? demonstration : validExpressions.get(0).getResult();
+								IJavaValue value = demonstration != null ? demonstration : finalExpressions.get(0).getResult();
 								if (value != null)
 									variable.setValue(value);  // PAR TODO: Philip, Joel added this line.  Is there a reason we don't want it?  We certainly do want to change the value in the current iteration somehow.  (Of course, if we do want this we should probably combine it with the one in the else block below.)
 
@@ -183,7 +184,7 @@ public class Synthesizer {
 								//NOTE: Our current implementation does not save.  Without a manual save, our added 
 								// code gets ignored for this invocation.  Should we force a save and restart?
 			
-								System.out.println("Finishing synthesis for " + variable.toString() + " with property " + property.toString() + ".  Found " + validExpressions.size() + " expressions and inserted " + statement);
+						    	EclipseUtils.log("Finishing synthesis for " + variable.toString() + " with property " + property.toString() + ".  Found " + finalExpressions.size() + " user-approved expressions and inserted " + statement);
 								return Status.OK_STATUS;
 							} catch (DebugException e) {
 								e.printStackTrace();
@@ -203,7 +204,7 @@ public class Synthesizer {
 			    	setLastCrashedProperty(variable.toString(), property);
 					return new Status(IStatus.ERROR, Activator.PLUGIN_ID, e.getMessage());
 				} catch (OperationCanceledException e) {
-					System.out.println("Cancelling synthesis for " + variable.toString() + " with property " + property.toString() + ".");
+					EclipseUtils.log("Cancelling synthesis for " + variable.toString() + " with property " + property.toString() + ".");
 					return Status.CANCEL_STATUS;
 				}
 			}
@@ -346,7 +347,6 @@ public class Synthesizer {
 	                   		continue;
 	                   	int line = frame.getLineNumber() - 1 ;
 	                   	assert line >= 0;
-	                   	//System.out.println( "Considering breakpoint at line " + line );
 	                   	
 	                   	//Needed only for sanity checking and debugging
 	                	int start = frame.getCharEnd();
@@ -380,7 +380,7 @@ public class Synthesizer {
 		private static void refineExpressions(IJavaStackFrame frame, Matcher matcher, IThread thread, int line) throws DebugException {
 	    	String curLine = matcher.group(0).trim();
    			
-   			System.out.println("Beginning refinement for " + curLine + ".");
+	    	EclipseUtils.log("Beginning refinement for " + curLine + ".");
 	    	
    			IJavaDebugTarget target = (IJavaDebugTarget)frame.getDebugTarget();
    			final String varname = matcher.group(2);
@@ -433,7 +433,7 @@ public class Synthesizer {
        				//The user cancelled, just drop back into the debugger and let the 
        				//use do what they want.  Attempting to execute the line will result
        				//in a crash anyway, so they can't screw anything up
-       	   			System.out.println("Ending refinement for " + curLine + " because the user told us to cancel.");
+       				EclipseUtils.log("Ending refinement for " + curLine + " because the user told us to cancel.");
        				return;
        			}
        			
@@ -476,7 +476,7 @@ public class Synthesizer {
    			if (lhsVar != null)
    				lhsVar.setValue(value);
 
-    		System.out.println("Ending refinement for " + curLine + (automatic ? " automatically" : "") + ".  " + (newLine == null ? "Statement unchanged." : "Went from " + initialExprs.size() + " expressions to " + finalExprs.size() + ".  New statement: " + newLine));
+   			EclipseUtils.log("Ending refinement for " + curLine + (automatic ? " automatically" : "") + ".  " + (newLine == null ? "Statement unchanged." : "Went from " + initialExprs.size() + " expressions to " + finalExprs.size() + ".  New statement: " + newLine));
         	
    			// Immediately continue the execution.
    			thread.resume();
@@ -521,7 +521,6 @@ public class Synthesizer {
 			List<String> newExprsStrs = EvaluatedExpression.snippetsOfEvaluatedExpressions(validExprs);
 			String varDeclaration = matcher.group(1) != null ? matcher.group(1) + " " : "";
 			final String newLine = varDeclaration + generateChooseOrChosenStmt(varname, newExprsStrs);
-			//System.out.println("New stmt: " + newLine);
 			// If we don't execute this on the UI thread we get an exception, although it still works.
 			Display.getDefault().syncExec(new Runnable() {
 				@Override

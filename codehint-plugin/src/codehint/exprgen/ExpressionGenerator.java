@@ -142,7 +142,7 @@ public class ExpressionGenerator {
 	    		else if (!"V".equals(e.getValue().getSignature()))
 	    			evaluatedExprs.add(new EvaluatedExpression(e.getExpression(), e.getValue()));
 	    	
-	    	System.out.println("Generated " + allTypedExprs.size() + " potential expressions, of which " + evaluatedExprs.size() + " already have values and " + unevaluatedExprs.size() + " still need to be evaluated.");
+	    	EclipseUtils.log("Generated " + allTypedExprs.size() + " potential expressions, of which " + evaluatedExprs.size() + " already have values and " + unevaluatedExprs.size() + " still need to be evaluated.");
 			
 	    	String typeBoundName;
 			try {
@@ -162,7 +162,7 @@ public class ExpressionGenerator {
 				setExpressionValue(e.getExpression(), e.getResult());
 	    	//List<EvaluatedExpression> allEvaluatedExprs = expandEquivalences(evaluatedExprs, equivalences);
 			
-	    	System.out.println("Expression generation took " + (System.currentTimeMillis() - startTime) + " milliseconds.");
+			EclipseUtils.log("Expression generation found " + results.size() + " valid expressions and took " + (System.currentTimeMillis() - startTime) + " milliseconds.");
 			
 	    	monitor.done();
 	    	return results;
