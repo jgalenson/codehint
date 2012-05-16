@@ -528,7 +528,15 @@ public class EclipseUtils {
 	}
    	
    	public static void showError(final String title, String text, Throwable exception) {
-   		final IStatus status = new Status(IStatus.ERROR, Activator.PLUGIN_ID, Status.OK, text, exception);
+   		showErrorOrWarning(title, text, exception, IStatus.ERROR);
+   	}
+   	
+   	public static void showWarning(final String title, String text, Throwable exception) {
+   		showErrorOrWarning(title, text, exception, IStatus.WARNING);
+   	}
+   	
+   	private static void showErrorOrWarning(final String title, String text, Throwable exception, int severity) {
+   		final IStatus status = new Status(severity, Activator.PLUGIN_ID, Status.OK, text, exception);
 		Display.getDefault().asyncExec(new Runnable() {
 			@Override
 			public void run() {

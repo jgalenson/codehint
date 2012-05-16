@@ -162,7 +162,7 @@ public class EvaluationManager {
 	    	ArrayList<EvaluatedExpression> results;
 	    	if (startIndex == -1) {  // If we do not want to try to evaluate things that can throw exceptions.
 	    		if (evaluationResult.hasErrors()) {  // Evaluating a property threw an exception.  We notify the user and discard those inputs.
-	    			EclipseUtils.showError("Evaluation error", "Evaluation " + (property == null ? "" : "of property\n\t" + property.toString() + "\n") + "crashed with the following error:\n\t" + EclipseUtils.getErrors(evaluationResult) + "\nThis might be fine, so we're continuing.", null);
+	    			EclipseUtils.showWarning("Evaluation error", "Evaluation " + (property == null ? "" : "of property\n\t" + property.toString() + "\n") + "crashed with the following error:\n\t" + EclipseUtils.getErrors(evaluationResult) + "\nThis might be fine, so we're continuing.", null);
 	    			int step = batchSize >= exprs.size() ? 1 : batchSize;
 	    			results = evaluateExpressionsInBatches(exprs, engine, stack, type, property, 0, exprs.size(), step, monitor);
 	    		} else {

@@ -677,6 +677,7 @@ public class Synthesizer {
     	listener = null;
     	initialDemonstrations = null;
     	setLastCrashedProperty(null, null);
+    	ExpressionGenerator.clearBlacklist();
     }
     
     public static Property getLastCrashedProperty(String varName) {

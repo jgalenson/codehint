@@ -79,11 +79,18 @@ public class ExpressionGenerator {
 	private final static InfixExpression.Operator[] INT_COMPARE_OPS = new InfixExpression.Operator[] { InfixExpression.Operator.EQUALS, InfixExpression.Operator.NOT_EQUALS, InfixExpression.Operator.LESS, InfixExpression.Operator.LESS_EQUALS, InfixExpression.Operator.GREATER, InfixExpression.Operator.GREATER_EQUALS };
 	private final static InfixExpression.Operator[] BOOLEAN_COMPARE_OPS = new InfixExpression.Operator[] { InfixExpression.Operator.CONDITIONAL_AND, InfixExpression.Operator.CONDITIONAL_OR  };
 	private final static InfixExpression.Operator[] REF_COMPARE_OPS = new InfixExpression.Operator[] { InfixExpression.Operator.EQUALS, InfixExpression.Operator.NOT_EQUALS };
-	
+
+	private final static Set<String> classBlacklist = new HashSet<String>();
 	private final static Map<String, Set<String>> methodBlacklist = new HashMap<String, Set<String>>();
 	
 	public static void initBlacklist() {
+		classBlacklist.add("codehint.CodeHint");
 		methodBlacklist.put("java.io.File", new HashSet<String>(Arrays.asList("createNewFile", "delete", "mkdir", "mkdirs", "renameTo", "setLastModified", "setReadOnly")));
+	}
+	
+	public static void clearBlacklist() {
+		classBlacklist.clear();
+		methodBlacklist.clear();
 	}
 	
 	/**
@@ -422,6 +429,8 @@ public class ExpressionGenerator {
 	private static void addMethodCalls(TypedExpression e, List<TypedExpression> nextLevel, IJavaType typeBound, List<TypedExpression> ops, IJavaType thisType, IJavaThread thread, JDIDebugTarget target, IJavaStackFrame stack, Map<IJavaType, Set<IJavaType>> supertypesMap, Map<IJavaValue, Set<EvaluatedExpression>> equivalences, int depth, int maxDepth) throws DebugException {
 		// The public API doesn't tell us the methods of a class, so we need to use the jdi.  Note that we must now be careful converting between jdi types and Eclipse types.
 		Type objTypeImpl = ((JDIType)e.getType()).getUnderlyingType();
+		if (classBlacklist.contains(objTypeImpl.name()))
+			return;
 		Type thisTypeImpl = ((JDIType)thisType).getUnderlyingType();
 		boolean isConstructor = e.getExpression() == null;
 		boolean isStatic = !isConstructor && e.getExpression().getProperty("isStatic") != null;

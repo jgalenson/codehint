@@ -45,8 +45,8 @@ public class OSQJTree {
 		// TO WRITE: Set window to the window containing this tree.
 		
 		
-		
-		System.out.println(window);
+
+		showFrame(frame);
 	}
 	
 	public static void main(String[] args) {
@@ -54,7 +54,6 @@ public class OSQJTree {
             public void run() {
         		JFrame frame = MySwingHelper.makeFrame("Swing test");
         		createJTree(frame);
-        		showFrame(frame);
             }
         });
 	}
