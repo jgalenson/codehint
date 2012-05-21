@@ -104,9 +104,8 @@ public class Synthesizer {
 					//PAR TODO - Is this the point to configure the save behavior?
 					IJavaDebugTarget target = (IJavaDebugTarget)variable.getDebugTarget();
 					IJavaType varStaticType = ((IJavaVariable)variable).getJavaType();
-					final IJavaValue demonstration = property instanceof ValueProperty ? ((ValueProperty)property).getValue() : null;
 
-					final List<EvaluatedExpression> validExpressions = ExpressionGenerator.generateExpression(target, frame, property, demonstration, varStaticType, monitor);
+					final List<EvaluatedExpression> validExpressions = ExpressionGenerator.generateExpression(target, frame, property, varStaticType, monitor);
 
 			    	if (validExpressions.isEmpty())
 						return new Status(IStatus.ERROR, Activator.PLUGIN_ID, "No valid expressions were found.");
@@ -174,8 +173,8 @@ public class Synthesizer {
 								// TODO: Using the text of the statement as a key is not a very good idea.
 								if (finalExpressions.size() > 1)
 									initialDemonstrations.put(statement, property);
-								
-								IJavaValue value = demonstration != null ? demonstration : finalExpressions.get(0).getResult();
+
+								IJavaValue value = property instanceof ValueProperty ? ((ValueProperty)property).getValue() : finalExpressions.get(0).getResult();
 								if (value != null)
 									variable.setValue(value);  // PAR TODO: Philip, Joel added this line.  Is there a reason we don't want it?  We certainly do want to change the value in the current iteration somehow.  (Of course, if we do want this we should probably combine it with the one in the else block below.)
 

@@ -29,7 +29,7 @@ public class LambdaProperty extends Property {
     protected final static ASTParser parser = ASTParser.newParser(AST.JLS4);
 	
 	private final String lhs;
-	private final String type;
+	private final String typeName;
 	private final Expression rhs;
 
 	// TODO: If the user has a variable with this name, the property cannot refer to it.
@@ -37,7 +37,7 @@ public class LambdaProperty extends Property {
 	
 	protected LambdaProperty(String lhs, String type, Expression rhs) {
 		this.lhs = lhs;
-		this.type = type;
+		this.typeName = type;
 		this.rhs = rhs;
 	}
 	
@@ -45,9 +45,9 @@ public class LambdaProperty extends Property {
 		Matcher matcher = lambdaPattern.matcher(propertyStr);
 		matcher.matches();
 		String lhs = matcher.group(1);
-		String type = matcher.group(2);
+		String typeName = matcher.group(2);
 		Expression rhs = (Expression)EclipseUtils.parseExpr(parser, matcher.group(3));
-		return new LambdaProperty(lhs, type, rhs);
+		return new LambdaProperty(lhs, typeName, rhs);
 	}
 	
 	public static String isLegalProperty(String str, IJavaStackFrame stackFrame, IJavaProject project, IType varType, IType thisType) {
@@ -73,6 +73,10 @@ public class LambdaProperty extends Property {
     	return null;
 	}
 	
+	public String getTypeName() {
+		return typeName;
+	}
+	
 	/**
 	 * Gets a string representing the evaluation of this
 	 * property with lambda argument replaced by the given string.
@@ -82,15 +86,15 @@ public class LambdaProperty extends Property {
 	 */
 	@Override
 	public String getReplacedString(String arg, IJavaStackFrame stack) {
-		NaiveASTFlattener flattener = new PropertyASTFlattener(lhs, arg, type);
+		NaiveASTFlattener flattener = new PropertyASTFlattener(lhs, arg, typeName);
 		rhs.accept(flattener);
-		String typeStr = type == null ? "" : "(" + arg + " == " + null +" || " + arg + " instanceof " + type + ") && ";
+		String typeStr = typeName == null ? "" : "(" + arg + " == " + null +" || " + arg + " instanceof " + typeName + ") && ";
 		return typeStr + flattener.getResult();
 	}
 	
 	@Override
 	public String toString() {
-		String typeStr = type == null ? "" : ": " + type;
+		String typeStr = typeName == null ? "" : ": " + typeName;
 		return lhs.toString() + typeStr + " => " + rhs.toString();
 	}
 	

@@ -214,7 +214,7 @@ public class EclipseUtils {
     	try {
     		IJavaProject project = getProject(stackFrame);
     		String varStaticTypeName = varStaticType == null ? null : sanitizeTypename(varStaticType.getName());
-    		IType varType = varStaticType == null ? null : getProject(stackFrame).findType(varStaticTypeName);
+    		IType varType = varStaticType == null ? null : project.findType(varStaticTypeName);
     		IType thisType = getThisType(project, stackFrame);
     		
 	        String title= "Demonstrate property"; 
@@ -298,7 +298,7 @@ public class EclipseUtils {
     	try {
     		varTypeName = sanitizeTypename(varTypeName);
 			IJavaProject project = getProject(stackFrame);
-			IType varType = getProject(stackFrame).findType(varTypeName);
+			IType varType = project.findType(varTypeName);
     		IType thisType = getThisType(project, stackFrame);
 			
 			// Default to the unqualified typename if I can.
@@ -464,6 +464,37 @@ public class EclipseUtils {
 			if (curType.newSupertypeHierarchy(null).contains(varType))
 				return null;
 			return "Please enter a subtype of " + varType.getFullyQualifiedName('.') + ".";
+    	} catch (JavaModelException e) {
+			throw new RuntimeException(e);
+		}
+    }
+    
+    public static IJavaType getType(IJavaStackFrame stackFrame, String typeName) throws DebugException {
+		try {
+			IJavaProject project = getProject(stackFrame);
+			return getType(project, getThisType(project, stackFrame), typeName, (IJavaDebugTarget)stackFrame.getDebugTarget());
+		} catch (JavaModelException e) {
+			throw new RuntimeException(e);
+		}
+    }
+    
+    private static IJavaType getType(IJavaProject project, IType thisType, String typeName, IJavaDebugTarget target) throws DebugException {
+    	try {
+    		if (thisType == null || project == null || target == null)
+    			return null;
+    		String[][] allTypes = thisType.resolveType(typeName);
+    		assert allTypes != null;
+    		assert allTypes.length == 1;
+    		String[] typeParts = allTypes[0];
+			String fullTypeName = "";
+			for (int i = 0; i < typeParts.length; i++) {
+				if (i > 0)
+					fullTypeName += ".";
+				fullTypeName += typeParts[i];
+			}
+			IJavaType[] curTypes = target.getJavaTypes(fullTypeName);
+			assert curTypes != null && curTypes.length == 1;
+        	return curTypes[0];
     	} catch (JavaModelException e) {
 			throw new RuntimeException(e);
 		}

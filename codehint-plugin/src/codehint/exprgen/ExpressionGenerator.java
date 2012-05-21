@@ -57,6 +57,9 @@ import codehint.EclipseUtils;
 import codehint.expreval.EvaluatedExpression;
 import codehint.expreval.EvaluationManager;
 import codehint.property.Property;
+import codehint.property.LambdaProperty;
+import codehint.property.TypeProperty;
+import codehint.property.ValueProperty;
 
 import com.sun.jdi.ClassNotLoadedException;
 import com.sun.jdi.Field;
@@ -109,27 +112,34 @@ public class ExpressionGenerator {
 	 * to a certain depth) whose value in the current stack frame is
 	 * that of the demonstration.
 	 */
-	public static List<EvaluatedExpression> generateExpression(IJavaDebugTarget target, IJavaStackFrame stack, Property property, IJavaValue demonstration, IJavaType varStaticType, IProgressMonitor monitor) {
+	public static List<EvaluatedExpression> generateExpression(IJavaDebugTarget target, IJavaStackFrame stack, Property property, IJavaType varStaticType, IProgressMonitor monitor) {
 		monitor.beginTask("Expression generation", IProgressMonitor.UNKNOWN);
 		
 		try {
 			IJavaThread thread = (IJavaThread)stack.getThread();
 			Map<IJavaType, Set<IJavaType>> supertypesMap = new HashMap<IJavaType, Set<IJavaType>>();
 			Map<IJavaValue, Set<EvaluatedExpression>> equivalences = new HashMap<IJavaValue, Set<EvaluatedExpression>>();
-			IJavaType typeBound = null;
-			if (demonstration == null || demonstration.isNull())
-				typeBound = varStaticType;
-			else {
-				typeBound = demonstration.getJavaType();
-				if (!isSubtypeOf(typeBound, varStaticType, supertypesMap)) {
-					EclipseUtils.showError("Illegal demonstration", "Illegal demonstration: the type of the demonstrated value, " + typeBound.toString() + ", is not a subtype of the type of the variable, " + varStaticType.toString(), null);
+			IJavaValue demonstration = null;
+			IJavaType supertypeBound = varStaticType;
+			IJavaType desiredType = null;
+			if (property instanceof ValueProperty) {
+				demonstration = ((ValueProperty)property).getValue();
+				desiredType = demonstration.getJavaType();
+				if (!isSubtypeOf(supertypeBound, varStaticType, supertypesMap)) {
+					EclipseUtils.showError("Illegal demonstration", "Illegal demonstration: the type of the demonstrated value, " + supertypeBound.toString() + ", is not a subtype of the type of the variable, " + varStaticType.toString(), null);
 					throw new RuntimeException("Illegal demonstration");
 				}
+			} else if (property instanceof TypeProperty)
+				supertypeBound = EclipseUtils.getType(stack, ((TypeProperty)property).getTypeName());
+			else if (property instanceof LambdaProperty) {
+				String typeName = ((LambdaProperty)property).getTypeName();
+				if (typeName != null)
+					supertypeBound = EclipseUtils.getType(stack, typeName);
 			}
 	
 			long startTime = System.currentTimeMillis();
 			
-			List<TypedExpression> allTypedExprs = genAllExprs((JDIDebugTarget)target, demonstration, typeBound, stack, thread, supertypesMap, equivalences, 0, MAX_EXPR_DEPTH, monitor);
+			List<TypedExpression> allTypedExprs = genAllExprs((JDIDebugTarget)target, demonstration, supertypeBound, desiredType, stack, thread, supertypesMap, equivalences, 0, MAX_EXPR_DEPTH, monitor);
 			
 			/*for (Map.Entry<IJavaValue, Set<EvaluatedExpression>> entry : equivalences.entrySet())
 				System.out.println(entry.getKey() + " -> " + entry.getValue().toString());*/
@@ -144,18 +154,18 @@ public class ExpressionGenerator {
 	    	
 	    	EclipseUtils.log("Generated " + allTypedExprs.size() + " potential expressions, of which " + evaluatedExprs.size() + " already have values and " + unevaluatedExprs.size() + " still need to be evaluated.");
 			
-	    	String typeBoundName;
+	    	String supertypeBoundName;
 			try {
-				typeBoundName = EclipseUtils.sanitizeTypename(typeBound.getName());
+				supertypeBoundName = EclipseUtils.sanitizeTypename(supertypeBound.getName());
 			} catch (DebugException ex) {
 				ex.printStackTrace();
-				throw new RuntimeException("Cannot get the name of the type: " + typeBound.toString());
+				throw new RuntimeException("Cannot get the name of the type: " + supertypeBound.toString());
 			}
 			
-			ArrayList<EvaluatedExpression> results = EvaluationManager.filterExpressions(evaluatedExprs, target, stack, typeBoundName, property);
+			ArrayList<EvaluatedExpression> results = EvaluationManager.filterExpressions(evaluatedExprs, target, stack, supertypeBoundName, property);
 	    	if (unevaluatedExprs.size() > 0) {
 	    		SubMonitor evalMonitor = SubMonitor.convert(monitor, "Expression evaluation", unevaluatedExprs.size());
-	    		results.addAll(EvaluationManager.evaluateExpressions(unevaluatedExprs, target, stack, typeBoundName, property, evalMonitor));
+	    		results.addAll(EvaluationManager.evaluateExpressions(unevaluatedExprs, target, stack, supertypeBoundName, property, evalMonitor));
 	    		evalMonitor.done();
 	    	}
 			for (EvaluatedExpression e : results)
@@ -187,7 +197,7 @@ public class ExpressionGenerator {
 	 * @return all expressions whose value in the
 	 * current stack frame is that of the demonstration.
 	 */
-	private static List<TypedExpression> genAllExprs(JDIDebugTarget target, IJavaValue demonstration, IJavaType typeBound, IJavaStackFrame stack, IJavaThread thread, Map<IJavaType, Set<IJavaType>> supertypesMap, Map<IJavaValue, Set<EvaluatedExpression>> equivalences, int depth, int maxDepth, IProgressMonitor monitor) {
+	private static List<TypedExpression> genAllExprs(JDIDebugTarget target, IJavaValue demonstration, IJavaType supertypeBound, IJavaType desiredType, IJavaStackFrame stack, IJavaThread thread, Map<IJavaType, Set<IJavaType>> supertypesMap, Map<IJavaValue, Set<EvaluatedExpression>> equivalences, int depth, int maxDepth, IProgressMonitor monitor) {
 		if (depth > maxDepth)
 			return new ArrayList<TypedExpression>(0);
 		try {
@@ -198,7 +208,7 @@ public class ExpressionGenerator {
 			IJavaValue one = makeIntValue(target, 1);
 			IJavaValue two = makeIntValue(target, 2);
 			
-    		List<TypedExpression> nextLevel = genAllExprs(target, demonstration, typeBound, stack, thread, supertypesMap, equivalences, depth + 1, maxDepth, monitor);
+    		List<TypedExpression> nextLevel = genAllExprs(target, demonstration, supertypeBound, desiredType, stack, thread, supertypesMap, equivalences, depth + 1, maxDepth, monitor);
     		List<TypedExpression> curLevel = new ArrayList<TypedExpression>();
 			Set<IJavaType> objectInterfaceTypes = new HashSet<IJavaType>();
     		
@@ -208,8 +218,9 @@ public class ExpressionGenerator {
     		if (depth == 0 && demonstration != null && isBoolean(demonstration.getJavaType()))
     			addUniqueExpressionToList(curLevel, makeBoolean(Boolean.parseBoolean(demonstration.toString()), makeBooleanValue(target, Boolean.parseBoolean(demonstration.toString())), booleanType), depth, maxDepth, equivalences);
     		// Add calls to the desired type's constructors (but only at the top-level).
-    		if (depth == 0 && typeBound instanceof IJavaClassType)
-    			addMethodCalls(new TypedExpression(null, typeBound, null), nextLevel, typeBound, curLevel, thisType, thread, target, stack, supertypesMap, equivalences, depth, maxDepth);
+    		IJavaType lowestType = desiredType != null ? desiredType : supertypeBound;
+    		if (depth == 0 && lowestType instanceof IJavaClassType)
+    			addMethodCalls(new TypedExpression(null, lowestType, null), nextLevel, supertypeBound, desiredType, curLevel, thisType, thread, target, stack, supertypesMap, equivalences, depth, maxDepth);
     		// Add zero and null (but only at the bottom level)
     		if (depth == maxDepth) {
     			addUniqueExpressionToList(curLevel, makeNumber("0", zero, intType), depth, maxDepth, equivalences);
@@ -218,7 +229,7 @@ public class ExpressionGenerator {
     		
     		// Copy over the stuff from the next level.
     		for (TypedExpression e : nextLevel)
-    			if (depth > 0 || isHelpfulType(e.getType(), typeBound, supertypesMap, depth))  // Note that this relies on the fact that something helpful for depth>=2 will be helpful for depth>=1.  If this changes, we'll need to call it again.
+    			if (depth > 0 || isHelpfulType(e.getType(), supertypeBound, desiredType, supertypesMap, depth))  // Note that this relies on the fact that something helpful for depth>=2 will be helpful for depth>=1.  If this changes, we'll need to call it again.
     				curLevel.add(e);
     		
     		if (nextLevel.isEmpty()) {
@@ -226,11 +237,11 @@ public class ExpressionGenerator {
 				IJavaVariable[] locals = stack.getLocalVariables();
 				for (IJavaVariable l : locals) {
 					IJavaType lType = l.getJavaType();
-					if (isHelpfulType(lType, typeBound, supertypesMap, depth))
+					if (isHelpfulType(lType, supertypeBound, desiredType, supertypesMap, depth))
 						addUniqueExpressionToList(curLevel, makeVar(l.getName(), (IJavaValue)l.getValue(), lType, false), depth, maxDepth, equivalences);
 				}
 				// Add "this" if we're not in a static context.
-				if (isHelpfulType(thisType, typeBound, supertypesMap, depth)
+				if (isHelpfulType(thisType, supertypeBound, desiredType, supertypesMap, depth)
 						&& !stack.isStatic())
 					addUniqueExpressionToList(curLevel, makeThis(stack.getThis(), thisType), depth, maxDepth, equivalences);
     		} else {
@@ -241,7 +252,7 @@ public class ExpressionGenerator {
 	    				throw new OperationCanceledException();
 	        		for (TypedExpression r : nextLevel) {
 	        			// Arithmetic operations, e.g., +,*.
-						if (isInt(l.getType()) && isInt(r.getType()) && isHelpfulType(intType, typeBound, supertypesMap, depth)
+						if (isInt(l.getType()) && isInt(r.getType()) && isHelpfulType(intType, supertypeBound, desiredType, supertypesMap, depth)
 								&& l.getExpression().getProperty("isConstant") == null && r.getExpression().getProperty("isConstant") == null) {
 							if (l.getExpression().toString().compareTo(r.getExpression().toString()) < 0)
 								addUniqueExpressionToList(curLevel, makeInfix(target, l, InfixExpression.Operator.PLUS, r, intType), depth, maxDepth, equivalences);
@@ -254,20 +265,20 @@ public class ExpressionGenerator {
 								addUniqueExpressionToList(curLevel, makeInfix(target, l, InfixExpression.Operator.DIVIDE, r, intType), depth, maxDepth, equivalences);
 						}
 						// Integer comparisons, e.g., ==,<.
-						if (isHelpfulType(booleanType, typeBound, supertypesMap, depth) && isInt(l.getType()) && isInt(r.getType()))
+						if (isHelpfulType(booleanType, supertypeBound, desiredType, supertypesMap, depth) && isInt(l.getType()) && isInt(r.getType()))
 							if (l.getExpression().toString().compareTo(r.getExpression().toString()) < 0
 									&& (!(l.getExpression() instanceof PrefixExpression) || !(r.getExpression() instanceof PrefixExpression)))
 								for (InfixExpression.Operator op : INT_COMPARE_OPS)
 									addUniqueExpressionToList(curLevel, makeInfix(target, l, op, r, booleanType), depth, maxDepth, equivalences);
 						// Boolean connectives, &&,||.
-						if (isHelpfulType(booleanType, typeBound, supertypesMap, depth) && isBoolean(l.getType()) && isBoolean(r.getType()))
+						if (isHelpfulType(booleanType, supertypeBound, desiredType, supertypesMap, depth) && isBoolean(l.getType()) && isBoolean(r.getType()))
 							if (l.getExpression().toString().compareTo(r.getExpression().toString()) < 0)
 								for (InfixExpression.Operator op : BOOLEAN_COMPARE_OPS)
 									addUniqueExpressionToList(curLevel, makeInfix(target, l, op, r, booleanType), depth, maxDepth, equivalences);
 						// Array access, a[i].
 						if (l.getType() instanceof IJavaArrayType && isInt(r.getType())) {
 							IJavaType elemType = getArrayElementType(l);
-							if (elemType != null && isHelpfulType(getArrayElementType(l), typeBound, supertypesMap, depth)) {
+							if (elemType != null && isHelpfulType(getArrayElementType(l), supertypeBound, desiredType, supertypesMap, depth)) {
 								// Get the value if we can and skip things with null arrays or out-of-bounds indices.
 								boolean isNull = false;
 								IJavaValue value = null;
@@ -293,7 +304,7 @@ public class ExpressionGenerator {
 						}
 						// Object/array comparisons
 						if (l.getType() instanceof IJavaReferenceType && r.getType() instanceof IJavaReferenceType
-								&& isHelpfulType(booleanType, typeBound, supertypesMap, depth)
+								&& isHelpfulType(booleanType, supertypeBound, desiredType, supertypesMap, depth)
 								&& (isSubtypeOf(l.getType(), r.getType(), supertypesMap) || isSubtypeOf(r.getType(), l.getType(), supertypesMap)))
 							if (l.getExpression().toString().compareTo(r.getExpression().toString()) < 0)
 								for (InfixExpression.Operator op : REF_COMPARE_OPS)
@@ -304,7 +315,7 @@ public class ExpressionGenerator {
 	    		// Get unary ops
 	    		for (TypedExpression e : nextLevel) {
 	    			// Arithmetic with constants.
-	    			if (isInt(e.getType()) && isHelpfulType(intType, typeBound, supertypesMap, depth)
+	    			if (isInt(e.getType()) && isHelpfulType(intType, supertypeBound, desiredType, supertypesMap, depth)
 	    					&& e.getExpression().getProperty("isConstant") == null) {
 	    				addUniqueExpressionToList(curLevel, makeInfix(target, e, InfixExpression.Operator.PLUS, makeNumber("1", one, intType), intType), depth, maxDepth, equivalences);
 	    				addUniqueExpressionToList(curLevel, makeInfix(target, e, InfixExpression.Operator.TIMES, makeNumber("2", two, intType), intType), depth, maxDepth, equivalences);
@@ -314,25 +325,25 @@ public class ExpressionGenerator {
 	    			// Field accesses to non-static fields from non-static scope.
 	    			if (e.getType() instanceof IJavaClassType
 	    					&& (e.getValue() == null || !e.getValue().isNull()))  // Skip things we know are null dereferences.
-	    				addFieldAccesses(e, typeBound, curLevel, thisType, target, supertypesMap, equivalences, depth, maxDepth);
+	    				addFieldAccesses(e, supertypeBound, desiredType, curLevel, thisType, target, supertypesMap, equivalences, depth, maxDepth);
 	    			// Boolean negation.
-	    			if (isBoolean(e.getType()) && isHelpfulType(booleanType, typeBound, supertypesMap, depth)
+	    			if (isBoolean(e.getType()) && isHelpfulType(booleanType, supertypeBound, desiredType, supertypesMap, depth)
 	    					&& !(e.getExpression() instanceof PrefixExpression) && !(e.getExpression() instanceof InfixExpression)
 	    					&& e.getExpression().getProperty("isConstant") == null)  // Disallow things like !(x < y) and !(!x).
 	    				addUniqueExpressionToList(curLevel, makePrefix(target, e, PrefixExpression.Operator.NOT, booleanType), depth, maxDepth, equivalences);
 	    			// Integer negation.
-	    			if (isInt(e.getType()) && isHelpfulType(intType, typeBound, supertypesMap, depth)
+	    			if (isInt(e.getType()) && isHelpfulType(intType, supertypeBound, desiredType, supertypesMap, depth)
 	    					&& !(e.getExpression() instanceof PrefixExpression) && !(e.getExpression() instanceof InfixExpression)
 	    					&& e.getExpression().getProperty("isConstant") == null)  // Disallow things like -(-x) and -(x + y).
 	    				addUniqueExpressionToList(curLevel, makePrefix(target, e, PrefixExpression.Operator.MINUS, intType), depth, maxDepth, equivalences);
 	    			// Array length (which uses the field access AST).
-	    			if (e.getType() instanceof IJavaArrayType && isHelpfulType(intType, typeBound, supertypesMap, depth)
+	    			if (e.getType() instanceof IJavaArrayType && isHelpfulType(intType, supertypeBound, desiredType, supertypesMap, depth)
 	    					&& (e.getValue() == null || !e.getValue().isNull()))  // Skip things we know are null dereferences.
 	    				addUniqueExpressionToList(curLevel, makeFieldAccess(e, "length", intType, e.getValue() != null ? makeIntValue(target, ((IJavaArray)e.getValue()).getLength()) : null), depth, maxDepth, equivalences);
 	    			// Method calls to non-static methods from non-static scope.
 	    			if (isObjectOrInterface(e.getType())
 	    					&& (e.getValue() == null || !e.getValue().isNull()))  // Skip things we know are null dereferences.
-	    				addMethodCalls(e, nextLevel, typeBound, curLevel, thisType, thread, target, stack, supertypesMap, equivalences, depth, maxDepth);
+	    				addMethodCalls(e, nextLevel, supertypeBound, desiredType, curLevel, thisType, thread, target, stack, supertypesMap, equivalences, depth, maxDepth);
 	    			// Collect the class and interface types we've seen.
 	    			if (isObjectOrInterface(e.getType()))
 	    				objectInterfaceTypes.add(e.getType());
@@ -345,18 +356,18 @@ public class ExpressionGenerator {
 	    				importsSet.add(imp.getElementName());
 	    			// Field accesses from static scope.
 	    			if (stack.isStatic() && !stack.getReceivingTypeName().contains("<"))  // TODO: Allow referring to generic classes (and below).
-	    				addFieldAccesses(makeStaticName(stack.getReceivingTypeName(), thisType), typeBound, curLevel, thisType, target, supertypesMap, equivalences, depth, maxDepth);
+	    				addFieldAccesses(makeStaticName(stack.getReceivingTypeName(), thisType), supertypeBound, desiredType, curLevel, thisType, target, supertypesMap, equivalences, depth, maxDepth);
 	    			// Method calls from static scope.
 	    			if (stack.isStatic() && !stack.getReceivingTypeName().contains("<"))
-	    				addMethodCalls(makeStaticName(stack.getReceivingTypeName(), thisType), nextLevel, typeBound, curLevel, thisType, thread, target, stack, supertypesMap, equivalences, depth, maxDepth);
+	    				addMethodCalls(makeStaticName(stack.getReceivingTypeName(), thisType), nextLevel, supertypeBound, desiredType, curLevel, thisType, thread, target, stack, supertypesMap, equivalences, depth, maxDepth);
 	    			// Accesses/calls to static fields/methods.
 	    			for (IJavaType type : objectInterfaceTypes) {
 	    				String typeName = type.getName();
 	    				// If we have imported the type or it is an inner class of the this type, use the unqualified typename for brevity.
 	    				if (importsSet.contains(typeName) || (typeName.contains("$") && thisType.getName().equals(typeName.substring(0, typeName.lastIndexOf('$')))))
 	    					typeName = EclipseUtils.getUnqualifiedName(EclipseUtils.sanitizeTypename(typeName));
-	    				addFieldAccesses(makeStaticName(typeName, type), typeBound, curLevel, thisType, target, supertypesMap, equivalences, depth, maxDepth);
-	    				addMethodCalls(makeStaticName(typeName, type), nextLevel, typeBound, curLevel, thisType, thread, target, stack, supertypesMap, equivalences, depth, maxDepth);
+	    				addFieldAccesses(makeStaticName(typeName, type), supertypeBound, desiredType, curLevel, thisType, target, supertypesMap, equivalences, depth, maxDepth);
+	    				addMethodCalls(makeStaticName(typeName, type), nextLevel, supertypeBound, desiredType, curLevel, thisType, thread, target, stack, supertypesMap, equivalences, depth, maxDepth);
 	    			}
 	    			// Calls to static methods and fields of imported classes.
 					for (IImportDeclaration imp : imports) {
@@ -366,8 +377,8 @@ public class ExpressionGenerator {
 							IJavaType[] importedTypes = target.getJavaTypes(fullName);
 							if (importedTypes != null) {
 								if (!objectInterfaceTypes.contains(importedTypes[0])) {  // We've already handled these above.
-									addFieldAccesses(makeStaticName(shortName, importedTypes[0]), typeBound, curLevel, thisType, target, supertypesMap, equivalences, depth, maxDepth);
-									addMethodCalls(makeStaticName(shortName, importedTypes[0]), nextLevel, typeBound, curLevel, thisType, thread, target, stack, supertypesMap, equivalences, depth, maxDepth);
+									addFieldAccesses(makeStaticName(shortName, importedTypes[0]), supertypeBound, desiredType, curLevel, thisType, target, supertypesMap, equivalences, depth, maxDepth);
+									addMethodCalls(makeStaticName(shortName, importedTypes[0]), nextLevel, supertypeBound, desiredType, curLevel, thisType, thread, target, stack, supertypesMap, equivalences, depth, maxDepth);
 								}
 							} else  // TODO: Handle this case, where the class is not yet loaded in the child VM.  I can either try to get the VM to load the class or get the IType from EclipseUtils.getProject(stack).findType(name) and use that interface instead.
 								;//System.err.println("I cannot get the class of the import " + fullName);
@@ -390,7 +401,7 @@ public class ExpressionGenerator {
 		
 	}
 	
-	private static void addFieldAccesses(TypedExpression e, IJavaType typeBound, List<TypedExpression> ops, IJavaType thisType, JDIDebugTarget target, Map<IJavaType, Set<IJavaType>> supertypesMap, Map<IJavaValue, Set<EvaluatedExpression>> equivalences, int depth, int maxDepth) throws DebugException {
+	private static void addFieldAccesses(TypedExpression e, IJavaType supertypeBound, IJavaType desiredType, List<TypedExpression> ops, IJavaType thisType, JDIDebugTarget target, Map<IJavaType, Set<IJavaType>> supertypesMap, Map<IJavaValue, Set<EvaluatedExpression>> equivalences, int depth, int maxDepth) throws DebugException {
 		// We could use the public Eclipse API here, but it isn't as clean and works on objects not types, so wouldn't work with our static accesses, which we give a null value.  Note that as below with methods, we must now be careful converting between jdi types and Eclipse types. 
 		IJavaObject obj = e.getValue() != null ? (IJavaObject)e.getValue() : null;
 		Type objTypeImpl = ((JDIType)e.getType()).getUnderlyingType();
@@ -409,7 +420,7 @@ public class ExpressionGenerator {
 			} catch (ClassNotLoadedException ex) {
 				//System.err.println("I cannot get the class of " + objTypeImpl.name() + "." + field.name() + "(" + field.typeName() + ")");
 			}
-			if (fieldType != null && isHelpfulType(fieldType, typeBound, supertypesMap, depth)) {
+			if (fieldType != null && isHelpfulType(fieldType, supertypeBound, desiredType, supertypesMap, depth)) {
 				TypedExpression receiver = e;
 				if (e.getExpression() instanceof ThisExpression || e.getType().equals(thisType))
 					receiver = null;  // Don't use a receiver if it is null or the this type.
@@ -426,7 +437,7 @@ public class ExpressionGenerator {
 		}
 	}
 	
-	private static void addMethodCalls(TypedExpression e, List<TypedExpression> nextLevel, IJavaType typeBound, List<TypedExpression> ops, IJavaType thisType, IJavaThread thread, JDIDebugTarget target, IJavaStackFrame stack, Map<IJavaType, Set<IJavaType>> supertypesMap, Map<IJavaValue, Set<EvaluatedExpression>> equivalences, int depth, int maxDepth) throws DebugException {
+	private static void addMethodCalls(TypedExpression e, List<TypedExpression> nextLevel, IJavaType supertypeBound, IJavaType desiredType, List<TypedExpression> ops, IJavaType thisType, IJavaThread thread, JDIDebugTarget target, IJavaStackFrame stack, Map<IJavaType, Set<IJavaType>> supertypesMap, Map<IJavaValue, Set<EvaluatedExpression>> equivalences, int depth, int maxDepth) throws DebugException {
 		// The public API doesn't tell us the methods of a class, so we need to use the jdi.  Note that we must now be careful converting between jdi types and Eclipse types.
 		Type objTypeImpl = ((JDIType)e.getType()).getUnderlyingType();
 		if (classBlacklist.contains(objTypeImpl.name()))
@@ -470,7 +481,7 @@ public class ExpressionGenerator {
 			} catch (ClassNotLoadedException ex) {
 				//System.err.println("I cannot get the class of the return type of " + objTypeImpl.name() + "." + method.name() + "() (" + method.returnTypeName() + ")");
 			}
-			if (returnType != null && (isHelpfulType(returnType, typeBound, supertypesMap, depth) || method.isConstructor())) {  // Constructors have void type... 
+			if (returnType != null && (isHelpfulType(returnType, supertypeBound, desiredType, supertypesMap, depth) || method.isConstructor())) {  // Constructors have void type... 
 				List<?> argumentTypes = null;
 				try {
 					argumentTypes = method.argumentTypes();
@@ -493,7 +504,7 @@ public class ExpressionGenerator {
 					ArrayList<TypedExpression> curPossibleActuals = new ArrayList<TypedExpression>();
 					// TODO (low priority): This can get called multiple times if there are multiple args with the same type (or even different methods with args of the same type), but this has a tiny effect compared to the general state space explosion problem.
 					for (TypedExpression a : nextLevel)
-						if (isHelpfulType(a.getType(), argType, supertypesMap, 0)) {  // TODO: This doesn't work for generic methods.
+						if (isHelpfulType(a.getType(), argType, null, supertypesMap, 0)) {  // TODO: This doesn't work for generic methods.
 							if (!allHaveSameType[allPossibleActuals.size()] && !argType.equals(a.getType()))  // If the method is overloaded, when executing the expression we might get "Ambiguous call" compile errors, so we put in a cast to remove the ambiguity.
 								a = makeCast(a, argType, a.getValue());
 							curPossibleActuals.add(a);
@@ -560,11 +571,16 @@ public class ExpressionGenerator {
 	 * @return Whether an expression of the given type can be useful to us.
 	 * @throws DebugException 
 	 */
-	private static boolean isHelpfulType(IJavaType curType, IJavaType typeBound, Map<IJavaType, Set<IJavaType>> supertypesMap, int depth) throws DebugException {
+	private static boolean isHelpfulType(IJavaType curType, IJavaType supertypeBound, IJavaType desiredType, Map<IJavaType, Set<IJavaType>> supertypesMap, int depth) throws DebugException {
 		if (curType != null && "V".equals(curType.getSignature()))  // Void things never return anything useful.
 			return false;
-		// TODO: This second part disallows downcasting things, e.g., (Foo)x.getObject(), which could be legal, but is unlikely to be.
-		return depth > 0 || isSubtypeOf(curType, typeBound, supertypesMap);
+		// TODO: The commented parts disallow downcasting things, e.g., (Foo)x.getObject(), which could be legal, but is unlikely to be.
+		if (depth > 0)
+			return true;
+		else if (desiredType != null)
+			return (curType == null && desiredType instanceof IJavaReferenceType) || desiredType.equals(curType); // isSubtypeOf(desiredType, curType, supertypesMap);
+		else
+			return isSubtypeOf(curType, supertypeBound, supertypesMap);// || isSubtypeOf(supertypeBound, curType, supertypesMap);
 	}
 	
 	/**
