@@ -19,6 +19,7 @@ public class TypeProperty extends LambdaProperty {
 		return new TypeProperty(lhs, rhs, typeName);
 	}
 	
+	@Override
 	public String getTypeName() {
 		return typeName;
 	}

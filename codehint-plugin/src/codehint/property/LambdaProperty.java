@@ -14,7 +14,6 @@ import org.eclipse.jdt.core.dom.Expression;
 import org.eclipse.jdt.core.dom.SimpleName;
 import org.eclipse.jdt.debug.core.IJavaStackFrame;
 import org.eclipse.jdt.debug.eval.IAstEvaluationEngine;
-import org.eclipse.jdt.internal.core.dom.NaiveASTFlattener;
 
 import codehint.EclipseUtils;
 import codehint.property.Property;
@@ -71,7 +70,7 @@ public class LambdaProperty extends Property {
 		} catch (DebugException e) {
 			e.printStackTrace();
 		}
-		NaiveASTFlattener flattener = new PropertyASTFlattener(lhs, varName, typeName);
+		MyASTFlattener flattener = new PropertyASTFlattener(lhs, varName, typeName);
 		rhs.accept(flattener);
 		String compileErrors = EclipseUtils.getCompileErrors(flattener.getResult(), "boolean", stackFrame, evaluationEngine);
 		if (compileErrors != null)
@@ -92,7 +91,7 @@ public class LambdaProperty extends Property {
 	 */
 	@Override
 	public String getReplacedString(String arg, IJavaStackFrame stack) {
-		NaiveASTFlattener flattener = new PropertyASTFlattener(lhs, arg, typeName);
+		MyASTFlattener flattener = new PropertyASTFlattener(lhs, arg, typeName);
 		rhs.accept(flattener);
 		String typeStr = typeName == null ? "" : "(" + arg + " == " + null +" || " + arg + " instanceof " + typeName + ") && ";
 		return typeStr + flattener.getResult();
@@ -104,7 +103,7 @@ public class LambdaProperty extends Property {
 		return lhs.toString() + typeStr + " => " + rhs.toString();
 	}
 	
-	private static final class PropertyASTFlattener extends NaiveASTFlattener {
+	private static final class PropertyASTFlattener extends MyASTFlattener {
 		
 		private final String lhs;
 		private final String arg;
@@ -120,7 +119,7 @@ public class LambdaProperty extends Property {
 		@Override
 		public boolean visit(SimpleName node) {
 			String nodeId = node.getIdentifier();
-			this.buffer.append(nodeId.equals(lhs) ? (type == null ? arg : "((" + type + ")" + arg + ")") : nodeId);
+			appendToBuffer(nodeId.equals(lhs) ? (type == null ? arg : "((" + type + ")" + arg + ")") : nodeId);
 			return false;
 		}
 		

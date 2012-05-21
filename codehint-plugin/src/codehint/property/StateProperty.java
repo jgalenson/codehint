@@ -15,7 +15,6 @@ import org.eclipse.jdt.core.dom.MethodInvocation;
 import org.eclipse.jdt.core.dom.SimpleName;
 import org.eclipse.jdt.debug.core.IJavaStackFrame;
 import org.eclipse.jdt.debug.eval.IAstEvaluationEngine;
-import org.eclipse.jdt.internal.core.dom.NaiveASTFlattener;
 
 import codehint.EclipseUtils;
 import codehint.property.Property;
@@ -180,14 +179,13 @@ public class StateProperty extends Property {
 		
 	}
 	
-	private static final class StateASTFlattener extends NaiveASTFlattener {
+	private static final class StateASTFlattener extends MyASTFlattener {
 
 		private final String lhs;
 		private final String arg;
 		private final IJavaStackFrame stack;
 		
 		public StateASTFlattener(String lhs, String arg, IJavaStackFrame stack) {
-			super();
 			this.lhs = lhs;
 			this.arg = arg;
 			this.stack = stack;
@@ -196,11 +194,11 @@ public class StateProperty extends Property {
 		@Override
     	public boolean visit(MethodInvocation node) {
 			if (isPre(node)) {
-				this.buffer.append(getRenamedVar(((SimpleName)node.arguments().get(0)).getIdentifier()));
+				appendToBuffer(getRenamedVar(((SimpleName)node.arguments().get(0)).getIdentifier()));
 				return false;
 			} else if (isPost(node)) {
 				String nodeId = ((SimpleName)node.arguments().get(0)).getIdentifier();
-				this.buffer.append(nodeId.equals(lhs) ? arg : nodeId);
+				appendToBuffer(nodeId.equals(lhs) ? arg : nodeId);
 				return false;
 			} else
 				return super.visit(node);
@@ -210,7 +208,7 @@ public class StateProperty extends Property {
 		public boolean visit(SimpleName node) {
 			try {
 				if (stack.findVariable(node.getIdentifier()) != null) {
-					this.buffer.append(getRenamedVar(node.getIdentifier()));
+					appendToBuffer(getRenamedVar(node.getIdentifier()));
 					return false;
 				} else
 					return super.visit(node);
