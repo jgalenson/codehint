@@ -14,6 +14,7 @@ import org.eclipse.jdt.core.dom.Expression;
 import org.eclipse.jdt.core.dom.MethodInvocation;
 import org.eclipse.jdt.core.dom.SimpleName;
 import org.eclipse.jdt.debug.core.IJavaStackFrame;
+import org.eclipse.jdt.debug.eval.IAstEvaluationEngine;
 import org.eclipse.jdt.internal.core.dom.NaiveASTFlattener;
 
 import codehint.EclipseUtils;
@@ -42,10 +43,13 @@ public class StateProperty extends Property {
 		return new StateProperty(lhs, property, propertyStr);
 	}
 	
-	public static String isLegalProperty(String str) {
+	public static String isLegalProperty(String str, IJavaStackFrame stackFrame, IAstEvaluationEngine evaluationEngine) {
 		ASTNode property = rewritePrimeSyntax(str);
 		if (property instanceof CompilationUnit)
 			return "Enter a valid expression: " + ((CompilationUnit)property).getProblems()[0].getMessage();
+		String compileErrors = EclipseUtils.getCompileErrors(property.toString(), "boolean", stackFrame, evaluationEngine);
+		if (compileErrors != null)
+			return compileErrors;
 		return ValidityChecker.getError((Expression)property);
 	}
 	

@@ -162,10 +162,10 @@ public class ExpressionGenerator {
 				throw new RuntimeException("Cannot get the name of the type: " + supertypeBound.toString());
 			}
 			
-			ArrayList<EvaluatedExpression> results = EvaluationManager.filterExpressions(evaluatedExprs, target, stack, supertypeBoundName, property);
+			ArrayList<EvaluatedExpression> results = EvaluationManager.filterExpressions(evaluatedExprs, stack, supertypeBoundName, property);
 	    	if (unevaluatedExprs.size() > 0) {
 	    		SubMonitor evalMonitor = SubMonitor.convert(monitor, "Expression evaluation", unevaluatedExprs.size());
-	    		results.addAll(EvaluationManager.evaluateExpressions(unevaluatedExprs, target, stack, supertypeBoundName, property, evalMonitor));
+	    		results.addAll(EvaluationManager.evaluateExpressions(unevaluatedExprs, stack, supertypeBoundName, property, evalMonitor));
 	    		evalMonitor.done();
 	    	}
 			for (EvaluatedExpression e : results)

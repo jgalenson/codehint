@@ -5,6 +5,7 @@ import java.util.regex.Pattern;
 
 import org.eclipse.debug.core.DebugException;
 import org.eclipse.debug.core.model.IVariable;
+import org.eclipse.jdt.debug.core.IJavaVariable;
 import org.eclipse.swt.widgets.Shell;
 
 import codehint.EclipseUtils;
@@ -37,7 +38,8 @@ public class DemonstrateValueHandler extends CommandHandler {
 	    	Property lastCrashedProperty = Synthesizer.getLastCrashedProperty(path);
 	    	initValue = lastCrashedProperty instanceof ValueProperty ? ((ValueProperty)lastCrashedProperty).getValueString() : null;
 		}
-		ValueProperty property = EclipseUtils.isPrimitive(variable) ? EclipseUtils.getPrimitiveValueProperty(path, shell, initValue, null) : EclipseUtils.getObjectValueProperty(path, shell, initValue, null);
+		String varTypeName = ((IJavaVariable)variable).getJavaType().getName();
+		ValueProperty property = EclipseUtils.isPrimitive(variable) ? EclipseUtils.getPrimitiveValueProperty(path, varTypeName, shell, initValue, null) : EclipseUtils.getObjectValueProperty(path, varTypeName, shell, initValue, null);
 		if (property != null)
         	Synthesizer.synthesizeAndInsertExpressions(variable, path, property, shell, initValue != null);
     }

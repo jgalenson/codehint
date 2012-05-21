@@ -13,6 +13,7 @@ import org.eclipse.jdt.core.dom.CompilationUnit;
 import org.eclipse.jdt.core.dom.Expression;
 import org.eclipse.jdt.core.dom.SimpleName;
 import org.eclipse.jdt.debug.core.IJavaStackFrame;
+import org.eclipse.jdt.debug.eval.IAstEvaluationEngine;
 import org.eclipse.jdt.internal.core.dom.NaiveASTFlattener;
 
 import codehint.EclipseUtils;
@@ -50,13 +51,13 @@ public class LambdaProperty extends Property {
 		return new LambdaProperty(lhs, typeName, rhs);
 	}
 	
-	public static String isLegalProperty(String str, IJavaStackFrame stackFrame, IJavaProject project, IType varType, IType thisType) {
+	public static String isLegalProperty(String str, IJavaStackFrame stackFrame, IJavaProject project, IType varType, IType thisType, IAstEvaluationEngine evaluationEngine, String varName) {
 		Matcher matcher = lambdaPattern.matcher(str);
     	if (!matcher.matches())
     		return "Input must of the form \"<identifier>(: <type>)? => <expression>\".";
-    	String type = matcher.group(2);
-    	if (type != null) {
-	    	String typeError = EclipseUtils.getValidTypeError(project, varType, thisType, type);
+    	String typeName = matcher.group(2);
+    	if (typeName != null) {
+	    	String typeError = EclipseUtils.getValidTypeError(project, varType, thisType, typeName);
 	    	if (typeError != null)
 	    		return typeError;
     	}
@@ -70,6 +71,11 @@ public class LambdaProperty extends Property {
 		} catch (DebugException e) {
 			e.printStackTrace();
 		}
+		NaiveASTFlattener flattener = new PropertyASTFlattener(lhs, varName, typeName);
+		rhs.accept(flattener);
+		String compileErrors = EclipseUtils.getCompileErrors(flattener.getResult(), "boolean", stackFrame, evaluationEngine);
+		if (compileErrors != null)
+			return compileErrors;
     	return null;
 	}
 	

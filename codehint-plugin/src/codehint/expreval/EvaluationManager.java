@@ -1,8 +1,6 @@
 package codehint.expreval;
 
 import java.util.ArrayList;
-import java.util.HashSet;
-import java.util.Set;
 import java.util.concurrent.Semaphore;
 
 import org.eclipse.core.runtime.IProgressMonitor;
@@ -18,7 +16,6 @@ import org.eclipse.jdt.core.dom.FieldAccess;
 import org.eclipse.jdt.core.dom.InfixExpression;
 import org.eclipse.jdt.core.dom.MethodInvocation;
 import org.eclipse.jdt.debug.core.IJavaArray;
-import org.eclipse.jdt.debug.core.IJavaDebugTarget;
 import org.eclipse.jdt.debug.core.IJavaStackFrame;
 import org.eclipse.jdt.debug.core.IJavaValue;
 import org.eclipse.jdt.debug.eval.IAstEvaluationEngine;
@@ -61,8 +58,8 @@ public class EvaluationManager {
      * @return the results of the evaluations of the given expressions
      * that satisfy the given property, if it is non-null.
 	 */
-	public static ArrayList<EvaluatedExpression> evaluateExpressions(ArrayList<Expression> exprs, IJavaDebugTarget target, IJavaStackFrame stack, String type, Property property, IProgressMonitor monitor) {
-		IAstEvaluationEngine engine = org.eclipse.jdt.debug.eval.EvaluationManager.newAstEvaluationEngine(EclipseUtils.getProject(stack), target);
+	public static ArrayList<EvaluatedExpression> evaluateExpressions(ArrayList<Expression> exprs, IJavaStackFrame stack, String type, Property property, IProgressMonitor monitor) {
+		IAstEvaluationEngine engine = EclipseUtils.getASTEvaluationEngine(stack);
 		int batchSize = exprs.size() >= 2 * BATCH_SIZE ? BATCH_SIZE : exprs.size() >= MIN_NUM_BATCHES ? exprs.size() / MIN_NUM_BATCHES : 1;
 		ArrayList<EvaluatedExpression> evaluatedExprs = evaluateExpressions(exprs, engine, stack, type, property, -1, batchSize, monitor);
 		return evaluatedExprs;
@@ -80,11 +77,11 @@ public class EvaluationManager {
      * @return the evaluated expressions that satisfy
      * the given property.
 	 */
-	public static ArrayList<EvaluatedExpression> filterExpressions(ArrayList<EvaluatedExpression> evaledExprs, IJavaDebugTarget target, IJavaStackFrame stack, String type, Property property) {
+	public static ArrayList<EvaluatedExpression> filterExpressions(ArrayList<EvaluatedExpression> evaledExprs, IJavaStackFrame stack, String type, Property property) {
 		ArrayList<Expression> exprs = new ArrayList<Expression>(evaledExprs.size());
 		for (EvaluatedExpression expr : evaledExprs)
 			exprs.add(expr.getExpression());
-		return evaluateExpressions(exprs, target, stack, type, property, new NullProgressMonitor());
+		return evaluateExpressions(exprs, stack, type, property, new NullProgressMonitor());
 	}
 	
 	/**
@@ -151,13 +148,9 @@ public class EvaluationManager {
 			// Evaluate things that cannot throw exceptions (and things that can if evaluateCanErrors is true).
 	    	//if (startIndex == -1) System.out.println("Doing " + numExprsToEvaluate + " quickly with startIndex=" + startIndex + ".");
 	    	ICompiledExpression compiled = engine.getCompiledExpression(expressionsStr.toString(), stack);
-	    	if (compiled.hasErrors()) {  // The user entered a property that does not compile, so notify them.
-	    		Set<String> errors = new HashSet<String>();  // Remove duplicate compile errors.
-	    		for (String error : compiled.getErrorMessages())
-	    			errors.add(error);
-	    		throw new EvaluationError("Evaluation error: " + "The following errors were encountered during evaluation.\nDid you enter a valid property?\n\n" + errors.toString());
-	    	}
-    		IEvaluationResult evaluationResult = evaluateExpression(compiled, engine, stack);
+	    	if (compiled.hasErrors())  // The user entered a property that does not compile, so notify them.
+	    		throw new EvaluationError("Evaluation error: " + "The following errors were encountered during evaluation.\nDid you enter a valid property?\n\n" + EclipseUtils.getCompileErrors(compiled));
+	    	IEvaluationResult evaluationResult = evaluateExpression(compiled, engine, stack);
     		//if (startIndex == -1) System.out.println("Just did " + numExprsToEvaluate + " quickly with startIndex=" + startIndex + ".");
 	    	ArrayList<EvaluatedExpression> results;
 	    	if (startIndex == -1) {  // If we do not want to try to evaluate things that can throw exceptions.

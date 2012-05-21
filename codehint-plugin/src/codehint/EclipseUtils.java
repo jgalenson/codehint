@@ -1,6 +1,8 @@
 package codehint;
 
+import java.util.HashSet;
 import java.util.Map;
+import java.util.Set;
 
 import org.eclipse.core.runtime.IAdaptable;
 import org.eclipse.core.runtime.IStatus;
@@ -30,6 +32,7 @@ import org.eclipse.jdt.debug.core.IJavaType;
 import org.eclipse.jdt.debug.core.IJavaValue;
 import org.eclipse.jdt.debug.core.IJavaVariable;
 import org.eclipse.jdt.debug.eval.IAstEvaluationEngine;
+import org.eclipse.jdt.debug.eval.ICompiledExpression;
 import org.eclipse.jdt.debug.eval.IEvaluationListener;
 import org.eclipse.jdt.debug.eval.IEvaluationResult;
 import org.eclipse.jdt.internal.debug.ui.JDIModelPresentation;
@@ -196,6 +199,46 @@ public class EclipseUtils {
     		return value.getValueString();
     }
     
+    public static IAstEvaluationEngine getASTEvaluationEngine(IJavaStackFrame stackFrame) {
+    	return org.eclipse.jdt.debug.eval.EvaluationManager.newAstEvaluationEngine(getProject(stackFrame), (IJavaDebugTarget)stackFrame.getDebugTarget());
+    }
+    
+    /**
+     * Gets a unique set of compile errors from the given compiled expression.
+     * @param compiled The compiled expression.
+     * @return the unique set of compile errors from the given compiled expression.
+     */
+    public static String getCompileErrors(ICompiledExpression compiled) {
+    	if (compiled.hasErrors()) {
+    		Set<String> errors = new HashSet<String>();  // Remove duplicate compile errors.
+    		for (String error : compiled.getErrorMessages())
+    			errors.add(error);
+    		return errors.toString();
+    	} else
+    		return null;
+    }
+
+    /**
+     * Checks the given text for compile errors, including that it
+     * has the correct type.
+     * @param newText A string of the expression to compile.
+     * @param typeName A string of the name of the desired type of the expression.
+     * @param stackFrame The stack frame.
+     * @param evaluationEngine The evaluation engine.
+     * @return Any compile errors from the expression, including an error
+     *  if it does not have the proper type.
+     */
+	public static String getCompileErrors(String newText, String typeName, IJavaStackFrame stackFrame, IAstEvaluationEngine evaluationEngine) {
+		try {
+			ICompiledExpression compiled = evaluationEngine.getCompiledExpression(typeName + " _$_$" + " = " + newText + ";", stackFrame);
+        	if (compiled.hasErrors())
+        		return "Invalid expression: " + getCompileErrors(compiled);
+        	return null;
+		} catch (DebugException e) {
+			throw new RuntimeException(e);
+		}
+	}
+    
     private static IType getThisType(IJavaProject project, IJavaStackFrame stackFrame) throws DebugException, JavaModelException {
     	String thisTypeName = stackFrame.getDeclaringTypeName();
 		IType thisType = project.findType(thisTypeName);
@@ -221,7 +264,7 @@ public class EclipseUtils {
 	        String message= "Demonstrate a property (in the form of a boolean lambda expression) that should hold for " + varName + " after this statement is executed.";
 	        if (initialValue == null)
 	        	initialValue = getDefaultLambdaArgName(stackFrame) + getDefaultTypeName(varStaticType, project, varType, thisType, varStaticTypeName) + " => ";
-	        LambdaPropertyValidator validator= new LambdaPropertyValidator(stackFrame, project, varType, thisType);
+	        LambdaPropertyValidator validator= new LambdaPropertyValidator(stackFrame, project, varType, thisType, varName);
 	        String stringValue = getDialogResult(title, message, extraMessage, initialValue, validator, "lambda");
 	    	if (stringValue != null)
 	    		return LambdaProperty.fromPropertyString(stringValue);
@@ -256,18 +299,18 @@ public class EclipseUtils {
 			return ": " + varStaticTypeName;
     }
     
-    private static String getExpression(String varName, Shell shell, String initialValue, String extraMessage) {
+    private static String getExpression(String varName, String varTypeName, Shell shell, String initialValue, String extraMessage) {
         String title= "Demonstrate an expression"; 
         String message= "Demonstrate an expression for " + varName + ".  We will find expressions that evaluate to the same value.";
-        ExpressionValidator validator= new ExpressionValidator();
+        ExpressionValidator validator= new ExpressionValidator(getStackFrame(), varTypeName);
         if (initialValue == null)
         	initialValue = "";
         String stringValue = getDialogResult(title, message, extraMessage, initialValue, validator, "value");
     	return stringValue;
     }
     
-    public static PrimitiveValueProperty getPrimitiveValueProperty(String varName, Shell shell, String initialValue, String extraMessage) throws DebugException {
-    	String stringValue = getExpression(varName, shell, initialValue, extraMessage);
+    public static PrimitiveValueProperty getPrimitiveValueProperty(String varName, String varTypeName, Shell shell, String initialValue, String extraMessage) throws DebugException {
+    	String stringValue = getExpression(varName, varTypeName, shell, initialValue, extraMessage);
     	if (stringValue != null) {
     		try {
 		    	IJavaValue demonstrationValue = evaluate(stringValue);
@@ -280,8 +323,8 @@ public class EclipseUtils {
     		return null;
     }
     
-    public static ObjectValueProperty getObjectValueProperty(String varName, Shell shell, String initialValue, String extraMessage) throws DebugException {
-    	String stringValue = getExpression(varName, shell, initialValue, extraMessage);
+    public static ObjectValueProperty getObjectValueProperty(String varName, String varTypeName, Shell shell, String initialValue, String extraMessage) throws DebugException {
+    	String stringValue = getExpression(varName, varTypeName, shell, initialValue, extraMessage);
     	if (stringValue != null) {
     		try {
     			IJavaValue demonstrationValue = evaluate(stringValue);
@@ -325,7 +368,7 @@ public class EclipseUtils {
     public static StateProperty getStateProperty(String varName, Shell shell, String initialValue, String extraMessage) {
 		String title= "Demonstrate state property"; 
         String message= "Demonstrate a state property that should hold for " + varName + " after this statement is executed.  You may refer to the values of variables after this statement is executed using the prime syntax, e.g., " + varName + "\'";
-        StatePropertyValidator validator= new StatePropertyValidator();
+        StatePropertyValidator validator= new StatePropertyValidator(getStackFrame());
         String stringValue = getDialogResult(title, message, extraMessage, initialValue, validator, "state");
     	if (stringValue != null)
     		return StateProperty.fromPropertyString(varName, stringValue);
@@ -393,29 +436,45 @@ public class EclipseUtils {
     	private final IJavaProject project;
     	private final IType varType;
     	private final IType thisType;
+    	private final IAstEvaluationEngine evaluationEngine;
+    	private final String varName;
     	
-    	public LambdaPropertyValidator(IJavaStackFrame stackFrame, IJavaProject project, IType varType, IType thisType) {
+    	public LambdaPropertyValidator(IJavaStackFrame stackFrame, IJavaProject project, IType varType, IType thisType, String varName) {
     		this.stackFrame = stackFrame;
     		this.project = project;
     		this.varType = varType;
     		this.thisType = thisType;
+    		this.evaluationEngine = getASTEvaluationEngine(stackFrame);
+    		this.varName = varName;
     	}
         
         @Override
 		public String isValid(String newText) {
-        	return LambdaProperty.isLegalProperty(newText, stackFrame, project, varType, thisType);
+        	return LambdaProperty.isLegalProperty(newText, stackFrame, project, varType, thisType, evaluationEngine, varName);
         }
     }
 
     private static class ExpressionValidator implements IInputValidator {
     	
         private final static ASTParser parser = ASTParser.newParser(AST.JLS4);
+        private final IJavaStackFrame stackFrame;
+        private final IAstEvaluationEngine evaluationEngine;
+        private final String varTypeName;
+        
+        public ExpressionValidator(IJavaStackFrame stackFrame, String varTypeName) {
+        	this.stackFrame = stackFrame;
+        	this.evaluationEngine = getASTEvaluationEngine(stackFrame);
+        	this.varTypeName = varTypeName;
+        }
         
         @Override
 		public String isValid(String newText) {
         	ASTNode node = EclipseUtils.parseExpr(parser, newText);
         	if (node instanceof CompilationUnit)
         		return "Enter a valid expression: " + ((CompilationUnit)node).getProblems()[0].getMessage();
+			String compileErrors = getCompileErrors(newText, varTypeName, stackFrame, evaluationEngine);
+			if (compileErrors != null)
+				return compileErrors;
         	return null;
         }
     }
@@ -501,10 +560,18 @@ public class EclipseUtils {
     }
 
     private static class StatePropertyValidator implements IInputValidator {
+    	
+        private final IJavaStackFrame stackFrame;
+        private final IAstEvaluationEngine evaluationEngine;
+        
+        public StatePropertyValidator(IJavaStackFrame stackFrame) {
+        	this.stackFrame = stackFrame;
+        	this.evaluationEngine = getASTEvaluationEngine(stackFrame);
+        }
         
         @Override
 		public String isValid(String newText) {
-        	return StateProperty.isLegalProperty(newText);
+        	return StateProperty.isLegalProperty(newText, stackFrame, evaluationEngine);
         }
     }
     

@@ -381,7 +381,6 @@ public class Synthesizer {
    			
 	    	EclipseUtils.log("Beginning refinement for " + curLine + ".");
 	    	
-   			IJavaDebugTarget target = (IJavaDebugTarget)frame.getDebugTarget();
    			final String varname = matcher.group(2);
 	    	final IJavaVariable lhsVar = getLHSVariable(EclipseUtils.parseExpr(parser, varname), frame);
    			// This is the declared type while vartype is the type of the array.  The difference is that if the static type is a primitive, the array type is the wrapper class.
@@ -396,7 +395,7 @@ public class Synthesizer {
    				initialExprs.add((Expression)it.next());
         	assert initialExprs.size() > 0;  // We must have at least one expression.
         	// TODO: Run the following off the UI thread like above when we do the first synthesis.
-   			ArrayList<EvaluatedExpression> exprs = EvaluationManager.evaluateExpressions(initialExprs, target, frame, varStaticTypeName, null, new NullProgressMonitor());
+   			ArrayList<EvaluatedExpression> exprs = EvaluationManager.evaluateExpressions(initialExprs, frame, varStaticTypeName, null, new NullProgressMonitor());
    			if (exprs.isEmpty()) {
    				EclipseUtils.showError("No valid expressions", "No valid expressions were found.", null);
    				throw new RuntimeException("No valid expressions");
@@ -439,7 +438,7 @@ public class Synthesizer {
        			// Filter out the expressions that do not give the desired value in the current context.
        			ArrayList<EvaluatedExpression> validExprs = null;
        			try {
-       				validExprs = EvaluationManager.filterExpressions(exprs, target, frame, varStaticTypeName, property);
+       				validExprs = EvaluationManager.filterExpressions(exprs, frame, varStaticTypeName, property);
        			} catch (EvaluationError e) {
        		    	setLastCrashedProperty(varname, property);
        		    	EclipseUtils.showError("Error", e.getMessage(), e);
@@ -570,9 +569,9 @@ public class Synthesizer {
 		    			if (oldProperty == null || oldProperty instanceof StateProperty)
 		    				result[0] = EclipseUtils.getStateProperty(varName, EclipseUtils.getShell(), oldProperty == null ? "" : oldProperty.toString(), extraMessage);
 		    			else if (oldProperty instanceof PrimitiveValueProperty)
-		    				result[0] = EclipseUtils.getPrimitiveValueProperty(varName, EclipseUtils.getShell(), "", extraMessage);
+		    				result[0] = EclipseUtils.getPrimitiveValueProperty(varName, varStaticTypeName, EclipseUtils.getShell(), "", extraMessage);
 		    			else if (oldProperty instanceof ObjectValueProperty)
-		    				result[0] = EclipseUtils.getObjectValueProperty(varName, EclipseUtils.getShell(), "", extraMessage);
+		    				result[0] = EclipseUtils.getObjectValueProperty(varName, varStaticTypeName, EclipseUtils.getShell(), "", extraMessage);
 		    			else if (oldProperty instanceof TypeProperty)
 		    				result[0] = EclipseUtils.getTypeProperty(varName, EclipseUtils.getShell(), varStaticTypeName, ((TypeProperty)oldProperty).getTypeName(), extraMessage, stackFrame);
 		    			else if (oldProperty instanceof LambdaProperty)
