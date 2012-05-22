@@ -153,7 +153,7 @@ public class EvaluationManager {
 	    	ICompiledExpression compiled = engine.getCompiledExpression(expressionsStr.toString(), stack);
 	    	if (compiled.hasErrors())  // The user entered a property that does not compile, so notify them.
 	    		throw new EvaluationError("Evaluation error: " + "The following errors were encountered during evaluation.\nDid you enter a valid property?\n\n" + EclipseUtils.getCompileErrors(compiled));
-	    	IEvaluationResult evaluationResult = evaluateExpression(compiled, engine, stack);
+	    	IEvaluationResult evaluationResult = Evaluator.evaluateExpression(compiled, engine, stack);
     		//if (startIndex == -1) System.out.println("Just did " + numExprsToEvaluate + " quickly with startIndex=" + startIndex + ".");
 	    	ArrayList<EvaluatedExpression> results;
 	    	if (startIndex == -1) {  // If we do not want to try to evaluate things that can throw exceptions.
@@ -174,7 +174,7 @@ public class EvaluationManager {
 	    				results = evaluateExpressionsInBatches(exprs, engine, stack, type, property, validVal, startIndex, i, 1, monitor);
 	    			} else { // The one expression crashed, so ignore it.
     					//System.err.println("Evaluation of " + exprs.get(i-1) + " failed with error " + EclipseUtils.getErrors(evaluationResult));
-	    				results = new ArrayList<EvaluatedExpression>();
+	    				results = new ArrayList<EvaluatedExpression>(0);
 		    			monitor.worked(1);
 	    			}
 	    		} else { // Nothing threw an exception, so we can use the result.
@@ -224,7 +224,6 @@ public class EvaluationManager {
 	 * @throws DebugException a DebugException occurs.
 	 */
 	private static ArrayList<EvaluatedExpression> getResultsFromArray(ArrayList<Expression> exprs, int startIndex, IEvaluationResult evaluationResult) throws DebugException {
-		assert !evaluationResult.hasErrors();
 		IJavaValue[] resultValue = ((IJavaArray)evaluationResult.getValue()).getValues();
 		IJavaValue[] resultValues = ((IJavaArray)resultValue[0]).getValues();
 		IJavaValue[] validValues = ((IJavaArray)resultValue[1]).getValues();
@@ -235,49 +234,55 @@ public class EvaluationManager {
 		return results;
 	}
 	
-	/**
-	 * Evaluates the given expression synchronously.
-	 * @param compiled The compiled expression to evaluate.
-	 * @param engine The evaluation engine.
-	 * @param stack The current stack frame.
-	 * @return The result of the evaluation.
-	 */
-    private static IEvaluationResult evaluateExpression(ICompiledExpression compiled, IAstEvaluationEngine engine, IJavaStackFrame stack) {
-		Semaphore semaphore = new Semaphore(0);
-		IEvaluationResult[] results = new IEvaluationResult[] { null };
-		try {
-			engine.evaluateExpression(compiled, stack, new EvaluationListener(results, semaphore), DebugEvent.EVALUATION_IMPLICIT, false);
-			semaphore.acquire();
-			return results[0];
-		} catch (InterruptedException ex) {
-			ex.printStackTrace();
-			throw new RuntimeException("Thread interrupted.");
-		} catch (DebugException ex) {
-			ex.printStackTrace();
-			throw new RuntimeException("Debug Exception.");
-		}
-    }
-    
-    /**
-     * Class to wait for evaluations to finish.
-     */
-    private static class EvaluationListener implements IEvaluationListener {
-
-    	private final IEvaluationResult[] results;
-    	private final Semaphore semaphore;
-    	
-    	public EvaluationListener(IEvaluationResult[] results, Semaphore semaphore) {
-    		this.results = results;
-    		this.semaphore = semaphore;
-    	}
-
-		@Override
-		public void evaluationComplete(IEvaluationResult result) {
-			results[0] = result;
-			semaphore.release();  // Up the semaphore to mark that the evaluation finished.
-		}
-    	
-    }
+	private static class Evaluator {
+		
+		private static final Semaphore semaphore = new Semaphore(0);
+		private static final IEvaluationResult[] results = new IEvaluationResult[] { null };
+		private static final EvaluationListener evaluationListener = new EvaluationListener(results, semaphore);
+	
+		/**
+		 * Evaluates the given expression synchronously.
+		 * @param compiled The compiled expression to evaluate.
+		 * @param engine The evaluation engine.
+		 * @param stack The current stack frame.
+		 * @return The result of the evaluation.
+		 */
+	    public /*synchronized*/ static IEvaluationResult evaluateExpression(ICompiledExpression compiled, IAstEvaluationEngine engine, IJavaStackFrame stack) {
+			try {
+				engine.evaluateExpression(compiled, stack, evaluationListener, DebugEvent.EVALUATION_IMPLICIT, false);
+				semaphore.acquire();
+				return results[0];
+			} catch (InterruptedException ex) {
+				ex.printStackTrace();
+				throw new RuntimeException("Thread interrupted.");
+			} catch (DebugException ex) {
+				ex.printStackTrace();
+				throw new RuntimeException("Debug Exception.");
+			}
+	    }
+	    
+	    /**
+	     * Class to wait for evaluations to finish.
+	     */
+	    private static class EvaluationListener implements IEvaluationListener {
+	
+	    	private final IEvaluationResult[] results;
+	    	private final Semaphore semaphore;
+	    	
+	    	public EvaluationListener(IEvaluationResult[] results, Semaphore semaphore) {
+	    		this.results = results;
+	    		this.semaphore = semaphore;
+	    	}
+	
+			@Override
+			public void evaluationComplete(IEvaluationResult result) {
+				results[0] = result;
+				semaphore.release();  // Up the semaphore to mark that the evaluation finished.
+			}
+	    	
+	    }
+	    
+	}
     
     /**
      * Finds the preconditions under which we can evaluate the
