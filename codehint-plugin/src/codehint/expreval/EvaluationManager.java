@@ -125,10 +125,11 @@ public class EvaluationManager {
 	    			unevaluatedExpressions.add(curExpr);
 	    			continue;
 	    		}
+	    		//String legalStr = "_$legal[" + numExprsToEvaluate + "] = true;\n ";
 	    		String valueLHS = "_$value[" + numExprsToEvaluate + "]";
 	    		String validLHS = "_$valid[" + numExprsToEvaluate + "]";
 	    		String validVal = property == null ? "true" : property.getReplacedString(valueLHS, stack);
-	    		String body = "{\n _$legal[" + numExprsToEvaluate + "] = true;\n " + valueLHS + " = " + curExpr.toString() + ";\n " + validLHS + " = " + validVal + ";\n}\n";
+	    		String body = "{\n " + valueLHS + " = " + curExpr.toString() + ";\n " + validLHS + " = " + validVal + ";\n}\n";
 	    		if (preconditions.length() > 0)
 	    			expressionsStr.append("if (" + preconditions + ") ");
 				expressionsStr.append(body);
@@ -142,8 +143,9 @@ public class EvaluationManager {
 	    		newTypeString = type.substring(0, index) + newTypeString + type.substring(index); 
 	    	} else
 	    		newTypeString = type + newTypeString;
-			expressionsStr.insert(0, "{\nboolean[] _$legal = new boolean[" + numExprsToEvaluate + "];\n" + type + "[] _$value = new " + newTypeString + ";\nboolean[] _$valid = new boolean[" + numExprsToEvaluate + "];\n");
-	    	expressionsStr.append("return new Object[] { _$legal, _$value, _$valid };\n}");
+	    	//String legalDecl = "boolean[] _$legal = new boolean[" + numExprsToEvaluate + "];\n";
+			expressionsStr.insert(0, "{\n" + type + "[] _$value = new " + newTypeString + ";\nboolean[] _$valid = new boolean[" + numExprsToEvaluate + "];\n");
+	    	expressionsStr.append("return new Object[] { _$value, _$valid };\n}");
 	    	
 			// Evaluate things that cannot throw exceptions (and things that can if evaluateCanErrors is true).
 	    	//if (startIndex == -1) System.out.println("Doing " + numExprsToEvaluate + " quickly with startIndex=" + startIndex + ".");
@@ -170,7 +172,7 @@ public class EvaluationManager {
 	    				//System.out.println("Batch evaluation failed.");
 	    				results = evaluateExpressionsInBatches(exprs, engine, stack, type, property, startIndex, i, 1, monitor);
 	    			} else { // The one expression crashed, so ignore it.
-    					//System.err.println("Evaluation of " + exprs.get(i-1) + " failed.");
+    					//System.err.println("Evaluation of " + exprs.get(i-1) + " failed with error " + EclipseUtils.getErrors(evaluationResult));
 	    				results = new ArrayList<EvaluatedExpression>();
 		    			monitor.worked(1);
 	    			}
@@ -223,12 +225,11 @@ public class EvaluationManager {
 	private static ArrayList<EvaluatedExpression> getResultsFromArray(ArrayList<Expression> exprs, int startIndex, IEvaluationResult evaluationResult) throws DebugException {
 		assert !evaluationResult.hasErrors();
 		IJavaValue[] resultValue = ((IJavaArray)evaluationResult.getValue()).getValues();
-		IJavaValue[] legalValues = ((IJavaArray)resultValue[0]).getValues();
-		IJavaValue[] resultValues = ((IJavaArray)resultValue[1]).getValues();
-		IJavaValue[] validValues = ((IJavaArray)resultValue[2]).getValues();
+		IJavaValue[] resultValues = ((IJavaArray)resultValue[0]).getValues();
+		IJavaValue[] validValues = ((IJavaArray)resultValue[1]).getValues();
 		ArrayList<EvaluatedExpression> results = new ArrayList<EvaluatedExpression>();
 		for (int i = 0; i < resultValues.length; i++)
-			if ("true".equals(legalValues[i].getValueString()) && "true".equals(validValues[i].getValueString()))
+			if (/*"true".equals(legalValues[i].getValueString()) && */"true".equals(validValues[i].getValueString()))
 				results.add(new EvaluatedExpression(exprs.get(startIndex + i), resultValues[i]));
 		return results;
 	}
