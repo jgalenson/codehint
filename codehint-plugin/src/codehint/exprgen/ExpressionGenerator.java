@@ -401,6 +401,8 @@ public class ExpressionGenerator {
 		
 	}
 	
+	// TODO: Convert field/method code to use the public API?  I can use IType to get the signature, Signature.getSignature{Qualifier,SimpleName} to get type names, and then EclipseUtils.getType-like code to get the IType back.
+	
 	private static void addFieldAccesses(TypedExpression e, IJavaType supertypeBound, IJavaType desiredType, List<TypedExpression> ops, IJavaType thisType, JDIDebugTarget target, Map<IJavaType, Set<IJavaType>> supertypesMap, Map<IJavaValue, Set<EvaluatedExpression>> equivalences, int depth, int maxDepth) throws DebugException {
 		// We could use the public Eclipse API here, but it isn't as clean and works on objects not types, so wouldn't work with our static accesses, which we give a null value.  Note that as below with methods, we must now be careful converting between jdi types and Eclipse types. 
 		IJavaObject obj = e.getValue() != null ? (IJavaObject)e.getValue() : null;
