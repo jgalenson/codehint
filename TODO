@@ -51,7 +51,7 @@ Optimizations
 Begin expression generation when the user clicks demonstration, i.e., when we open the text box.  This way we can do the work while they're typing.
 If multiple expressions have the same value, only generate with one and then replace later.
 Investigate using IClassFileEvaluationEngine instead of ASTEvaluation.  See JavaSnippetEditor.evaluate().
-Optimize evaluation string: use temporary instead of index into array of values (also allows us to not call property.getReplacedString lots of times, as we can cache its result) and, when given a property with a type (x: Foo => ...) don't insert the casts if the variable has static type Foo.
+Optimize evaluation string: when given a property with a type (x: Foo => ...) don't insert the casts if the variable has static type Foo.
 
 Research questions
 ------------------

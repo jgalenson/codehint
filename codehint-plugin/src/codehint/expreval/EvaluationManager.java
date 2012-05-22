@@ -61,7 +61,8 @@ public class EvaluationManager {
 	public static ArrayList<EvaluatedExpression> evaluateExpressions(ArrayList<Expression> exprs, IJavaStackFrame stack, String type, Property property, IProgressMonitor monitor) {
 		IAstEvaluationEngine engine = EclipseUtils.getASTEvaluationEngine(stack);
 		int batchSize = exprs.size() >= 2 * BATCH_SIZE ? BATCH_SIZE : exprs.size() >= MIN_NUM_BATCHES ? exprs.size() / MIN_NUM_BATCHES : 1;
-		ArrayList<EvaluatedExpression> evaluatedExprs = evaluateExpressions(exprs, engine, stack, type, property, -1, batchSize, monitor);
+		String validVal = property == null ? "true" : property.getReplacedString("_$curValue", stack);
+		ArrayList<EvaluatedExpression> evaluatedExprs = evaluateExpressions(exprs, engine, stack, type, property, validVal, -1, batchSize, monitor);
 		return evaluatedExprs;
 	}
 
@@ -99,7 +100,7 @@ public class EvaluationManager {
 	 * @param batchSize The size of the batches.
      * @return the results of the evaluations of the given expressions.
 	 */
-	private static ArrayList<EvaluatedExpression> evaluateExpressions(ArrayList<Expression> exprs, IAstEvaluationEngine engine, IJavaStackFrame stack, String type, Property property, int startIndex, int batchSize, IProgressMonitor monitor) {
+	private static ArrayList<EvaluatedExpression> evaluateExpressions(ArrayList<Expression> exprs, IAstEvaluationEngine engine, IJavaStackFrame stack, String type, Property property, String validVal, int startIndex, int batchSize, IProgressMonitor monitor) {
 		if (monitor.isCanceled())
 			throw new OperationCanceledException();
 		ArrayList<Expression> evaluatedExpressions = startIndex != -1 ? null : new ArrayList<Expression>();
@@ -125,11 +126,11 @@ public class EvaluationManager {
 	    			unevaluatedExpressions.add(curExpr);
 	    			continue;
 	    		}
-	    		//String legalStr = "_$legal[" + numExprsToEvaluate + "] = true;\n ";
+	    		//String legalStr = "_$legal[" + numExprsToEvaluate + "] = true";
+	    		String valueStr = type + " _$curValue = " + curExpr.toString();
 	    		String valueLHS = "_$value[" + numExprsToEvaluate + "]";
 	    		String validLHS = "_$valid[" + numExprsToEvaluate + "]";
-	    		String validVal = property == null ? "true" : property.getReplacedString(valueLHS, stack);
-	    		String body = "{\n " + valueLHS + " = " + curExpr.toString() + ";\n " + validLHS + " = " + validVal + ";\n}\n";
+	    		String body = "{\n " + valueStr + ";\n " + validLHS + " = " + validVal + ";\n " + valueLHS + " = _$curValue;\n}\n";
 	    		if (preconditions.length() > 0)
 	    			expressionsStr.append("if (" + preconditions + ") ");
 				expressionsStr.append(body);
@@ -159,18 +160,18 @@ public class EvaluationManager {
 	    		if (evaluationResult.hasErrors()) {  // Evaluating a property threw an exception.  We notify the user and discard those inputs.
 	    			EclipseUtils.showWarning("Evaluation error", "Evaluation " + (property == null ? "" : "of property\n\t" + property.toString() + "\n") + "crashed with the following error:\n\t" + EclipseUtils.getErrors(evaluationResult) + "\nThis might be fine, so we're continuing.", null);
 	    			int step = batchSize >= exprs.size() ? 1 : batchSize;
-	    			results = evaluateExpressionsInBatches(exprs, engine, stack, type, property, 0, exprs.size(), step, monitor);
+	    			results = evaluateExpressionsInBatches(exprs, engine, stack, type, property, validVal, 0, exprs.size(), step, monitor);
 	    		} else {
 	    			results = getResultsFromArray(evaluatedExpressions, 0, evaluationResult);
 	    			monitor.worked(numExprsToEvaluate);
 	    		}
     			if (unevaluatedExpressions.size() > 0)  // Evaluate (in batches) things that can throw.
-    				results.addAll(evaluateExpressionsInBatches(unevaluatedExpressions, engine, stack, type, property, 0, unevaluatedExpressions.size(), batchSize, monitor));
+    				results.addAll(evaluateExpressionsInBatches(unevaluatedExpressions, engine, stack, type, property, validVal, 0, unevaluatedExpressions.size(), batchSize, monitor));
 	    	} else {  // If we do want to try to evaluate things that can throw exceptions.
 	    		if (evaluationResult.hasErrors()) {  // If evaluation threw an exception, we must re-evaluate them all sequentially/slowly.
 	    			if (numExprsToEvaluate > 1) {  // Batch evaluation failed, so evaluate sequentially.
 	    				//System.out.println("Batch evaluation failed.");
-	    				results = evaluateExpressionsInBatches(exprs, engine, stack, type, property, startIndex, i, 1, monitor);
+	    				results = evaluateExpressionsInBatches(exprs, engine, stack, type, property, validVal, startIndex, i, 1, monitor);
 	    			} else { // The one expression crashed, so ignore it.
     					//System.err.println("Evaluation of " + exprs.get(i-1) + " failed with error " + EclipseUtils.getErrors(evaluationResult));
 	    				results = new ArrayList<EvaluatedExpression>();
@@ -200,11 +201,11 @@ public class EvaluationManager {
 	 * @param batchSize The size of the batches.
      * @return the results of the evaluations of the given expressions.
 	 */
-	private static ArrayList<EvaluatedExpression> evaluateExpressionsInBatches(ArrayList<Expression> exprs, IAstEvaluationEngine engine, IJavaStackFrame stack, String type, Property property, int startIndex, int endIndex, int batchSize, IProgressMonitor monitor) {
+	private static ArrayList<EvaluatedExpression> evaluateExpressionsInBatches(ArrayList<Expression> exprs, IAstEvaluationEngine engine, IJavaStackFrame stack, String type, Property property, String validVal, int startIndex, int endIndex, int batchSize, IProgressMonitor monitor) {
 		ArrayList<EvaluatedExpression> results = new ArrayList<EvaluatedExpression>();
 		//System.out.println("Evaluating " + (endIndex - startIndex) + " expressions in batches of " + batchSize + ".");
 		for (int i = startIndex; i < endIndex; i += batchSize)
-			results.addAll(evaluateExpressions(exprs, engine, stack, type, property, i, batchSize, monitor));
+			results.addAll(evaluateExpressions(exprs, engine, stack, type, property, validVal, i, batchSize, monitor));
 		//System.out.println("Just did " + (endIndex - startIndex) + " expressions in batches of " + batchSize + ".");
 		return results;
 	}
