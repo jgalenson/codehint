@@ -48,7 +48,6 @@ import org.eclipse.jdt.debug.core.IJavaThread;
 import org.eclipse.jdt.debug.core.IJavaType;
 import org.eclipse.jdt.debug.core.IJavaValue;
 import org.eclipse.jdt.debug.core.IJavaVariable;
-import org.eclipse.jdt.internal.debug.core.model.JDIArrayType;
 import org.eclipse.jdt.internal.debug.core.model.JDIDebugTarget;
 import org.eclipse.jdt.internal.debug.core.model.JDIStackFrame;
 import org.eclipse.jdt.internal.debug.core.model.JDIType;
@@ -1313,7 +1312,7 @@ public class ExpressionGenerator {
      */
     private static IJavaType getArrayElementType(TypedExpression array) {
     	try {
-			return ((JDIArrayType)array.getType()).getComponentType();
+			return ((IJavaArrayType)array.getType()).getComponentType();
 		} catch (DebugException e) {
 			if (e.getCause() instanceof ClassNotLoadedException) {
 				//System.err.println("I cannot get the class of the array " + array.getExpression());
