@@ -26,8 +26,8 @@ public class DemonstrateTypeHandler extends CommandHandler {
     }
     
     private static void handle(IVariable variable, String path, Shell shell, Matcher matcher) throws DebugException {
-		if (EclipseUtils.isPrimitive(variable)) {  // TODO: Disable the menu in this case.
-			EclipseUtils.showError("Cannot demonstrate type", "You cannot demonstrate the type of a primitive variable.", null);
+		if (!EclipseUtils.isObject(variable)) {  // TODO: Disable the menu in this case.
+			EclipseUtils.showError("Cannot demonstrate type", "You cannot demonstrate the type of something that is not an object.", null);
 			return;
 		}
 		String varTypeName = ((IJavaVariable)variable).getJavaType().getName();

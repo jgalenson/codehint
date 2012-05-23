@@ -21,6 +21,7 @@ import org.eclipse.jdt.core.IJavaProject;
 import org.eclipse.jdt.core.IType;
 import org.eclipse.jdt.core.JavaCore;
 import org.eclipse.jdt.core.JavaModelException;
+import org.eclipse.jdt.core.Signature;
 import org.eclipse.jdt.core.dom.AST;
 import org.eclipse.jdt.core.dom.ASTNode;
 import org.eclipse.jdt.core.dom.ASTParser;
@@ -35,7 +36,6 @@ import org.eclipse.jdt.debug.eval.IAstEvaluationEngine;
 import org.eclipse.jdt.debug.eval.ICompiledExpression;
 import org.eclipse.jdt.debug.eval.IEvaluationListener;
 import org.eclipse.jdt.debug.eval.IEvaluationResult;
-import org.eclipse.jdt.internal.debug.ui.JDIModelPresentation;
 import org.eclipse.jdt.internal.debug.ui.actions.EvaluateAction;
 import org.eclipse.jface.dialogs.ErrorDialog;
 import org.eclipse.jface.dialogs.IInputValidator;
@@ -99,18 +99,17 @@ public class EclipseUtils {
         return signature;
     }
     
-    public static boolean isPrimitive(IVariable variable) {
+    public static boolean isObject(IVariable variable) {
 		try {
 			String signature = getSignature(variable);
-	    	return isPrimitive(signature);
+	    	return isObject(signature);
 		} catch (DebugException e) {
 			throw new RuntimeException(e);
 		}
     }
     
-    public static boolean isPrimitive(String signature) {
-    	assert signature != null;
-    	return !JDIModelPresentation.isObjectValue(signature);
+    public static boolean isObject(String signature) {
+    	return Signature.getTypeSignatureKind(signature) == Signature.CLASS_TYPE_SIGNATURE;
     }
    	
     // TODO: There must be a better way to do this through Eclipse.
@@ -289,7 +288,7 @@ public class EclipseUtils {
     }
     
     private static String getDefaultTypeName(IJavaType varStaticType, IJavaProject project, IType varType, IType thisType, String varStaticTypeName) throws DebugException {
-    	if (varStaticType == null || isPrimitive(varStaticType.getSignature()))
+    	if (varStaticType == null || !isObject(varStaticType.getSignature()))
     		return "";
 		
 		String unqualifiedTypename = getUnqualifiedName(varStaticTypeName);
@@ -302,7 +301,7 @@ public class EclipseUtils {
     private static String getExpression(String varName, String varTypeName, Shell shell, String initialValue, String extraMessage) {
         String title= "Demonstrate an expression"; 
         String message= "Demonstrate an expression for " + varName + ".  We will find expressions that evaluate to the same value.";
-        ExpressionValidator validator= new ExpressionValidator(getStackFrame(), varTypeName);
+        ExpressionValidator validator= new ExpressionValidator(getStackFrame(), EclipseUtils.sanitizeTypename(varTypeName));
         if (initialValue == null)
         	initialValue = "";
         String stringValue = getDialogResult(title, message, extraMessage, initialValue, validator, "value");
@@ -542,12 +541,12 @@ public class EclipseUtils {
     		if (thisType == null || project == null || target == null)
     			return null;
     		String[][] allTypes = thisType.resolveType(typeName);
-    		assert allTypes != null;
-    		assert allTypes.length == 1;
+    		assert allTypes != null && allTypes.length == 1;
     		String[] typeParts = allTypes[0];
 			String fullTypeName = "";
+			typeParts[typeParts.length - 1] = typeParts[typeParts.length - 1].replace('.', '$');  // For some reason the IJavaDebugTarget.getJavaTypes method needs to have inner typesnames use '$' and not '.'.
 			for (int i = 0; i < typeParts.length; i++) {
-				if (i > 0)
+				if (fullTypeName.length() > 0)
 					fullTypeName += ".";
 				fullTypeName += typeParts[i];
 			}

@@ -39,7 +39,7 @@ public class DemonstrateValueHandler extends CommandHandler {
 	    	initValue = lastCrashedProperty instanceof ValueProperty ? ((ValueProperty)lastCrashedProperty).getValueString() : null;
 		}
 		String varTypeName = ((IJavaVariable)variable).getJavaType().getName();
-		ValueProperty property = EclipseUtils.isPrimitive(variable) ? EclipseUtils.getPrimitiveValueProperty(path, varTypeName, shell, initValue, null) : EclipseUtils.getObjectValueProperty(path, varTypeName, shell, initValue, null);
+		ValueProperty property = EclipseUtils.isObject(variable) ? EclipseUtils.getObjectValueProperty(path, varTypeName, shell, initValue, null) : EclipseUtils.getPrimitiveValueProperty(path, varTypeName, shell, initValue, null);
 		if (property != null)
         	Synthesizer.synthesizeAndInsertExpressions(variable, path, property, shell, initValue != null);
     }

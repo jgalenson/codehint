@@ -35,7 +35,7 @@ If the user saves a document with a choose statement and then executes it, the d
 We don't handle generics well due to erasure.  See Parse and RandomWriter examples.
 We need to timeout execution of methods when we're testing candidate expressions.  We disallow explicit recursion, but a method could infinite loop or recurse.
 When demonstrating values, do not allow implicit conversions like int->double (e.g., must type 5.0 and not 5 for Intro.hypotenuse).
-I think our evaluations do change memory....
+I think our evaluations do change memory.  We could re-launch a new debugger, I think with ILaunchConfiguration.launch().
 Improve method blacklist.
 We currently use the string of the inserted text as the key to store information about a choose statement.  We should at least also use the filename and line number, if not just use a tag like before.
 Show a better popup during refinement (instead of just displaying a list of values).
