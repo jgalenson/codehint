@@ -13,7 +13,8 @@ Require-Bundle: org.eclipse.ui,
  org.eclipse.jface.text;bundle-version="3.7.1",
  com.ibm.icu;bundle-version="4.4.2",
  org.eclipse.ui.editors;bundle-version="3.7.0",
- org.eclipse.help;bundle-version="3.5.100"
+ org.eclipse.help;bundle-version="3.5.100",
+ org.eclipse.ui.ide;bundle-version="3.7.0"
 Bundle-ActivationPolicy: lazy
 Bundle-RequiredExecutionEnvironment: JavaSE-1.6
 Bundle-ClassPath: lib/codehint-lib.jar,

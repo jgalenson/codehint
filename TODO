@@ -1,7 +1,7 @@
 Feature requests
 ----------------
 When users write a pdspec in the code, make it easier to start the synthesis.  We could set the breakpoint and start the debugger automatically when the user does something (e.g., right-click menu).
-Make it easier to write pdspecs in the code.  It would be great if we could use auto-complete to make them easier to type, but Eclipse doesn't seem to let us do that.
+Make it easier to write pdspecs in the code.  It would be great if we could use auto-complete to make them easier to type, but Eclipse doesn't seem to let us do that.  I did make a Quick Fix, although it doesn't open on hover....
 Support auto-complete and error-highlighting in the dialog box when demonstrating.  See e.g. ChangeVariableValueInputDialog and ExpressionInputDialog.
 Improve the candidate selector dialog.  You should be able to browse values like in the variables view, and hovering over a method should show its Javadoc.  It should also have two real columns.
 Allow searching over the heap.  In variables view window, should be able to search values, types, names for a string.  Leo's idea.

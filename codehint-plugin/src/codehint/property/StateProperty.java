@@ -59,16 +59,21 @@ public class StateProperty extends Property {
 	    		IProblem problem = ((CompilationUnit)node).getProblems()[0];
 	    		int problemStart = problem.getSourceStart();
 	    		if (problem.getID() == IProblem.InvalidCharacterConstant && problemStart < str.length() && str.charAt(problemStart) == '\'') {
-	    			int varStart = problemStart - 1;
-	    			while (varStart >= 0 && Character.isJavaIdentifierPart(str.charAt(varStart)))
-    					varStart--;
-	    			str = str.substring(0, varStart + 1) + "CodeHint.post(" + str.substring(varStart + 1, problemStart) + ")" + str.substring(problemStart + 1);
+	    			str = rewriteSinglePrime(str, problemStart);
 	    		} else
 	    			return node;
 	    	} else
 	    		return node;
 		}
 		
+	}
+
+	public static String rewriteSinglePrime(String str, int problemStart) {
+		int varStart = problemStart - 1;
+		while (varStart >= 0 && Character.isJavaIdentifierPart(str.charAt(varStart)))
+			varStart--;
+		str = str.substring(0, varStart + 1) + "CodeHint.post(" + str.substring(varStart + 1, problemStart) + ")" + str.substring(problemStart + 1);
+		return str;
 	}
 	
 	public Set<String> getPreVariables(IJavaStackFrame stack) {

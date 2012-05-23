@@ -91,5 +91,12 @@
             plugin="codehint">
       </contexts>
    </extension>
+   <extension
+         point="org.eclipse.ui.ide.markerResolution">
+      <markerResolutionGenerator
+            class="codehint.PrimeFixer"
+            markerType="org.eclipse.jdt.core.problem">
+      </markerResolutionGenerator>
+   </extension>
 
 </plugin>
