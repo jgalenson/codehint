@@ -382,6 +382,7 @@ public class Synthesizer {
 	    	EclipseUtils.log("Beginning refinement for " + curLine + ".");
 	    	
    			final String varname = matcher.group(2);
+   			// TODO: Ensure lhsVar is always non-null by using JDIPlaceholderVariable if necessary?
 	    	final IJavaVariable lhsVar = getLHSVariable(EclipseUtils.parseExpr(parser, varname), frame);
    			// This is the declared type while vartype is the type of the array.  The difference is that if the static type is a primitive, the array type is the wrapper class.
    			String varStaticTypeName = lhsVar != null ? EclipseUtils.sanitizeTypename(lhsVar.getReferenceTypeName()) : matcher.group(1);
