@@ -153,13 +153,7 @@ public class ExpressionGenerator {
 	    	
 	    	EclipseUtils.log("Generated " + allTypedExprs.size() + " potential expressions, of which " + evaluatedExprs.size() + " already have values and " + unevaluatedExprs.size() + " still need to be evaluated.");
 			
-	    	String supertypeBoundName;
-			try {
-				supertypeBoundName = EclipseUtils.sanitizeTypename(supertypeBound.getName());
-			} catch (DebugException ex) {
-				ex.printStackTrace();
-				throw new RuntimeException("Cannot get the name of the type: " + supertypeBound.toString());
-			}
+	    	String supertypeBoundName = EclipseUtils.sanitizeTypename(supertypeBound.getName());
 			
 			ArrayList<EvaluatedExpression> results = EvaluationManager.filterExpressions(evaluatedExprs, stack, supertypeBoundName, property);
 	    	if (unevaluatedExprs.size() > 0) {
@@ -175,7 +169,6 @@ public class ExpressionGenerator {
 			
 	    	monitor.done();
 	    	return results;
-
 		} catch (DebugException e) {
 			throw new RuntimeException(e);
 		}
@@ -966,7 +959,7 @@ public class ExpressionGenerator {
     private static IJavaType getType(IJavaDebugTarget target, String name) {
     	try {
 	    	IJavaType[] result = target.getJavaTypes(name);
-	    	assert result.length == 1;
+	    	assert result != null && result.length == 1;
 	    	return result[0];
     	} catch (DebugException e) {
     		e.printStackTrace();
