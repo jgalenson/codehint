@@ -56,6 +56,7 @@ import org.eclipse.ui.texteditor.ITextEditor;
 
 import codehint.expreval.EvaluationManager;
 import codehint.expreval.EvaluationManager.EvaluationError;
+import codehint.exprgen.ExpressionSkeleton;
 import codehint.property.LambdaProperty;
 import codehint.property.ObjectValueProperty;
 import codehint.property.PrimitiveValueProperty;
@@ -209,10 +210,22 @@ public class EclipseUtils {
      */
     public static String getCompileErrors(ICompiledExpression compiled) {
     	if (compiled.hasErrors()) {
+    		return getSetOfCompileErrors(compiled).toString();
+    	} else
+    		return null;
+    }
+    
+    /**
+     * Gets a unique set of compile errors from the given compiled expression.
+     * @param compiled The compiled expression.
+     * @return the unique set of compile errors from the given compiled expression.
+     */
+    private static Set<String> getSetOfCompileErrors(ICompiledExpression compiled) {
+    	if (compiled.hasErrors()) {
     		Set<String> errors = new HashSet<String>();  // Remove duplicate compile errors.
     		for (String error : compiled.getErrorMessages())
     			errors.add(error);
-    		return errors.toString();
+    		return errors;
     	} else
     		return null;
     }
@@ -228,10 +241,29 @@ public class EclipseUtils {
      *  if it does not have the proper type.
      */
 	public static String getCompileErrors(String newText, String typeName, IJavaStackFrame stackFrame, IAstEvaluationEngine evaluationEngine) {
+		Set<String> errors = getSetOfCompileErrors(newText, typeName, stackFrame, evaluationEngine);
+		if (errors == null)
+			return null;
+		else
+			return errors.toString();
+	}
+
+    /**
+     * Checks the given text for compile errors, including that it
+     * has the correct type.
+     * @param newText A string of the expression to compile.
+     * @param typeName A string of the name of the desired type of the expression.
+     * @param stackFrame The stack frame.
+     * @param evaluationEngine The evaluation engine.
+     * @return Any compile errors from the expression, including an error
+     *  if it does not have the proper type.
+     */
+	public static Set<String> getSetOfCompileErrors(String newText, String typeName, IJavaStackFrame stackFrame, IAstEvaluationEngine evaluationEngine) {
 		try {
-			ICompiledExpression compiled = evaluationEngine.getCompiledExpression(typeName + " _$_$" + " = " + newText + ";", stackFrame);
+			String exprStr = typeName == null ? newText : typeName + " _$_$" + " = " + newText + ";";
+			ICompiledExpression compiled = evaluationEngine.getCompiledExpression(exprStr, stackFrame);
         	if (compiled.hasErrors())
-        		return "Invalid expression: " + getCompileErrors(compiled);
+        		return getSetOfCompileErrors(compiled);
         	return null;
 		} catch (DebugException e) {
 			throw new RuntimeException(e);
@@ -315,7 +347,7 @@ public class EclipseUtils {
 		    	IJavaValue demonstrationValue = evaluate(stringValue);
 		    	return PrimitiveValueProperty.fromPrimitive(EclipseUtils.javaStringOfValue(demonstrationValue), demonstrationValue);
     		}  catch (EvaluationError e) {
-		    	Synthesizer.setLastCrashedProperty(varName, PrimitiveValueProperty.fromPrimitive(stringValue, null));
+		    	Synthesizer.setLastCrashedInfo(varName, PrimitiveValueProperty.fromPrimitive(stringValue, null), null);
 				throw e;
 			}
     	} else
@@ -329,7 +361,7 @@ public class EclipseUtils {
     			IJavaValue demonstrationValue = evaluate(stringValue);
     			return ObjectValueProperty.fromObject(stringValue, demonstrationValue);
     		} catch (EvaluationError e) {
-		    	Synthesizer.setLastCrashedProperty(varName, ObjectValueProperty.fromObject(stringValue, null));
+		    	Synthesizer.setLastCrashedInfo(varName, ObjectValueProperty.fromObject(stringValue, null), null);
 				throw e;
 			}
     	} else
@@ -371,6 +403,19 @@ public class EclipseUtils {
         String stringValue = getDialogResult(title, message, extraMessage, initialValue, validator, "state");
     	if (stringValue != null)
     		return StateProperty.fromPropertyString(varName, stringValue);
+    	else
+    		return null;
+    }
+    
+    public static ExpressionSkeleton getExpressionSkeleton(String varTypeName, String initialValue) {
+    	String title = "Give an expression skeleton"; 
+        String message = "Given an expression skeleton that describes the form of the desired expression, using " + ExpressionSkeleton.HOLE_SYNTAX + "s for unknown expressions and names.";
+        ExpressionSkeletonValidator validator = new ExpressionSkeletonValidator(getStackFrame(), EclipseUtils.sanitizeTypename(varTypeName));
+        if (initialValue == null)
+        	initialValue = ExpressionSkeleton.HOLE_SYNTAX;
+        String stringValue = getDialogResult(title, message, null, initialValue, validator, "skeleton");
+    	if (stringValue != null)
+    		return ExpressionSkeleton.fromString(stringValue);
     	else
     		return null;
     }
@@ -527,20 +572,35 @@ public class EclipseUtils {
 		}
     }
     
-    public static IJavaType getType(IJavaStackFrame stackFrame, String typeName) throws DebugException {
+    /**
+     * Gets the type with the given unique name
+     * @param typeName The name of the type to get, which does not need
+     * to be fully-qualified but must be unique.
+     * @param stackFrame The current stack frame.
+     * @param target The debug target.
+     * @return The IJavaType representing the given name.
+     */
+    public static IJavaType getType(String typeName, IJavaStackFrame stackFrame, IJavaDebugTarget target) {
 		try {
 			IJavaProject project = getProject(stackFrame);
-			return getType(project, getThisType(project, stackFrame), typeName, (IJavaDebugTarget)stackFrame.getDebugTarget());
+			return getType(project, getThisType(project, stackFrame), typeName, target);
 		} catch (JavaModelException e) {
+			throw new RuntimeException(e);
+		} catch (DebugException e) {
 			throw new RuntimeException(e);
 		}
     }
     
-    private static IJavaType getType(IJavaProject project, IType thisType, String typeName, IJavaDebugTarget target) throws DebugException {
+    private static IJavaType getType(IJavaProject project, IType thisType, String typeName, IJavaDebugTarget target) {
     	try {
     		if (thisType == null || project == null || target == null)
     			return null;
-    		String[][] allTypes = thisType.resolveType(typeName);
+    		// If this is an array type, first get the base type and then generate the array at the end. 
+    		int firstArray = typeName.indexOf("[]");
+    		String componentTypeName = firstArray == -1 ? typeName : typeName.substring(0, firstArray);
+    		String arrayTypes = firstArray == -1 ? "" : typeName.substring(firstArray);
+    		// Find the full type name.
+    		String[][] allTypes = thisType.resolveType(componentTypeName);
     		assert allTypes != null && allTypes.length == 1;
     		String[] typeParts = allTypes[0];
 			String fullTypeName = "";
@@ -550,10 +610,38 @@ public class EclipseUtils {
 					fullTypeName += ".";
 				fullTypeName += typeParts[i];
 			}
-			IJavaType[] curTypes = target.getJavaTypes(fullTypeName);
-			assert curTypes != null && curTypes.length == 1;
-        	return curTypes[0];
+			return getFullyQualifiedType(fullTypeName + arrayTypes, target);
     	} catch (JavaModelException e) {
+			throw new RuntimeException(e);
+		}
+    }
+    
+    /**
+     * Gets the type with the given fully-qualified name.
+     * @param fullTypeName The fully-qualified name of a type.
+     * @param target The debug target.
+     * @return The type with the given name.
+     */
+    public static IJavaType getFullyQualifiedType(String fullTypeName, IJavaDebugTarget target) {
+		IJavaType type = getFullyQualifiedTypeIfExists(fullTypeName, target);
+		assert type != null;
+		return type;
+    }
+
+    /**
+     * Gets the type with the given fully-qualified name if one exists.
+     * @param fullTypeName The fully-qualified name of a type.
+     * @param target The debug target.
+     * @return The type with the given name, or null.
+     */
+    public static IJavaType getFullyQualifiedTypeIfExists(String fullTypeName, IJavaDebugTarget target) {
+    	try {
+			IJavaType[] curTypes = target.getJavaTypes(fullTypeName);
+			if (curTypes == null || curTypes.length != 1)
+				return null;
+			else
+				return curTypes[0];
+    	} catch (DebugException e) {
 			throw new RuntimeException(e);
 		}
     }
@@ -571,6 +659,24 @@ public class EclipseUtils {
         @Override
 		public String isValid(String newText) {
         	return StateProperty.isLegalProperty(newText, stackFrame, evaluationEngine);
+        }
+    }
+
+    private static class ExpressionSkeletonValidator implements IInputValidator {
+    	
+        private final IJavaStackFrame stackFrame;
+        private final IAstEvaluationEngine evaluationEngine;
+        private final String varTypeName;
+        
+        public ExpressionSkeletonValidator(IJavaStackFrame stackFrame, String varTypeName) {
+        	this.stackFrame = stackFrame;
+        	this.evaluationEngine = getASTEvaluationEngine(stackFrame);
+        	this.varTypeName = varTypeName;
+        }
+        
+        @Override
+		public String isValid(String newText) {
+        	return ExpressionSkeleton.isLegalSkeleton(newText, varTypeName, stackFrame, evaluationEngine);
         }
     }
     
@@ -699,6 +805,25 @@ public class EclipseUtils {
     		name = name.substring(lastDot + 1);
     	return name;
     }
+    
+    /**
+     * Checks whether the given classname represents an anonymous class
+     * (and therefore cannot be instantiated as-is).  Such names end
+     * with a dollar sign followed by a sequence number.
+     * @param name The name of the class.
+     * @return Whether the given name represents an anonymous class.
+     */
+    /*public static boolean isAnonymousClass(String name) {
+    	int lastDollar = name.lastIndexOf('$');
+    	if (lastDollar == -1)
+    		return false;
+    	for (int i = lastDollar + 1; i < name.length(); i++) {
+    		char ch = name.charAt(i);
+    		if (ch < '0' || ch > '9')
+    			return false;
+    	}
+    	return true;
+    }*/
     
     /**
      * Extracts the errors messages out of a failing IEvaluationResult.

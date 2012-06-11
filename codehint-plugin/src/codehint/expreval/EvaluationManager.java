@@ -1,6 +1,8 @@
 package codehint.expreval;
 
 import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.concurrent.Semaphore;
 
 import org.eclipse.core.runtime.IProgressMonitor;
@@ -11,12 +13,12 @@ import org.eclipse.debug.core.DebugException;
 import org.eclipse.jdt.core.dom.ASTVisitor;
 import org.eclipse.jdt.core.dom.ArrayAccess;
 import org.eclipse.jdt.core.dom.ClassInstanceCreation;
-import org.eclipse.jdt.core.dom.Expression;
 import org.eclipse.jdt.core.dom.FieldAccess;
 import org.eclipse.jdt.core.dom.InfixExpression;
 import org.eclipse.jdt.core.dom.MethodInvocation;
 import org.eclipse.jdt.debug.core.IJavaArray;
 import org.eclipse.jdt.debug.core.IJavaStackFrame;
+import org.eclipse.jdt.debug.core.IJavaType;
 import org.eclipse.jdt.debug.core.IJavaValue;
 import org.eclipse.jdt.debug.eval.IAstEvaluationEngine;
 import org.eclipse.jdt.debug.eval.ICompiledExpression;
@@ -24,6 +26,7 @@ import org.eclipse.jdt.debug.eval.IEvaluationListener;
 import org.eclipse.jdt.debug.eval.IEvaluationResult;
 
 import codehint.EclipseUtils;
+import codehint.exprgen.TypedExpression;
 import codehint.property.StateProperty;
 import codehint.property.Property;
 
@@ -50,20 +53,51 @@ public class EvaluationManager {
 	 * If the desired property is non-null, it returns those that satisfy it;
 	 * otherwise, it returns all those whose execution does not crash.
 	 * @param exprs The expressions to evaluate
-	 * @param target The debug target.
 	 * @param stack The current stack frame.
-	 * @param type The static type of the desired expression.
 	 * @param property The desired property, or null if there is none.
 	 * @param monitor a progress monitor, or null if progress reporting and cancellation are not desired.
      * @return the results of the evaluations of the given expressions
      * that satisfy the given property, if it is non-null.
 	 */
-	public static ArrayList<EvaluatedExpression> evaluateExpressions(ArrayList<Expression> exprs, IJavaStackFrame stack, String type, Property property, IProgressMonitor monitor) {
-		IAstEvaluationEngine engine = EclipseUtils.getASTEvaluationEngine(stack);
-		int batchSize = exprs.size() >= 2 * BATCH_SIZE ? BATCH_SIZE : exprs.size() >= MIN_NUM_BATCHES ? exprs.size() / MIN_NUM_BATCHES : 1;
-		String validVal = property == null ? "true" : property.getReplacedString("_$curValue", stack);
-		ArrayList<EvaluatedExpression> evaluatedExprs = evaluateExpressions(exprs, engine, stack, type, property, validVal, -1, batchSize, monitor);
-		return evaluatedExprs;
+	public static ArrayList<EvaluatedExpression> evaluateExpressions(ArrayList<TypedExpression> exprs, IJavaStackFrame stack, Property property, IProgressMonitor monitor) {
+		try {
+			IAstEvaluationEngine engine = EclipseUtils.getASTEvaluationEngine(stack);
+			int batchSize = exprs.size() >= 2 * BATCH_SIZE ? BATCH_SIZE : exprs.size() >= MIN_NUM_BATCHES ? exprs.size() / MIN_NUM_BATCHES : 1;
+			String validVal = property == null ? "true" : property.getReplacedString("_$curValue", stack);
+			Map<String, ArrayList<TypedExpression>> expressionsByType = getExpressionByType(exprs);
+			ArrayList<EvaluatedExpression> evaluatedExprs = new ArrayList<EvaluatedExpression>(exprs.size());
+			for (Map.Entry<String, ArrayList<TypedExpression>> expressionsOfType: expressionsByType.entrySet())
+				evaluatedExprs.addAll(evaluateExpressions(expressionsOfType.getValue(), EclipseUtils.sanitizeTypename(expressionsOfType.getKey()), engine, stack, property, validVal, -1, batchSize, monitor));
+			return evaluatedExprs;
+		} catch (DebugException e) {
+			throw new RuntimeException(e);
+		}
+	}
+	
+	/**
+	 * Splits the given expressions by their type, either object or primitives.
+	 * We do this so that we can evaluate as many expressions together as possible
+	 * by storing them into a shared array.  If we used an array of objects for
+	 * everything, we would box primitives, which modifies them.  So we put all objects
+	 * in an array of objects and primitives in arrays of their own.
+	 */
+	private static Map<String, ArrayList<TypedExpression>> getExpressionByType(ArrayList<TypedExpression> exprs) throws DebugException {
+		Map<String, ArrayList<TypedExpression>> expressionsByType = new HashMap<String, ArrayList<TypedExpression>>();
+		for (TypedExpression expr: exprs) {
+			IJavaType type = expr.getType();
+			String typeName = type == null ? null : EclipseUtils.isObject(type.getSignature()) ? "java.lang.Object" : type.getName();
+			if (!expressionsByType.containsKey(typeName))
+				expressionsByType.put(typeName, new ArrayList<TypedExpression>());
+			expressionsByType.get(typeName).add(expr);
+		}
+		// Nulls have a null type, so put them with the objects.
+		if (expressionsByType.containsKey(null)) {
+			ArrayList<TypedExpression> nulls = expressionsByType.remove(null);
+			if (!expressionsByType.containsKey("java.lang.Object"))
+				expressionsByType.put("java.lang.Object", new ArrayList<TypedExpression>());
+			expressionsByType.get("java.lang.Object").addAll(nulls);
+		}
+		return expressionsByType;
 	}
 
 	/**
@@ -78,11 +112,11 @@ public class EvaluationManager {
      * @return the evaluated expressions that satisfy
      * the given property.
 	 */
-	public static ArrayList<EvaluatedExpression> filterExpressions(ArrayList<EvaluatedExpression> evaledExprs, IJavaStackFrame stack, String type, Property property) {
-		ArrayList<Expression> exprs = new ArrayList<Expression>(evaledExprs.size());
+	public static ArrayList<EvaluatedExpression> filterExpressions(ArrayList<EvaluatedExpression> evaledExprs, IJavaStackFrame stack, Property property) {
+		ArrayList<TypedExpression> exprs = new ArrayList<TypedExpression>(evaledExprs.size());
 		for (EvaluatedExpression expr : evaledExprs)
-			exprs.add(expr.getExpression());
-		return evaluateExpressions(exprs, stack, type, property, new NullProgressMonitor());
+			exprs.add(new TypedExpression(expr.getExpression(), expr.getType(), null));
+		return evaluateExpressions(exprs, stack, property, new NullProgressMonitor());
 	}
 	
 	/**
@@ -100,11 +134,11 @@ public class EvaluationManager {
 	 * @param batchSize The size of the batches.
      * @return the results of the evaluations of the given expressions.
 	 */
-	private static ArrayList<EvaluatedExpression> evaluateExpressions(ArrayList<Expression> exprs, IAstEvaluationEngine engine, IJavaStackFrame stack, String type, Property property, String validVal, int startIndex, int batchSize, IProgressMonitor monitor) {
+	private static ArrayList<EvaluatedExpression> evaluateExpressions(ArrayList<TypedExpression> exprs, String type, IAstEvaluationEngine engine, IJavaStackFrame stack, Property property, String validVal, int startIndex, int batchSize, IProgressMonitor monitor) {
 		if (monitor.isCanceled())
 			throw new OperationCanceledException();
-		ArrayList<Expression> evaluatedExpressions = startIndex != -1 ? null : new ArrayList<Expression>();
-		ArrayList<Expression> unevaluatedExpressions = startIndex != -1 ? null : new ArrayList<Expression>();
+		ArrayList<TypedExpression> evaluatedExpressions = startIndex != -1 ? null : new ArrayList<TypedExpression>();
+		ArrayList<TypedExpression> unevaluatedExpressions = startIndex != -1 ? null : new ArrayList<TypedExpression>();
 		// Make the string that evaluates everything.
 		// If evaluateCanErrors is true, this includes everything; otherwise, it only contains those that cannot throw exceptions.
 		// TODO: If the user has variables with the same names as the ones I introduce, this will crash....
@@ -118,9 +152,9 @@ public class EvaluationManager {
 			
 			int i = startIndex == -1 ? 0 : startIndex; 
 	    	for (; i < exprs.size() && (startIndex == -1 || numExprsToEvaluate < batchSize); i++) {
-	    		Expression curExpr = exprs.get(i);
+	    		TypedExpression curExpr = exprs.get(i);
 	    		PreconditionFinder pf = new PreconditionFinder();
-	    		curExpr.accept(pf);
+	    		curExpr.getExpression().accept(pf);
 	    		String preconditions = pf.getPreconditions();
 	    		if (startIndex == -1 && pf.canThrowException()) {  // If we do not want to immediately evaluate things that can throw exceptions, collect them and do them later.
 	    			unevaluatedExpressions.add(curExpr);
@@ -139,11 +173,11 @@ public class EvaluationManager {
 	    		numExprsToEvaluate++;
 	    	}
 	    	String newTypeString = "[" + numExprsToEvaluate + "]";
-	    	if (type.contains("[]")) {  // If this is an array type, we must specify our new size as the first array dimension, not the last one.
-	    		int index = type.indexOf("[]");
-	    		newTypeString = type.substring(0, index) + newTypeString + type.substring(index); 
-	    	} else
-	    		newTypeString = type + newTypeString;
+            if (type.contains("[]")) {  // If this is an array type, we must specify our new size as the first array dimension, not the last one.
+                int index = type.indexOf("[]");
+                newTypeString = type.substring(0, index) + newTypeString + type.substring(index); 
+            } else
+                newTypeString = type + newTypeString;
 	    	//String legalDecl = "boolean[] _$legal = new boolean[" + numExprsToEvaluate + "];\n";
 			expressionsStr.insert(0, "{\n" + type + "[] _$value = new " + newTypeString + ";\nboolean[] _$valid = new boolean[" + numExprsToEvaluate + "];\n");
 	    	expressionsStr.append("return new Object[] { _$value, _$valid };\n}");
@@ -160,18 +194,18 @@ public class EvaluationManager {
 	    		if (evaluationResult.hasErrors()) {  // Evaluating a property threw an exception.  We notify the user and discard those inputs.
 	    			EclipseUtils.showWarning("Evaluation error", "Evaluation " + (property == null ? "" : "of property\n\t" + property.toString() + "\n") + "crashed with the following error:\n\t" + EclipseUtils.getErrors(evaluationResult) + "\nThis might be fine, so we're continuing.", null);
 	    			int step = batchSize >= exprs.size() ? 1 : batchSize;
-	    			results = evaluateExpressionsInBatches(exprs, engine, stack, type, property, validVal, 0, exprs.size(), step, monitor);
+	    			results = evaluateExpressionsInBatches(exprs, type, engine, stack, property, validVal, 0, exprs.size(), step, monitor);
 	    		} else {
 	    			results = getResultsFromArray(evaluatedExpressions, 0, evaluationResult);
 	    			monitor.worked(numExprsToEvaluate);
+	    			if (unevaluatedExpressions.size() > 0)  // Evaluate (in batches) things that can throw.
+	    				results.addAll(evaluateExpressionsInBatches(unevaluatedExpressions, type, engine, stack, property, validVal, 0, unevaluatedExpressions.size(), batchSize, monitor));
 	    		}
-    			if (unevaluatedExpressions.size() > 0)  // Evaluate (in batches) things that can throw.
-    				results.addAll(evaluateExpressionsInBatches(unevaluatedExpressions, engine, stack, type, property, validVal, 0, unevaluatedExpressions.size(), batchSize, monitor));
 	    	} else {  // If we do want to try to evaluate things that can throw exceptions.
 	    		if (evaluationResult.hasErrors()) {  // If evaluation threw an exception, we must re-evaluate them all sequentially/slowly.
 	    			if (numExprsToEvaluate > 1) {  // Batch evaluation failed, so evaluate sequentially.
 	    				//System.out.println("Batch evaluation failed.");
-	    				results = evaluateExpressionsInBatches(exprs, engine, stack, type, property, validVal, startIndex, i, 1, monitor);
+	    				results = evaluateExpressionsInBatches(exprs, type, engine, stack, property, validVal, startIndex, i, 1, monitor);
 	    			} else { // The one expression crashed, so ignore it.
     					//System.err.println("Evaluation of " + exprs.get(i-1) + " failed with error " + EclipseUtils.getErrors(evaluationResult));
 	    				results = new ArrayList<EvaluatedExpression>(0);
@@ -201,11 +235,11 @@ public class EvaluationManager {
 	 * @param batchSize The size of the batches.
      * @return the results of the evaluations of the given expressions.
 	 */
-	private static ArrayList<EvaluatedExpression> evaluateExpressionsInBatches(ArrayList<Expression> exprs, IAstEvaluationEngine engine, IJavaStackFrame stack, String type, Property property, String validVal, int startIndex, int endIndex, int batchSize, IProgressMonitor monitor) {
+	private static ArrayList<EvaluatedExpression> evaluateExpressionsInBatches(ArrayList<TypedExpression> exprs, String type, IAstEvaluationEngine engine, IJavaStackFrame stack, Property property, String validVal, int startIndex, int endIndex, int batchSize, IProgressMonitor monitor) {
 		ArrayList<EvaluatedExpression> results = new ArrayList<EvaluatedExpression>();
 		//System.out.println("Evaluating " + (endIndex - startIndex) + " expressions in batches of " + batchSize + ".");
 		for (int i = startIndex; i < endIndex; i += batchSize)
-			results.addAll(evaluateExpressions(exprs, engine, stack, type, property, validVal, i, batchSize, monitor));
+			results.addAll(evaluateExpressions(exprs, type, engine, stack, property, validVal, i, batchSize, monitor));
 		//System.out.println("Just did " + (endIndex - startIndex) + " expressions in batches of " + batchSize + ".");
 		return results;
 	}
@@ -223,14 +257,16 @@ public class EvaluationManager {
 	 * whose execution did not crash.
 	 * @throws DebugException a DebugException occurs.
 	 */
-	private static ArrayList<EvaluatedExpression> getResultsFromArray(ArrayList<Expression> exprs, int startIndex, IEvaluationResult evaluationResult) throws DebugException {
+	private static ArrayList<EvaluatedExpression> getResultsFromArray(ArrayList<TypedExpression> exprs, int startIndex, IEvaluationResult evaluationResult) throws DebugException {
 		IJavaValue[] resultValue = ((IJavaArray)evaluationResult.getValue()).getValues();
 		IJavaValue[] resultValues = ((IJavaArray)resultValue[0]).getValues();
 		IJavaValue[] validValues = ((IJavaArray)resultValue[1]).getValues();
 		ArrayList<EvaluatedExpression> results = new ArrayList<EvaluatedExpression>();
 		for (int i = 0; i < resultValues.length; i++)
-			if (/*"true".equals(legalValues[i].getValueString()) && */"true".equals(validValues[i].getValueString()))
-				results.add(new EvaluatedExpression(exprs.get(startIndex + i), resultValues[i]));
+			if (/*"true".equals(legalValues[i].getValueString()) && */"true".equals(validValues[i].getValueString())) {
+				TypedExpression typedExpr = exprs.get(startIndex + i);
+				results.add(new EvaluatedExpression(typedExpr.getExpression(), resultValues[i], typedExpr.getType()));
+			}
 		return results;
 	}
 	

@@ -3,9 +3,9 @@ package codehint.expreval;
 import java.util.ArrayList;
 import java.util.List;
 
-import org.eclipse.debug.core.DebugException;
 import org.eclipse.jdt.core.dom.ASTMatcher;
 import org.eclipse.jdt.core.dom.Expression;
+import org.eclipse.jdt.debug.core.IJavaType;
 import org.eclipse.jdt.debug.core.IJavaValue;
 
 /**
@@ -16,10 +16,12 @@ public class EvaluatedExpression {
 	
 	private final Expression expr;
 	private final IJavaValue result;
+	private final IJavaType type;
 	
-	public EvaluatedExpression(Expression expr, IJavaValue result) {
+	public EvaluatedExpression(Expression expr, IJavaValue result, IJavaType type) {
 		this.expr = expr;
 		this.result = result;
+		this.type = type;
 	}
 	
 	public Expression getExpression() {
@@ -34,20 +36,8 @@ public class EvaluatedExpression {
 		return result;
 	}
 	
-	/**
-	 * Checks whether two values are the same.
-	 * @param value The evaluated value.
-	 * @param demonstration The desired value.
-	 * @return whether the two values are the same.
-	 */
-	public static boolean hasDesiredValue(IJavaValue value, IJavaValue demonstration) {
-		try {
-			//TODO: Comparing values directly would be better here, but it's not immediately obvious how to get a Value from an IJavaValue (the JDIValue method is protected).
-			return value != null && value.getValueString().equals(demonstration.getValueString());
-		} catch (DebugException e) {
-			e.printStackTrace();
-			throw new RuntimeException("Cannot get result.");
-		}
+	public IJavaType getType() {
+		return type;
 	}
 	
 	/**
