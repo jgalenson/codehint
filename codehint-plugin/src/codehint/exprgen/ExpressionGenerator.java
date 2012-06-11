@@ -48,7 +48,6 @@ import org.eclipse.jdt.debug.core.IJavaThread;
 import org.eclipse.jdt.debug.core.IJavaType;
 import org.eclipse.jdt.debug.core.IJavaValue;
 import org.eclipse.jdt.debug.core.IJavaVariable;
-import org.eclipse.jdt.internal.debug.core.model.JDIDebugTarget;
 import org.eclipse.jdt.internal.debug.core.model.JDIStackFrame;
 import org.eclipse.jdt.internal.debug.core.model.JDIType;
 
@@ -117,7 +116,7 @@ public class ExpressionGenerator {
 	
 			long startTime = System.currentTimeMillis();
 			
-			List<TypedExpression> allTypedExprs = genAllExprs((JDIDebugTarget)target, demonstration, typeConstraint, stack, thread, subtypeChecker, equivalences, 0, maxExprDepth, monitor);
+			List<TypedExpression> allTypedExprs = genAllExprs(target, demonstration, typeConstraint, stack, thread, subtypeChecker, equivalences, 0, maxExprDepth, monitor);
 			
 			/*for (Map.Entry<IJavaValue, Set<EvaluatedExpression>> entry : equivalences.entrySet())
 				System.out.println(entry.getKey() + " -> " + entry.getValue().toString());*/
@@ -165,7 +164,7 @@ public class ExpressionGenerator {
 	 * @return all expressions whose value in the
 	 * current stack frame is that of the demonstration.
 	 */
-	private static List<TypedExpression> genAllExprs(JDIDebugTarget target, IJavaValue demonstration, TypeConstraint typeConstraint, IJavaStackFrame stack, IJavaThread thread, SubtypeChecker subtypeChecker, Map<IJavaValue, Set<EvaluatedExpression>> equivalences, int depth, int maxDepth, IProgressMonitor monitor) {
+	private static List<TypedExpression> genAllExprs(IJavaDebugTarget target, IJavaValue demonstration, TypeConstraint typeConstraint, IJavaStackFrame stack, IJavaThread thread, SubtypeChecker subtypeChecker, Map<IJavaValue, Set<EvaluatedExpression>> equivalences, int depth, int maxDepth, IProgressMonitor monitor) {
 		if (depth > maxDepth)
 			return new ArrayList<TypedExpression>(0);
 		try {
@@ -398,7 +397,7 @@ public class ExpressionGenerator {
 		}
 	}
 	
-	private static void addFieldAccesses(TypedExpression e, TypeConstraint typeConstraint, List<TypedExpression> ops, IJavaType thisType, JDIDebugTarget target, SubtypeChecker subtypeChecker, Map<IJavaValue, Set<EvaluatedExpression>> equivalences, int depth, int maxDepth) throws DebugException {
+	private static void addFieldAccesses(TypedExpression e, TypeConstraint typeConstraint, List<TypedExpression> ops, IJavaType thisType, IJavaDebugTarget target, SubtypeChecker subtypeChecker, Map<IJavaValue, Set<EvaluatedExpression>> equivalences, int depth, int maxDepth) throws DebugException {
 		// We could use the public Eclipse API here, but it isn't as clean and works on objects not types, so wouldn't work with our static accesses, which we give a null value.  Note that as below with methods, we must now be careful converting between jdi types and Eclipse types. 
 		IJavaObject obj = e.getValue() != null ? (IJavaObject)e.getValue() : null;
 		Type objTypeImpl = ((JDIType)e.getType()).getUnderlyingType();
@@ -408,18 +407,15 @@ public class ExpressionGenerator {
 		for (Field field: getFields(e.getType())) {
 			if ((!field.isPublic() && !field.declaringType().equals(thisTypeImpl)) || (isStatic != field.isStatic()) || field.isSynthetic())
 				continue;
-			IJavaType fieldType = null;
-			try {
-				fieldType = JDIType.createType(target, field.type());
-			} catch (ClassNotLoadedException ex) {
-				//System.err.println("I cannot get the class of " + objTypeImpl.name() + "." + field.name() + "(" + field.typeName() + ")");
-			}
+			IJavaType fieldType = EclipseUtils.getFullyQualifiedTypeIfExists(field.typeName(), target);
+			/*if (fieldType == null)
+				System.err.println("I cannot get the class of " + objTypeImpl.name() + "." + field.name() + "(" + field.typeName() + ")");*/
 			if (fieldType != null && isHelpfulType(fieldType, typeConstraint, subtypeChecker, target, depth)) {
 				TypedExpression receiver = e;
 				if (e.getExpression() instanceof ThisExpression || e.getType().equals(thisType))
 					receiver = null;  // Don't use a receiver if it is null or the this type.
 				else if (field.isStatic())
-					receiver = makeStaticName(EclipseUtils.sanitizeTypename(objTypeName), JDIType.createType(target, objTypeImpl));
+					receiver = makeStaticName(EclipseUtils.sanitizeTypename(objTypeName), e.getType());
 				IJavaValue fieldValue = null;
 				if (obj != null)
 					fieldValue = (IJavaValue)obj.getField(field.name(), !field.declaringType().equals(objTypeImpl)).getValue();
@@ -451,7 +447,7 @@ public class ExpressionGenerator {
 				&& isConstructor == method.isConstructor() && !method.isSynthetic() && !method.isStaticInitializer() && !method.declaringType().name().equals("java.lang.Object");
 	}
 	
-	private static void addMethodCalls(TypedExpression e, List<TypedExpression> nextLevel, TypeConstraint typeConstraint, List<TypedExpression> ops, IJavaType thisType, IJavaThread thread, JDIDebugTarget target, IJavaStackFrame stack, SubtypeChecker subtypeChecker, Map<IJavaValue, Set<EvaluatedExpression>> equivalences, int depth, int maxDepth) throws DebugException {
+	private static void addMethodCalls(TypedExpression e, List<TypedExpression> nextLevel, TypeConstraint typeConstraint, List<TypedExpression> ops, IJavaType thisType, IJavaThread thread, IJavaDebugTarget target, IJavaStackFrame stack, SubtypeChecker subtypeChecker, Map<IJavaValue, Set<EvaluatedExpression>> equivalences, int depth, int maxDepth) throws DebugException {
 		// The public API doesn't tell us the methods of a class, so we need to use the jdi.  Note that we must now be careful converting between jdi types and Eclipse types.
 		Type objTypeImpl = ((JDIType)e.getType()).getUnderlyingType();
 		if (classBlacklist.contains(objTypeImpl.name()))
@@ -483,32 +479,28 @@ public class ExpressionGenerator {
 			// TODO: Allow calling protected and package-private things when it's legal.
 			if (!isLegalMethod(method, thisType, isConstructor) || (isStatic != method.isStatic()) || method.equals(stackMethod))  // Disable explicit recursion (that is, calling the current method), since it is definitely not yet complete.
 				continue;
-			IJavaType returnType = null;
-			try {
-				returnType = JDIType.createType(target, method.returnType());
-			} catch (ClassNotLoadedException ex) {
-				//System.err.println("I cannot get the class of the return type of " + objTypeImpl.name() + "." + method.name() + "() (" + method.returnTypeName() + ")");
-			}
+			if (method.returnTypeName().equals("void"))
+				continue;
+			IJavaType returnType = EclipseUtils.getFullyQualifiedTypeIfExists(method.returnTypeName(), target);
+			/*if (returnType == null)
+				System.err.println("I cannot get the class of the return type of " + objTypeImpl.name() + "." + method.name() + "() (" + method.returnTypeName() + ")");*/
 			if (returnType != null && (isHelpfulType(returnType, typeConstraint, subtypeChecker, target, depth) || method.isConstructor())) {  // Constructors have void type... 
-				List<?> argumentTypes = null;
-				try {
-					argumentTypes = method.argumentTypes();
-				} catch (ClassNotLoadedException ex) {
-					//System.err.println("I cannot get the class of the arguments to " + objTypeImpl.name() + "." + method.name() + "()");
-				}
-				if (argumentTypes == null)
-					continue;
+				List<?> argumentTypeNames = method.argumentTypeNames();
 				// TODO: Improve overloading detection.
-				boolean[] allHaveSameType = new boolean[argumentTypes.size()];
+				boolean[] allHaveSameType = new boolean[argumentTypeNames.size()];
 				Arrays.fill(allHaveSameType, true);
-				for (Method m : methodsByName.get(method.name()).get(argumentTypes.size()))
-					for (int i = 0; i < argumentTypes.size(); i++)
-						if (!m.argumentTypeNames().get(i).equals(method.argumentTypeNames().get(i)))
+				for (Method m : methodsByName.get(method.name()).get(argumentTypeNames.size()))
+					for (int i = 0; i < argumentTypeNames.size(); i++)
+						if (!m.argumentTypeNames().get(i).equals(argumentTypeNames.get(i)))
 							allHaveSameType[i] = false;
-				ArrayList<ArrayList<TypedExpression>> allPossibleActuals = new ArrayList<ArrayList<TypedExpression>>(argumentTypes.size());
-				Iterator<?> aIt = argumentTypes.iterator();
+				ArrayList<ArrayList<TypedExpression>> allPossibleActuals = new ArrayList<ArrayList<TypedExpression>>(argumentTypeNames.size());
+				Iterator<?> aIt = argumentTypeNames.iterator();
 				while (aIt.hasNext()) {
-					IJavaType argType = JDIType.createType(target, (Type)aIt.next());
+					IJavaType argType = EclipseUtils.getFullyQualifiedTypeIfExists((String)aIt.next(), target);
+					if (argType == null) {
+						//System.err.println("I cannot get the class of the arguments to " + objTypeImpl.name() + "." + method.name() + "()");
+						break;
+					}
 					ArrayList<TypedExpression> curPossibleActuals = new ArrayList<TypedExpression>();
 					// TODO (low priority): This can get called multiple times if there are multiple args with the same type (or even different methods with args of the same type), but this has a tiny effect compared to the general state space explosion problem.
 					for (TypedExpression a : nextLevel)
@@ -519,10 +511,12 @@ public class ExpressionGenerator {
 						}
 					allPossibleActuals.add(curPossibleActuals);
 				}
-				TypedExpression receiver = e;
-				if (method.isStatic())
-					receiver = makeStaticName(EclipseUtils.sanitizeTypename(objTypeName), JDIType.createType(target, objTypeImpl));
-				makeAllCalls(method, method.name(), receiver, returnType, thisType, thread, ops, equivalences, target, allPossibleActuals, new ArrayList<TypedExpression>(allPossibleActuals.size()), depth, maxDepth);
+				if (allPossibleActuals.size() == argumentTypeNames.size()) {
+					TypedExpression receiver = e;
+					if (method.isStatic())
+						receiver = makeStaticName(EclipseUtils.sanitizeTypename(objTypeName), e.getType());
+					makeAllCalls(method, method.name(), receiver, returnType, thisType, thread, ops, equivalences, target, allPossibleActuals, new ArrayList<TypedExpression>(allPossibleActuals.size()), depth, maxDepth);
+				}
 			}
 		}
 	}
@@ -534,7 +528,7 @@ public class ExpressionGenerator {
 	 * We need to check the depth since genAllExprs
 	 * returns is cumulative, so when the max depth is 2,
 	 * at depth 0 nextLevel will be a superset of the
-	 * nextLevel at depth 1 and so we will genreate the same
+	 * nextLevel at depth 1 and so we will generate the same
 	 * expressions again.
 	 * @param list List to which to add unique expressions.
 	 * @param e Expression to add if it is unique.
