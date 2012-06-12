@@ -806,6 +806,24 @@ public class EclipseUtils {
     	return name;
     }
     
+    public static IJavaType getTypeAndLoadIfNeeded(String typeName, IJavaDebugTarget target) throws DebugException {
+		IJavaType type = getFullyQualifiedTypeIfExists(typeName, target);
+		if (type == null) {
+			loadClass(typeName);
+			type = getFullyQualifiedTypeIfExists(typeName, target);
+			if (type == null)
+				System.out.println("Failed to load " + typeName);
+			else
+				System.out.println("Loaded " + typeName);
+		}
+		return type;
+    }
+    
+    // TODO: There must be a better way to do this.
+    private static void loadClass(String typeName) throws DebugException {
+		evaluate(sanitizeTypename(typeName) + ".class");
+    }
+    
     /**
      * Checks whether the given classname represents an anonymous class
      * (and therefore cannot be instantiated as-is).  Such names end

@@ -353,13 +353,13 @@ public class ExpressionGenerator {
 						String fullName = imp.getElementName();
 						String shortName = EclipseUtils.getUnqualifiedName(fullName);  // Use the unqualified typename for brevity.
 						if (!imp.isOnDemand()) {  // TODO: What should we do with import *s?  It might be too expensive to try all static methods.  This ignores them.
-							IJavaType[] importedTypes = target.getJavaTypes(fullName);
-							if (importedTypes != null) {
-								if (!objectInterfaceTypes.contains(importedTypes[0])) {  // We've already handled these above.
-									addFieldAccesses(makeStaticName(shortName, importedTypes[0]), typeConstraint, curLevel, thisType, target, subtypeChecker, equivalences, depth, maxDepth);
-									addMethodCalls(makeStaticName(shortName, importedTypes[0]), nextLevel, typeConstraint, curLevel, thisType, thread, target, stack, subtypeChecker, equivalences, depth, maxDepth);
+							IJavaType importedType = EclipseUtils.getTypeAndLoadIfNeeded(fullName, target);
+							if (importedType != null) {
+								if (!objectInterfaceTypes.contains(importedType)) {  // We've already handled these above.
+									addFieldAccesses(makeStaticName(shortName, importedType), typeConstraint, curLevel, thisType, target, subtypeChecker, equivalences, depth, maxDepth);
+									addMethodCalls(makeStaticName(shortName, importedType), nextLevel, typeConstraint, curLevel, thisType, thread, target, stack, subtypeChecker, equivalences, depth, maxDepth);
 								}
-							} else  // TODO: Handle this case, where the class is not yet loaded in the child VM.  I can either try to get the VM to load the class or get the IType from EclipseUtils.getProject(stack).findType(name) and use that interface instead.
+							} else
 								;//System.err.println("I cannot get the class of the import " + fullName);
 						}
 					}
@@ -406,7 +406,7 @@ public class ExpressionGenerator {
 		for (Field field: getFields(e.getType())) {
 			if ((!field.isPublic() && !field.declaringType().equals(thisTypeImpl)) || (isStatic != field.isStatic()) || field.isSynthetic())
 				continue;
-			IJavaType fieldType = EclipseUtils.getFullyQualifiedTypeIfExists(field.typeName(), target);
+			IJavaType fieldType = EclipseUtils.getTypeAndLoadIfNeeded(field.typeName(), target);
 			/*if (fieldType == null)
 				System.err.println("I cannot get the class of " + objTypeImpl.name() + "." + field.name() + "(" + field.typeName() + ")");*/
 			if (fieldType != null && isHelpfulType(fieldType, typeConstraint, subtypeChecker, target, depth)) {
@@ -479,7 +479,7 @@ public class ExpressionGenerator {
 				continue;
 			if (method.returnTypeName().equals("void"))
 				continue;
-			IJavaType returnType = EclipseUtils.getFullyQualifiedTypeIfExists(method.returnTypeName(), target);
+			IJavaType returnType = EclipseUtils.getTypeAndLoadIfNeeded(method.returnTypeName(), target);
 			/*if (returnType == null)
 				System.err.println("I cannot get the class of the return type of " + objTypeImpl.name() + "." + method.name() + "() (" + method.returnTypeName() + ")");*/
 			if (returnType != null && (isHelpfulType(returnType, typeConstraint, subtypeChecker, target, depth) || method.isConstructor())) {  // Constructors have void type... 
@@ -494,7 +494,7 @@ public class ExpressionGenerator {
 				ArrayList<ArrayList<TypedExpression>> allPossibleActuals = new ArrayList<ArrayList<TypedExpression>>(argumentTypeNames.size());
 				Iterator<?> aIt = argumentTypeNames.iterator();
 				while (aIt.hasNext()) {
-					IJavaType argType = EclipseUtils.getFullyQualifiedTypeIfExists((String)aIt.next(), target);
+					IJavaType argType = EclipseUtils.getTypeAndLoadIfNeeded((String)aIt.next(), target);
 					if (argType == null) {
 						//System.err.println("I cannot get the class of the arguments to " + objTypeImpl.name() + "." + method.name() + "()");
 						break;

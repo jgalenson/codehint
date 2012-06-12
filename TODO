@@ -14,7 +14,6 @@ We should add casts to our language of expressions.  Without them, we might gene
 Support anonymous classes better.  We currently cannot refer to variables in the outer scope or ContainingClass.this.
 We can use annotations to inform the expression generator.  @NotNull can tell it not to pass anything known to be null (and add non null as a precondition during evaluation).  @DoNotExplore could tell it not to try calling a specific method.  We could even allow custom annotations with expressions if Java allows them.  We could use this for things in the Java standard library.  We could infer these by parsing the Javadoc.
 Improve skeleton language.  Allow things like "a method with any number of arguments" or "a hole not using the variable x".
-We need to be able to dynamically load classes in the user's code.  This can come up when searching methods/fields of objects (we get those with types that have not been loaded) and when scanning imports (classes imported but not used are not loaded).  Currently, this means we do not explore many possibilities.  At worst, we can hopefully do this by executing code that does "Type.class" or something.
 Give the user a dropdown thing that lets them re-use their recently-entered properties.
 Allow undoing when demonstrating values/properties.
 Suggest corrections: if the user types "x instanceof String[]" say 'Did you mean, "x instanceof Collection<String>">' (see Wontae's RW.3).
