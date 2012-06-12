@@ -452,7 +452,6 @@ public class ExpressionGenerator {
 		Type objTypeImpl = ((JDIType)e.getType()).getUnderlyingType();
 		if (classBlacklist.contains(objTypeImpl.name()))
 			return;
-		Type thisTypeImpl = ((JDIType)thisType).getUnderlyingType();
 		boolean isConstructor = e.getExpression() == null;
 		boolean isStatic = !isConstructor && e.getExpression().getProperty("isStatic") != null;
 		String objTypeName = isStatic ? e.getExpression().toString() : objTypeImpl.name();

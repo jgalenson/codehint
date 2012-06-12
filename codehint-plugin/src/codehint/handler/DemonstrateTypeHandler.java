@@ -26,10 +26,7 @@ public class DemonstrateTypeHandler extends CommandHandler {
     }
     
     private static void handle(IVariable variable, String path, Shell shell, Matcher matcher) throws DebugException {
-		if (!EclipseUtils.isObject(variable)) {  // TODO: Disable the menu in this case.
-			EclipseUtils.showError("Cannot demonstrate type", "You cannot demonstrate the type of something that is not an object.", null);
-			return;
-		}
+		assert EclipseUtils.isObject(variable);
 		String varTypeName = ((IJavaVariable)variable).getJavaType().getName();
 		String initValue = null;
 		if (matcher != null) {

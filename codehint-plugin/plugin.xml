@@ -10,6 +10,51 @@
                commandId="codehint.handler.demonstrateValue"
                label="Demonstrate value"
                style="push">
+            <visibleWhen>
+               <with variable="activeMenuSelection">
+                  <count value="1">
+                  </count>
+               </with>
+            </visibleWhen>
+         </command>
+         <command
+               commandId="codehint.handler.demonstrateLambdaProperty"
+               label="Demonstrate lambda property"
+               style="push">
+            <visibleWhen>
+               <with variable="activeMenuSelection">
+                  <count value="1">
+                  </count>
+               </with>
+            </visibleWhen>
+         </command>
+         <command
+               commandId="codehint.handler.demonstrateType"
+               label="Demonstrate type"
+               style="push">
+            <visibleWhen>
+               <with variable="activeMenuSelection">
+                  <and>
+                     <count value="1">
+                     </count>
+                     <test
+                           forcePluginActivation="true"
+                           property="codehint.isObject">
+                     </test>
+                  </and>
+               </with>
+            </visibleWhen>
+         </command>
+         <command
+               commandId="codehint.handler.demonstrateStateProperty"
+               label="Demonstrate state property"
+               style="push">
+            <visibleWhen>
+               <with variable="activeMenuSelection">
+                  <count value="1">
+                  </count>
+               </with>
+            </visibleWhen>
          </command>
       </menuContribution>
    </extension>
@@ -20,70 +65,23 @@
             id="codehint.handler.demonstrateValue"
             name="Demonstrate value">
       </command>
-   </extension>
-   
-   <extension
-         point="org.eclipse.ui.menus">
-      <menuContribution
-            allPopups="false"
-            locationURI="popup:org.eclipse.debug.ui.VariableView">
-         <command
-               commandId="codehint.handler.demonstrateLambdaProperty"
-               label="Demonstrate lambda property"
-               style="push">
-         </command>
-      </menuContribution>
-   </extension>
-   <extension
-         point="org.eclipse.ui.commands">
       <command
             defaultHandler="codehint.handler.DemonstrateLambdaPropertyHandler"
             id="codehint.handler.demonstrateLambdaProperty"
             name="Demonstrate lambda property">
       </command>
-   </extension>
-   
-   <extension
-         point="org.eclipse.ui.menus">
-      <menuContribution
-            allPopups="false"
-            locationURI="popup:org.eclipse.debug.ui.VariableView">
-         <command
-               commandId="codehint.handler.demonstrateType"
-               label="Demonstrate type"
-               style="push">
-         </command>
-      </menuContribution>
-   </extension>
-   <extension
-         point="org.eclipse.ui.commands">
       <command
             defaultHandler="codehint.handler.DemonstrateTypeHandler"
             id="codehint.handler.demonstrateType"
             name="Demonstrate type">
       </command>
-   </extension>
-   
-   <extension
-         point="org.eclipse.ui.menus">
-      <menuContribution
-            allPopups="false"
-            locationURI="popup:org.eclipse.debug.ui.VariableView">
-         <command
-               commandId="codehint.handler.demonstrateStateProperty"
-               label="Demonstrate state property"
-               style="push">
-         </command>
-      </menuContribution>
-   </extension>
-   <extension
-         point="org.eclipse.ui.commands">
       <command
             defaultHandler="codehint.handler.DemonstrateStatePropertyHandler"
             id="codehint.handler.demonstrateStateProperty"
             name="Demonstrate state property">
       </command>
    </extension>
+   
    <extension
          point="org.eclipse.help.contexts">
       <contexts
@@ -97,6 +95,17 @@
             class="codehint.PrimeFixer"
             markerType="org.eclipse.jdt.core.problem">
       </markerResolutionGenerator>
+   </extension>
+   
+   <extension
+         point="org.eclipse.core.expressions.propertyTesters">
+      <propertyTester
+            class="codehint.handler.CodeHintPropertyTester"
+            id="codehint.codeHintPropertyTester"
+            namespace="codehint"
+            properties="isObject"
+            type="java.lang.Object">
+      </propertyTester>
    </extension>
 
 </plugin>
