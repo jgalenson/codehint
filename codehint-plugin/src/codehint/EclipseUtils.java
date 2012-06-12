@@ -758,7 +758,7 @@ public class EclipseUtils {
      * @return the value that was computed or <code>null</code> if any errors occurred.
      * @throws DebugException 
      */
-   	// TODO: Integrate with pbd.expreval code?
+   	// TODO: Integrate with codehint.expreval code?
     public static IJavaValue evaluate(String stringValue) throws DebugException {
         IJavaStackFrame frame = getStackFrame();
         if (frame != null) {

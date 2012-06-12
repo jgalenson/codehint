@@ -81,12 +81,6 @@ import codehint.property.TypeProperty;
 import codehint.property.ValueProperty;
 
 public class Synthesizer {
-    
-    /* TODO LIST:
-     * - Remove dead/redundant code
-     * - Extract helper files
-     * - On second pass need to figure out which choice tags are used
-     */
 	
 	private static Map<String, Property> initialDemonstrations;
 	// We store the last property we have seen demonstrated demonstrated while we are processing it.  If everything works, we clear this, but if there is an error, we keep this and use it as the initial value for the user's next demonstrated property.
@@ -111,7 +105,6 @@ public class Synthesizer {
 				@Override
 				protected IStatus run(IProgressMonitor monitor) {
 					try {
-						//PAR TODO - Is this the point to configure the save behavior?
 						IJavaDebugTarget target = (IJavaDebugTarget)variable.getDebugTarget();
 
 						final List<EvaluatedExpression> validExpressions = skeleton.synthesize(target, frame, property, varStaticType, monitor);
@@ -138,8 +131,6 @@ public class Synthesizer {
 									
 									//Construct the textual line to insert.  Working in text seems easier than
 									// using the AST manipulators for now, but this may need revisited later.  
-									//TODO: For non primitive values, the static type would be wrong.  Need to get the _dynamic_ type
-									// of the variable
 									String statement = generateChooseOrChosenStmt(fullVarName, validExpressionStrings);
 				
 									//Insert the new text
@@ -148,10 +139,8 @@ public class Synthesizer {
 											EclipseUtils.replaceLineAtCurrentDebugPoint(statement);
 										else
 											EclipseUtils.insertIndentedLineAtCurrentDebugPoint(statement);
-									} catch (BadLocationException e1) {
-										// TODO Auto-generated catch block
-										e1.printStackTrace();
-										assert false;
+									} catch (BadLocationException e) {
+										throw new RuntimeException(e);
 									}
 				
 									//Insert ourselves a breakpoint so that we stop here again
@@ -176,8 +165,7 @@ public class Synthesizer {
 									try {
 										JDIDebugModel.createLineBreakpoint(resource, typename, line, -1, -1, 0, true, null);
 									} catch (CoreException e) {
-										e.printStackTrace();
-										throw new RuntimeException(e.getMessage());
+										throw new RuntimeException(e);
 									}
 				
 									// TODO: Using the text of the statement as a key is not a very good idea.
@@ -186,7 +174,7 @@ public class Synthesizer {
 	
 									IJavaValue value = property instanceof ValueProperty ? ((ValueProperty)property).getValue() : finalExpressions.get(0).getResult();
 									if (value != null)
-										variable.setValue(value);  // PAR TODO: Philip, Joel added this line.  Is there a reason we don't want it?  We certainly do want to change the value in the current iteration somehow.  (Of course, if we do want this we should probably combine it with the one in the else block below.)
+										variable.setValue(value);
 	
 							    	setLastCrashedInfo(null, null, null);
 									
@@ -348,18 +336,11 @@ public class Synthesizer {
 	            if (source instanceof IThread && event.getKind() == DebugEvent.SUSPEND &&
 	                    event.getDetail() == DebugEvent.BREAKPOINT) {
 	                IThread thread = (IThread) source;
-	                //PAR TODO: Is this an event we care about?
 	                try {
 		                IJavaStackFrame frame = (IJavaStackFrame)thread.getTopStackFrame();
 	                   	if (frame == null)
 	                   		continue;
 	                   	int line = frame.getLineNumber() - 1 ;
-	                   	assert line >= 0;
-	                   	
-	                   	//Needed only for sanity checking and debugging
-	                	int start = frame.getCharEnd();
-	                	int end = frame.getCharStart();
-	                	assert (start == -1 && end == -1);
 	
 	                	//TODO: Expression could be spread across multiple lines
 	               		int offset = document.getLineOffset(line);
@@ -641,7 +622,6 @@ public class Synthesizer {
 	
 	private static String getValue(EvaluatedExpression cur) {
 		try {
-			// TODO: This could infinite loop.
 			// TODO-optimization: I can compute this in EvaluationManager (only if the spec is true) and store it in the EvaluatedExpression to reduce overheads.
 			if (cur.getResult() instanceof IJavaPrimitiveValue)
 				return EclipseUtils.javaStringOfValue(cur.getResult());

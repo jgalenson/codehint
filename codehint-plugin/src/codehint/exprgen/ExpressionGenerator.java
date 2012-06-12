@@ -373,9 +373,8 @@ public class ExpressionGenerator {
 			e.printStackTrace();
         	EclipseUtils.showError("Error", "An error occurred during expression generation.", e);
 			throw new RuntimeException("I cannot compute all valid expressions.");
-		} catch (JavaModelException ex) {
-			ex.printStackTrace();
-			throw new RuntimeException(ex.getMessage());
+		} catch (JavaModelException e) {
+			throw new RuntimeException(e);
 		}
 		
 	}
