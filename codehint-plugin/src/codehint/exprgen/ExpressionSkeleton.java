@@ -213,6 +213,7 @@ public class ExpressionSkeleton {
 	
 	public ArrayList<EvaluatedExpression> synthesize(IJavaDebugTarget target, IJavaStackFrame stack, Property property, IJavaType varStaticType, IProgressMonitor monitor) {
 		try {
+			long startTime = System.currentTimeMillis();
 			// TODO: Improve progress monitor so it shows you which evaluation it is.
 			TypeConstraint typeConstraint = getInitialTypeConstraint(varStaticType, property, stack, target);
 			if (HOLE_SYNTAX.equals(sugaredString))  // Optimization: Optimize special case of "??" skeleton by simply calling old ExprGen code directly.
@@ -222,6 +223,7 @@ public class ExpressionSkeleton {
 			ArrayList<TypedExpression> exprs = fillHolesWithValues(expression, filler, varStaticType, stack, monitor);
 			SubMonitor evalMonitor = SubMonitor.convert(monitor, "Expression evaluation", exprs.size());
 			ArrayList<EvaluatedExpression> results = EvaluationManager.evaluateExpressions(exprs, stack, property, evalMonitor);
+			EclipseUtils.log("Synthesis found " + exprs.size() + " expressions of which " + results.size() + " were valid and took " + (System.currentTimeMillis() - startTime) + " milliseconds.");
 	    	monitor.done();
 			return results;
 		} catch (DebugException e) {

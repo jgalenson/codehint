@@ -624,7 +624,7 @@ public class EclipseUtils {
      */
     public static IJavaType getFullyQualifiedType(String fullTypeName, IJavaDebugTarget target) {
 		IJavaType type = getFullyQualifiedTypeIfExists(fullTypeName, target);
-		assert type != null;
+		assert type != null : fullTypeName;
 		return type;
     }
 
@@ -806,22 +806,26 @@ public class EclipseUtils {
     	return name;
     }
     
-    public static IJavaType getTypeAndLoadIfNeeded(String typeName, IJavaDebugTarget target) throws DebugException {
+    public static IJavaType getTypeAndLoadIfNeeded(String typeName, IJavaDebugTarget target) {
 		IJavaType type = getFullyQualifiedTypeIfExists(typeName, target);
 		if (type == null) {
 			loadClass(typeName);
 			type = getFullyQualifiedTypeIfExists(typeName, target);
-			if (type == null)
+			/*if (type == null)
 				System.out.println("Failed to load " + typeName);
 			else
-				System.out.println("Loaded " + typeName);
+				System.out.println("Loaded " + typeName);*/
 		}
 		return type;
     }
     
     // TODO: There must be a better way to do this.
-    private static void loadClass(String typeName) throws DebugException {
-		evaluate(sanitizeTypename(typeName) + ".class");
+    private static void loadClass(String typeName) {
+    	try {
+    		evaluate(sanitizeTypename(typeName) + ".class");
+    	} catch (DebugException e) {
+    		throw new RuntimeException(e);
+    	}
     }
     
     /**

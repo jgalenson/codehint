@@ -60,7 +60,7 @@ public class MethodNameConstraint extends NameConstraint {
 		int i = 0;
 		for (; i < argConstraints.size(); i++) {
 			TypeConstraint argConstraint = argConstraints.get(i);
-			if (argConstraint != null && !argConstraint.isFulfilledBy(EclipseUtils.getFullyQualifiedType((String)method.argumentTypeNames().get(i), target), subtypeChecker, target))
+			if (argConstraint != null && !argConstraint.isFulfilledBy(EclipseUtils.getTypeAndLoadIfNeeded((String)method.argumentTypeNames().get(i), target), subtypeChecker, target))
 				return false;
 		}
 		return i == argConstraints.size();
