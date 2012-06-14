@@ -477,9 +477,9 @@ public class ExpressionGenerator {
 			// TODO: Allow calling protected and package-private things when it's legal.
 			if (!isLegalMethod(method, thisType, isConstructor) || (isStatic != method.isStatic()) || method.equals(stackMethod))  // Disable explicit recursion (that is, calling the current method), since it is definitely not yet complete.
 				continue;
-			if (method.returnTypeName().equals("void"))
+			if (!isConstructor && method.returnTypeName().equals("void"))
 				continue;
-			IJavaType returnType = EclipseUtils.getTypeAndLoadIfNeeded(method.returnTypeName(), target);
+			IJavaType returnType = isConstructor ? e.getType() : EclipseUtils.getTypeAndLoadIfNeeded(method.returnTypeName(), target);
 			/*if (returnType == null)
 				System.err.println("I cannot get the class of the return type of " + objTypeImpl.name() + "." + method.name() + "() (" + method.returnTypeName() + ")");*/
 			if (returnType != null && (isHelpfulType(returnType, typeConstraint, subtypeChecker, target, depth) || method.isConstructor())) {  // Constructors have void type... 
