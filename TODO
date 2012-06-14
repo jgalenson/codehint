@@ -33,7 +33,7 @@ When the user demonstrates a value, we set the value of the variable (in the deb
 If the user saves a document with a choose statement and then executes it, the debug event will rewrite the call to remove the expressions with the wrong values, but the debugger will immediately step into the choose implementation with the old/bad arguments, where the assertion will fail.
 We don't handle generics well due to erasure.  See Parse and RandomWriter examples.
 We need to timeout execution of methods when we're testing candidate expressions.  We disallow explicit recursion, but a method could infinite loop or recurse.
-When demonstrating values, do not allow implicit conversions like int->double (e.g., must type 5.0 and not 5 for Intro.hypotenuse).
+When demonstrating values, we do not allow implicit conversions like int->double (e.g., must type 5.0 and not 5 for Intro.hypotenuse).
 I think our evaluations do change memory.  We could re-launch a new debugger, I think with ILaunchConfiguration.launch().
 Improve method blacklist.
 We currently use the string of the inserted text as the key to store information about a choose statement.  We should at least also use the filename and line number, if not just use a tag like before.
@@ -50,7 +50,6 @@ Optimizations
 Improve skeleton code so that it only generates valid skeletons and hence can skip having to parse the results to ensure they typecheck. 
 Begin expression generation when the user clicks demonstration, i.e., when we open the text box.  This way we can do the work while they're typing.
 If multiple expressions have the same value, only generate with one and then replace later.
-Store evaluated expressions into permanent memory so we can recover them after a crash.  We'll then never need to re-execute anything!  But making new variables seems hard.  We could use some field in CodeHint, but that's ugly and we might need to load it dynamically.
 Investigate using IClassFileEvaluationEngine instead of ASTEvaluation.  See JavaSnippetEditor.evaluate().
 Optimize evaluation string: when given a property with a type (x: Foo => ...) don't insert the casts if the variable has static type Foo.
 

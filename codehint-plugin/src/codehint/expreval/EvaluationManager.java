@@ -77,6 +77,7 @@ public class EvaluationManager {
 			IAstEvaluationEngine engine = EclipseUtils.getASTEvaluationEngine(stack);
 			int batchSize = exprs.size() >= 2 * BATCH_SIZE ? BATCH_SIZE : exprs.size() >= MIN_NUM_BATCHES ? exprs.size() / MIN_NUM_BATCHES : 1;
 			String validVal = property == null ? "true" : property.getReplacedString("_$curValue", stack);
+			String preVarsString = getPreVarsString(stack, property);
 			PropertyPreconditionFinder pf = new PropertyPreconditionFinder();
     		EclipseUtils.parseExpr(parser, validVal).accept(pf);
     		String propertyPreconditions = pf.getPreconditions();
@@ -89,7 +90,7 @@ public class EvaluationManager {
 				String type = EclipseUtils.sanitizeTypename(expressionsOfType.getKey());
 				String valuesArrayName = getValuesArrayName(type);
 				IJavaFieldVariable valuesField = implType.getField(valuesArrayName);
-				evaluatedExprs.addAll(evaluateExpressions(expressionsOfType.getValue(), type, valuesField, validField, countField, engine, stack, property, validVal, propertyPreconditions, 0, batchSize, monitor));
+				evaluatedExprs.addAll(evaluateExpressions(expressionsOfType.getValue(), type, valuesField, validField, countField, engine, stack, property, validVal, preVarsString, propertyPreconditions, 0, batchSize, monitor));
 			}
 			return evaluatedExprs;
 		} catch (DebugException e) {
@@ -121,6 +122,16 @@ public class EvaluationManager {
 			expressionsByType.get("Object").addAll(nulls);
 		}
 		return expressionsByType;
+	}
+
+	private static String getPreVarsString(IJavaStackFrame stack, Property property) throws DebugException {
+		if (property instanceof StateProperty) {
+			StringBuilder expressionsStr = new StringBuilder();
+			for (String preVar: ((StateProperty)property).getPreVariables(stack))
+				expressionsStr.append(stack.findVariable(preVar).getJavaType().getName()).append(" ").append(StateProperty.getRenamedVar(preVar)).append(" = ").append(preVar).append(";\n");
+			return expressionsStr.toString();
+		} else
+			return "";
 	}
 	
 	/**
@@ -165,7 +176,7 @@ public class EvaluationManager {
 	 * @param batchSize The size of the batches.
      * @return the results of the evaluations of the given expressions.
 	 */
-	private static ArrayList<EvaluatedExpression> evaluateExpressions(ArrayList<TypedExpression> exprs, String type, IJavaFieldVariable valuesField, IJavaFieldVariable validField, IJavaFieldVariable countField, IAstEvaluationEngine engine, IJavaStackFrame stack, Property property, String validVal, String propertyPreconditions, int startIndex, int batchSize, IProgressMonitor monitor) {
+	private static ArrayList<EvaluatedExpression> evaluateExpressions(ArrayList<TypedExpression> exprs, String type, IJavaFieldVariable valuesField, IJavaFieldVariable validField, IJavaFieldVariable countField, IAstEvaluationEngine engine, IJavaStackFrame stack, Property property, String validVal, String preVarsString, String propertyPreconditions, int startIndex, int batchSize, IProgressMonitor monitor) {
 		if (monitor.isCanceled())
 			throw new OperationCanceledException();
 		boolean hasPropertyPrecondition = propertyPreconditions.length() > 0;
@@ -175,10 +186,8 @@ public class EvaluationManager {
 		
 		try {
 			String valuesArrayName = valuesField.getName();
-			if (property instanceof StateProperty)
-				for (String preVar: ((StateProperty)property).getPreVariables(stack))
-					expressionsStr.append(stack.findVariable(preVar).getJavaType().getName() + " " + StateProperty.getRenamedVar(preVar) + " = " + preVar + ";\n");
 			
+			expressionsStr.append(preVarsString);
 	    	for (int i = startIndex; i < exprs.size() && (!canThrowExceptions || numExprsToEvaluate < batchSize); i++) {
 	    		Expression curExpr = exprs.get(i).getExpression();
 	    		NormalPreconditionFinder pf = new NormalPreconditionFinder();
@@ -217,7 +226,7 @@ public class EvaluationManager {
     		
 	    	boolean hasError = result.getException() != null;
 			int count = ((IJavaPrimitiveValue)countField.getValue()).getIntValue();
-	    	ArrayList<EvaluatedExpression> results = getResultsFromArray(exprs, startIndex, valuesField, validField, count);
+	    	ArrayList<EvaluatedExpression> results = count == 0 ? new ArrayList<EvaluatedExpression>() : getResultsFromArray(exprs, startIndex, valuesField, validField, count);
 	    	/*System.out.println("Evaluated " + count + " expressions.");
 	    	if (hasError)
 	    		System.out.println("Crashed on " + exprs.get(startIndex + count));*/
@@ -225,7 +234,7 @@ public class EvaluationManager {
 	    	monitor.worked(work);
 	    	int nextStartIndex = startIndex + work;
 	    	if (nextStartIndex < exprs.size())
-	    		results.addAll(evaluateExpressions(exprs, type, valuesField, validField, countField, engine, stack, property, validVal, propertyPreconditions, nextStartIndex, batchSize, monitor));
+	    		results.addAll(evaluateExpressions(exprs, type, valuesField, validField, countField, engine, stack, property, validVal, preVarsString, propertyPreconditions, nextStartIndex, batchSize, monitor));
 	    	return results;
 		} catch (DebugException e) {
 			throw new RuntimeException(e);
