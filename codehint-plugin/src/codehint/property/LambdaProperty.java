@@ -70,9 +70,8 @@ public class LambdaProperty extends Property {
 		} catch (DebugException e) {
 			e.printStackTrace();
 		}
-		MyASTFlattener flattener = new PropertyASTFlattener(lhs, varName, typeName);
-		rhs.accept(flattener);
-		String compileErrors = EclipseUtils.getCompileErrors(flattener.getResult(), "boolean", stackFrame, evaluationEngine);
+    	PropertyASTFlattener flattener = new PropertyASTFlattener(lhs, varName, typeName);
+		String compileErrors = EclipseUtils.getCompileErrors(flattener.getResult(rhs), "boolean", stackFrame, evaluationEngine);
 		if (compileErrors != null)
 			return compileErrors;
     	return null;
@@ -91,10 +90,8 @@ public class LambdaProperty extends Property {
 	 */
 	@Override
 	public String getReplacedString(String arg, IJavaStackFrame stack) {
-		MyASTFlattener flattener = new PropertyASTFlattener(lhs, arg, typeName);
-		rhs.accept(flattener);
 		String typeStr = typeName == null ? "" : "(" + arg + " == " + null +" || " + arg + " instanceof " + typeName + ") && ";
-		return typeStr + flattener.getResult();
+		return typeStr + (new PropertyASTFlattener(lhs, arg, typeName)).getResult(rhs);
 	}
 	
 	@Override
@@ -103,7 +100,7 @@ public class LambdaProperty extends Property {
 		return lhs.toString() + typeStr + " => " + rhs.toString();
 	}
 	
-	private static final class PropertyASTFlattener extends MyASTFlattener {
+	private static final class PropertyASTFlattener extends ASTFlattener {
 		
 		private final String lhs;
 		private final String arg;
@@ -117,10 +114,9 @@ public class LambdaProperty extends Property {
 		}
 		
 		@Override
-		public boolean visit(SimpleName node) {
+		protected StringBuilder flatten(SimpleName node) {
 			String nodeId = node.getIdentifier();
-			appendToBuffer(nodeId.equals(lhs) ? (type == null ? arg : "((" + type + ")" + arg + ")") : nodeId);
-			return false;
+			return sb.append(nodeId.equals(lhs) ? (type == null ? arg : "((" + type + ")" + arg + ")") : nodeId);
 		}
 		
 	}

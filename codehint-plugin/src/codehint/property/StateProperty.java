@@ -94,9 +94,7 @@ public class StateProperty extends Property {
 	 */
 	@Override
 	public String getReplacedString(String arg, IJavaStackFrame stack) {
-		StateASTFlattener flattener = new StateASTFlattener(lhs, arg, stack);
-		property.accept(flattener);
-		return flattener.getResult();
+		return (new StateASTFlattener(lhs, arg, stack)).getResult(property);
 	}
 	
 	public static String getRenamedVar(String name) {
@@ -184,7 +182,7 @@ public class StateProperty extends Property {
 		
 	}
 	
-	private static final class StateASTFlattener extends MyASTFlattener {
+	private static final class StateASTFlattener extends ASTFlattener {
 
 		private final String lhs;
 		private final String arg;
@@ -197,26 +195,23 @@ public class StateProperty extends Property {
 		}
 		
 		@Override
-    	public boolean visit(MethodInvocation node) {
+    	protected StringBuilder flatten(MethodInvocation node) {
 			if (isPre(node)) {
-				appendToBuffer(getRenamedVar(((SimpleName)node.arguments().get(0)).getIdentifier()));
-				return false;
+				return sb.append(getRenamedVar(((SimpleName)node.arguments().get(0)).getIdentifier()));
 			} else if (isPost(node)) {
 				String nodeId = ((SimpleName)node.arguments().get(0)).getIdentifier();
-				appendToBuffer(nodeId.equals(lhs) ? arg : nodeId);
-				return false;
+				return sb.append(nodeId.equals(lhs) ? arg : nodeId);
 			} else
-				return super.visit(node);
+				return super.flatten(node);
 		}
 		
 		@Override
-		public boolean visit(SimpleName node) {
+		protected StringBuilder flatten(SimpleName node) {
 			try {
 				if (stack.findVariable(node.getIdentifier()) != null) {
-					appendToBuffer(getRenamedVar(node.getIdentifier()));
-					return false;
+					return sb.append(getRenamedVar(node.getIdentifier()));
 				} else
-					return super.visit(node);
+					return super.flatten(node);
 			} catch (DebugException e) {
 				throw new RuntimeException(e);
 			}
