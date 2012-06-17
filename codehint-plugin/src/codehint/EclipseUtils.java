@@ -4,6 +4,7 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 
+import org.eclipse.core.runtime.CoreException;
 import org.eclipse.core.runtime.IAdaptable;
 import org.eclipse.core.runtime.IStatus;
 import org.eclipse.core.runtime.Status;
@@ -11,7 +12,6 @@ import org.eclipse.debug.core.DebugEvent;
 import org.eclipse.debug.core.DebugException;
 import org.eclipse.debug.core.DebugPlugin;
 import org.eclipse.debug.core.ILaunch;
-import org.eclipse.debug.core.model.ISourceLocator;
 import org.eclipse.debug.core.model.IStackFrame;
 import org.eclipse.debug.core.model.IThread;
 import org.eclipse.debug.core.model.IVariable;
@@ -28,7 +28,6 @@ import org.eclipse.jdt.core.dom.ASTParser;
 import org.eclipse.jdt.core.dom.CompilationUnit;
 import org.eclipse.jdt.debug.core.IJavaDebugTarget;
 import org.eclipse.jdt.debug.core.IJavaStackFrame;
-import org.eclipse.jdt.debug.core.IJavaThread;
 import org.eclipse.jdt.debug.core.IJavaType;
 import org.eclipse.jdt.debug.core.IJavaValue;
 import org.eclipse.jdt.debug.core.IJavaVariable;
@@ -36,7 +35,6 @@ import org.eclipse.jdt.debug.eval.IAstEvaluationEngine;
 import org.eclipse.jdt.debug.eval.ICompiledExpression;
 import org.eclipse.jdt.debug.eval.IEvaluationListener;
 import org.eclipse.jdt.debug.eval.IEvaluationResult;
-import org.eclipse.jdt.internal.debug.ui.actions.EvaluateAction;
 import org.eclipse.jface.dialogs.ErrorDialog;
 import org.eclipse.jface.dialogs.IInputValidator;
 import org.eclipse.jface.dialogs.InputDialog;
@@ -53,6 +51,9 @@ import org.eclipse.ui.IWorkbench;
 import org.eclipse.ui.IWorkbenchPage;
 import org.eclipse.ui.PlatformUI;
 import org.eclipse.ui.texteditor.ITextEditor;
+
+import com.sun.jdi.InvocationException;
+import com.sun.jdi.ObjectReference;
 
 import codehint.expreval.EvaluationManager;
 import codehint.expreval.EvaluationManager.EvaluationError;
@@ -73,23 +74,11 @@ public class EclipseUtils {
 	 * @return the project associate with the given stack frame.
 	 */
 	public static IJavaProject getProject(IJavaStackFrame javaStackFrame) {
-		ILaunch launch = javaStackFrame.getLaunch();
-		if (launch == null) {
-			return null;
-		}
-		ISourceLocator locator= launch.getSourceLocator();
-		if (locator == null) {
-			return null;
-		}
-
-		Object sourceElement = locator.getSourceElement(javaStackFrame);
-		if (!(sourceElement instanceof IJavaElement) && sourceElement instanceof IAdaptable) {
+		Object sourceElement = javaStackFrame.getLaunch().getSourceLocator().getSourceElement(javaStackFrame);
+		if (!(sourceElement instanceof IJavaElement) && sourceElement instanceof IAdaptable)
 			sourceElement = ((IAdaptable)sourceElement).getAdapter(IJavaElement.class);
-		}
-		if (sourceElement instanceof IJavaElement) {
-			return ((IJavaElement) sourceElement).getJavaProject();
-		}
-		return null;
+		assert sourceElement instanceof IJavaElement;
+		return ((IJavaElement)sourceElement).getJavaProject();
 	}
     
     public static String getSignature(IVariable variable) throws DebugException {
@@ -760,43 +749,36 @@ public class EclipseUtils {
      */
    	// TODO: Integrate with codehint.expreval code?
     public static IJavaValue evaluate(String stringValue) throws DebugException {
-        IJavaStackFrame frame = getStackFrame();
-        if (frame != null) {
-            IJavaThread thread = (IJavaThread) frame.getThread();
-            final IJavaProject project= EclipseUtils.getProject(frame);
-            if (project != null) {
-                final IEvaluationResult[] results= new IEvaluationResult[1];
-                IAstEvaluationEngine engine = org.eclipse.jdt.debug.eval.EvaluationManager.newAstEvaluationEngine(project, (IJavaDebugTarget)thread.getDebugTarget());
-                IEvaluationListener listener= new IEvaluationListener() {
-                    @Override
-					public void evaluationComplete(IEvaluationResult result) {
-                        synchronized (project) {
-                            results[0]= result;
-                            project.notifyAll();
-                        }
-                    }
-                };
-    			synchronized(project) {
-                    engine.evaluate(stringValue, frame, listener, DebugEvent.EVALUATION_IMPLICIT, false);
-    				try {
-    					project.wait();
-    				} catch (InterruptedException e) {
-    					if (results[0] == null)
-    						throw new RuntimeException(e);
-    				}
-    			}
-    			IEvaluationResult result= results[0];
-    			if (result == null)
-    			    return null;
-    			if (result.hasErrors()) {
-    				String msg = "The following errors were encountered during evaluation.\n\n" + getErrors(result);
-    				showError("Evaluation error", msg, null);
-    				throw new EvaluationManager.EvaluationError(msg);
-    			}
-    			return result.getValue();
+        final IJavaStackFrame frame = getStackFrame();
+        IAstEvaluationEngine engine = getASTEvaluationEngine(frame);
+        final IEvaluationResult[] results = new IEvaluationResult[1];
+        IEvaluationListener listener = new IEvaluationListener() {
+            @Override
+			public void evaluationComplete(IEvaluationResult result) {
+                synchronized (frame) {
+                    results[0] = result;
+                    frame.notifyAll();
+                }
             }
-        }
-        return null;
+        };
+		synchronized(frame) {
+            engine.evaluate(stringValue, frame, listener, DebugEvent.EVALUATION_IMPLICIT, false);
+			try {
+				frame.wait();
+			} catch (InterruptedException e) {
+				if (results[0] == null)
+					throw new RuntimeException(e);
+			}
+		}
+		IEvaluationResult result = results[0];
+		if (result == null)
+		    return null;
+		if (result.hasErrors()) {
+			String msg = "The following errors were encountered during evaluation.\n\n" + getErrors(result);
+			showError("Evaluation error", msg, null);
+			throw new EvaluationManager.EvaluationError(msg);
+		}
+		return result.getValue();
     }
     
     public static String getUnqualifiedName(String name) {
@@ -853,17 +835,36 @@ public class EclipseUtils {
      * @param result A failing evaluation result.
      * @return A string representing the failure.
      */
-    public static String getErrors(IEvaluationResult result) {
-	    StringBuffer buffer = new StringBuffer();
+    private static String getErrors(IEvaluationResult result) {
+	    StringBuilder sb = new StringBuilder();
 	    //buffer.append("Error on evaluation of: ").append(result.getSnippet()).append("\n");
 	    if (result.getException() == null) {
 		    String[] messages = result.getErrorMessages();
 		    for (int i = 0; i < messages.length; i++)
-                buffer.append(messages[i]).append("\n "); //$NON-NLS-1$
-	    } else {
-	    	buffer.append(EvaluateAction.getExceptionMessage(result.getException()));
-	    }
-    	return buffer.toString();
+		    	sb.append(messages[i]).append("\n ");
+	    } else
+	    	sb.append(getExceptionMessage(result.getException()));
+    	return sb.toString();
     }
+	
+    /*
+     * Inspired by org.eclipse.jdt.internal.debug.ui.actions.EvaluateAction.getExceptionMessage.
+     */
+	private static String getExceptionMessage(Throwable exception) {
+		if (exception instanceof CoreException) {
+			CoreException ce = (CoreException)exception;
+			Throwable throwable= ce.getStatus().getException();
+			if (throwable instanceof InvocationException) {
+				ObjectReference ref = ((InvocationException)exception).exception();
+				return "An exception occurred: " + ref.referenceType().name();
+			} else if (throwable instanceof CoreException)
+				return getExceptionMessage(throwable);
+			return ce.getStatus().getMessage();
+		}
+		String message = "An exception occurred: " + exception.getClass(); 
+		if (exception.getMessage() != null)
+			message += " - " + exception.getMessage();
+		return message;
+	}
 
 }
