@@ -82,11 +82,8 @@ public class EclipseUtils {
 	}
     
     public static String getSignature(IVariable variable) throws DebugException {
-        String signature= null;
-        IJavaVariable javaVariable = (IJavaVariable) variable.getAdapter(IJavaVariable.class);
-        if (javaVariable != null)
-            signature = javaVariable.getSignature();
-        return signature;
+        IJavaVariable javaVariable = (IJavaVariable)variable.getAdapter(IJavaVariable.class);
+        return javaVariable.getSignature();
     }
     
     public static boolean isObject(IVariable variable) {
@@ -98,7 +95,11 @@ public class EclipseUtils {
 		}
     }
     
-    public static boolean isObject(String signature) {
+    public static boolean isObject(IJavaType type) throws DebugException {
+    	return isObject(type.getSignature());
+    }
+    
+    private static boolean isObject(String signature) {
     	return Signature.getTypeSignatureKind(signature) == Signature.CLASS_TYPE_SIGNATURE;
     }
    	

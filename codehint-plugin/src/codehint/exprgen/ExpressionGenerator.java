@@ -197,7 +197,7 @@ public class ExpressionGenerator {
     			for (IJavaType type: constraintTypes) {
     				if (isInt(type))
     					hasInt = true;
-    				else if (EclipseUtils.isObject(type.getSignature()))
+    				else if (EclipseUtils.isObject(type))
     					hasObject = true;
     			}
     			if (depth > 0 || hasInt)
@@ -383,7 +383,7 @@ public class ExpressionGenerator {
 	
 	public static List<Field> getFields(IJavaType type) {
 		try {
-			if (type != null && EclipseUtils.isObject(type.getSignature())) {
+			if (type != null && EclipseUtils.isObject(type)) {
 				List<?> untypedFields = ((ReferenceType)((JDIType)type).getUnderlyingType()).visibleFields();
 				ArrayList<Field> fields = new ArrayList<Field>(untypedFields.size());
 				for (Object o: untypedFields)
@@ -428,7 +428,7 @@ public class ExpressionGenerator {
 
 	public static List<Method> getMethods(IJavaType type) {
 		try {
-			if (type != null && EclipseUtils.isObject(type.getSignature())) {
+			if (type != null && EclipseUtils.isObject(type)) {
 				List<?> untypedMethods = ((ReferenceType)((JDIType)type).getUnderlyingType()).visibleMethods();
 				ArrayList<Method> methods = new ArrayList<Method>(untypedMethods.size());
 				for (Object o: untypedMethods)

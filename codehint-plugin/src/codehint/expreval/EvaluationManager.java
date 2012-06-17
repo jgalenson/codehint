@@ -109,7 +109,7 @@ public class EvaluationManager {
 		Map<String, ArrayList<TypedExpression>> expressionsByType = new HashMap<String, ArrayList<TypedExpression>>();
 		for (TypedExpression expr: exprs) {
 			IJavaType type = expr.getType();
-			String typeName = type == null ? null : EclipseUtils.isObject(type.getSignature()) ? "Object" : type.getName();
+			String typeName = type == null ? null : EclipseUtils.isObject(type) ? "Object" : type.getName();
 			if (!expressionsByType.containsKey(typeName))
 				expressionsByType.put(typeName, new ArrayList<TypedExpression>());
 			expressionsByType.get(typeName).add(expr);
