@@ -9,6 +9,7 @@ import java.util.Map;
 import java.util.Set;
 
 import org.eclipse.core.runtime.IProgressMonitor;
+import org.eclipse.core.runtime.OperationCanceledException;
 import org.eclipse.core.runtime.SubMonitor;
 import org.eclipse.debug.core.DebugException;
 import org.eclipse.jdt.core.dom.AST;
@@ -288,6 +289,8 @@ public class ExpressionSkeleton {
 			IAstEvaluationEngine engine = EclipseUtils.getASTEvaluationEngine(stack);
 			String varStaticTypeName = varStaticType == null ? null : EclipseUtils.sanitizeTypename(varStaticType.getName());
 			for (String s: expressionStrings) {
+    			if (monitor.isCanceled())
+    				throw new OperationCanceledException();
 				if (EclipseUtils.getCompileErrors(s, varStaticTypeName, stack, engine) == null)
 					result.add(s);
 				evalMonitor.worked(1);
@@ -639,7 +642,7 @@ public class ExpressionSkeleton {
 		private void fillArg(Expression arg, int i, List<Method> methods, Set<ASTNode> parentsOfHoles) {
 			List<IJavaType> argConstraints = new ArrayList<IJavaType>(methods.size());
 			for (Method method: methods)
-				argConstraints.add(EclipseUtils.getFullyQualifiedType((String)method.argumentTypeNames().get(i), target));
+				argConstraints.add(EclipseUtils.getTypeAndLoadIfNeeded((String)method.argumentTypeNames().get(i), target));
 			TypeConstraint argConstraint = getSupertypeConstraintForTypes(argConstraints);
 			fillSkeleton(arg, argConstraint, parentsOfHoles);
 		}
