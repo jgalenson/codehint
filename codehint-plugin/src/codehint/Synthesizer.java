@@ -98,7 +98,7 @@ public class Synthesizer {
 			if (skeleton == null)
 				return;
 			
-			EclipseUtils.log("Beginning synthesis for " + variable.toString() + " with property " + property.toString() + ".");
+			EclipseUtils.log("Beginning synthesis for " + variable.toString() + " with property " + property.toString() + " and skeleton " + skeleton.toString() + ".");
 	
 			final IJavaStackFrame frame = EclipseUtils.getStackFrame();
 	
@@ -123,7 +123,7 @@ public class Synthesizer {
 	
 							        if (finalExpressions == null) {
 								    	setLastCrashedInfo(null, null, null);
-										EclipseUtils.log("Cancelling synthesis for " + variable.toString() + " with property " + property.toString() + ".");
+										EclipseUtils.log("Cancelling synthesis for " + variable.toString() + " with property " + property.toString() + " and skeleton " + skeleton.toString() + ".");
 										return Status.CANCEL_STATUS;
 							        }
 							        else if (finalExpressions.isEmpty())
@@ -183,7 +183,7 @@ public class Synthesizer {
 									//NOTE: Our current implementation does not save.  Without a manual save, our added 
 									// code gets ignored for this invocation.  Should we force a save and restart?
 				
-							    	EclipseUtils.log("Finishing synthesis for " + variable.toString() + " with property " + property.toString() + ".  Found " + finalExpressions.size() + " user-approved expressions and inserted " + statement);
+							    	EclipseUtils.log("Finishing synthesis for " + variable.toString() + " with property " + property.toString() + " and skeleton " + skeleton.toString() + ".  Found " + finalExpressions.size() + " user-approved expressions and inserted " + statement);
 									return Status.OK_STATUS;
 								} catch (DebugException e) {
 									e.printStackTrace();
@@ -199,7 +199,7 @@ public class Synthesizer {
 				    	setLastCrashedInfo(variable.toString(), property, skeleton);
 						return new Status(IStatus.ERROR, Activator.PLUGIN_ID, e.getMessage());
 					} catch (OperationCanceledException e) {
-						EclipseUtils.log("Cancelling synthesis for " + variable.toString() + " with property " + property.toString() + ".");
+						EclipseUtils.log("Cancelling synthesis for " + variable.toString() + " with property " + property.toString() + " and skeleton " + skeleton.toString() + ".");
 						return Status.CANCEL_STATUS;
 					} catch (TypeError e) {
 						EclipseUtils.showError("Error", e.getMessage(), null);

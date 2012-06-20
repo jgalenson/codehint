@@ -100,6 +100,11 @@ public class ExpressionSkeleton {
 		return sugaredString;
 	}
 	
+	@Override
+	public String toString() {
+		return sugaredString;
+	}
+	
 	private static class SkeletonParser {
 
 	    private final static String DESUGARED_HOLE_NAME = "_$hole";
