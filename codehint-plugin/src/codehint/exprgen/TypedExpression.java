@@ -33,7 +33,9 @@ public class TypedExpression {
 	
 	@Override
 	public String toString() {
-		if (value == null)
+		if (expression == null)
+			return "";
+		else if (value == null)
 			return expression.toString();
 		else
 			return expression.toString() + " (= " + value.toString() + ")";

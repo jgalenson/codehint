@@ -8,6 +8,7 @@ import org.eclipse.ui.IMarkerResolution;
 import org.eclipse.ui.IMarkerResolutionGenerator2;
 
 import codehint.property.StateProperty;
+import codehint.utils.EclipseUtils;
 
 public class PrimeFixer implements IMarkerResolutionGenerator2 {
 

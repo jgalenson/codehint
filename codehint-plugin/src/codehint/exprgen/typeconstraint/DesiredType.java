@@ -16,7 +16,11 @@ public class DesiredType extends TypeConstraint {
 
 	@Override
 	public boolean isFulfilledBy(IJavaType type, SubtypeChecker subtypeChecker, IJavaDebugTarget target) {
-		return (type == null && desiredType instanceof IJavaReferenceType) || desiredType.equals(type); // subtypeChecker.isSubtypeOf(desiredType, curType);
+		if (type == null)
+			return desiredType instanceof IJavaReferenceType;
+		if (desiredType == null)
+			return type instanceof IJavaReferenceType;
+		return desiredType.equals(type); // subtypeChecker.isSubtypeOf(desiredType, curType);
 	}
 
 	@Override

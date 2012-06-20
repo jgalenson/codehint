@@ -4,7 +4,7 @@ import org.eclipse.core.expressions.PropertyTester;
 import org.eclipse.debug.core.model.IVariable;
 import org.eclipse.jface.viewers.IStructuredSelection;
 
-import codehint.EclipseUtils;
+import codehint.utils.EclipseUtils;
 
 public class CodeHintPropertyTester extends PropertyTester {
 

@@ -1,15 +1,19 @@
 package codehint.exprgen.typeconstraint;
 
 import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.Map;
 
+import org.eclipse.debug.core.DebugException;
 import org.eclipse.jdt.debug.core.IJavaDebugTarget;
 import org.eclipse.jdt.debug.core.IJavaType;
 
 import com.sun.jdi.Field;
 
-import codehint.EclipseUtils;
+import codehint.utils.EclipseUtils;
 import codehint.exprgen.ExpressionGenerator;
 import codehint.exprgen.SubtypeChecker;
+import codehint.utils.Utils;
 
 public class FieldNameConstraint extends NameConstraint {
 	
@@ -21,13 +25,20 @@ public class FieldNameConstraint extends NameConstraint {
 		this.fieldConstraint = fieldConstraint;
 	}
 	
-	public ArrayList<Field> getFields(IJavaDebugTarget target, SubtypeChecker subtypeChecker) {
-		ArrayList<Field> fields = new ArrayList<Field>();
-		for (IJavaType receiverType: expressionConstraint.getTypes(target))
-			for (Field field: ExpressionGenerator.getFields(receiverType))
-				if (fieldFulfills(subtypeChecker, target, field))
-					fields.add(field);
-		return fields;
+	public Map<String, ArrayList<Field>> getFields(IJavaDebugTarget target, SubtypeChecker subtypeChecker) {
+		try {
+			IJavaType[] receiverTypes = expressionConstraint.getTypes(target);
+			Map<String, ArrayList<Field>> fieldsByType = new HashMap<String, ArrayList<Field>>(receiverTypes.length);
+			for (IJavaType receiverType: receiverTypes) {
+				String typeName = receiverType.getName();
+				for (Field field: ExpressionGenerator.getFields(receiverType))
+					if (fieldFulfills(subtypeChecker, target, field))
+						Utils.addToMap(fieldsByType, typeName, field);
+			}
+			return fieldsByType;
+		} catch (DebugException e) {
+			throw new RuntimeException(e);
+		}
 	}
 
 	@Override

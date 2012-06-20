@@ -5,7 +5,7 @@ import org.eclipse.jdt.debug.core.IJavaType;
 
 import com.sun.jdi.Field;
 
-import codehint.EclipseUtils;
+import codehint.utils.EclipseUtils;
 import codehint.exprgen.ExpressionGenerator;
 import codehint.exprgen.SubtypeChecker;
 

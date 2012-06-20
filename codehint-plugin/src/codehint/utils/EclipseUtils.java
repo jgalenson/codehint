@@ -1,4 +1,4 @@
-package codehint;
+package codehint.utils;
 
 import java.util.HashSet;
 import java.util.Map;
@@ -55,6 +55,8 @@ import org.eclipse.ui.texteditor.ITextEditor;
 import com.sun.jdi.InvocationException;
 import com.sun.jdi.ObjectReference;
 
+import codehint.Activator;
+import codehint.Synthesizer;
 import codehint.expreval.EvaluationManager;
 import codehint.expreval.EvaluationManager.EvaluationError;
 import codehint.exprgen.ExpressionSkeleton;
@@ -96,11 +98,15 @@ public class EclipseUtils {
     }
     
     public static boolean isObject(IJavaType type) throws DebugException {
-    	return isObject(type.getSignature());
+    	return type == null || isObject(type.getSignature());
     }
     
     private static boolean isObject(String signature) {
     	return Signature.getTypeSignatureKind(signature) == Signature.CLASS_TYPE_SIGNATURE;
+    }
+    
+    public static boolean isPrimitive(IJavaType type) throws DebugException {
+    	return type != null && Signature.getTypeSignatureKind(type.getSignature()) == Signature.BASE_TYPE_SIGNATURE;
     }
    	
     // TODO: There must be a better way to do this through Eclipse.

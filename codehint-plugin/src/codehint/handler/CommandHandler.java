@@ -18,7 +18,7 @@ import org.eclipse.jface.viewers.TreeSelection;
 import org.eclipse.swt.widgets.Shell;
 import org.eclipse.ui.handlers.HandlerUtil;
 
-import codehint.EclipseUtils;
+import codehint.utils.EclipseUtils;
 
 /**
  * Superclass for our handlers.  This collects information

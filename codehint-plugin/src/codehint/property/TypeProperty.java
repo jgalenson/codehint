@@ -2,7 +2,7 @@ package codehint.property;
 
 import org.eclipse.jdt.core.dom.Expression;
 
-import codehint.EclipseUtils;
+import codehint.utils.EclipseUtils;
 
 public class TypeProperty extends LambdaProperty {
 	

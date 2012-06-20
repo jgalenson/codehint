@@ -33,10 +33,11 @@ import org.eclipse.jdt.debug.eval.ICompiledExpression;
 import org.eclipse.jdt.debug.eval.IEvaluationListener;
 import org.eclipse.jdt.debug.eval.IEvaluationResult;
 
-import codehint.EclipseUtils;
 import codehint.exprgen.TypedExpression;
 import codehint.property.StateProperty;
 import codehint.property.Property;
+import codehint.property.ValueProperty;
+import codehint.utils.EclipseUtils;
 
 /**
  * Class for evaluating expressions.
@@ -80,7 +81,7 @@ public class EvaluationManager {
 			String preVarsString = getPreVarsString(stack, property);
 			PropertyPreconditionFinder pf = new PropertyPreconditionFinder();
     		EclipseUtils.parseExpr(parser, validVal).accept(pf);
-    		String propertyPreconditions = pf.getPreconditions();
+    		String propertyPreconditions = property instanceof ValueProperty ? "" : pf.getPreconditions();  // TODO: This will presumably fail if the user does their own null check.
 			IJavaReferenceType implType = (IJavaReferenceType)EclipseUtils.getTypeAndLoadIfNeeded(IMPL_NAME, (IJavaDebugTarget)stack.getDebugTarget());
 			IJavaFieldVariable validField = implType.getField("valid");
 			IJavaFieldVariable countField = implType.getField("count");
@@ -109,7 +110,7 @@ public class EvaluationManager {
 		Map<String, ArrayList<TypedExpression>> expressionsByType = new HashMap<String, ArrayList<TypedExpression>>();
 		for (TypedExpression expr: exprs) {
 			IJavaType type = expr.getType();
-			String typeName = type == null ? null : EclipseUtils.isObject(type) ? "Object" : type.getName();
+			String typeName = type == null ? null : EclipseUtils.isPrimitive(type) ? type.getName() : "Object";
 			if (!expressionsByType.containsKey(typeName))
 				expressionsByType.put(typeName, new ArrayList<TypedExpression>());
 			expressionsByType.get(typeName).add(expr);

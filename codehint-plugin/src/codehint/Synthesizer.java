@@ -68,6 +68,7 @@ import codehint.expreval.EvaluationManager;
 import codehint.expreval.EvaluationManager.EvaluationError;
 import codehint.exprgen.ExpressionGenerator;
 import codehint.exprgen.ExpressionSkeleton;
+import codehint.exprgen.ExpressionSkeleton.TypeError;
 import codehint.exprgen.TypedExpression;
 import codehint.handler.DemonstrateStatePropertyHandler;
 import codehint.handler.DemonstrateTypeHandler;
@@ -79,6 +80,7 @@ import codehint.property.Property;
 import codehint.property.StateProperty;
 import codehint.property.TypeProperty;
 import codehint.property.ValueProperty;
+import codehint.utils.EclipseUtils;
 
 public class Synthesizer {
 	
@@ -198,6 +200,9 @@ public class Synthesizer {
 						return new Status(IStatus.ERROR, Activator.PLUGIN_ID, e.getMessage());
 					} catch (OperationCanceledException e) {
 						EclipseUtils.log("Cancelling synthesis for " + variable.toString() + " with property " + property.toString() + ".");
+						return Status.CANCEL_STATUS;
+					} catch (TypeError e) {
+						EclipseUtils.showError("Error", e.getMessage(), null);
 						return Status.CANCEL_STATUS;
 					}
 				}

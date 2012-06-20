@@ -15,7 +15,7 @@ import org.eclipse.jdt.core.dom.SimpleName;
 import org.eclipse.jdt.debug.core.IJavaStackFrame;
 import org.eclipse.jdt.debug.eval.IAstEvaluationEngine;
 
-import codehint.EclipseUtils;
+import codehint.utils.EclipseUtils;
 import codehint.property.Property;
 
 /**
