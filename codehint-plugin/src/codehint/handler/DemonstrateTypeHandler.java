@@ -10,7 +10,8 @@ import org.eclipse.swt.widgets.Shell;
 
 import codehint.utils.EclipseUtils;
 import codehint.Synthesizer;
-import codehint.property.TypeProperty;
+import codehint.dialogs.SynthesisDialog;
+import codehint.dialogs.TypePropertyDialog;
 
 public class DemonstrateTypeHandler extends CommandHandler {
 
@@ -27,8 +28,8 @@ public class DemonstrateTypeHandler extends CommandHandler {
     
     private static void handle(IVariable variable, String path, Shell shell, Matcher matcher) throws DebugException {
 		assert EclipseUtils.isObject(variable);
-		String varTypeName = ((IJavaVariable)variable).getJavaType().getName();
-		String initValue = null;
+		String varTypeName = EclipseUtils.sanitizeTypename(((IJavaVariable)variable).getJavaType().getName());
+		String initValue = "";
 		if (matcher != null) {
 			if (!matcher.group(2).equals(variable.getName())) {
 				EclipseUtils.showError("Illegal variable.", "The first argument to the pdspec method, " + matcher.group(2) + ", must be the same as the variable on which you right-clicked, " + variable.getName() + ".", null);
@@ -37,9 +38,8 @@ public class DemonstrateTypeHandler extends CommandHandler {
 			initValue = matcher.group(1);
 		} else
 			initValue = varTypeName;
-    	TypeProperty property = EclipseUtils.getTypeProperty(path, shell, varTypeName, initValue, null, EclipseUtils.getStackFrame());
-    	if (property != null)
-        	Synthesizer.synthesizeAndInsertExpressions(variable, path, property, shell, matcher != null);
+		SynthesisDialog dialog = new TypePropertyDialog(path, varTypeName, shell, initValue, null, true);
+    	Synthesizer.synthesizeAndInsertExpressions(variable, path, dialog, shell, matcher != null);
     }
 
 	public static void handleFromText(Matcher matcher) {

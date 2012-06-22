@@ -63,6 +63,12 @@ import org.eclipse.ui.dialogs.ListSelectionDialog;
 import org.eclipse.ui.progress.UIJob;
 import org.eclipse.ui.texteditor.ITextEditor;
 
+import codehint.dialogs.LambdaPropertyDialog;
+import codehint.dialogs.ObjectValuePropertyDialog;
+import codehint.dialogs.PrimitiveValuePropertyDialog;
+import codehint.dialogs.StatePropertyDialog;
+import codehint.dialogs.SynthesisDialog;
+import codehint.dialogs.TypePropertyDialog;
 import codehint.expreval.EvaluatedExpression;
 import codehint.expreval.EvaluationManager;
 import codehint.expreval.EvaluationManager.EvaluationError;
@@ -90,17 +96,18 @@ public class Synthesizer {
 	private static ExpressionSkeleton lastCrashedSkeleton;
 	private static Property lastCrashedProperty;
 	
-	public static void synthesizeAndInsertExpressions(final IVariable variable, final String fullVarName, final Property property, Shell shell, final boolean replaceCurLine) {
+	public static void synthesizeAndInsertExpressions(final IVariable variable, final String fullVarName, final SynthesisDialog synthesisDialog, Shell shell, final boolean replaceCurLine) {
 		try {
-			final IJavaType varStaticType = ((IJavaVariable)variable).getJavaType();
-			
-			final ExpressionSkeleton skeleton = EclipseUtils.getExpressionSkeleton(varStaticType.getName(), lastCrashedSkeleton == null ? ExpressionSkeleton.HOLE_SYNTAX : lastCrashedSkeleton.getSugaredString());
-			if (skeleton == null)
+			synthesisDialog.open();
+			final Property property = synthesisDialog.getProperty();
+			final ExpressionSkeleton skeleton = synthesisDialog.getSkeleton();
+			if (property == null || skeleton == null)
 				return;
 			
 			EclipseUtils.log("Beginning synthesis for " + variable.toString() + " with property " + property.toString() + " and skeleton " + skeleton.toString() + ".");
 	
 			final IJavaStackFrame frame = EclipseUtils.getStackFrame();
+			final IJavaType varStaticType = ((IJavaVariable)variable).getJavaType();
 	
 			// Compute a list of expressions that generate that value as possible choices for expressions.
 			Job job = new Job("Expression generation") {
@@ -562,16 +569,20 @@ public class Synthesizer {
 	    		@Override
 	    		public void run() {
 	    			try {
+	    				Shell shell = EclipseUtils.getShell();
+	    				SynthesisDialog dialog = null;
 		    			if (oldProperty == null || oldProperty instanceof StateProperty)
-		    				result[0] = EclipseUtils.getStateProperty(varName, EclipseUtils.getShell(), oldProperty == null ? "" : oldProperty.toString(), extraMessage);
+		    				dialog = new StatePropertyDialog(varName, varStaticTypeName, shell, oldProperty == null ? "" : oldProperty.toString(), extraMessage, false);
 		    			else if (oldProperty instanceof PrimitiveValueProperty)
-		    				result[0] = EclipseUtils.getPrimitiveValueProperty(varName, varStaticTypeName, EclipseUtils.getShell(), "", extraMessage);
+		    				dialog = new PrimitiveValuePropertyDialog(varName, varStaticTypeName, shell, "", extraMessage, false);
 		    			else if (oldProperty instanceof ObjectValueProperty)
-		    				result[0] = EclipseUtils.getObjectValueProperty(varName, varStaticTypeName, EclipseUtils.getShell(), "", extraMessage);
+		    				dialog = new ObjectValuePropertyDialog(varName, varStaticTypeName, shell, "", extraMessage, false);
 		    			else if (oldProperty instanceof TypeProperty)
-		    				result[0] = EclipseUtils.getTypeProperty(varName, EclipseUtils.getShell(), varStaticTypeName, ((TypeProperty)oldProperty).getTypeName(), extraMessage, stackFrame);
+		    				dialog = new TypePropertyDialog(varName, varStaticTypeName, shell, ((TypeProperty)oldProperty).getTypeName(), extraMessage, false);
 		    			else if (oldProperty instanceof LambdaProperty)
-		    				result[0] = EclipseUtils.getLambdaProperty(varName, EclipseUtils.getShell(), varStaticType, oldProperty.toString(), extraMessage, stackFrame);
+		    				dialog = new LambdaPropertyDialog(varName, varStaticType.getName(), varStaticType, shell, oldProperty.toString(), extraMessage, false);
+		    			dialog.open();
+		    			result[0] = dialog.getProperty();
 	    			} catch (DebugException e) {
 	    				throw new RuntimeException(e);
 	    			}
@@ -677,6 +688,13 @@ public class Synthesizer {
     public static Property getLastCrashedProperty(String varName) {
     	if (lastCrashedVariable != null && lastCrashedVariable.equals(varName))
     		return lastCrashedProperty;
+    	else
+    		return null;
+    }
+    
+    public static ExpressionSkeleton getLastCrashedSkeleton(String varName) {
+    	if (lastCrashedVariable != null && lastCrashedVariable.equals(varName))
+    		return lastCrashedSkeleton;
     	else
     		return null;
     }

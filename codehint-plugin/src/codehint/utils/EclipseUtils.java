@@ -22,10 +22,8 @@ import org.eclipse.jdt.core.IType;
 import org.eclipse.jdt.core.JavaCore;
 import org.eclipse.jdt.core.JavaModelException;
 import org.eclipse.jdt.core.Signature;
-import org.eclipse.jdt.core.dom.AST;
 import org.eclipse.jdt.core.dom.ASTNode;
 import org.eclipse.jdt.core.dom.ASTParser;
-import org.eclipse.jdt.core.dom.CompilationUnit;
 import org.eclipse.jdt.debug.core.IJavaDebugTarget;
 import org.eclipse.jdt.debug.core.IJavaStackFrame;
 import org.eclipse.jdt.debug.core.IJavaType;
@@ -36,14 +34,8 @@ import org.eclipse.jdt.debug.eval.ICompiledExpression;
 import org.eclipse.jdt.debug.eval.IEvaluationListener;
 import org.eclipse.jdt.debug.eval.IEvaluationResult;
 import org.eclipse.jface.dialogs.ErrorDialog;
-import org.eclipse.jface.dialogs.IInputValidator;
-import org.eclipse.jface.dialogs.InputDialog;
 import org.eclipse.jface.text.BadLocationException;
 import org.eclipse.jface.text.IDocument;
-import org.eclipse.jface.window.Window;
-import org.eclipse.swt.SWT;
-import org.eclipse.swt.widgets.Composite;
-import org.eclipse.swt.widgets.Control;
 import org.eclipse.swt.widgets.Display;
 import org.eclipse.swt.widgets.Shell;
 import org.eclipse.ui.IEditorPart;
@@ -56,15 +48,7 @@ import com.sun.jdi.InvocationException;
 import com.sun.jdi.ObjectReference;
 
 import codehint.Activator;
-import codehint.Synthesizer;
 import codehint.expreval.EvaluationManager;
-import codehint.expreval.EvaluationManager.EvaluationError;
-import codehint.exprgen.ExpressionSkeleton;
-import codehint.property.LambdaProperty;
-import codehint.property.ObjectValueProperty;
-import codehint.property.PrimitiveValueProperty;
-import codehint.property.StateProperty;
-import codehint.property.TypeProperty;
 
 public class EclipseUtils {
     
@@ -266,7 +250,7 @@ public class EclipseUtils {
 		}
 	}
     
-    private static IType getThisType(IJavaProject project, IJavaStackFrame stackFrame) throws DebugException, JavaModelException {
+    public static IType getThisType(IJavaProject project, IJavaStackFrame stackFrame) throws DebugException, JavaModelException {
     	String thisTypeName = stackFrame.getDeclaringTypeName();
 		IType thisType = project.findType(thisTypeName);
 		if (thisType != null && !thisTypeName.contains("$"))  // Do not use anonymous classes (e.g., Foo$1).
@@ -278,267 +262,6 @@ public class EclipseUtils {
 			return project.findType(outerTypeName);
 		}
 		return null;
-    }
-    
-    public static LambdaProperty getLambdaProperty(String varName, Shell shell, IJavaType varStaticType, String initialValue, String extraMessage, IJavaStackFrame stackFrame) {
-    	try {
-    		IJavaProject project = getProject(stackFrame);
-    		String varStaticTypeName = varStaticType == null ? null : sanitizeTypename(varStaticType.getName());
-    		IType varType = varStaticType == null ? null : project.findType(varStaticTypeName);
-    		IType thisType = getThisType(project, stackFrame);
-    		
-	        String title= "Demonstrate property"; 
-	        String message= "Demonstrate a property (in the form of a boolean lambda expression) that should hold for " + varName + " after this statement is executed.";
-	        if (initialValue == null)
-	        	initialValue = getDefaultLambdaArgName(stackFrame) + getDefaultTypeName(varStaticType, project, varType, thisType, varStaticTypeName) + " => ";
-	        LambdaPropertyValidator validator= new LambdaPropertyValidator(stackFrame, project, varType, thisType, varName);
-	        String stringValue = getDialogResult(title, message, extraMessage, initialValue, validator, "lambda");
-	    	if (stringValue != null)
-	    		return LambdaProperty.fromPropertyString(stringValue);
-	    	else
-	    		return null;
- 		} catch (DebugException e) {
- 			throw new RuntimeException(e);
- 		} catch (JavaModelException e) {
- 			throw new RuntimeException(e);
- 		}
-    }
-    
-    private static String getDefaultLambdaArgName(IJavaStackFrame stackFrame) throws DebugException {
-    	if (stackFrame.findVariable("x") == null)
-    		return "x";
-    	for (char name = 'a'; name <= 'z'; name++)
-        	if (stackFrame.findVariable("" + name) == null)
-        		return "" + name;
-    	for (int i = 0; true; i++)
-        	if (stackFrame.findVariable("x" + i) == null)
-        		return "x" + i;
-    }
-    
-    private static String getDefaultTypeName(IJavaType varStaticType, IJavaProject project, IType varType, IType thisType, String varStaticTypeName) throws DebugException {
-    	if (varStaticType == null || !isObject(varStaticType.getSignature()))
-    		return "";
-		
-		String unqualifiedTypename = getUnqualifiedName(varStaticTypeName);
-		if (getValidTypeError(project, varType, thisType, unqualifiedTypename) == null)
-			return ": " + unqualifiedTypename;
-		else
-			return ": " + varStaticTypeName;
-    }
-    
-    private static String getExpression(String varName, String varTypeName, Shell shell, String initialValue, String extraMessage) {
-        String title= "Demonstrate an expression"; 
-        String message= "Demonstrate an expression for " + varName + ".  We will find expressions that evaluate to the same value.";
-        ExpressionValidator validator= new ExpressionValidator(getStackFrame(), EclipseUtils.sanitizeTypename(varTypeName));
-        if (initialValue == null)
-        	initialValue = "";
-        String stringValue = getDialogResult(title, message, extraMessage, initialValue, validator, "value");
-    	return stringValue;
-    }
-    
-    public static PrimitiveValueProperty getPrimitiveValueProperty(String varName, String varTypeName, Shell shell, String initialValue, String extraMessage) throws DebugException {
-    	String stringValue = getExpression(varName, varTypeName, shell, initialValue, extraMessage);
-    	if (stringValue != null) {
-    		try {
-		    	IJavaValue demonstrationValue = evaluate(stringValue);
-		    	return PrimitiveValueProperty.fromPrimitive(EclipseUtils.javaStringOfValue(demonstrationValue), demonstrationValue);
-    		}  catch (EvaluationError e) {
-		    	Synthesizer.setLastCrashedInfo(varName, PrimitiveValueProperty.fromPrimitive(stringValue, null), null);
-				throw e;
-			}
-    	} else
-    		return null;
-    }
-    
-    public static ObjectValueProperty getObjectValueProperty(String varName, String varTypeName, Shell shell, String initialValue, String extraMessage) throws DebugException {
-    	String stringValue = getExpression(varName, varTypeName, shell, initialValue, extraMessage);
-    	if (stringValue != null) {
-    		try {
-    			IJavaValue demonstrationValue = evaluate(stringValue);
-    			return ObjectValueProperty.fromObject(stringValue, demonstrationValue);
-    		} catch (EvaluationError e) {
-		    	Synthesizer.setLastCrashedInfo(varName, ObjectValueProperty.fromObject(stringValue, null), null);
-				throw e;
-			}
-    	} else
-    		return null;
-    }
-    
-    public static TypeProperty getTypeProperty(String varName, Shell shell, String varTypeName, String initialValue, String extraMessage, IJavaStackFrame stackFrame) {
-    	try {
-    		varTypeName = sanitizeTypename(varTypeName);
-			IJavaProject project = getProject(stackFrame);
-			IType varType = project.findType(varTypeName);
-    		IType thisType = getThisType(project, stackFrame);
-			
-			// Default to the unqualified typename if I can.
-    		if (initialValue.contains("$"))
-    			initialValue = sanitizeTypename(initialValue);
-			if (thisType != null && thisType.resolveType(getUnqualifiedName(initialValue)) != null)
-				initialValue = getUnqualifiedName(initialValue);
-	    	
-	    	String title= "Demonstrate a type"; 
-	        String message= "Demonstrate a type for " + varName + ".  We will find expressions return that type when evaluated.";
-	        TypeValidator validator= new TypeValidator(project, varType, thisType);
-	        String typeName = getDialogResult(title, message, extraMessage, initialValue, validator, "type");
-	    	if (typeName != null)
-	    		return TypeProperty.fromType(typeName);
-    		else
-    			return null;
-    	} catch (JavaModelException e) {
- 			throw new RuntimeException(e);
- 		} catch (DebugException e) {
- 			throw new RuntimeException(e);
- 		}
-    }
-    
-    public static StateProperty getStateProperty(String varName, Shell shell, String initialValue, String extraMessage) {
-		String title= "Demonstrate state property"; 
-        String message= "Demonstrate a state property that should hold for " + varName + " after this statement is executed.  You may refer to the values of variables after this statement is executed using the prime syntax, e.g., " + varName + "\'";
-        StatePropertyValidator validator= new StatePropertyValidator(getStackFrame());
-        String stringValue = getDialogResult(title, message, extraMessage, initialValue, validator, "state");
-    	if (stringValue != null)
-    		return StateProperty.fromPropertyString(varName, stringValue);
-    	else
-    		return null;
-    }
-    
-    public static ExpressionSkeleton getExpressionSkeleton(String varTypeName, String initialValue) {
-    	String title = "Give an expression skeleton"; 
-        String message = "Given an expression skeleton that describes the form of the desired expression, using " + ExpressionSkeleton.HOLE_SYNTAX + "s for unknown expressions and names.";
-        ExpressionSkeletonValidator validator = new ExpressionSkeletonValidator(getStackFrame(), EclipseUtils.sanitizeTypename(varTypeName));
-        if (initialValue == null)
-        	initialValue = ExpressionSkeleton.HOLE_SYNTAX;
-        String stringValue = getDialogResult(title, message, null, initialValue, validator, "skeleton");
-    	if (stringValue != null)
-    		return ExpressionSkeleton.fromString(stringValue);
-    	else
-    		return null;
-    }
-    
-    private static String getDialogResult(String title, String message, String extraMessage, String initialValue, IInputValidator validator, final String helpContext) {
-        if (extraMessage != null)
-        	message += System.getProperty("line.separator") + extraMessage;
-    	InputDialog dialog= new ModelessInputDialog(null, title, message, initialValue, validator){
-        	@Override
-			protected Control createDialogArea(Composite parent) {
-        		IWorkbench workbench = PlatformUI.getWorkbench();
-        		workbench.getHelpSystem().setHelp(parent, Activator.PLUGIN_ID + "." + helpContext);
-        		return super.createDialogArea(parent);
-        	}
-        };
-        if (dialog.open() == Window.OK) {
-            String stringValue = dialog.getValue();
-        	return stringValue;
-    	}
-        return null;
-    }
-    
-    // Adapted from http://www.eclipse.org/forums/index.php/mv/tree/4336/.
-    // TODO: Using this allows the user to do some weird things like continue execution, which can potentially do weird things.
-    private static class ModelessInputDialog extends InputDialog
-    {
-    	public ModelessInputDialog(Shell parentShell, String dialogTitle, String dialogMessage, String initialValue, IInputValidator validator) {
-    		super(parentShell, dialogTitle, dialogMessage, initialValue, validator);
-    		setBlockOnOpen(false);
-    	}
-
-    	@Override
-		protected void setShellStyle(int newShellStyle)
-    	{
-    		int newstyle = newShellStyle & ~SWT.APPLICATION_MODAL; // turn off APPLICATION_MODAL
-    		newstyle |= SWT.MODELESS; // turn on MODELESS
-    		super.setShellStyle(newstyle);
-    	}
-
-    	@Override
-		public int open()
-    	{
-    		int retVal = super.open();
-    		pumpMessages(); // this will let the caller wait till OK, Cancel is pressed, but will let the other GUI responsive
-    		return retVal; // TODO: Since open() returns immediately, we don't get the real return value.  Specifically, if the user clicks Cancel, we think they clicked OK.
-    	}
-
-    	protected void pumpMessages()
-    	{
-    		Shell shell = getShell();
-    		Display display = shell.getDisplay();
-    		while (!shell.isDisposed())
-    			if (!display.readAndDispatch())
-    				display.sleep();
-    		display.update();
-    	}
-    }
-
-    private static class LambdaPropertyValidator implements IInputValidator {
-    	
-    	private final IJavaStackFrame stackFrame;
-    	private final IJavaProject project;
-    	private final IType varType;
-    	private final IType thisType;
-    	private final IAstEvaluationEngine evaluationEngine;
-    	private final String varName;
-    	
-    	public LambdaPropertyValidator(IJavaStackFrame stackFrame, IJavaProject project, IType varType, IType thisType, String varName) {
-    		this.stackFrame = stackFrame;
-    		this.project = project;
-    		this.varType = varType;
-    		this.thisType = thisType;
-    		this.evaluationEngine = getASTEvaluationEngine(stackFrame);
-    		this.varName = varName;
-    	}
-        
-        @Override
-		public String isValid(String newText) {
-        	return LambdaProperty.isLegalProperty(newText, stackFrame, project, varType, thisType, evaluationEngine, varName);
-        }
-    }
-
-    private static class ExpressionValidator implements IInputValidator {
-    	
-        private final static ASTParser parser = ASTParser.newParser(AST.JLS4);
-        private final IJavaStackFrame stackFrame;
-        private final IAstEvaluationEngine evaluationEngine;
-        private final String varTypeName;
-        
-        public ExpressionValidator(IJavaStackFrame stackFrame, String varTypeName) {
-        	this.stackFrame = stackFrame;
-        	this.evaluationEngine = getASTEvaluationEngine(stackFrame);
-        	this.varTypeName = varTypeName;
-        }
-        
-        @Override
-		public String isValid(String newText) {
-        	ASTNode node = EclipseUtils.parseExpr(parser, newText);
-        	if (node instanceof CompilationUnit)
-        		return "Enter a valid expression: " + ((CompilationUnit)node).getProblems()[0].getMessage();
-			String compileErrors = getCompileErrors(newText, varTypeName, stackFrame, evaluationEngine);
-			if (compileErrors != null)
-				return compileErrors;
-        	return null;
-        }
-    }
-
-    /**
-     * A validator that ensures that the entered text is a type
-     * that is a subtype of the given variable's type.
-     */
-    private static class TypeValidator implements IInputValidator {
-    	
-    	private final IJavaProject project;
-    	private final IType varType;
-    	private final IType thisType;
-    	
-    	public TypeValidator(IJavaProject project, IType varType, IType thisType) {
-    		this.project = project;
-    		this.varType = varType;
-    		this.thisType = thisType;
-    	}
-        
-        @Override
-		public String isValid(String newText) {
-        	return getValidTypeError(project, varType, thisType, newText);
-        }
     }
     
     public static String getValidTypeError(IJavaProject project, IType varType, IType thisType, String newTypeName) {
@@ -640,40 +363,6 @@ public class EclipseUtils {
     	} catch (DebugException e) {
 			throw new RuntimeException(e);
 		}
-    }
-
-    private static class StatePropertyValidator implements IInputValidator {
-    	
-        private final IJavaStackFrame stackFrame;
-        private final IAstEvaluationEngine evaluationEngine;
-        
-        public StatePropertyValidator(IJavaStackFrame stackFrame) {
-        	this.stackFrame = stackFrame;
-        	this.evaluationEngine = getASTEvaluationEngine(stackFrame);
-        }
-        
-        @Override
-		public String isValid(String newText) {
-        	return StateProperty.isLegalProperty(newText, stackFrame, evaluationEngine);
-        }
-    }
-
-    private static class ExpressionSkeletonValidator implements IInputValidator {
-    	
-        private final IJavaStackFrame stackFrame;
-        private final IAstEvaluationEngine evaluationEngine;
-        private final String varTypeName;
-        
-        public ExpressionSkeletonValidator(IJavaStackFrame stackFrame, String varTypeName) {
-        	this.stackFrame = stackFrame;
-        	this.evaluationEngine = getASTEvaluationEngine(stackFrame);
-        	this.varTypeName = varTypeName;
-        }
-        
-        @Override
-		public String isValid(String newText) {
-        	return ExpressionSkeleton.isLegalSkeleton(newText, varTypeName, stackFrame, evaluationEngine);
-        }
     }
     
    	public static void insertIndentedLineAtCurrentDebugPoint(String text) throws BadLocationException, DebugException {

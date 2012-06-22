@@ -5,10 +5,13 @@ import java.util.regex.Pattern;
 
 import org.eclipse.debug.core.DebugException;
 import org.eclipse.debug.core.model.IVariable;
+import org.eclipse.jdt.debug.core.IJavaVariable;
 import org.eclipse.swt.widgets.Shell;
 
 import codehint.utils.EclipseUtils;
 import codehint.Synthesizer;
+import codehint.dialogs.StatePropertyDialog;
+import codehint.dialogs.SynthesisDialog;
 import codehint.property.Property;
 import codehint.property.StateProperty;
 
@@ -35,11 +38,11 @@ public class DemonstrateStatePropertyHandler extends CommandHandler {
 			initValue = matcher.group(2);
 		} else {
 			Property lastCrashedProperty = Synthesizer.getLastCrashedProperty(path);
-			initValue = lastCrashedProperty instanceof StateProperty ? lastCrashedProperty.toString() : null;
+			initValue = lastCrashedProperty instanceof StateProperty ? lastCrashedProperty.toString() : "";
 		}
-    	StateProperty property = EclipseUtils.getStateProperty(path, shell, initValue, null);
-    	if (property != null)
-        	Synthesizer.synthesizeAndInsertExpressions(variable, path, property, shell, matcher != null);
+		String varTypeName = EclipseUtils.sanitizeTypename(((IJavaVariable)variable).getJavaType().getName());
+		SynthesisDialog dialog = new StatePropertyDialog(path, varTypeName, shell, initValue, null, true);
+    	Synthesizer.synthesizeAndInsertExpressions(variable, path, dialog, shell, matcher != null);
     }
 
 	public static void handleFromText(Matcher matcher) {
