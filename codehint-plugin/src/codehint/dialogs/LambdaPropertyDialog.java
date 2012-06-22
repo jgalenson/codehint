@@ -20,20 +20,19 @@ public class LambdaPropertyDialog extends SynthesisDialog {
 	private final String initialPdspecText;
 	private final IInputValidator pdspecValidator;
     
-    public LambdaPropertyDialog(String varName, String varTypeName, IJavaType varStaticType, Shell shell, String initialValue, String extraMessage, boolean getSkeleton) {
-    	super(shell, varName, varTypeName, getSkeleton);
+    public LambdaPropertyDialog(String varName, String varTypeName, IJavaType varStaticType, IJavaStackFrame stack, Shell shell, String initialValue, String extraMessage, boolean getSkeleton) {
+    	super(shell, varName, varTypeName, stack, getSkeleton);
     	String pdspecMessage = "Demonstrate a property (in the form of a boolean lambda expression) that should hold for " + varName + " after this statement is executed.";
     	this.pdspecMessage = getFullMessage(pdspecMessage, extraMessage);
     	try {
-	    	IJavaStackFrame stackFrame = EclipseUtils.getStackFrame();
-			IJavaProject project = EclipseUtils.getProject(stackFrame);
-			IType thisType = EclipseUtils.getThisType(project, stackFrame);
+			IJavaProject project = EclipseUtils.getProject(stack);
+			IType thisType = EclipseUtils.getThisType(project, stack);
 			IType varType = project.findType(varTypeName);
 			if (initialValue.length() > 0)
 				this.initialPdspecText = initialValue;
 			else
-				this.initialPdspecText = getDefaultLambdaArgName(stackFrame) + getDefaultTypeName(varStaticType, project, varType, thisType, varTypeName) + " => ";
-	    	this.pdspecValidator = new LambdaPropertyValidator(stackFrame, project, varType, thisType, varName);
+				this.initialPdspecText = getDefaultLambdaArgName(stack) + getDefaultTypeName(varStaticType, project, varType, thisType, varTypeName) + " => ";
+	    	this.pdspecValidator = new LambdaPropertyValidator(stack, project, varType, thisType, varName);
     	} catch (JavaModelException e) {
  			throw new RuntimeException(e);
  		} catch (DebugException e) {

@@ -18,13 +18,13 @@ public abstract class ValuePropertyDialog extends SynthesisDialog {
 	private final String initialPdspecText;
 	private final IInputValidator pdspecValidator;
     
-    public ValuePropertyDialog(String varName, String varTypeName, Shell shell, String initialValue, String extraMessage, boolean getSkeleton) {
-    	super(shell, varName, varTypeName, getSkeleton);
+    public ValuePropertyDialog(String varName, String varTypeName, IJavaStackFrame stack, Shell shell, String initialValue, String extraMessage, boolean getSkeleton) {
+    	super(shell, varName, varTypeName, stack, getSkeleton);
     	this.varName = varName;
     	String pdspecMessage = "Demonstrate an expression for " + varName + ".  We will find expressions that evaluate to the same value.";
     	this.pdspecMessage = getFullMessage(pdspecMessage, extraMessage);
     	this.initialPdspecText = initialValue;
-    	this.pdspecValidator = new ExpressionValidator(EclipseUtils.getStackFrame(), varTypeName);
+    	this.pdspecValidator = new ExpressionValidator(stack, varTypeName);
     }
 
 	@Override

@@ -5,6 +5,7 @@ import java.util.regex.Pattern;
 
 import org.eclipse.debug.core.DebugException;
 import org.eclipse.debug.core.model.IVariable;
+import org.eclipse.jdt.debug.core.IJavaStackFrame;
 import org.eclipse.jdt.debug.core.IJavaVariable;
 import org.eclipse.swt.widgets.Shell;
 
@@ -23,13 +24,14 @@ public class DemonstrateValueHandler extends CommandHandler {
     @Override
 	public void handle(IVariable variable, String path, Shell shell) {
     	try {
-    		handle(variable, path, shell, getInitialConditionFromCurLine(PATTERN));
+    		IJavaStackFrame stack = EclipseUtils.getStackFrame();
+    		handle(variable, path, shell, getInitialConditionFromCurLine(PATTERN, stack), stack);
         } catch (DebugException e) {
         	throw new RuntimeException(e);
         }
     }
 	
-	private static void handle(IVariable variable, String path, Shell shell, Matcher matcher) throws DebugException {
+	private static void handle(IVariable variable, String path, Shell shell, Matcher matcher, IJavaStackFrame stack) throws DebugException {
 		String initValue = null;
 		if (matcher != null) {
 			if (!matcher.group(1).equals(variable.getName())) {
@@ -44,17 +46,17 @@ public class DemonstrateValueHandler extends CommandHandler {
 		String varTypeName = EclipseUtils.sanitizeTypename(((IJavaVariable)variable).getJavaType().getName());
 		SynthesisDialog dialog = null;
 		if (EclipseUtils.isObject(variable))
-			dialog = new ObjectValuePropertyDialog(path, varTypeName, shell, initValue, null, true);
+			dialog = new ObjectValuePropertyDialog(path, varTypeName, stack, shell, initValue, null, true);
 		else
-			dialog = new PrimitiveValuePropertyDialog(path, varTypeName, shell, initValue, null, true);
-    	Synthesizer.synthesizeAndInsertExpressions(variable, path, dialog, shell, initValue != null);
+			dialog = new PrimitiveValuePropertyDialog(path, varTypeName, stack, shell, initValue, null, true);
+    	Synthesizer.synthesizeAndInsertExpressions(variable, path, dialog, stack, shell, initValue != null);
     }
 
-	public static void handleFromText(Matcher matcher) {
+	public static void handleFromText(Matcher matcher, IJavaStackFrame stack) {
     	try {
 			String varName = matcher.group(1);
-			IVariable var = EclipseUtils.getStackFrame().findVariable(varName);
-			handle(var, varName, EclipseUtils.getShell(), matcher);
+			IVariable var = stack.findVariable(varName);
+			handle(var, varName, EclipseUtils.getShell(), matcher, stack);
 		} catch (DebugException e) {
 			throw new RuntimeException(e);
 		}

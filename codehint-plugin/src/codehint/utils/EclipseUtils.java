@@ -365,8 +365,7 @@ public class EclipseUtils {
 		}
     }
     
-   	public static void insertIndentedLineAtCurrentDebugPoint(String text) throws BadLocationException, DebugException {
-   		int line = getStackFrame().getLineNumber() - 1;
+   	public static void insertIndentedLineAtCurrentDebugPoint(String text, int line) throws BadLocationException {
    		IDocument document = getDocument();
    		
    		int offset = document.getLineOffset(line);
@@ -385,8 +384,7 @@ public class EclipseUtils {
 
    	}
    	
-   	public static void replaceLineAtCurrentDebugPoint(String newText) throws DebugException, BadLocationException {
-   		int line = getStackFrame().getLineNumber() - 1;
+   	public static void replaceLineAtCurrentDebugPoint(String newText, int line) throws BadLocationException {
    		replaceLine(newText, line);
    	}
    	
@@ -440,27 +438,27 @@ public class EclipseUtils {
     /**
      * Evaluates the given snippet. Reports any errors to the user.
      * @param stringValue the snippet to evaluate
+     * @param stack The current stack frame.
      * @return the value that was computed or <code>null</code> if any errors occurred.
      * @throws DebugException 
      */
    	// TODO: Integrate with codehint.expreval code?
-    public static IJavaValue evaluate(String stringValue) throws DebugException {
-        final IJavaStackFrame frame = getStackFrame();
-        IAstEvaluationEngine engine = getASTEvaluationEngine(frame);
+    public static IJavaValue evaluate(String stringValue, final IJavaStackFrame stack) throws DebugException {
+        IAstEvaluationEngine engine = getASTEvaluationEngine(stack);
         final IEvaluationResult[] results = new IEvaluationResult[1];
         IEvaluationListener listener = new IEvaluationListener() {
             @Override
 			public void evaluationComplete(IEvaluationResult result) {
-                synchronized (frame) {
+                synchronized (stack) {
                     results[0] = result;
-                    frame.notifyAll();
+                    stack.notifyAll();
                 }
             }
         };
-		synchronized(frame) {
-            engine.evaluate(stringValue, frame, listener, DebugEvent.EVALUATION_IMPLICIT, false);
+		synchronized(stack) {
+            engine.evaluate(stringValue, stack, listener, DebugEvent.EVALUATION_IMPLICIT, false);
 			try {
-				frame.wait();
+				stack.wait();
 			} catch (InterruptedException e) {
 				if (results[0] == null)
 					throw new RuntimeException(e);
@@ -500,7 +498,7 @@ public class EclipseUtils {
     // TODO: There must be a better way to do this.
     private static void loadClass(String typeName) {
     	try {
-    		evaluate(sanitizeTypename(typeName) + ".class");
+    		evaluate(sanitizeTypename(typeName) + ".class", EclipseUtils.getStackFrame());
     	} catch (DebugException e) {
     		throw new RuntimeException(e);
     	}

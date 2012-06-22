@@ -9,6 +9,7 @@ import org.eclipse.core.commands.ExecutionException;
 import org.eclipse.debug.core.DebugException;
 import org.eclipse.debug.core.model.IVariable;
 import org.eclipse.jdt.debug.core.IJavaFieldVariable;
+import org.eclipse.jdt.debug.core.IJavaStackFrame;
 import org.eclipse.jdt.debug.core.IJavaVariable;
 import org.eclipse.jface.text.BadLocationException;
 import org.eclipse.jface.text.IDocument;
@@ -68,9 +69,9 @@ public abstract class CommandHandler extends AbstractHandler {
     	return sb.toString();
     }
     
-    protected static Matcher getInitialConditionFromCurLine(Pattern pattern) throws DebugException {
+    protected static Matcher getInitialConditionFromCurLine(Pattern pattern, IJavaStackFrame stack) throws DebugException {
     	try {
-			int lineNum = EclipseUtils.getStackFrame().getLineNumber() - 1;
+			int lineNum = stack.getLineNumber() - 1;
 			IDocument document = EclipseUtils.getDocument();
 			String fullCurLine = document.get(document.getLineOffset(lineNum), document.getLineLength(lineNum));
        		Matcher matcher = pattern.matcher(fullCurLine);

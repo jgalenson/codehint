@@ -14,13 +14,15 @@ public class StatePropertyDialog extends SynthesisDialog {
 	private final String varName;
 	private final String pdspecMessage;
 	private final String initialPdspecText;
+	private final IInputValidator pdspecValidator;
     
-    public StatePropertyDialog(String varName, String varTypeName, Shell shell, String initialValue, String extraMessage, boolean getSkeleton) {
-    	super(shell, varName, varTypeName, getSkeleton);
+    public StatePropertyDialog(String varName, String varTypeName, IJavaStackFrame stack, Shell shell, String initialValue, String extraMessage, boolean getSkeleton) {
+    	super(shell, varName, varTypeName, stack, getSkeleton);
     	this.varName = varName;
     	String pdspecMessage = "Demonstrate a state property that should hold for " + varName + " after this statement is executed.  You may refer to the values of variables after this statement is executed using the prime syntax, e.g., " + varName + "\'";
     	this.pdspecMessage = getFullMessage(pdspecMessage, extraMessage);
     	this.initialPdspecText = initialValue;
+    	this.pdspecValidator = new StatePropertyValidator(stack);
     }
 
 	@Override
@@ -35,7 +37,7 @@ public class StatePropertyDialog extends SynthesisDialog {
 
 	@Override
 	protected IInputValidator getPdspecValidator() {
-		return new StatePropertyValidator(EclipseUtils.getStackFrame());
+		return pdspecValidator;
 	}
 
 	private static class StatePropertyValidator implements IInputValidator {

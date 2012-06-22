@@ -36,7 +36,7 @@ public abstract class SynthesisDialog extends ModelessDialog {
 	
 	private boolean getSkeleton;
 
-	protected SynthesisDialog(Shell parentShell, String varName, String varTypeName, boolean getSkeleton) {
+	protected SynthesisDialog(Shell parentShell, String varName, String varTypeName, IJavaStackFrame stack, boolean getSkeleton) {
 		super(parentShell);
 		this.pdspecResult = null;
 		ExpressionSkeleton lastCrashedSkeleton = Synthesizer.getLastCrashedSkeleton(varName);
@@ -44,7 +44,7 @@ public abstract class SynthesisDialog extends ModelessDialog {
 			this.initialSkeletonText = ExpressionSkeleton.HOLE_SYNTAX;
 		else
 			this.initialSkeletonText = lastCrashedSkeleton.getSugaredString();
-		this.skeletonValidator = new ExpressionSkeletonValidator(EclipseUtils.getStackFrame(), varTypeName);
+		this.skeletonValidator = new ExpressionSkeletonValidator(stack, varTypeName);
 		this.skeletonResult = null;
 		this.getSkeleton = getSkeleton;
 	}

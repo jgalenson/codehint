@@ -18,14 +18,13 @@ public class TypePropertyDialog extends SynthesisDialog {
 	private final String initialPdspecText;
 	private final IInputValidator pdspecValidator;
 	
-    public TypePropertyDialog(String varName, String varTypeName, Shell shell, String initialValue, String extraMessage, boolean getSkeleton) {
-    	super(shell, varName, varTypeName, getSkeleton);
+    public TypePropertyDialog(String varName, String varTypeName, IJavaStackFrame stack, Shell shell, String initialValue, String extraMessage, boolean getSkeleton) {
+    	super(shell, varName, varTypeName, stack, getSkeleton);
     	String pdspecMessage = "Demonstrate a type for " + varName + ".  We will find expressions return that type when evaluated.";
     	this.pdspecMessage = getFullMessage(pdspecMessage, extraMessage);
     	try {
-	    	IJavaStackFrame stackFrame = EclipseUtils.getStackFrame();
-			IJavaProject project = EclipseUtils.getProject(stackFrame);
-			IType thisType = EclipseUtils.getThisType(project, stackFrame);
+			IJavaProject project = EclipseUtils.getProject(stack);
+			IType thisType = EclipseUtils.getThisType(project, stack);
 			IType varType = project.findType(varTypeName);
 			if (thisType != null && thisType.resolveType(EclipseUtils.getUnqualifiedName(initialValue)) != null)
 				initialValue = EclipseUtils.getUnqualifiedName(initialValue);

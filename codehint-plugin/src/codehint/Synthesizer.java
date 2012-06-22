@@ -96,7 +96,7 @@ public class Synthesizer {
 	private static ExpressionSkeleton lastCrashedSkeleton;
 	private static Property lastCrashedProperty;
 	
-	public static void synthesizeAndInsertExpressions(final IVariable variable, final String fullVarName, final SynthesisDialog synthesisDialog, Shell shell, final boolean replaceCurLine) {
+	public static void synthesizeAndInsertExpressions(final IVariable variable, final String fullVarName, final SynthesisDialog synthesisDialog, final IJavaStackFrame stack, Shell shell, final boolean replaceCurLine) {
 		try {
 			synthesisDialog.open();
 			final Property property = synthesisDialog.getProperty();
@@ -106,7 +106,6 @@ public class Synthesizer {
 			
 			EclipseUtils.log("Beginning synthesis for " + variable.toString() + " with property " + property.toString() + " and skeleton " + skeleton.toString() + ".");
 	
-			final IJavaStackFrame frame = EclipseUtils.getStackFrame();
 			final IJavaType varStaticType = ((IJavaVariable)variable).getJavaType();
 	
 			// Compute a list of expressions that generate that value as possible choices for expressions.
@@ -116,7 +115,7 @@ public class Synthesizer {
 					try {
 						IJavaDebugTarget target = (IJavaDebugTarget)variable.getDebugTarget();
 
-						final List<EvaluatedExpression> validExpressions = skeleton.synthesize(target, frame, property, varStaticType, monitor);
+						final List<EvaluatedExpression> validExpressions = skeleton.synthesize(target, stack, property, varStaticType, monitor);
 	
 				    	if (validExpressions.isEmpty())
 							return new Status(IStatus.ERROR, Activator.PLUGIN_ID, "No valid expressions were found.");
@@ -125,7 +124,7 @@ public class Synthesizer {
 	                        @Override
 	                        public IStatus runInUIThread(IProgressMonitor monitor) {
 								try {
-									CandidateSelector candidateSelector = new CandidateSelector(validExpressions.toArray(new EvaluatedExpression[0]));
+									CandidateSelector candidateSelector = new CandidateSelector(validExpressions.toArray(new EvaluatedExpression[validExpressions.size()]), stack);
 									List<EvaluatedExpression> finalExpressions = candidateSelector.getUserFilteredCandidates();
 	
 							        if (finalExpressions == null) {
@@ -145,9 +144,9 @@ public class Synthesizer {
 									//Insert the new text
 									try {
 										if (replaceCurLine)
-											EclipseUtils.replaceLineAtCurrentDebugPoint(statement);
+											EclipseUtils.replaceLineAtCurrentDebugPoint(statement, stack.getLineNumber() - 1);
 										else
-											EclipseUtils.insertIndentedLineAtCurrentDebugPoint(statement);
+											EclipseUtils.insertIndentedLineAtCurrentDebugPoint(statement, stack.getLineNumber() - 1);
 									} catch (BadLocationException e) {
 										throw new RuntimeException(e);
 									}
@@ -162,13 +161,13 @@ public class Synthesizer {
 									// Note: This is not how the variable visit does this, 
 									// hopefully, we get the same value
 				
-									int line = frame.getLineNumber();  // Comment from Eclipse sources: Document line numbers are 0-based. Debug line numbers are 1-based.
+									int line = stack.getLineNumber();  // Comment from Eclipse sources: Document line numbers are 0-based. Debug line numbers are 1-based.
 									assert line >= 0;
 				
 									ITextEditor editor = EclipseUtils.getActiveTextEditor();
 									assert editor != null;
 				
-									String typename = frame.getDeclaringTypeName();
+									String typename = stack.getDeclaringTypeName();
 									IResource resource = (IResource)editor.getEditorInput().getAdapter(IResource.class);
 				
 									try {
@@ -227,8 +226,8 @@ public class Synthesizer {
 		
 		private final ListSelectionDialog dialog;
 		
-		public CandidateSelector(EvaluatedExpression[] validExprs) {
-			dialog = new MyDialog(EclipseUtils.getShell(), "", new MyContentProvider(validExprs), new MyLabelProvider(validExprs), "Select the candidates to keep.  The expressions are on the left and their values are on the right.  Objects have their toStrings shown.");
+		public CandidateSelector(EvaluatedExpression[] validExprs, IJavaStackFrame stack) {
+			dialog = new MyDialog(EclipseUtils.getShell(), "", new MyContentProvider(validExprs), new MyLabelProvider(validExprs, stack), "Select the candidates to keep.  The expressions are on the left and their values are on the right.  Objects have their toStrings shown.");
 			dialog.setInitialSelections(validExprs);
 			dialog.setTitle("Select candidates");
 		}
@@ -278,13 +277,15 @@ public class Synthesizer {
 
 			private final int maxSnippetLength;
 			private final List<ILabelProviderListener> listeners = new ArrayList<ILabelProviderListener>();
+			private final IJavaStackFrame stack;
 			
-			public MyLabelProvider(EvaluatedExpression[] validExprs) {
+			public MyLabelProvider(EvaluatedExpression[] validExprs, IJavaStackFrame stack) {
 				int maxSnippetLen = -1;
 				for (EvaluatedExpression e: validExprs)
 					if (e.getSnippet().length() > maxSnippetLen)
 						maxSnippetLen = e.getSnippet().length();
 				maxSnippetLength = maxSnippetLen;
+				this.stack = stack;
 			}
 
 			@Override
@@ -317,7 +318,7 @@ public class Synthesizer {
 				String str = cur.getSnippet();
 				for (int i = str.length(); i < maxSnippetLength; i++)
 					str += " ";
-				str += "  " + getValue(cur);
+				str += "  " + getValue(cur, stack);
 				return str;
 			}
 			
@@ -365,7 +366,7 @@ public class Synthesizer {
 	               			return;  // We often get duplicate events that would trigger this, but they must all be equivalent, so only handle the first. 
 	               		}
 	               		
-	               		checkLineForSpecs(fullCurLine);
+	               		checkLineForSpecs(fullCurLine, frame);
 					} catch (DebugException e) {
 						e.printStackTrace();
 			        	EclipseUtils.showError("Error", "An error occurred during refinement.", e);
@@ -429,7 +430,7 @@ public class Synthesizer {
    	   				}
    	   			});
        			// Get the new concrete value from the user.
-   				Property property = getPropertyFromUser(varname, varStaticType, varStaticTypeName, "\nPotential values are: " + getLegalValues(exprs), frame, initialProperty);
+   				Property property = getPropertyFromUser(varname, varStaticType, varStaticTypeName, "\nPotential values are: " + getLegalValues(exprs, frame), frame, initialProperty);
        			if (property == null) {
        				//The user cancelled, just drop back into the debugger and let the 
        				//use do what they want.  Attempting to execute the line will result
@@ -483,13 +484,13 @@ public class Synthesizer {
    			thread.resume();
 	    }
 	    
-	    private static void checkLineForSpecs(String fullCurLine) {
+	    private static void checkLineForSpecs(String fullCurLine, final IJavaStackFrame stack) {
 	    	final Matcher statePropertyMatcher = DemonstrateStatePropertyHandler.PATTERN.matcher(fullCurLine);
        		if(statePropertyMatcher.matches()) {
             	Display.getDefault().asyncExec(new Runnable(){
     				@Override
     				public void run() {
-                    	DemonstrateStatePropertyHandler.handleFromText(statePropertyMatcher);
+                    	DemonstrateStatePropertyHandler.handleFromText(statePropertyMatcher, stack);
     				}
             	});
             	return;
@@ -500,7 +501,7 @@ public class Synthesizer {
             	Display.getDefault().asyncExec(new Runnable(){
     				@Override
     				public void run() {
-                    	DemonstrateValueHandler.handleFromText(valuePropertyMatcher);
+                    	DemonstrateValueHandler.handleFromText(valuePropertyMatcher, stack);
     				}
             	});
             	return;
@@ -511,7 +512,7 @@ public class Synthesizer {
             	Display.getDefault().asyncExec(new Runnable(){
     				@Override
     				public void run() {
-                    	DemonstrateTypeHandler.handleFromText(typePropertyMatcher);
+                    	DemonstrateTypeHandler.handleFromText(typePropertyMatcher, stack);
     				}
             	});
             	return;
@@ -572,15 +573,15 @@ public class Synthesizer {
 	    				Shell shell = EclipseUtils.getShell();
 	    				SynthesisDialog dialog = null;
 		    			if (oldProperty == null || oldProperty instanceof StateProperty)
-		    				dialog = new StatePropertyDialog(varName, varStaticTypeName, shell, oldProperty == null ? "" : oldProperty.toString(), extraMessage, false);
+		    				dialog = new StatePropertyDialog(varName, varStaticTypeName, stackFrame, shell, oldProperty == null ? "" : oldProperty.toString(), extraMessage, false);
 		    			else if (oldProperty instanceof PrimitiveValueProperty)
-		    				dialog = new PrimitiveValuePropertyDialog(varName, varStaticTypeName, shell, "", extraMessage, false);
+		    				dialog = new PrimitiveValuePropertyDialog(varName, varStaticTypeName, stackFrame, shell, "", extraMessage, false);
 		    			else if (oldProperty instanceof ObjectValueProperty)
-		    				dialog = new ObjectValuePropertyDialog(varName, varStaticTypeName, shell, "", extraMessage, false);
+		    				dialog = new ObjectValuePropertyDialog(varName, varStaticTypeName, stackFrame, shell, "", extraMessage, false);
 		    			else if (oldProperty instanceof TypeProperty)
-		    				dialog = new TypePropertyDialog(varName, varStaticTypeName, shell, ((TypeProperty)oldProperty).getTypeName(), extraMessage, false);
+		    				dialog = new TypePropertyDialog(varName, varStaticTypeName, stackFrame, shell, ((TypeProperty)oldProperty).getTypeName(), extraMessage, false);
 		    			else if (oldProperty instanceof LambdaProperty)
-		    				dialog = new LambdaPropertyDialog(varName, varStaticType.getName(), varStaticType, shell, oldProperty.toString(), extraMessage, false);
+		    				dialog = new LambdaPropertyDialog(varName, varStaticType.getName(), varStaticType, stackFrame, shell, oldProperty.toString(), extraMessage, false);
 		    			dialog.open();
 		    			result[0] = dialog.getProperty();
 	    			} catch (DebugException e) {
@@ -624,19 +625,19 @@ public class Synthesizer {
 	    	return null;
 	    }
 	    
-	    private static String getLegalValues(List<EvaluatedExpression> exprs) {
+	    private static String getLegalValues(List<EvaluatedExpression> exprs, IJavaStackFrame stack) {
 	    	StringBuilder sb = new StringBuilder();
 	    	for (EvaluatedExpression e: exprs) {
 	    		if (sb.length() > 0)
 	    			sb.append(", ");
-	    		sb.append(getValue(e));
+	    		sb.append(getValue(e, stack));
 	    	}
 	    	return sb.toString();
 	    }
 	    
 	}
 	
-	private static String getValue(EvaluatedExpression cur) {
+	private static String getValue(EvaluatedExpression cur, IJavaStackFrame stack) {
 		try {
 			// TODO-optimization: I can compute this in EvaluationManager (only if the spec is true) and store it in the EvaluatedExpression to reduce overheads.
 			if (cur.getResult() instanceof IJavaPrimitiveValue)
@@ -644,11 +645,11 @@ public class Synthesizer {
 			else if (cur.getResult().isNull())
 				return "null";
 			else if (cur.getResult() instanceof IJavaArray)
-				return EclipseUtils.evaluate("java.util.Arrays.toString(" + cur.getSnippet() + ")").getValueString();
+				return EclipseUtils.evaluate("java.util.Arrays.toString(" + cur.getSnippet() + ")", stack).getValueString();
 			else if ("Ljava/lang/String;".equals(cur.getResult().getSignature()))
-				return EclipseUtils.javaStringOfValue(EclipseUtils.evaluate("(" + cur.getSnippet() + ").toString()"));
+				return EclipseUtils.javaStringOfValue(EclipseUtils.evaluate("(" + cur.getSnippet() + ").toString()", stack));
 			else
-				return EclipseUtils.evaluate("(" + cur.getSnippet() + ").toString()").getValueString();
+				return EclipseUtils.evaluate("(" + cur.getSnippet() + ").toString()", stack).getValueString();
 		} catch (DebugException e) {
 			throw new RuntimeException(e);
 		}
