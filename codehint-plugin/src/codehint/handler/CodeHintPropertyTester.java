@@ -12,7 +12,7 @@ public class CodeHintPropertyTester extends PropertyTester {
 	public boolean test(Object receiver, String property, Object[] args, Object expectedValue) {
 		IStructuredSelection selection = (IStructuredSelection)receiver;
 		IVariable variable = (IVariable)selection.getFirstElement();
-		return EclipseUtils.isObject(variable);
+		return !EclipseUtils.isPrimitive(variable);
 	}
 
 }

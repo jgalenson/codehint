@@ -11,6 +11,7 @@ import org.eclipse.swt.widgets.Shell;
 
 import codehint.utils.EclipseUtils;
 import codehint.Synthesizer;
+import codehint.dialogs.ArrayValuePropertyDialog;
 import codehint.dialogs.ObjectValuePropertyDialog;
 import codehint.dialogs.PrimitiveValuePropertyDialog;
 import codehint.dialogs.SynthesisDialog;
@@ -47,6 +48,8 @@ public class DemonstrateValueHandler extends CommandHandler {
 		SynthesisDialog dialog = null;
 		if (EclipseUtils.isObject(variable))
 			dialog = new ObjectValuePropertyDialog(path, varTypeName, stack, shell, initValue, null, true);
+		else if (EclipseUtils.isArray(variable))
+			dialog = new ArrayValuePropertyDialog(path, varTypeName, stack, shell, initValue, null, true);
 		else
 			dialog = new PrimitiveValuePropertyDialog(path, varTypeName, stack, shell, initValue, null, true);
     	Synthesizer.synthesizeAndInsertExpressions(variable, path, dialog, stack, shell, initValue != null);

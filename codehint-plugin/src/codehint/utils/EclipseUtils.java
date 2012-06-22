@@ -24,6 +24,7 @@ import org.eclipse.jdt.core.JavaModelException;
 import org.eclipse.jdt.core.Signature;
 import org.eclipse.jdt.core.dom.ASTNode;
 import org.eclipse.jdt.core.dom.ASTParser;
+import org.eclipse.jdt.debug.core.IJavaArray;
 import org.eclipse.jdt.debug.core.IJavaDebugTarget;
 import org.eclipse.jdt.debug.core.IJavaStackFrame;
 import org.eclipse.jdt.debug.core.IJavaType;
@@ -67,18 +68,17 @@ public class EclipseUtils {
 		return ((IJavaElement)sourceElement).getJavaProject();
 	}
     
-    public static String getSignature(IVariable variable) throws DebugException {
-        IJavaVariable javaVariable = (IJavaVariable)variable.getAdapter(IJavaVariable.class);
-        return javaVariable.getSignature();
-    }
-    
-    public static boolean isObject(IVariable variable) {
-		try {
-			String signature = getSignature(variable);
-	    	return isObject(signature);
+    public static String getSignature(IVariable variable) {
+    	try {
+	        IJavaVariable javaVariable = (IJavaVariable)variable.getAdapter(IJavaVariable.class);
+	        return javaVariable.getSignature();
 		} catch (DebugException e) {
 			throw new RuntimeException(e);
 		}
+    }
+    
+    public static boolean isObject(IVariable variable) {
+    	return isObject(getSignature(variable));
     }
     
     public static boolean isObject(IJavaType type) throws DebugException {
@@ -89,8 +89,20 @@ public class EclipseUtils {
     	return Signature.getTypeSignatureKind(signature) == Signature.CLASS_TYPE_SIGNATURE;
     }
     
+    public static boolean isPrimitive(IVariable variable) {
+    	return isPrimitive(getSignature(variable));
+    }
+    
     public static boolean isPrimitive(IJavaType type) throws DebugException {
-    	return type != null && Signature.getTypeSignatureKind(type.getSignature()) == Signature.BASE_TYPE_SIGNATURE;
+    	return type != null && isPrimitive(type.getSignature());
+    }
+    
+    private static boolean isPrimitive(String signature) {
+    	return Signature.getTypeSignatureKind(signature) == Signature.BASE_TYPE_SIGNATURE;
+    }
+    
+    public static boolean isArray(IVariable variable) {
+    	return Signature.getTypeSignatureKind(getSignature(variable)) == Signature.ARRAY_TYPE_SIGNATURE;
     }
    	
     // TODO: There must be a better way to do this through Eclipse.
@@ -164,14 +176,25 @@ public class EclipseUtils {
     
     /**
      * Returns a string representing the given value this is
-     * a legal Java expression.
+     * a legal Java expression, except in the case of arrays,
+     * where we show a debug-like view of them.
      * @param value The value whose string representation is desired.
      * @return A string that is the legal Java expression of
-     * the given value.
+     * the given value, except for arrays, which show their values.
      * @throws DebugException if we cannot get the value.
      */
     public static String javaStringOfValue(IJavaValue value) throws DebugException {
-    	if ("C".equals(value.getSignature()))
+    	if (value instanceof IJavaArray) {
+    		StringBuilder sb = new StringBuilder();
+    		sb.append("[");
+    		for (IJavaValue arrValue: ((IJavaArray)value).getValues()) {
+    			if (sb.length() > 1)
+    				sb.append(",");
+    			sb.append(javaStringOfValue(arrValue));
+    		}
+    		sb.append("]");
+    		return sb.toString();
+    	} else if ("C".equals(value.getSignature()))
     		return "'" + value.getValueString() + "'";
     	else if ("Ljava/lang/String;".equals(value.getSignature()))
     		return "\"" + value.getValueString() + "\"";
@@ -264,12 +287,21 @@ public class EclipseUtils {
 		return null;
     }
     
-    public static String getValidTypeError(IJavaProject project, IType varType, IType thisType, String newTypeName) {
+    public static String getValidTypeError(IJavaProject project, String varTypeName, IType thisType, String newTypeName) {
     	try {
-    		if (varType == null)
-    			return "You cannot enter a type for a primitive.";
     		if (thisType == null)
     			return null;
+    		if (varTypeName.equals(newTypeName))  // ITypes dislike primitive types, so this handles them.
+    			return null;
+    		int firstArrayVar = varTypeName.indexOf("[]");
+    		if (firstArrayVar != -1) {
+        		int firstArrayNew = newTypeName.indexOf("[]");
+    			if (firstArrayNew == -1 || varTypeName.length() - firstArrayVar != newTypeName.length() - firstArrayNew) {
+    				int count = (varTypeName.length() - firstArrayVar) / 2;
+    				return "Please enter a type with " + count + " array " + Utils.plural("dimension", "s", count) + ".";
+    			} else  // Recursively check the component types since there seem to be no ITypes for arrays....
+    				return getValidTypeError(project, varTypeName.substring(0, firstArrayVar), thisType, newTypeName.substring(0, firstArrayNew));
+    		}
     		String[][] allTypes = thisType.resolveType(newTypeName);
     		if (allTypes == null)
         		return "Please enter a valid type.";
@@ -283,9 +315,12 @@ public class EclipseUtils {
 				fullTypeName += typeParts[i];
 			}
         	IType curType = project.findType(fullTypeName);
-			if (curType.newSupertypeHierarchy(null).contains(varType))
-				return null;
-			return "Please enter a subtype of " + varType.getFullyQualifiedName('.') + ".";
+        	if (curType.getFullyQualifiedName('.').equals(varTypeName))  // The supertype hierarchy doesn't contain the type itself....
+        		return null;
+        	for (IType supertype: curType.newSupertypeHierarchy(null).getAllSupertypes(curType))
+        		if (supertype.getFullyQualifiedName('.').equals(varTypeName))
+        			return null;
+			return "Please enter a subtype of " + varTypeName + ".";
     	} catch (JavaModelException e) {
 			throw new RuntimeException(e);
 		}
@@ -318,6 +353,9 @@ public class EclipseUtils {
     		int firstArray = typeName.indexOf("[]");
     		String componentTypeName = firstArray == -1 ? typeName : typeName.substring(0, firstArray);
     		String arrayTypes = firstArray == -1 ? "" : typeName.substring(firstArray);
+    		// Handle primitives
+    		if ("int".equals(componentTypeName) || "boolean".equals(componentTypeName) || "long".equals(componentTypeName) || "byte".equals(componentTypeName) || "char".equals(componentTypeName) || "short".equals(componentTypeName) || "float".equals(componentTypeName) || "double".equals(componentTypeName))
+    			return getFullyQualifiedType(typeName, target);
     		// Find the full type name.
     		String[][] allTypes = thisType.resolveType(componentTypeName);
     		assert allTypes != null && allTypes.length == 1;

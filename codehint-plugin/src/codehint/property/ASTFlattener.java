@@ -6,11 +6,16 @@ import java.util.List;
 import org.eclipse.jdt.core.dom.ASTNode;
 import org.eclipse.jdt.core.dom.ASTVisitor;
 import org.eclipse.jdt.core.dom.ArrayAccess;
+import org.eclipse.jdt.core.dom.ArrayCreation;
+import org.eclipse.jdt.core.dom.ArrayInitializer;
+import org.eclipse.jdt.core.dom.ArrayType;
+import org.eclipse.jdt.core.dom.Assignment;
 import org.eclipse.jdt.core.dom.BooleanLiteral;
 import org.eclipse.jdt.core.dom.CastExpression;
 import org.eclipse.jdt.core.dom.CharacterLiteral;
 import org.eclipse.jdt.core.dom.ClassInstanceCreation;
 import org.eclipse.jdt.core.dom.ConditionalExpression;
+import org.eclipse.jdt.core.dom.Expression;
 import org.eclipse.jdt.core.dom.FieldAccess;
 import org.eclipse.jdt.core.dom.InfixExpression;
 import org.eclipse.jdt.core.dom.InstanceofExpression;
@@ -91,6 +96,12 @@ public abstract class ASTFlattener extends ASTVisitor {
 			return flatten((TypeLiteral)node);
 		} else if (node instanceof Type) {
 			return sb.append(node.toString());
+		} else if (node instanceof Assignment) {
+			return flatten((Assignment)node);
+		} else if (node instanceof ArrayCreation) {
+			return flatten((ArrayCreation)node);
+		} else if (node instanceof ArrayInitializer) {
+			return flatten((ArrayInitializer)node);
 		} else
 			throw new RuntimeException("Unexpected expression type " + node.getClass().toString());
 	}
@@ -273,6 +284,39 @@ public abstract class ASTFlattener extends ASTVisitor {
 	protected StringBuilder flatten(TypeLiteral node) {
 		flatten(node.getType());
 		sb.append(".class");
+		return sb;
+	}
+
+	protected StringBuilder flatten(Assignment node) {
+		flatten(node.getLeftHandSide());
+		sb.append(' ');
+		sb.append(node.getOperator().toString());
+		sb.append(' ');
+		flatten(node.getRightHandSide());
+		return sb;
+	}
+
+	protected StringBuilder flatten(ArrayCreation node) {
+		sb.append("new ");
+		ArrayType at = node.getType();
+		flatten(at.getElementType());
+		int dims = at.getDimensions();
+		for (Iterator<?> it = node.dimensions().iterator(); it.hasNext(); ) {
+			sb.append('[');
+			flatten((Expression)it.next());
+			sb.append(']');
+			dims--;
+		}
+		for (int i= 0; i < dims; i++)
+			sb.append("[]");
+		flatten(node.getInitializer());
+		return sb;
+	}
+
+	protected StringBuilder flatten(ArrayInitializer node) {
+		sb.append('{');
+		doList(node.expressions());
+		sb.append('}');
 		return sb;
 	}
 	

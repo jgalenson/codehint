@@ -27,12 +27,11 @@ public class LambdaPropertyDialog extends SynthesisDialog {
     	try {
 			IJavaProject project = EclipseUtils.getProject(stack);
 			IType thisType = EclipseUtils.getThisType(project, stack);
-			IType varType = project.findType(varTypeName);
 			if (initialValue.length() > 0)
 				this.initialPdspecText = initialValue;
 			else
-				this.initialPdspecText = getDefaultLambdaArgName(stack) + getDefaultTypeName(varStaticType, project, varType, thisType, varTypeName) + " => ";
-	    	this.pdspecValidator = new LambdaPropertyValidator(stack, project, varType, thisType, varName);
+				this.initialPdspecText = getDefaultLambdaArgName(stack) + getDefaultTypeName(varStaticType, project, thisType, varTypeName) + " => ";
+	    	this.pdspecValidator = new LambdaPropertyValidator(stack, project, varTypeName, thisType, varName);
     	} catch (JavaModelException e) {
  			throw new RuntimeException(e);
  		} catch (DebugException e) {
@@ -51,11 +50,11 @@ public class LambdaPropertyDialog extends SynthesisDialog {
         		return "x" + i;
     }
     
-    private static String getDefaultTypeName(IJavaType varStaticType, IJavaProject project, IType varType, IType thisType, String varStaticTypeName) throws DebugException {
+    private static String getDefaultTypeName(IJavaType varStaticType, IJavaProject project, IType thisType, String varStaticTypeName) throws DebugException {
     	if (varStaticType == null || !EclipseUtils.isObject(varStaticType))
     		return "";
 		String unqualifiedTypename = EclipseUtils.getUnqualifiedName(varStaticTypeName);
-		if (EclipseUtils.getValidTypeError(project, varType, thisType, unqualifiedTypename) == null)
+		if (EclipseUtils.getValidTypeError(project, varStaticTypeName, thisType, unqualifiedTypename) == null)
 			return ": " + unqualifiedTypename;
 		else
 			return ": " + varStaticTypeName;
@@ -80,15 +79,15 @@ public class LambdaPropertyDialog extends SynthesisDialog {
     	
     	private final IJavaStackFrame stackFrame;
     	private final IJavaProject project;
-    	private final IType varType;
+    	private final String varTypeName;
     	private final IType thisType;
     	private final IAstEvaluationEngine evaluationEngine;
     	private final String varName;
     	
-    	public LambdaPropertyValidator(IJavaStackFrame stackFrame, IJavaProject project, IType varType, IType thisType, String varName) {
+    	public LambdaPropertyValidator(IJavaStackFrame stackFrame, IJavaProject project, String varTypeName, IType thisType, String varName) {
     		this.stackFrame = stackFrame;
     		this.project = project;
-    		this.varType = varType;
+    		this.varTypeName = varTypeName;
     		this.thisType = thisType;
     		this.evaluationEngine = EclipseUtils.getASTEvaluationEngine(stackFrame);
     		this.varName = varName;
@@ -96,7 +95,7 @@ public class LambdaPropertyDialog extends SynthesisDialog {
         
         @Override
 		public String isValid(String newText) {
-        	return LambdaProperty.isLegalProperty(newText, stackFrame, project, varType, thisType, evaluationEngine, varName);
+        	return LambdaProperty.isLegalProperty(newText, stackFrame, project, varTypeName, thisType, evaluationEngine, varName);
         }
     }
 

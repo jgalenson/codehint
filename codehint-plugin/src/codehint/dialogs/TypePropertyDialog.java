@@ -25,11 +25,10 @@ public class TypePropertyDialog extends SynthesisDialog {
     	try {
 			IJavaProject project = EclipseUtils.getProject(stack);
 			IType thisType = EclipseUtils.getThisType(project, stack);
-			IType varType = project.findType(varTypeName);
 			if (thisType != null && thisType.resolveType(EclipseUtils.getUnqualifiedName(initialValue)) != null)
 				initialValue = EclipseUtils.getUnqualifiedName(initialValue);
 	    	this.initialPdspecText = initialValue;
-	    	this.pdspecValidator = new TypeValidator(project, varType, thisType);
+	    	this.pdspecValidator = new TypeValidator(project, varTypeName, thisType);
     	} catch (JavaModelException e) {
  			throw new RuntimeException(e);
  		} catch (DebugException e) {
@@ -59,18 +58,18 @@ public class TypePropertyDialog extends SynthesisDialog {
     private static class TypeValidator implements IInputValidator {
     	
     	private final IJavaProject project;
-    	private final IType varType;
+    	private final String varTypeName;
     	private final IType thisType;
     	
-    	public TypeValidator(IJavaProject project, IType varType, IType thisType) {
+    	public TypeValidator(IJavaProject project, String varTypeName, IType thisType) {
     		this.project = project;
-    		this.varType = varType;
+    		this.varTypeName = varTypeName;
     		this.thisType = thisType;
     	}
         
         @Override
 		public String isValid(String newText) {
-        	return EclipseUtils.getValidTypeError(project, varType, thisType, newText);
+        	return EclipseUtils.getValidTypeError(project, varTypeName, thisType, newText);
         }
     }
 

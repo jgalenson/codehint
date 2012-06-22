@@ -22,5 +22,12 @@ public class Utils {
 			map.put(key,  new ArrayList<T>());
 		map.get(key).addAll(values);
 	}
+	
+	public static String plural(String str, String suffix, int count) {
+		if (count == 1)
+			return str;
+		else
+			return str + suffix;
+	}
 
 }

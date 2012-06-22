@@ -50,13 +50,13 @@ public class LambdaProperty extends Property {
 		return new LambdaProperty(lhs, typeName, rhs);
 	}
 	
-	public static String isLegalProperty(String str, IJavaStackFrame stackFrame, IJavaProject project, IType varType, IType thisType, IAstEvaluationEngine evaluationEngine, String varName) {
+	public static String isLegalProperty(String str, IJavaStackFrame stackFrame, IJavaProject project, String varTypeName, IType thisType, IAstEvaluationEngine evaluationEngine, String varName) {
 		Matcher matcher = lambdaPattern.matcher(str);
     	if (!matcher.matches())
     		return "Input must of the form \"<identifier>(: <type>)? => <expression>\".";
     	String typeName = matcher.group(2);
     	if (typeName != null) {
-	    	String typeError = EclipseUtils.getValidTypeError(project, varType, thisType, typeName);
+	    	String typeError = EclipseUtils.getValidTypeError(project, varTypeName, thisType, typeName);
 	    	if (typeError != null)
 	    		return typeError;
     	}
