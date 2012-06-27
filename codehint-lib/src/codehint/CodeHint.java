@@ -23,7 +23,8 @@ public class CodeHint {
     	return v;
     }
     
-    public static <T> void pdspec(T var, boolean b) {
+    @SuppressWarnings("unused")
+	public static <T> void pdspec(T var, boolean b) {
     	assert b;
     }
     
@@ -31,7 +32,8 @@ public class CodeHint {
     	assert var == val;
     }
     
-    public static <T> void type(Object var) {
+    @SuppressWarnings("unused")
+	public static <T> void type(Object var) {
     	assert false;
     }
 

@@ -171,13 +171,13 @@ public class ExpressionMaker {
 		throw new RuntimeException("Unknown prefix operation: " + op.toString());
 	}
 
-	private static IJavaValue computePostfixOp(IJavaDebugTarget target, IJavaValue e, PostfixExpression.Operator op) {
+	private static IJavaValue computePostfixOp(@SuppressWarnings("unused") IJavaDebugTarget target, IJavaValue e, PostfixExpression.Operator op) {
 		if (e == null )
 			return null;
 		throw new RuntimeException("Unknown postfix operation: " + op.toString());
 	}
 	
-	private static IJavaValue computeConditionalOp(IJavaDebugTarget target, IJavaValue c, IJavaValue t, IJavaValue e) throws DebugException {
+	private static IJavaValue computeConditionalOp(IJavaValue c, IJavaValue t, IJavaValue e) throws DebugException {
 		if (c == null || t == null || e == null)
 			return null;
 		boolean cond = Boolean.parseBoolean(c.getValueString());
@@ -346,6 +346,7 @@ public class ExpressionMaker {
 		return e;
 	}
 
+	@SuppressWarnings("unused")
 	public static TypedExpression makeCall(String name, TypedExpression receiver, ArrayList<TypedExpression> args, IJavaType returnType, IJavaType thisType, Method method, IJavaDebugTarget target) {
 		//IJavaValue value = computeCall(method, receiver.getValue(), args, thread, target, ((JDIType)receiver.getType()));
 		IJavaValue value = null;
@@ -409,10 +410,10 @@ public class ExpressionMaker {
 		return e;
 	}
 
-	public static TypedExpression makeConditional(IJavaDebugTarget target, TypedExpression cond, TypedExpression t, TypedExpression e, IJavaType type) {
+	public static TypedExpression makeConditional(TypedExpression cond, TypedExpression t, TypedExpression e, IJavaType type) {
 		try {
 			ConditionalExpression ex = makeConditional(cond.getExpression(), t.getExpression(), e.getExpression());
-			IJavaValue value = computeConditionalOp(target, cond.getValue(), t.getValue(), e.getValue());
+			IJavaValue value = computeConditionalOp(cond.getValue(), t.getValue(), e.getValue());
 			setExpressionValue(ex, value);
 			return new TypedExpression(ex, type, value);
 		} catch (DebugException ex) {

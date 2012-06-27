@@ -511,7 +511,7 @@ public class ExpressionGenerator {
 	 * @param list List to which to add unique expressions.
 	 * @param e Expression to add if it is unique.
 	 */
-	private static void addUniqueExpressionToList(List<TypedExpression> list, TypedExpression e, int depth, int maxDepth, Map<IJavaValue, Set<EvaluatedExpression>> equivalences) {
+	private static void addUniqueExpressionToList(List<TypedExpression> list, TypedExpression e, int depth, int maxDepth, @SuppressWarnings("unused") Map<IJavaValue, Set<EvaluatedExpression>> equivalences) {
 		if (e != null && getDepth(e) == (maxDepth - depth) && isUnique(e))
 			list.add(e);
 			//addWithEquivalenceCheck(list, e, equivalences);

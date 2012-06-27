@@ -198,6 +198,7 @@ public abstract class ASTFlattener extends ASTVisitor {
 		return sb;
 	}
 
+	@SuppressWarnings("unused")
 	protected StringBuilder flatten(NullLiteral node) {
 		sb.append("null");
 		return sb;

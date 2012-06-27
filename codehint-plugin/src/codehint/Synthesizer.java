@@ -96,7 +96,7 @@ public class Synthesizer {
 	private static ExpressionSkeleton lastCrashedSkeleton;
 	private static Property lastCrashedProperty;
 	
-	public static void synthesizeAndInsertExpressions(final IVariable variable, final String fullVarName, final SynthesisDialog synthesisDialog, final IJavaStackFrame stack, Shell shell, final boolean replaceCurLine) {
+	public static void synthesizeAndInsertExpressions(final IVariable variable, final String fullVarName, final SynthesisDialog synthesisDialog, final IJavaStackFrame stack, final boolean replaceCurLine) {
 		try {
 			synthesisDialog.open();
 			final Property property = synthesisDialog.getProperty();

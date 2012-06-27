@@ -360,7 +360,7 @@ public class ExpressionSkeleton {
 				return fillConditionalExpression(node, curConstraint, parentsOfHoles);
 			} else if (node instanceof FieldAccess) {
 				FieldAccess fieldAccess = (FieldAccess)node;
-				return fillNormalField(fieldAccess, fieldAccess.getExpression(), fieldAccess.getName(), parentsOfHoles, curConstraint);
+				return fillNormalField(fieldAccess.getExpression(), fieldAccess.getName(), parentsOfHoles, curConstraint);
 			} else if (node instanceof InfixExpression) {
 				return fillInfixExpression(node, curConstraint, parentsOfHoles);
 			} else if (node instanceof InstanceofExpression) {
@@ -391,7 +391,7 @@ public class ExpressionSkeleton {
 					return new ExpressionsAndTypeConstraints(new TypedExpression(node, type, null), new SupertypeBound(type));
 				else {
 					QualifiedName name = (QualifiedName)node;
-					return fillNormalField(name, name.getQualifier(), name.getName(), parentsOfHoles, curConstraint);
+					return fillNormalField(name.getQualifier(), name.getName(), parentsOfHoles, curConstraint);
 				}
 			} else if (node instanceof SimpleName) {
 				return fillSimpleName(node, curConstraint);
@@ -485,7 +485,7 @@ public class ExpressionSkeleton {
 					if (elseResult.getExprs().containsKey(thenExprs.getKey()))
 						for (TypedExpression thenExpr: thenExprs.getValue())
 							for (TypedExpression elseExpr: elseResult.getExprs().get(thenExprs.getKey()))
-								Utils.addToMap(resultExprs, thenExprs.getKey(), ExpressionMaker.makeConditional(target, condExpr, thenExpr, elseExpr, thenExpr.getType()));
+								Utils.addToMap(resultExprs, thenExprs.getKey(), ExpressionMaker.makeConditional(condExpr, thenExpr, elseExpr, thenExpr.getType()));
 			return new ExpressionsAndTypeConstraints(resultExprs, thenResult.getTypeConstraint());
 		}
 
@@ -681,7 +681,7 @@ public class ExpressionSkeleton {
 			return getSupertypeConstraintForTypes(types);
 		}
 
-		private ExpressionsAndTypeConstraints fillNormalField(Expression node, Expression qualifier, SimpleName name, Set<ASTNode> parentsOfHoles, TypeConstraint curConstraint) {
+		private ExpressionsAndTypeConstraints fillNormalField(Expression qualifier, SimpleName name, Set<ASTNode> parentsOfHoles, TypeConstraint curConstraint) {
 			TypeConstraint qualifierConstraint = new FieldConstraint(parentsOfHoles.contains(name) ? null : name.getIdentifier(), curConstraint);
 			ExpressionsAndTypeConstraints receiverResult = fillSkeleton(qualifier, qualifierConstraint, parentsOfHoles);
 			return fillField(name, null, parentsOfHoles, curConstraint, receiverResult);

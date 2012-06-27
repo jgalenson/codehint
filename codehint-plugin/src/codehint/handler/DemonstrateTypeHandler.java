@@ -41,7 +41,7 @@ public class DemonstrateTypeHandler extends CommandHandler {
 		} else
 			initValue = varTypeName;
 		SynthesisDialog dialog = new TypePropertyDialog(path, varTypeName, stack, shell, initValue, null, true);
-    	Synthesizer.synthesizeAndInsertExpressions(variable, path, dialog, stack, shell, matcher != null);
+    	Synthesizer.synthesizeAndInsertExpressions(variable, path, dialog, stack, matcher != null);
     }
 
 	public static void handleFromText(Matcher matcher, IJavaStackFrame stack) {

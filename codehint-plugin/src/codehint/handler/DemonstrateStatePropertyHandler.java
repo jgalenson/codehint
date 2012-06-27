@@ -44,7 +44,7 @@ public class DemonstrateStatePropertyHandler extends CommandHandler {
 		}
 		String varTypeName = EclipseUtils.sanitizeTypename(((IJavaVariable)variable).getJavaType().getName());
 		SynthesisDialog dialog = new StatePropertyDialog(path, varTypeName, stack, shell, initValue, null, true);
-    	Synthesizer.synthesizeAndInsertExpressions(variable, path, dialog, stack, shell, matcher != null);
+    	Synthesizer.synthesizeAndInsertExpressions(variable, path, dialog, stack, matcher != null);
     }
 
 	public static void handleFromText(Matcher matcher, IJavaStackFrame stack) {
