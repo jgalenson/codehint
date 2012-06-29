@@ -1,6 +1,7 @@
 package codehint.exprgen.typeconstraint;
 
 import org.eclipse.jdt.debug.core.IJavaDebugTarget;
+import org.eclipse.jdt.debug.core.IJavaStackFrame;
 import org.eclipse.jdt.debug.core.IJavaType;
 
 import codehint.exprgen.SubtypeChecker;
@@ -14,7 +15,7 @@ public class SameHierarchy extends TypeConstraint {
 	}
 
 	@Override
-	public boolean isFulfilledBy(IJavaType type, SubtypeChecker subtypeChecker, IJavaDebugTarget target) {
+	public boolean isFulfilledBy(IJavaType type, SubtypeChecker subtypeChecker, IJavaStackFrame stack, IJavaDebugTarget target) {
 		return subtypeChecker.isSubtypeOf(type, targetType) || subtypeChecker.isSubtypeOf(targetType, type);
 	}
 

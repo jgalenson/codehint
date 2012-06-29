@@ -258,7 +258,7 @@ public class ExpressionMaker {
 
 	private static Expression newStaticName(String name) {
 		Expression e = ast.newName(name);
-		e.setProperty("isStatic", true);
+		setStatic(e);
 		setExpressionValue(e, null);
 		return e;
 	}
@@ -510,6 +510,14 @@ public class ExpressionMaker {
 
 	private static IJavaValue getExpressionValue(Expression e) {
 		return (IJavaValue)e.getProperty("value");
+	}
+
+	private static void setStatic(Expression e) {
+		e.setProperty("isStatic", true);
+	}
+
+	public static boolean isStatic(Expression e) {
+		return e.getProperty("isStatic") != null;
 	}
 
 	/**

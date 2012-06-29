@@ -82,7 +82,7 @@ public class EvaluationManager {
 			PropertyPreconditionFinder pf = new PropertyPreconditionFinder();
     		EclipseUtils.parseExpr(parser, validVal).accept(pf);
     		String propertyPreconditions = property instanceof ValueProperty ? "" : pf.getPreconditions();  // TODO: This will presumably fail if the user does their own null check.
-			IJavaReferenceType implType = (IJavaReferenceType)EclipseUtils.getTypeAndLoadIfNeeded(IMPL_NAME, (IJavaDebugTarget)stack.getDebugTarget());
+			IJavaReferenceType implType = (IJavaReferenceType)EclipseUtils.getTypeAndLoadIfNeeded(IMPL_NAME, stack, (IJavaDebugTarget)stack.getDebugTarget());
 			IJavaFieldVariable validField = implType.getField("valid");
 			IJavaFieldVariable countField = implType.getField("count");
 			Map<String, ArrayList<TypedExpression>> expressionsByType = getExpressionByType(exprs);

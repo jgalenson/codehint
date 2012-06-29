@@ -6,6 +6,7 @@ import java.util.Map;
 
 import org.eclipse.debug.core.DebugException;
 import org.eclipse.jdt.debug.core.IJavaDebugTarget;
+import org.eclipse.jdt.debug.core.IJavaStackFrame;
 import org.eclipse.jdt.debug.core.IJavaType;
 
 import com.sun.jdi.Field;
@@ -25,14 +26,14 @@ public class FieldNameConstraint extends NameConstraint {
 		this.fieldConstraint = fieldConstraint;
 	}
 	
-	public Map<String, ArrayList<Field>> getFields(IJavaDebugTarget target, SubtypeChecker subtypeChecker) {
+	public Map<String, ArrayList<Field>> getFields(IJavaStackFrame stack, IJavaDebugTarget target, SubtypeChecker subtypeChecker) {
 		try {
 			IJavaType[] receiverTypes = expressionConstraint.getTypes(target);
 			Map<String, ArrayList<Field>> fieldsByType = new HashMap<String, ArrayList<Field>>(receiverTypes.length);
 			for (IJavaType receiverType: receiverTypes) {
 				String typeName = receiverType.getName();
 				for (Field field: ExpressionGenerator.getFields(receiverType))
-					if (fieldFulfills(subtypeChecker, target, field))
+					if (fieldFulfills(subtypeChecker, stack, target, field))
 						Utils.addToMap(fieldsByType, typeName, field);
 			}
 			return fieldsByType;
@@ -42,17 +43,17 @@ public class FieldNameConstraint extends NameConstraint {
 	}
 
 	@Override
-	public boolean isFulfilledBy(IJavaType type, SubtypeChecker subtypeChecker, IJavaDebugTarget target) {
-		if (!expressionConstraint.isFulfilledBy(type, subtypeChecker, target))
+	public boolean isFulfilledBy(IJavaType type, SubtypeChecker subtypeChecker, IJavaStackFrame stack, IJavaDebugTarget target) {
+		if (!expressionConstraint.isFulfilledBy(type, subtypeChecker, stack, target))
 			return false;
 		for (Field field: ExpressionGenerator.getFields(type))
-			if (fieldFulfills(subtypeChecker, target, field))
+			if (fieldFulfills(subtypeChecker, stack, target, field))
 				return true;
 		return false;
 	}
 
-	private boolean fieldFulfills(SubtypeChecker subtypeChecker, IJavaDebugTarget target, Field field) {
-		return (legalNames == null || legalNames.contains(field.name())) && fieldConstraint.isFulfilledBy(EclipseUtils.getFullyQualifiedType(field.typeName(), target), subtypeChecker, target);
+	private boolean fieldFulfills(SubtypeChecker subtypeChecker, IJavaStackFrame stack, IJavaDebugTarget target, Field field) {
+		return (legalNames == null || legalNames.contains(field.name())) && fieldConstraint.isFulfilledBy(EclipseUtils.getFullyQualifiedType(field.typeName(), target), subtypeChecker, stack, target);
 	}
 
 	@Override

@@ -386,7 +386,7 @@ public class ExpressionSkeleton {
 			} else if (node instanceof PrefixExpression) {
 				return fillPrefix((PrefixExpression)node, curConstraint, parentsOfHoles);
 			} else if (node instanceof QualifiedName) {
-				IJavaType type = EclipseUtils.getFullyQualifiedTypeIfExists(node.toString(), target);
+				IJavaType type = EclipseUtils.getTypeAndLoadIfNeededAndExists(node.toString(), stack, target);
 				if (type != null)
 					return new ExpressionsAndTypeConstraints(new TypedExpression(node, type, null), new SupertypeBound(type));
 				else {
@@ -493,7 +493,7 @@ public class ExpressionSkeleton {
 			try {
 				InfixExpression infix = (InfixExpression)node;
 				boolean isBooleanResult = infix.getOperator() == InfixExpression.Operator.CONDITIONAL_AND || infix.getOperator() == InfixExpression.Operator.CONDITIONAL_OR || infix.getOperator() == InfixExpression.Operator.EQUALS || infix.getOperator() == InfixExpression.Operator.NOT_EQUALS || infix.getOperator() == InfixExpression.Operator.LESS || infix.getOperator() == InfixExpression.Operator.LESS_EQUALS || infix.getOperator() == InfixExpression.Operator.GREATER || infix.getOperator() == InfixExpression.Operator.GREATER_EQUALS;
-				if (isBooleanResult && !curConstraint.isFulfilledBy(booleanType, subtypeChecker, target))
+				if (isBooleanResult && !curConstraint.isFulfilledBy(booleanType, subtypeChecker, stack, target))
 					throw new TypeError("Incorrectly-typed operator " + infix.getOperator());
 				TypeConstraint leftConstraint = curConstraint;
 				TypeConstraint rightConstraint = curConstraint;
@@ -503,7 +503,7 @@ public class ExpressionSkeleton {
 				} else if (infix.getOperator() == InfixExpression.Operator.MINUS || infix.getOperator() == InfixExpression.Operator.TIMES || infix.getOperator() == InfixExpression.Operator.DIVIDE || infix.getOperator() == InfixExpression.Operator.LESS || infix.getOperator() == InfixExpression.Operator.LESS_EQUALS || infix.getOperator() == InfixExpression.Operator.GREATER || infix.getOperator() == InfixExpression.Operator.GREATER_EQUALS) {
 					leftConstraint = makeSupertypeSet(intType);  // TODO: These should be all numeric types.
 					rightConstraint = makeSupertypeSet(intType);
-					if (!isBooleanResult && !curConstraint.isFulfilledBy(intType, subtypeChecker, target))
+					if (!isBooleanResult && !curConstraint.isFulfilledBy(intType, subtypeChecker, stack, target))
 						throw new TypeError("Incorrectly-typed operator " + infix.getOperator());
 				}
 				ExpressionsAndTypeConstraints leftResult = fillSkeleton(infix.getLeftOperand(), leftConstraint, parentsOfHoles);
@@ -513,9 +513,9 @@ public class ExpressionSkeleton {
 					if (rightResult.getExprs().containsKey(leftExprs.getKey()))
 						for (TypedExpression leftExpr: leftExprs.getValue())
 							for (TypedExpression rightExpr: rightResult.getExprs().get(leftExprs.getKey()))
-								if ((!leftExpr.getValue().isNull() || !rightExpr.getValue().isNull())  // TODO: These two checks should be part of my constraint when I search for the child holes above.
+								if ((leftExpr.getValue() == null || !leftExpr.getValue().isNull() || rightExpr.getValue() == null || !rightExpr.getValue().isNull())  // TODO: These two checks should be part of my constraint when I search for the child holes above.
 									&& !(EclipseUtils.isObject(leftExpr.getType()) && EclipseUtils.isObject(rightExpr.getType()) && !"java.lang.String".equals(leftExpr.getType().getName()) && !"java.lang.String".equals(rightExpr.getType().getName()))) {
-									IJavaType resultType = isBooleanResult ? booleanType : !leftExpr.getValue().isNull() ? leftExpr.getType() : rightExpr.getType();
+									IJavaType resultType = isBooleanResult ? booleanType : leftExpr.getValue() == null || !leftExpr.getValue().isNull() ? leftExpr.getType() : rightExpr.getType();
 									Utils.addToMap(resultExprs, leftExprs.getKey(), ExpressionMaker.makeInfix(target, leftExpr, infix.getOperator(), rightExpr, resultType));
 								}
 				TypeConstraint resultConstraint = isBooleanResult ? new SupertypeBound(booleanType) : leftConstraint;
@@ -646,11 +646,9 @@ public class ExpressionSkeleton {
 					IJavaVariable var = stack.findVariable(name.getIdentifier());
 					if (var != null)
 						return new ExpressionsAndTypeConstraints(new TypedExpression(name, var.getJavaType(), null), new SupertypeBound(var.getJavaType()));
-					IJavaType type = EclipseUtils.getType(name.getIdentifier(), stack, target);
-					if (type != null)
-						return new ExpressionsAndTypeConstraints(ExpressionMaker.makeStaticName(name.getIdentifier(), type), new SupertypeBound(type));
-					else
-						return null;
+					IJavaType type = EclipseUtils.getTypeAndLoadIfNeeded(name.getIdentifier(), stack, target);
+					assert type != null : name.getIdentifier();
+					return new ExpressionsAndTypeConstraints(ExpressionMaker.makeStaticName(name.getIdentifier(), type), new SupertypeBound(type));
 				}
 			} catch (DebugException e) {
 				throw new RuntimeException(e);
@@ -660,7 +658,7 @@ public class ExpressionSkeleton {
 		/* Helper functions. */
 
 		private TypeConstraint getFieldsAndSetConstraint(SimpleName name, FieldNameConstraint fieldNameConstraint, boolean isHole) {
-			Map<String, ArrayList<Field>> fieldsByType = fieldNameConstraint.getFields(target, subtypeChecker);
+			Map<String, ArrayList<Field>> fieldsByType = fieldNameConstraint.getFields(stack, target, subtypeChecker);
 			List<IJavaType> types = new ArrayList<IJavaType>();
 			for (ArrayList<Field> fields: fieldsByType.values())
 				for (Field field: fields)
@@ -694,19 +692,21 @@ public class ExpressionSkeleton {
 			if (holeFields.containsKey(name.getIdentifier()))
 				fields = holeFields.get(name.getIdentifier());
 			else
-				fields = fieldNameConstraint.getFields(target, subtypeChecker);
+				fields = fieldNameConstraint.getFields(stack, target, subtypeChecker);
 			Map<String, ArrayList<TypedExpression>> resultExprs = new HashMap<String, ArrayList<TypedExpression>>(fieldResult.getTypeConstraint().getTypes(target).length);
 			for (Map.Entry<String, ArrayList<TypedExpression>> receiverExprs: receiverResult.getExprs().entrySet())
 				if (fields.containsKey(receiverExprs.getKey())) {
 					for (TypedExpression receiverExpr: receiverExprs.getValue())
 						for (Field field: fields.get(receiverExprs.getKey())) {
-							String fieldTypeName = field.typeName();
-							TypedExpression newExpr = null;
-							if (receiverExpr.getExpression() == null)
-								newExpr = ExpressionMaker.makeSuperFieldAccess(superQualifier, field.name(), EclipseUtils.getTypeAndLoadIfNeeded(fieldTypeName, target), null);
-							else
-								newExpr = ExpressionMaker.makeFieldAccess(receiverExpr, field.name(), EclipseUtils.getTypeAndLoadIfNeeded(fieldTypeName, target), null);
-							Utils.addToMap(resultExprs, fieldTypeName, newExpr);
+							if (!ExpressionMaker.isStatic(receiverExpr.getExpression()) || field.isStatic()) {
+								String fieldTypeName = field.typeName();
+								TypedExpression newExpr = null;
+								if (receiverExpr.getExpression() == null)
+									newExpr = ExpressionMaker.makeSuperFieldAccess(superQualifier, field.name(), EclipseUtils.getTypeAndLoadIfNeeded(fieldTypeName, stack, target), null);
+								else
+									newExpr = ExpressionMaker.makeFieldAccess(receiverExpr, field.name(), EclipseUtils.getTypeAndLoadIfNeeded(fieldTypeName, stack, target), null);
+								Utils.addToMap(resultExprs, fieldTypeName, newExpr);
+							}
 						}
 				}
 			return new ExpressionsAndTypeConstraints(resultExprs, fieldResult.getTypeConstraint());
@@ -730,7 +730,8 @@ public class ExpressionSkeleton {
 						for (TypedExpression receiverExpr: receiverExprs.getValue()) {
 							OverloadChecker overloadChecker = new OverloadChecker(receiverExpr.getType());
 							for (Method method: methods.get(receiverExprs.getKey()))
-								buildCalls(method, receiverExpr, node, argResults, resultExprs, overloadChecker);
+								if (!ExpressionMaker.isStatic(receiverExpr.getExpression()) || method.isStatic())
+									buildCalls(method, receiverExpr, node, argResults, resultExprs, overloadChecker);
 						}
 				return new ExpressionsAndTypeConstraints(resultExprs, methodResult.getTypeConstraint());
 			} else {
@@ -760,7 +761,7 @@ public class ExpressionSkeleton {
 			List<IJavaType> argConstraints = new ArrayList<IJavaType>();
 			for (ArrayList<Method> methods: methodsByType.values())
 				for (Method method: methods)
-					argConstraints.add(EclipseUtils.getTypeAndLoadIfNeeded((String)method.argumentTypeNames().get(i), target));
+					argConstraints.add(EclipseUtils.getTypeAndLoadIfNeeded((String)method.argumentTypeNames().get(i), stack, target));
 			TypeConstraint argConstraint = getSupertypeConstraintForTypes(argConstraints);
 			return fillSkeleton(arg, argConstraint, parentsOfHoles);
 		}
@@ -786,7 +787,7 @@ public class ExpressionSkeleton {
 					return;
 				allPossibleActuals.add(allArgs);
 			}
-			makeAllCalls(method, method.name(), methodReturnTypeName, receiverExpr, callNode, EclipseUtils.getTypeAndLoadIfNeeded(methodReturnTypeName, target), getThisType(), allPossibleActuals, new ArrayList<TypedExpression>(allPossibleActuals.size()), resultExprs);
+			makeAllCalls(method, method.name(), methodReturnTypeName, receiverExpr, callNode, EclipseUtils.getTypeAndLoadIfNeeded(methodReturnTypeName, stack, target), getThisType(), allPossibleActuals, new ArrayList<TypedExpression>(allPossibleActuals.size()), resultExprs);
 		}
 		
 		private void makeAllCalls(Method method, String name, String constraintName, TypedExpression receiver, Expression callNode, IJavaType returnType, IJavaType thisType, ArrayList<ArrayList<TypedExpression>> possibleActuals, ArrayList<TypedExpression> curActuals, Map<String, ArrayList<TypedExpression>> resultExprs) {
@@ -855,7 +856,7 @@ public class ExpressionSkeleton {
 				Map<String, ArrayList<Method>> methodsByType = new HashMap<String, ArrayList<Method>>(1);
 				String typeName = type.getName();
 	    		for (Method method: ExpressionGenerator.getMethods(type))
-					if (ExpressionGenerator.isLegalMethod(method, stack.getReferenceType(), true) && MethodNameConstraint.fulfillsArgConstraints(method, argConstraints, subtypeChecker, target))
+					if (ExpressionGenerator.isLegalMethod(method, stack.getReferenceType(), true) && MethodNameConstraint.fulfillsArgConstraints(method, argConstraints, subtypeChecker, stack, target))
 						Utils.addToMap(methodsByType, typeName, method);
 	    		return methodsByType;
 			} catch (DebugException e) {

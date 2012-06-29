@@ -35,7 +35,7 @@ public class MethodNameConstraint extends NameConstraint {
     		for (IJavaType receiverType: receiverTypes) {
     			String typeName = receiverType.getName();
 	    		for (Method method: ExpressionGenerator.getMethods(receiverType))
-					if (ExpressionGenerator.isLegalMethod(method, stack.getReferenceType(), false) && methodFulfills(subtypeChecker, target, method))
+					if (ExpressionGenerator.isLegalMethod(method, stack.getReferenceType(), false) && methodFulfills(subtypeChecker, stack, target, method))
 						Utils.addToMap(methodsByType, typeName, method);
     		}
     		return methodsByType;
@@ -45,28 +45,28 @@ public class MethodNameConstraint extends NameConstraint {
 	}
 
 	@Override
-	public boolean isFulfilledBy(IJavaType type, SubtypeChecker subtypeChecker, IJavaDebugTarget target) {
-		if (!expressionConstraint.isFulfilledBy(type, subtypeChecker, target))
+	public boolean isFulfilledBy(IJavaType type, SubtypeChecker subtypeChecker, IJavaStackFrame stack, IJavaDebugTarget target) {
+		if (!expressionConstraint.isFulfilledBy(type, subtypeChecker, stack, target))
 			return false;
 		for (Method method: ExpressionGenerator.getMethods(type))
-			if (methodFulfills(subtypeChecker, target, method))
+			if (methodFulfills(subtypeChecker, stack, target, method))
 				return true;
 		return false;
 	}
 
-	private boolean methodFulfills(SubtypeChecker subtypeChecker, IJavaDebugTarget target, Method method) {
+	private boolean methodFulfills(SubtypeChecker subtypeChecker, IJavaStackFrame stack, IJavaDebugTarget target, Method method) {
 		return (legalNames == null || legalNames.contains(method.name())) && 
-				fulfillsArgConstraints(method, argConstraints, subtypeChecker, target)
-				&& (!"void".equals(method.returnTypeName()) && methodConstraint.isFulfilledBy(EclipseUtils.getFullyQualifiedTypeIfExists(method.returnTypeName(), target), subtypeChecker, target));
+				fulfillsArgConstraints(method, argConstraints, subtypeChecker, stack, target)
+				&& (!"void".equals(method.returnTypeName()) && methodConstraint.isFulfilledBy(EclipseUtils.getFullyQualifiedTypeIfExists(method.returnTypeName(), target), subtypeChecker, stack, target));
 	}
 
-	public static boolean fulfillsArgConstraints(Method method, ArrayList<TypeConstraint> argConstraints, SubtypeChecker subtypeChecker, IJavaDebugTarget target) {
+	public static boolean fulfillsArgConstraints(Method method, ArrayList<TypeConstraint> argConstraints, SubtypeChecker subtypeChecker, IJavaStackFrame stack, IJavaDebugTarget target) {
 		if (method.argumentTypeNames().size() != argConstraints.size())
 			return false;
 		int i = 0;
 		for (; i < argConstraints.size(); i++) {
 			TypeConstraint argConstraint = argConstraints.get(i);
-			if (argConstraint != null && !argConstraint.isFulfilledBy(EclipseUtils.getTypeAndLoadIfNeeded((String)method.argumentTypeNames().get(i), target), subtypeChecker, target))
+			if (argConstraint != null && !argConstraint.isFulfilledBy(EclipseUtils.getTypeAndLoadIfNeeded((String)method.argumentTypeNames().get(i), stack, target), subtypeChecker, stack, target))
 				return false;
 		}
 		return i == argConstraints.size();

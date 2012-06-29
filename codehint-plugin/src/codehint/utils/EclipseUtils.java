@@ -520,11 +520,24 @@ public class EclipseUtils {
     	return name;
     }
     
-    public static IJavaType getTypeAndLoadIfNeeded(String typeName, IJavaDebugTarget target) {
+    public static IJavaType getTypeAndLoadIfNeededAndExists(String typeName, IJavaStackFrame stack, IJavaDebugTarget target) {
+    	try {
+    		IJavaType type = getFullyQualifiedTypeIfExists(typeName, target);
+    		if (type != null)
+    			return type;
+	    	if (getASTEvaluationEngine(stack).getCompiledExpression(getClassLoadExpression(typeName), stack).hasErrors())
+	    		return null;
+	    	else
+	    		return loadAndGetType(typeName, stack, target);
+    	} catch (DebugException e) {
+    		throw new RuntimeException(e);
+    	}
+    }
+    
+    public static IJavaType getTypeAndLoadIfNeeded(String typeName, IJavaStackFrame stack, IJavaDebugTarget target) {
 		IJavaType type = getFullyQualifiedTypeIfExists(typeName, target);
 		if (type == null) {
-			loadClass(typeName);
-			type = getFullyQualifiedTypeIfExists(typeName, target);
+			type = loadAndGetType(typeName, stack, target);
 			/*if (type == null)
 				System.out.println("Failed to load " + typeName);
 			else
@@ -533,13 +546,22 @@ public class EclipseUtils {
 		return type;
     }
     
+    private static IJavaType loadAndGetType(String typeName, IJavaStackFrame stack, IJavaDebugTarget target) {
+		loadClass(typeName, stack);
+		return getType(typeName, stack, target);
+    }
+    
     // TODO: There must be a better way to do this.
-    private static void loadClass(String typeName) {
+    private static void loadClass(String typeName, IJavaStackFrame stack) {
     	try {
-    		evaluate(sanitizeTypename(typeName) + ".class", EclipseUtils.getStackFrame());
+    		evaluate(getClassLoadExpression(typeName), stack);
     	} catch (DebugException e) {
     		throw new RuntimeException(e);
     	}
+    }
+    
+    private static String getClassLoadExpression(String typeName) {
+    	return sanitizeTypename(typeName) + ".class";
     }
     
     /**

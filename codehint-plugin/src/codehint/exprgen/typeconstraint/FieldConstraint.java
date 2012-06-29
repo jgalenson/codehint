@@ -1,6 +1,7 @@
 package codehint.exprgen.typeconstraint;
 
 import org.eclipse.jdt.debug.core.IJavaDebugTarget;
+import org.eclipse.jdt.debug.core.IJavaStackFrame;
 import org.eclipse.jdt.debug.core.IJavaType;
 
 import com.sun.jdi.Field;
@@ -20,10 +21,10 @@ public class FieldConstraint extends TypeConstraint {
 	}
 
 	@Override
-	public boolean isFulfilledBy(IJavaType type, SubtypeChecker subtypeChecker, IJavaDebugTarget target) {
+	public boolean isFulfilledBy(IJavaType type, SubtypeChecker subtypeChecker, IJavaStackFrame stack, IJavaDebugTarget target) {
 		for (Field field: ExpressionGenerator.getFields(type)) {
 			if (fieldName == null || field.name().equals(fieldName))
-				return fieldConstraint.isFulfilledBy(EclipseUtils.getFullyQualifiedType(field.typeName(), target), subtypeChecker, target);
+				return fieldConstraint.isFulfilledBy(EclipseUtils.getFullyQualifiedType(field.typeName(), target), subtypeChecker, stack, target);
 		}
 		return false;
 	}

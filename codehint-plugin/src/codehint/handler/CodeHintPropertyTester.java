@@ -10,9 +10,11 @@ public class CodeHintPropertyTester extends PropertyTester {
 
 	@Override
 	public boolean test(Object receiver, String property, Object[] args, Object expectedValue) {
-		IStructuredSelection selection = (IStructuredSelection)receiver;
-		IVariable variable = (IVariable)selection.getFirstElement();
-		return !EclipseUtils.isPrimitive(variable);
+		Object firstElement = ((IStructuredSelection)receiver).getFirstElement();
+		if (firstElement instanceof IVariable)
+			return !EclipseUtils.isPrimitive((IVariable)firstElement);
+		else
+			return false;
 	}
 
 }
