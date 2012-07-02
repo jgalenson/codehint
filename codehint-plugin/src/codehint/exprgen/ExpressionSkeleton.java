@@ -77,6 +77,7 @@ public class ExpressionSkeleton {
     private final static ASTParser parser = ASTParser.newParser(AST.JLS4);
     
     public final static String HOLE_SYNTAX = "??";
+    private final static String LIST_HOLE_SYNTAX = "**";
     
     private final String sugaredString;
     private final Expression expression;
@@ -138,13 +139,18 @@ public class ExpressionSkeleton {
 			Map<String, HoleInfo> holeInfos = new HashMap<String, HoleInfo>();
 			for (int holeNum = 0; true; holeNum++) {
 				int holeStart = str.indexOf(HOLE_SYNTAX);
-				if (holeStart == -1)
-					break;
-				else
+				if (holeStart != -1)
 					str = rewriteSingleHole(str, holeStart, holeNum, holeInfos);
+				else {
+					holeStart = str.indexOf(LIST_HOLE_SYNTAX);
+					if (holeStart != -1)
+						str = rewriteSingleListHole(str, holeStart, holeNum, holeInfos);
+					else
+						break;
+				}
 			}
 			if (holeInfos.isEmpty())
-				throw new ParserError("The skeleton must have at least one " + HOLE_SYNTAX + " hole.");
+				throw new ParserError("The skeleton must have at least one " + HOLE_SYNTAX + " or " + LIST_HOLE_SYNTAX + " hole.");
 			ASTNode node = EclipseUtils.parseExpr(parser, str);
 			if (node instanceof CompilationUnit)
 				throw new ParserError("Enter a valid skeleton: " + ((CompilationUnit)node).getProblems()[0].getMessage());
@@ -156,7 +162,7 @@ public class ExpressionSkeleton {
 				throw new ParserError("You cannot put a " + HOLE_SYNTAX + " hole immediately after an identifier.");
 			String args = null;
 			boolean isNegative = false;
-			int i = holeIndex + 2;
+			int i = holeIndex + HOLE_SYNTAX.length();
 			if (i + 1 < str.length() && str.charAt(i) == '-' && str.charAt(i + 1) == '{') {
 				isNegative = true;
 				i++;
@@ -164,7 +170,7 @@ public class ExpressionSkeleton {
 			if (i < str.length() && str.charAt(i) == '{') {
 				while (i < str.length() && str.charAt(i) != '}')
 					i++;
-				args = str.substring(holeIndex + (isNegative ? 4 : 3), i);
+				args = str.substring(holeIndex + HOLE_SYNTAX.length() + (isNegative ? 2 : 1), i);
 				if (i < str.length())
 					i++;
 				else
@@ -175,6 +181,15 @@ public class ExpressionSkeleton {
 			String holeName = DESUGARED_HOLE_NAME + holeNum;
 			str = str.substring(0, holeIndex) + holeName + str.substring(i);
 			holeInfos.put(holeName, makeHoleInfo(args, isNegative));
+			return str;
+		}
+		
+		private static String rewriteSingleListHole(String str, int holeIndex, int holeNum, Map<String, HoleInfo> holeInfos) {
+			if (holeIndex < 2 || holeIndex + LIST_HOLE_SYNTAX.length() >= str.length() || str.charAt(holeIndex - 1) != '(' || !Character.isJavaIdentifierPart(str.charAt(holeIndex - 2)) || str.charAt(holeIndex + LIST_HOLE_SYNTAX.length()) != ')')
+				throw new ParserError("You can only use a " + LIST_HOLE_SYNTAX + " hole as the only argument to a method.");
+			String holeName = DESUGARED_HOLE_NAME + holeNum;
+			str = str.substring(0, holeIndex) + holeName + str.substring(holeIndex + LIST_HOLE_SYNTAX.length());
+			holeInfos.put(holeName, new ListHoleInfo(null, false));
 			return str;
 		}
 		
@@ -216,6 +231,14 @@ public class ExpressionSkeleton {
 		@Override
 		public String toString() {
 			return HOLE_SYNTAX + (isNegative ? "-" : "") + (args == null ? "" : args.toString());
+		}
+		
+	}
+	
+	private static class ListHoleInfo extends HoleInfo {
+
+		public ListHoleInfo(ArrayList<String> args, boolean isNegative) {
+			super(args, isNegative);
 		}
 		
 	}
@@ -463,13 +486,12 @@ public class ExpressionSkeleton {
 			IJavaType consType = EclipseUtils.getType(cons.getType().toString(), stack, target);
 			ArrayList<TypeConstraint> argTypes = getArgTypes(node, cons.arguments(), parentsOfHoles);
 			Map<String, ArrayList<Method>> constructors = getConstructors(consType, argTypes);
-			ArrayList<ExpressionsAndTypeConstraints> argResults = new ArrayList<ExpressionsAndTypeConstraints>(cons.arguments().size());
-			for (int i = 0; i < cons.arguments().size(); i++)
-				argResults.add(fillArg((Expression)cons.arguments().get(i), i, constructors, parentsOfHoles));
+			boolean isListHole = argTypes == null;
+			ArrayList<ExpressionsAndTypeConstraints> argResults = getAndFillArgs(cons.arguments(), parentsOfHoles, constructors, isListHole);
 			OverloadChecker overloadChecker = new OverloadChecker(consType);
 			Map<String, ArrayList<TypedExpression>> resultExprs = new HashMap<String, ArrayList<TypedExpression>>();
 			for (Method method: Utils.singleton(constructors.values()))
-				buildCalls(method, new TypedExpression(null, consType, null), cons, argResults, resultExprs, overloadChecker);
+				buildCalls(method, new TypedExpression(null, consType, null), cons, argResults, isListHole, resultExprs, overloadChecker);
 			return new ExpressionsAndTypeConstraints(resultExprs, new DesiredType(consType));
 		}
 
@@ -720,9 +742,8 @@ public class ExpressionSkeleton {
 				methods = holeMethods.get(name.getIdentifier());
 			else
 				methods = methodNameConstraint.getMethods(stack, target, subtypeChecker);
-			ArrayList<ExpressionsAndTypeConstraints> argResults = new ArrayList<ExpressionsAndTypeConstraints>(arguments.size());
-			for (int i = 0; i < arguments.size(); i++)
-				argResults.add(fillArg((Expression)arguments.get(i), i, methods, parentsOfHoles));
+			boolean isListHole = argTypes == null;
+			ArrayList<ExpressionsAndTypeConstraints> argResults = getAndFillArgs(arguments, parentsOfHoles, methods, isListHole);
 			if (receiverResult.getExprs() != null) {
 				Map<String, ArrayList<TypedExpression>> resultExprs = new HashMap<String, ArrayList<TypedExpression>>(methodResult.getTypeConstraint().getTypes(target).length);
 				for (Map.Entry<String, ArrayList<TypedExpression>> receiverExprs: receiverResult.getExprs().entrySet())
@@ -731,7 +752,7 @@ public class ExpressionSkeleton {
 							OverloadChecker overloadChecker = new OverloadChecker(receiverExpr.getType());
 							for (Method method: methods.get(receiverExprs.getKey()))
 								if (!ExpressionMaker.isStatic(receiverExpr.getExpression()) || method.isStatic())
-									buildCalls(method, receiverExpr, node, argResults, resultExprs, overloadChecker);
+									buildCalls(method, receiverExpr, node, argResults, isListHole, resultExprs, overloadChecker);
 						}
 				return new ExpressionsAndTypeConstraints(resultExprs, methodResult.getTypeConstraint());
 			} else {
@@ -740,12 +761,20 @@ public class ExpressionSkeleton {
 				OverloadChecker overloadChecker = new OverloadChecker(thisType);
 				if (!methods.isEmpty())
 					for (Method method: Utils.singleton(methods.values()))
-						buildCalls(method, ExpressionMaker.makeThis(null, thisType), node, argResults, resultExprs, overloadChecker);
+						buildCalls(method, ExpressionMaker.makeThis(null, thisType), node, argResults, isListHole, resultExprs, overloadChecker);
 				return new ExpressionsAndTypeConstraints(resultExprs, methodResult.getTypeConstraint());
 			}
 		}
 		
 		private ArrayList<TypeConstraint> getArgTypes(Expression node, List<?> argNodes, Set<ASTNode> parentsOfHoles) {
+			if (argNodes.size() == 1) {  // Special case to check for a single list hole.
+				Expression arg = (Expression)argNodes.get(0);
+				if (arg instanceof SimpleName) {
+					SimpleName argName = (SimpleName)arg;
+					if (holeInfos.containsKey(argName.getIdentifier()) && holeInfos.get(argName.getIdentifier()) instanceof ListHoleInfo)
+						return null;
+				}
+			}
 			if (parentsOfHoles.contains(node)) {
 				ArrayList<TypeConstraint> argTypes = new ArrayList<TypeConstraint>(argNodes.size());
 				for (Object argObj: argNodes) {
@@ -757,23 +786,34 @@ public class ExpressionSkeleton {
 				return null;
 		}
 
-		private ExpressionsAndTypeConstraints fillArg(Expression arg, int i, Map<String, ArrayList<Method>> methodsByType, Set<ASTNode> parentsOfHoles) {
-			List<IJavaType> argConstraints = new ArrayList<IJavaType>();
-			for (ArrayList<Method> methods: methodsByType.values())
-				for (Method method: methods)
-					argConstraints.add(EclipseUtils.getTypeAndLoadIfNeeded((String)method.argumentTypeNames().get(i), stack, target));
-			TypeConstraint argConstraint = getSupertypeConstraintForTypes(argConstraints);
-			return fillSkeleton(arg, argConstraint, parentsOfHoles);
+		private ArrayList<ExpressionsAndTypeConstraints> getAndFillArgs(List<?> arguments, Set<ASTNode> parentsOfHoles, Map<String, ArrayList<Method>> methodsByType, boolean isListHole) {
+			int count = isListHole ? 1 : arguments.size();
+			ArrayList<ExpressionsAndTypeConstraints> argResults = new ArrayList<ExpressionsAndTypeConstraints>(count);
+			for (int i = 0; i < count; i++) {
+				Expression arg = (Expression)arguments.get(0);
+				List<IJavaType> argConstraints = new ArrayList<IJavaType>();
+				for (ArrayList<Method> methods: methodsByType.values())
+					for (Method method: methods) {
+						if (isListHole)
+							for (int j = 0; j < method.argumentTypeNames().size(); j++)
+								argConstraints.add(EclipseUtils.getTypeAndLoadIfNeeded((String)method.argumentTypeNames().get(j), stack, target));
+						else
+							argConstraints.add(EclipseUtils.getTypeAndLoadIfNeeded((String)method.argumentTypeNames().get(i), stack, target));
+					}
+				TypeConstraint argConstraint = getSupertypeConstraintForTypes(argConstraints);
+				argResults.add(fillSkeleton(arg, argConstraint, parentsOfHoles));
+			}
+			return argResults;
 		}
 
-		private void buildCalls(Method method, TypedExpression receiverExpr, Expression callNode, ArrayList<ExpressionsAndTypeConstraints> argResults, Map<String, ArrayList<TypedExpression>> resultExprs, OverloadChecker overloadChecker) {
+		private void buildCalls(Method method, TypedExpression receiverExpr, Expression callNode, ArrayList<ExpressionsAndTypeConstraints> argResults, boolean isListHole, Map<String, ArrayList<TypedExpression>> resultExprs, OverloadChecker overloadChecker) {
 			String methodReturnTypeName = method.returnTypeName();
 			overloadChecker.setMethod(method);
 			ArrayList<ArrayList<TypedExpression>> allPossibleActuals = new ArrayList<ArrayList<TypedExpression>>(method.argumentTypeNames().size());
 			for (int i = 0; i < method.argumentTypeNames().size(); i++) {
 				IJavaType argType = EclipseUtils.getFullyQualifiedType((String)method.argumentTypeNames().get(i), target);
 				ArrayList<TypedExpression> allArgs = new ArrayList<TypedExpression>();
-				for (ArrayList<TypedExpression> curArgs: argResults.get(i).getExprs().values()) {
+				for (ArrayList<TypedExpression> curArgs: argResults.get(isListHole ? 0 : i).getExprs().values()) {
 					IJavaType curType = curArgs.get(0).getType();
 					if (subtypeChecker.isSubtypeOf(curType, argType)) {
 						if (overloadChecker.needsCast(argType, curType, i))

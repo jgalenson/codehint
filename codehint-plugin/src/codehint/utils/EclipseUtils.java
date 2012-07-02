@@ -358,7 +358,7 @@ public class EclipseUtils {
     			return getFullyQualifiedType(typeName, target);
     		// Find the full type name.
     		String[][] allTypes = thisType.resolveType(componentTypeName);
-    		assert allTypes != null && allTypes.length == 1;
+    		assert allTypes != null && allTypes.length == 1 : typeName;
     		String[] typeParts = allTypes[0];
 			String fullTypeName = "";
 			typeParts[typeParts.length - 1] = typeParts[typeParts.length - 1].replace('.', '$');  // For some reason the IJavaDebugTarget.getJavaTypes method needs to have inner typesnames use '$' and not '.'.
@@ -548,12 +548,19 @@ public class EclipseUtils {
     
     private static IJavaType loadAndGetType(String typeName, IJavaStackFrame stack, IJavaDebugTarget target) {
 		loadClass(typeName, stack);
-		return getType(typeName, stack, target);
+		IJavaType type = getFullyQualifiedTypeIfExists(typeName, target);
+		if (type != null)  // getType will fail for inner types but getFullyQualified will work if they use $, so we try it first.
+			return type;
+		else
+			return getType(typeName, stack, target);
     }
     
     // TODO: There must be a better way to do this.
     private static void loadClass(String typeName, IJavaStackFrame stack) {
     	try {
+    		int dollar = typeName.indexOf('$');  // For inner classes, we seem to need to load the outer class first.
+    		if (dollar != -1)
+        		evaluate(getClassLoadExpression(typeName.substring(0, dollar)), stack);
     		evaluate(getClassLoadExpression(typeName), stack);
     	} catch (DebugException e) {
     		throw new RuntimeException(e);

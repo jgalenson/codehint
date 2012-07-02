@@ -56,7 +56,7 @@ public class MethodNameConstraint extends NameConstraint {
 
 	private boolean methodFulfills(SubtypeChecker subtypeChecker, IJavaStackFrame stack, IJavaDebugTarget target, Method method) {
 		return (legalNames == null || legalNames.contains(method.name())) && 
-				fulfillsArgConstraints(method, argConstraints, subtypeChecker, stack, target)
+				(argConstraints == null || fulfillsArgConstraints(method, argConstraints, subtypeChecker, stack, target))
 				&& (!"void".equals(method.returnTypeName()) && methodConstraint.isFulfilledBy(EclipseUtils.getFullyQualifiedTypeIfExists(method.returnTypeName(), target), subtypeChecker, stack, target));
 	}
 
