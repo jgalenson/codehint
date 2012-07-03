@@ -33,6 +33,7 @@ public abstract class SynthesisDialog extends ModelessDialog {
 	private String skeletonResult;
 
     private Button okButton;
+    private boolean hasInitialError;
 	
 	private boolean getSkeleton;
 
@@ -46,6 +47,8 @@ public abstract class SynthesisDialog extends ModelessDialog {
 			this.initialSkeletonText = lastCrashedSkeleton.getSugaredString();
 		this.skeletonValidator = new ExpressionSkeletonValidator(stack, varTypeName);
 		this.skeletonResult = null;
+		this.okButton = null;
+		this.hasInitialError = false;
 		this.getSkeleton = getSkeleton;
 	}
 	
@@ -85,26 +88,32 @@ public abstract class SynthesisDialog extends ModelessDialog {
                 setErrorMessage(errorText, validator.isValid(input.getText()));
             }
         });
+        hasInitialError = setErrorMessage(errorText, validator.isValid(input.getText())) || hasInitialError;
         
 		return input;
 	}
 
-    private void setErrorMessage(Text errorText, String errorMessage) {
+    private boolean setErrorMessage(Text errorText, String errorMessage) {
     	if (!errorText.isDisposed()) {
     		errorText.setText(errorMessage == null ? " \n " : errorMessage);
     		boolean hasError = errorMessage != null;
     		errorText.setEnabled(hasError);
     		errorText.setVisible(hasError);
     		errorText.getParent().update();
-			okButton.setEnabled(!hasError);
+    		if (okButton != null)
+    			okButton.setEnabled(!hasError);
+    		return hasError;
     	}
+    	return false;
     }
     
     @Override
 	protected Button createButton(Composite parent, int id, String label, boolean defaultButton) {
     	Button button = super.createButton(parent, id, label, defaultButton);
-    	if (id == IDialogConstants.OK_ID)
+    	if (id == IDialogConstants.OK_ID) {
     		okButton = button;
+    		okButton.setEnabled(!hasInitialError);
+    	}
     	return button;
     }
 
