@@ -27,9 +27,11 @@ public class MethodConstraint extends TypeConstraint {
 	@Override
 	public boolean isFulfilledBy(IJavaType type, SubtypeChecker subtypeChecker, IJavaStackFrame stack, IJavaDebugTarget target) {
 		for (Method method: ExpressionGenerator.getMethods(type)) {
-			if ((methodName == null || method.name().equals(methodName)) && method.argumentTypeNames().size() == argConstraints.size()
+			if ((methodName == null || method.name().equals(methodName)) && (argConstraints == null || method.argumentTypeNames().size() == argConstraints.size())
 					&& methodConstraint.isFulfilledBy(EclipseUtils.getFullyQualifiedTypeIfExists(method.returnTypeName(), target), subtypeChecker, stack, target)) {  // We use the ifExists version because it might be void.
 				int i = 0;
+				if (argConstraints == null)
+					return true;
 				for (; i < argConstraints.size(); i++) {
 					TypeConstraint argConstraint = argConstraints.get(i);
 					if (argConstraint != null && !argConstraint.isFulfilledBy(EclipseUtils.getFullyQualifiedType((String)method.argumentTypeNames().get(i), target), subtypeChecker, stack, target))

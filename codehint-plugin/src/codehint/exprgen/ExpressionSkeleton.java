@@ -1,6 +1,7 @@
 package codehint.exprgen;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -709,6 +710,8 @@ public class ExpressionSkeleton {
 
 		private ExpressionsAndTypeConstraints fillField(SimpleName name, Name superQualifier, Set<ASTNode> parentsOfHoles, TypeConstraint curConstraint, ExpressionsAndTypeConstraints receiverResult) {
 			FieldNameConstraint fieldNameConstraint = new FieldNameConstraint(receiverResult.getTypeConstraint(), curConstraint);
+			if (!parentsOfHoles.contains(name))
+				fieldNameConstraint.setLegalNames(new HashSet<String>(Arrays.asList(new String[] { name.toString() })));
 			ExpressionsAndTypeConstraints fieldResult = fillSkeleton(name, fieldNameConstraint, parentsOfHoles);
 			Map<String, ArrayList<Field>> fields = null;
 			if (holeFields.containsKey(name.getIdentifier()))
@@ -736,6 +739,8 @@ public class ExpressionSkeleton {
 
 		private ExpressionsAndTypeConstraints fillMethod(Expression node, SimpleName name, List<?> arguments, Set<ASTNode> parentsOfHoles, TypeConstraint curConstraint, ArrayList<TypeConstraint> argTypes, ExpressionsAndTypeConstraints receiverResult) {
 			MethodNameConstraint methodNameConstraint = new MethodNameConstraint(receiverResult.getTypeConstraint(), curConstraint, argTypes);
+			if (!parentsOfHoles.contains(name))
+				methodNameConstraint.setLegalNames(new HashSet<String>(Arrays.asList(new String[] { name.toString() })));
 			ExpressionsAndTypeConstraints methodResult = fillSkeleton(name, methodNameConstraint, parentsOfHoles);
 			Map<String, ArrayList<Method>> methods = null;
 			if (holeMethods.containsKey(name.getIdentifier()))
