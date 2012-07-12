@@ -12,6 +12,9 @@
 		<description>Enter a pdspec that relates the input and output values of the variables in scope.</description>
 	</context>
 	<context id="skeleton" title="Synthesis">
-		<description>Enter an outline of the desired expression, using ??s for unknown pieces.</description>
+		<description>Enter an outline of the desired expression, using ??s for unknown pieces.  You can also use ** as the sole argument to a method when you do not know how many arguments it should have.</description>
+	</context>
+	<context id="candidate-selector" title="Synthesis">
+		<description>Check the expressions that you would like to insert into the document.  If you choose more than one expression, then if some have different values when we later encounter this statement, we will ask you for a new pdspec.</description>
 	</context>
 </contexts>

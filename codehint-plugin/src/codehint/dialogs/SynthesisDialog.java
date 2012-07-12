@@ -107,6 +107,7 @@ public abstract class SynthesisDialog extends ModelessDialog {
 	        table.setLayoutData(tableData);
 	    	table.setLinesVisible(true);
 	    	table.setHeaderVisible(true);
+	        PlatformUI.getWorkbench().getHelpSystem().setHelp(table, Activator.PLUGIN_ID + "." + "candidate-selector");
 
 			Composite bottomButtonComposite = makeButtonComposite(composite);
 	        Button selectButton = createButton(bottomButtonComposite, IDialogConstants.SELECT_ALL_ID, "Select All", false);
