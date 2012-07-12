@@ -6,11 +6,13 @@ import java.util.regex.Pattern;
 import org.eclipse.debug.core.DebugException;
 import org.eclipse.debug.core.model.IVariable;
 import org.eclipse.jdt.debug.core.IJavaStackFrame;
+import org.eclipse.jdt.debug.core.IJavaType;
 import org.eclipse.jdt.debug.core.IJavaVariable;
 import org.eclipse.swt.widgets.Shell;
 
 import codehint.utils.EclipseUtils;
 import codehint.Synthesizer;
+import codehint.Synthesizer.SynthesisWorker;
 import codehint.dialogs.StatePropertyDialog;
 import codehint.dialogs.SynthesisDialog;
 import codehint.property.Property;
@@ -42,8 +44,9 @@ public class DemonstrateStatePropertyHandler extends CommandHandler {
 			Property lastCrashedProperty = Synthesizer.getLastCrashedProperty(path);
 			initValue = lastCrashedProperty instanceof StateProperty ? lastCrashedProperty.toString() : "";
 		}
-		String varTypeName = EclipseUtils.sanitizeTypename(((IJavaVariable)variable).getJavaType().getName());
-		SynthesisDialog dialog = new StatePropertyDialog(path, varTypeName, stack, shell, initValue, null, true);
+		IJavaType varType = ((IJavaVariable)variable).getJavaType();
+		String varTypeName = EclipseUtils.sanitizeTypename(varType.getName());
+		SynthesisDialog dialog = new StatePropertyDialog(path, varTypeName, stack, shell, initValue, null, new SynthesisWorker(path, varType, stack));
     	Synthesizer.synthesizeAndInsertExpressions(variable, path, dialog, stack, matcher != null);
     }
 

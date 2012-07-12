@@ -9,6 +9,7 @@ import org.eclipse.jdt.debug.eval.IAstEvaluationEngine;
 import org.eclipse.jface.dialogs.IInputValidator;
 import org.eclipse.swt.widgets.Shell;
 
+import codehint.Synthesizer.DialogWorker;
 import codehint.utils.EclipseUtils;
 
 public abstract class ValuePropertyDialog extends SynthesisDialog {
@@ -18,8 +19,8 @@ public abstract class ValuePropertyDialog extends SynthesisDialog {
 	private final String initialPdspecText;
 	private final IInputValidator pdspecValidator;
     
-    public ValuePropertyDialog(String varName, String varTypeName, IJavaStackFrame stack, Shell shell, String initialValue, String extraMessage, boolean getSkeleton) {
-    	super(shell, varName, varTypeName, stack, getSkeleton);
+    public ValuePropertyDialog(String varName, String varTypeName, IJavaStackFrame stack, Shell shell, String initialValue, String extraMessage, DialogWorker worker) {
+    	super(shell, varName, varTypeName, stack, worker);
     	this.varName = varName;
     	String pdspecMessage = "Demonstrate an expression for " + varName + ".  We will find expressions that evaluate to the same value.";
     	this.pdspecMessage = getFullMessage(pdspecMessage, extraMessage);

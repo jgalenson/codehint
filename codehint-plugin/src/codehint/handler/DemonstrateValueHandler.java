@@ -6,11 +6,13 @@ import java.util.regex.Pattern;
 import org.eclipse.debug.core.DebugException;
 import org.eclipse.debug.core.model.IVariable;
 import org.eclipse.jdt.debug.core.IJavaStackFrame;
+import org.eclipse.jdt.debug.core.IJavaType;
 import org.eclipse.jdt.debug.core.IJavaVariable;
 import org.eclipse.swt.widgets.Shell;
 
 import codehint.utils.EclipseUtils;
 import codehint.Synthesizer;
+import codehint.Synthesizer.SynthesisWorker;
 import codehint.dialogs.ArrayValuePropertyDialog;
 import codehint.dialogs.ObjectValuePropertyDialog;
 import codehint.dialogs.PrimitiveValuePropertyDialog;
@@ -44,14 +46,15 @@ public class DemonstrateValueHandler extends CommandHandler {
 	    	Property lastCrashedProperty = Synthesizer.getLastCrashedProperty(path);
 	    	initValue = lastCrashedProperty instanceof ValueProperty ? ((ValueProperty)lastCrashedProperty).getValueString() : "";
 		}
-		String varTypeName = EclipseUtils.sanitizeTypename(((IJavaVariable)variable).getJavaType().getName());
+		IJavaType varType = ((IJavaVariable)variable).getJavaType();
+		String varTypeName = EclipseUtils.sanitizeTypename(varType.getName());
 		SynthesisDialog dialog = null;
 		if (EclipseUtils.isObject(variable))
-			dialog = new ObjectValuePropertyDialog(path, varTypeName, stack, shell, initValue, null, true);
+			dialog = new ObjectValuePropertyDialog(path, varTypeName, stack, shell, initValue, null, new SynthesisWorker(path, varType, stack));
 		else if (EclipseUtils.isArray(variable))
-			dialog = new ArrayValuePropertyDialog(path, varTypeName, stack, shell, initValue, null, true);
+			dialog = new ArrayValuePropertyDialog(path, varTypeName, stack, shell, initValue, null, new SynthesisWorker(path, varType, stack));
 		else
-			dialog = new PrimitiveValuePropertyDialog(path, varTypeName, stack, shell, initValue, null, true);
+			dialog = new PrimitiveValuePropertyDialog(path, varTypeName, stack, shell, initValue, null, new SynthesisWorker(path, varType, stack));
     	Synthesizer.synthesizeAndInsertExpressions(variable, path, dialog, stack, initValue.length() > 0);
     }
 

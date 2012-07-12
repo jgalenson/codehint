@@ -6,6 +6,7 @@ import org.eclipse.jdt.debug.core.IJavaValue;
 import org.eclipse.swt.widgets.Shell;
 
 import codehint.Synthesizer;
+import codehint.Synthesizer.DialogWorker;
 import codehint.expreval.EvaluationManager.EvaluationError;
 import codehint.property.PrimitiveValueProperty;
 import codehint.property.Property;
@@ -15,13 +16,13 @@ public class PrimitiveValuePropertyDialog extends ValuePropertyDialog {
 	
 	private final IJavaStackFrame stack;
 
-	public PrimitiveValuePropertyDialog(String varName, String varTypeName, IJavaStackFrame stack, Shell shell, String initialValue, String extraMessage, boolean getSkeleton) {
-		super(varName, varTypeName, stack, shell, initialValue, extraMessage, getSkeleton);
+	public PrimitiveValuePropertyDialog(String varName, String varTypeName, IJavaStackFrame stack, Shell shell, String initialValue, String extraMessage, DialogWorker worker) {
+		super(varName, varTypeName, stack, shell, initialValue, extraMessage, worker);
 		this.stack = stack;
 	}
 
 	@Override
-	public Property getProperty() {
+	public Property computeProperty() {
 		String pdspecText = getPdspecText();
 		if (pdspecText == null)
 			return null;

@@ -8,6 +8,7 @@ import org.eclipse.jdt.debug.core.IJavaVariable;
 import org.eclipse.swt.widgets.Shell;
 
 import codehint.Synthesizer;
+import codehint.Synthesizer.SynthesisWorker;
 import codehint.dialogs.LambdaPropertyDialog;
 import codehint.dialogs.SynthesisDialog;
 import codehint.property.LambdaProperty;
@@ -25,7 +26,7 @@ public class DemonstrateLambdaPropertyHandler extends CommandHandler {
 	    	IJavaType varStaticType = ((IJavaVariable)variable).getJavaType();
 	    	String varTypeName = EclipseUtils.sanitizeTypename(varStaticType.getName());
 	    	IJavaStackFrame stack = EclipseUtils.getStackFrame();
-	    	SynthesisDialog dialog = new LambdaPropertyDialog(path, varTypeName, varStaticType, stack, shell, initValue, null, true);
+	    	SynthesisDialog dialog = new LambdaPropertyDialog(path, varTypeName, varStaticType, stack, shell, initValue, null, new SynthesisWorker(path, varStaticType, stack));
 	    	Synthesizer.synthesizeAndInsertExpressions(variable, path, dialog, stack, false);
 		} catch (DebugException e) {
 			throw new RuntimeException(e);

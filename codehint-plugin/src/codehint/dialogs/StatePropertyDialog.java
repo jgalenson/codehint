@@ -5,6 +5,7 @@ import org.eclipse.jdt.debug.eval.IAstEvaluationEngine;
 import org.eclipse.jface.dialogs.IInputValidator;
 import org.eclipse.swt.widgets.Shell;
 
+import codehint.Synthesizer.DialogWorker;
 import codehint.property.Property;
 import codehint.property.StateProperty;
 import codehint.utils.EclipseUtils;
@@ -16,8 +17,8 @@ public class StatePropertyDialog extends SynthesisDialog {
 	private final String initialPdspecText;
 	private final IInputValidator pdspecValidator;
     
-    public StatePropertyDialog(String varName, String varTypeName, IJavaStackFrame stack, Shell shell, String initialValue, String extraMessage, boolean getSkeleton) {
-    	super(shell, varName, varTypeName, stack, getSkeleton);
+    public StatePropertyDialog(String varName, String varTypeName, IJavaStackFrame stack, Shell shell, String initialValue, String extraMessage, DialogWorker worker) {
+    	super(shell, varName, varTypeName, stack, worker);
     	this.varName = varName;
     	String pdspecMessage = "Demonstrate a state property that should hold for " + varName + " after this statement is executed.  You may refer to the values of variables after this statement is executed using the prime syntax, e.g., " + varName + "\'";
     	this.pdspecMessage = getFullMessage(pdspecMessage, extraMessage);
@@ -57,7 +58,7 @@ public class StatePropertyDialog extends SynthesisDialog {
 	}
 
 	@Override
-	public Property getProperty() {
+	public Property computeProperty() {
 		String pdspecText = getPdspecText();
 		if (pdspecText == null)
 			return null;

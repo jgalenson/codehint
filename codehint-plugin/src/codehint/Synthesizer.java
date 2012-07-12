@@ -42,25 +42,10 @@ import org.eclipse.jdt.debug.core.IJavaType;
 import org.eclipse.jdt.debug.core.IJavaValue;
 import org.eclipse.jdt.debug.core.IJavaVariable;
 import org.eclipse.jdt.debug.core.JDIDebugModel;
-import org.eclipse.jface.resource.FontDescriptor;
-import org.eclipse.jface.resource.JFaceResources;
-import org.eclipse.jface.resource.LocalResourceManager;
 import org.eclipse.jface.text.BadLocationException;
 import org.eclipse.jface.text.IDocument;
-import org.eclipse.jface.viewers.ILabelProvider;
-import org.eclipse.jface.viewers.ILabelProviderListener;
-import org.eclipse.jface.viewers.IStructuredContentProvider;
-import org.eclipse.jface.viewers.Viewer;
-import org.eclipse.jface.window.Window;
-import org.eclipse.swt.SWT;
-import org.eclipse.swt.graphics.Font;
-import org.eclipse.swt.graphics.Image;
-import org.eclipse.swt.widgets.Composite;
-import org.eclipse.swt.widgets.Control;
 import org.eclipse.swt.widgets.Display;
 import org.eclipse.swt.widgets.Shell;
-import org.eclipse.ui.dialogs.ListSelectionDialog;
-import org.eclipse.ui.progress.UIJob;
 import org.eclipse.ui.texteditor.ITextEditor;
 
 import codehint.dialogs.LambdaPropertyDialog;
@@ -99,241 +84,167 @@ public class Synthesizer {
 	public static void synthesizeAndInsertExpressions(final IVariable variable, final String fullVarName, final SynthesisDialog synthesisDialog, final IJavaStackFrame stack, final boolean replaceCurLine) {
 		try {
 			synthesisDialog.open();
-			final Property property = synthesisDialog.getProperty();
-			final ExpressionSkeleton skeleton = synthesisDialog.getSkeleton();
-			if (property == null || skeleton == null)
+			Property property = synthesisDialog.getProperty();
+			ExpressionSkeleton skeleton = synthesisDialog.getSkeleton();
+			List<EvaluatedExpression> finalExpressions = synthesisDialog.getExpressions();
+	        if (finalExpressions == null) {
+		    	setLastCrashedInfo(null, null, null);
+		    	if (property != null && skeleton != null)
+		    		EclipseUtils.log("Cancelling synthesis for " + variable.toString() + " with property " + property.toString() + " and skeleton " + skeleton.toString() + ".");
+				return;
+	        } else if (finalExpressions.isEmpty())
 				return;
 			
-			EclipseUtils.log("Beginning synthesis for " + variable.toString() + " with property " + property.toString() + " and skeleton " + skeleton.toString() + ".");
+			List<String> validExpressionStrings = EvaluatedExpression.snippetsOfEvaluatedExpressions(finalExpressions);
+			
+			//Construct the textual line to insert.  Working in text seems easier than
+			// using the AST manipulators for now, but this may need revisited later.  
+			String statement = generateChooseOrChosenStmt(fullVarName, validExpressionStrings);
+
+			//Insert the new text
+			try {
+				if (replaceCurLine)
+					EclipseUtils.replaceLineAtCurrentDebugPoint(statement, stack.getLineNumber() - 1);
+				else
+					EclipseUtils.insertIndentedLineAtCurrentDebugPoint(statement, stack.getLineNumber() - 1);
+			} catch (BadLocationException e) {
+				throw new RuntimeException(e);
+			}
+
+			//Insert ourselves a breakpoint so that we stop here again
+			// Note: Really we'd like to break only on a trace without an override.  Can we do this?
+
+			//Don't want to actually change the value.  The invocation of choose (that we just inserted) will do that.
+
+			//Insert breakpoint so we can find this line again
+			//get the current frame from the current active editor to get the cursor line
+			// Note: This is not how the variable visit does this, 
+			// hopefully, we get the same value
+
+			int line = stack.getLineNumber();  // Comment from Eclipse sources: Document line numbers are 0-based. Debug line numbers are 1-based.
+			assert line >= 0;
+
+			ITextEditor editor = EclipseUtils.getActiveTextEditor();
+			assert editor != null;
+
+			String typename = stack.getDeclaringTypeName();
+			IResource resource = (IResource)editor.getEditorInput().getAdapter(IResource.class);
+
+			try {
+				JDIDebugModel.createLineBreakpoint(resource, typename, line, -1, -1, 0, true, null);
+			} catch (CoreException e) {
+				throw new RuntimeException(e);
+			}
+
+			// TODO: Using the text of the statement as a key is not a very good idea.
+			if (finalExpressions.size() > 1)
+				initialDemonstrations.put(statement, property);
+
+			IJavaValue value = property instanceof ValueProperty ? ((ValueProperty)property).getValue() : finalExpressions.get(0).getResult();
+			if (value != null)
+				variable.setValue(value);
+
+	    	setLastCrashedInfo(null, null, null);
+			
+			//NOTE: Our current implementation does not save.  Without a manual save, our added 
+			// code gets ignored for this invocation.  Should we force a save and restart?
+
+	    	EclipseUtils.log("Finishing synthesis for " + variable.toString() + " with property " + property.toString() + " and skeleton " + skeleton.toString() + ".  Found " + finalExpressions.size() + " user-approved expressions and inserted " + statement);
+			return;
+		} catch (DebugException e) {
+			e.printStackTrace();
+			EclipseUtils.showError("Error", "An error occurred processing your demonstration.", e);
+			throw new RuntimeException(e.getMessage());
+		}
+	}
 	
-			final IJavaType varStaticType = ((IJavaVariable)variable).getJavaType();
+	public abstract static class DialogWorker {
+		
+		public abstract void synthesize(SynthesisDialog synthesisDialog);
+		
+	}
 	
-			// Compute a list of expressions that generate that value as possible choices for expressions.
+	public static class SynthesisWorker extends DialogWorker {
+		
+		private final String varName;
+		private final IJavaType varStaticType;
+		private final IJavaStackFrame stack;
+		
+		public SynthesisWorker(String varName, IJavaType varStaticType, IJavaStackFrame stack) {
+			this.varName = varName;
+			this.varStaticType = varStaticType;
+			this.stack = stack;
+		}
+		
+		@Override
+		public void synthesize(final SynthesisDialog synthesisDialog) {
+			final Property property = synthesisDialog.getProperty();
+			final ExpressionSkeleton skeleton = synthesisDialog.getSkeleton();
 			Job job = new Job("Expression generation") {
 				@Override
 				protected IStatus run(IProgressMonitor monitor) {
+					IJavaDebugTarget target = (IJavaDebugTarget)stack.getDebugTarget();
+					EclipseUtils.log("Beginning synthesis for " + varName + " with property " + property.toString() + " and skeleton " + skeleton.toString() + ".");
 					try {
-						IJavaDebugTarget target = (IJavaDebugTarget)variable.getDebugTarget();
-
-						final List<EvaluatedExpression> validExpressions = skeleton.synthesize(target, stack, property, varStaticType, monitor);
-	
-				    	if (validExpressions.isEmpty())
-							return new Status(IStatus.ERROR, Activator.PLUGIN_ID, "No valid expressions were found.");
-	
-				        UIJob job = new UIJob("Inserting synthesized code"){
-	                        @Override
-	                        public IStatus runInUIThread(IProgressMonitor monitor) {
-								try {
-									CandidateSelector candidateSelector = new CandidateSelector(validExpressions.toArray(new EvaluatedExpression[validExpressions.size()]), stack);
-									List<EvaluatedExpression> finalExpressions = candidateSelector.getUserFilteredCandidates();
-	
-							        if (finalExpressions == null) {
-								    	setLastCrashedInfo(null, null, null);
-										EclipseUtils.log("Cancelling synthesis for " + variable.toString() + " with property " + property.toString() + " and skeleton " + skeleton.toString() + ".");
-										return Status.CANCEL_STATUS;
-							        }
-							        else if (finalExpressions.isEmpty())
-										return new Status(IStatus.ERROR, Activator.PLUGIN_ID, "No valid expressions were found.");
-									
-									List<String> validExpressionStrings = EvaluatedExpression.snippetsOfEvaluatedExpressions(finalExpressions);
-									
-									//Construct the textual line to insert.  Working in text seems easier than
-									// using the AST manipulators for now, but this may need revisited later.  
-									String statement = generateChooseOrChosenStmt(fullVarName, validExpressionStrings);
-				
-									//Insert the new text
-									try {
-										if (replaceCurLine)
-											EclipseUtils.replaceLineAtCurrentDebugPoint(statement, stack.getLineNumber() - 1);
-										else
-											EclipseUtils.insertIndentedLineAtCurrentDebugPoint(statement, stack.getLineNumber() - 1);
-									} catch (BadLocationException e) {
-										throw new RuntimeException(e);
-									}
-				
-									//Insert ourselves a breakpoint so that we stop here again
-									// Note: Really we'd like to break only on a trace without an override.  Can we do this?
-				
-									//Don't want to actually change the value.  The invocation of choose (that we just inserted) will do that.
-				
-									//Insert breakpoint so we can find this line again
-									//get the current frame from the current active editor to get the cursor line
-									// Note: This is not how the variable visit does this, 
-									// hopefully, we get the same value
-				
-									int line = stack.getLineNumber();  // Comment from Eclipse sources: Document line numbers are 0-based. Debug line numbers are 1-based.
-									assert line >= 0;
-				
-									ITextEditor editor = EclipseUtils.getActiveTextEditor();
-									assert editor != null;
-				
-									String typename = stack.getDeclaringTypeName();
-									IResource resource = (IResource)editor.getEditorInput().getAdapter(IResource.class);
-				
-									try {
-										JDIDebugModel.createLineBreakpoint(resource, typename, line, -1, -1, 0, true, null);
-									} catch (CoreException e) {
-										throw new RuntimeException(e);
-									}
-				
-									// TODO: Using the text of the statement as a key is not a very good idea.
-									if (finalExpressions.size() > 1)
-										initialDemonstrations.put(statement, property);
-	
-									IJavaValue value = property instanceof ValueProperty ? ((ValueProperty)property).getValue() : finalExpressions.get(0).getResult();
-									if (value != null)
-										variable.setValue(value);
-	
-							    	setLastCrashedInfo(null, null, null);
-									
-									//NOTE: Our current implementation does not save.  Without a manual save, our added 
-									// code gets ignored for this invocation.  Should we force a save and restart?
-				
-							    	EclipseUtils.log("Finishing synthesis for " + variable.toString() + " with property " + property.toString() + " and skeleton " + skeleton.toString() + ".  Found " + finalExpressions.size() + " user-approved expressions and inserted " + statement);
-									return Status.OK_STATUS;
-								} catch (DebugException e) {
-									e.printStackTrace();
-									EclipseUtils.showError("Error", "An error occurred processing your demonstration.", e);
-									throw new RuntimeException(e.getMessage());
-								}
+						final ArrayList<EvaluatedExpression> validExpressions = skeleton.synthesize(target, stack, property, varStaticType, monitor);
+			        	Display.getDefault().asyncExec(new Runnable(){
+							@Override
+							public void run() {
+			                	synthesisDialog.setExpressions(validExpressions);
 							}
-			        	};
-			            job.setUser(true);
-			            job.schedule();
+			        	});
 						return Status.OK_STATUS;
 					} catch (EvaluationError e) {
-				    	setLastCrashedInfo(variable.toString(), property, skeleton);
+				    	setLastCrashedInfo(varName, property, skeleton);
 						return new Status(IStatus.ERROR, Activator.PLUGIN_ID, e.getMessage());
 					} catch (OperationCanceledException e) {
-						EclipseUtils.log("Cancelling synthesis for " + variable.toString() + " with property " + property.toString() + " and skeleton " + skeleton.toString() + ".");
+						EclipseUtils.log("Cancelling synthesis for " + varName + " with property " + property.toString() + " and skeleton " + skeleton.toString() + ".");
 						return Status.CANCEL_STATUS;
 					} catch (TypeError e) {
 						EclipseUtils.showError("Error", e.getMessage(), null);
 						return Status.CANCEL_STATUS;
+					} finally {
+						Display.getDefault().asyncExec(new Runnable(){
+							@Override
+							public void run() {
+			                	synthesisDialog.enableOKCancel(true);
+							}
+			        	});
 					}
 				}
 			};
 			job.setPriority(Job.LONG);
 			job.setUser(true);
 			job.schedule();
-		} catch (DebugException e) {
-			throw new RuntimeException(e);
-		} 
+		}
+		
 	}
 	
-	// TODO: Make the view prettier when it shows the values.  Perhaps http://stackoverflow.com/questions/8862589/how-to-add-multiple-columns-in-listselectiondialog-in-eclipse.
-	private static class CandidateSelector {
+	public static class RefinementWorker extends DialogWorker {
 		
-		private final ListSelectionDialog dialog;
+		private final String varName;
+		private final ArrayList<EvaluatedExpression> exprs;
+		private final IJavaStackFrame stack;
 		
-		public CandidateSelector(EvaluatedExpression[] validExprs, IJavaStackFrame stack) {
-			dialog = new MyDialog(EclipseUtils.getShell(), "", new MyContentProvider(validExprs), new MyLabelProvider(validExprs, stack), "Select the candidates to keep.  The expressions are on the left and their values are on the right.  Objects have their toStrings shown.");
-			dialog.setInitialSelections(validExprs);
-			dialog.setTitle("Select candidates");
-		}
-		
-		private static class MyDialog extends ListSelectionDialog {
-			
-			public MyDialog(Shell parentShell, Object input, IStructuredContentProvider contentProvider, ILabelProvider labelProvider, String message) {
-				super(parentShell, input, contentProvider, labelProvider, message);
-			}
-
-			// TODO: Find a nicer way to give a two-column dialog.  This hackily changes the font to be monospaced.
-			@Override
-			protected Control createDialogArea(Composite parent) {
-				Control c = super.createDialogArea(parent);
-				// Pick some monospaced font.
-				Font font = (new LocalResourceManager(JFaceResources.getResources(), c)).createFont(FontDescriptor.createFrom("DejaVu Sans Mono", 10, SWT.NORMAL));
-				// Apply it to the elements in the dialog but not the buttons and text at the top.
-				// Note that this relies heavily on the implementation of ListSelectionDialog.
-				((Composite)c).getChildren()[1].setFont(font);
-				return c;
-			}
-			
+		public RefinementWorker(String varName, ArrayList<EvaluatedExpression> exprs, IJavaStackFrame stack) {
+			this.varName = varName;
+			this.exprs = exprs;
+			this.stack = stack;
 		}
 
-		private static class MyContentProvider implements IStructuredContentProvider {
-			
-			private final EvaluatedExpression[] validExprs;
-			
-			public MyContentProvider(EvaluatedExpression[] validExprs) {
-				this.validExprs = validExprs;
+		@Override
+		public void synthesize(SynthesisDialog synthesisDialog) {
+			Property property = synthesisDialog.getProperty();
+   			try {
+   				ArrayList<EvaluatedExpression> validExpressions =  EvaluationManager.filterExpressions(exprs, stack, property);
+            	synthesisDialog.setExpressions(validExpressions);
+   			} catch (EvaluationError e) {
+   		    	setLastCrashedInfo(varName, property, null);
+   		    	EclipseUtils.showError("Error", e.getMessage(), e);
+				throw e;
 			}
-
-			@Override
-			public void dispose() {}
-
-			@Override
-			public void inputChanged(Viewer viewer, Object oldInput, Object newInput) {}
-
-			@Override
-			public Object[] getElements(Object inputElement) {
-				return validExprs;
-			}
-			
 		}
-
-		private static class MyLabelProvider implements ILabelProvider {
-
-			private final int maxSnippetLength;
-			private final List<ILabelProviderListener> listeners = new ArrayList<ILabelProviderListener>();
-			private final IJavaStackFrame stack;
-			
-			public MyLabelProvider(EvaluatedExpression[] validExprs, IJavaStackFrame stack) {
-				int maxSnippetLen = -1;
-				for (EvaluatedExpression e: validExprs)
-					if (e.getSnippet().length() > maxSnippetLen)
-						maxSnippetLen = e.getSnippet().length();
-				maxSnippetLength = maxSnippetLen;
-				this.stack = stack;
-			}
-
-			@Override
-			public void addListener(ILabelProviderListener listener) {
-				listeners.add(listener);
-			}
-
-			@Override
-			public void dispose() {
-			}
-
-			@Override
-			public boolean isLabelProperty(Object element, String property) {
-				return false;
-			}
-
-			@Override
-			public void removeListener(ILabelProviderListener listener) {
-				listeners.remove(listener);
-			}
-
-			@Override
-			public Image getImage(Object element) {
-				return null;
-			}
-
-			@Override
-			public String getText(Object element) {
-				EvaluatedExpression cur = (EvaluatedExpression)element;
-				String str = cur.getSnippet();
-				for (int i = str.length(); i < maxSnippetLength; i++)
-					str += " ";
-				str += "  " + getValue(cur, stack);
-				return str;
-			}
-			
-		};
 		
-		public List<EvaluatedExpression> getUserFilteredCandidates() {
-	        List<EvaluatedExpression> finalExpressions = null;
-	        if (dialog.open() == Window.OK) {
-	        	Object[] selected = dialog.getResult();
-	        	finalExpressions = new ArrayList<EvaluatedExpression>(selected.length);
-	        	for (Object e: selected)
-	        		finalExpressions.add((EvaluatedExpression)e);
-	        }
-	        return finalExpressions;
-		}
 	}
 
 	private static class ChoiceBreakpointListener implements IDebugEventSetListener {
@@ -430,8 +341,15 @@ public class Synthesizer {
    	   				}
    	   			});
        			// Get the new concrete value from the user.
-   				Property property = getPropertyFromUser(varname, varStaticType, varStaticTypeName, "\nPotential values are: " + getLegalValues(exprs, frame), frame, initialProperty);
-       			if (property == null) {
+   				final SynthesisDialog synthesisDialog = getRefinementDialog(exprs, varname, varStaticType, varStaticTypeName, "\nPotential values are: " + getLegalValues(exprs, frame), frame, initialProperty);
+   				Display.getDefault().syncExec(new Runnable() {
+   	   				@Override
+					public void run() {
+   	   					synthesisDialog.open();
+   	   				}
+   	   			});
+   				ArrayList<EvaluatedExpression> validExprs = synthesisDialog.getExpressions();
+       			if (validExprs == null) {
        				//The user cancelled, just drop back into the debugger and let the 
        				//use do what they want.  Attempting to execute the line will result
        				//in a crash anyway, so they can't screw anything up
@@ -439,15 +357,6 @@ public class Synthesizer {
        				return;
        			}
        			
-       			// Filter out the expressions that do not give the desired value in the current context.
-       			ArrayList<EvaluatedExpression> validExprs = null;
-       			try {
-       				validExprs = EvaluationManager.filterExpressions(exprs, frame, property);
-       			} catch (EvaluationError e) {
-       		    	setLastCrashedInfo(varname, property, null);
-       		    	EclipseUtils.showError("Error", e.getMessage(), e);
-					throw e;
-				}
        	    	setLastCrashedInfo(null, null, null);
        			if (validExprs.isEmpty()) {
        				EclipseUtils.showError("Error", "No legal expressions remain after refinement.", null);
@@ -455,7 +364,7 @@ public class Synthesizer {
        			}
    				value = validExprs.get(0).getResult();  // The returned values could be different, so we arbitrarily use the first one.  This might not be the best thing to do.
        			
-       			newLine = rewriteLine(matcher, varname, curLine, property, validExprs, line);
+       			newLine = rewriteLine(matcher, varname, curLine, synthesisDialog.getProperty(), validExprs, line);
 
        			if (validExprs.size() == 1) {
            			// If there's only a single possibility remaining, remove the breakpoint.
@@ -564,32 +473,31 @@ public class Synthesizer {
         	return result[0];
 	    }
 	    
-	    private static Property getPropertyFromUser(final String varName, final IJavaType varStaticType, final String varStaticTypeName, final String extraMessage, final IJavaStackFrame stackFrame, final Property oldProperty) {
-	    	final Property[] result = new Property[] { null };
-	    	Display.getDefault().syncExec(new Runnable() {
-	    		@Override
-	    		public void run() {
-	    			try {
-	    				Shell shell = EclipseUtils.getShell();
-	    				SynthesisDialog dialog = null;
-		    			if (oldProperty == null || oldProperty instanceof StateProperty)
-		    				dialog = new StatePropertyDialog(varName, varStaticTypeName, stackFrame, shell, oldProperty == null ? "" : oldProperty.toString(), extraMessage, false);
-		    			else if (oldProperty instanceof PrimitiveValueProperty)
-		    				dialog = new PrimitiveValuePropertyDialog(varName, varStaticTypeName, stackFrame, shell, "", extraMessage, false);
-		    			else if (oldProperty instanceof ObjectValueProperty)
-		    				dialog = new ObjectValuePropertyDialog(varName, varStaticTypeName, stackFrame, shell, "", extraMessage, false);
-		    			else if (oldProperty instanceof TypeProperty)
-		    				dialog = new TypePropertyDialog(varName, varStaticTypeName, stackFrame, shell, ((TypeProperty)oldProperty).getTypeName(), extraMessage, false);
-		    			else if (oldProperty instanceof LambdaProperty)
-		    				dialog = new LambdaPropertyDialog(varName, varStaticType.getName(), varStaticType, stackFrame, shell, oldProperty.toString(), extraMessage, false);
-		    			dialog.open();
-		    			result[0] = dialog.getProperty();
-	    			} catch (DebugException e) {
-	    				throw new RuntimeException(e);
-	    			}
-	    		}
-	    	});
-	    	return result[0];
+	    private static Shell getShell() {
+	    	final Shell[] result = new Shell[] { null };
+        	Display.getDefault().syncExec(new Runnable(){
+				@Override
+				public void run() {
+                	result[0] = EclipseUtils.getShell();
+				}
+        	});
+        	return result[0];
+	    }
+	    
+	    private static SynthesisDialog getRefinementDialog(final ArrayList<EvaluatedExpression> exprs, final String varName, final IJavaType varStaticType, final String varStaticTypeName, final String extraMessage, final IJavaStackFrame stackFrame, final Property oldProperty) throws DebugException {
+			Shell shell = getShell();
+			if (oldProperty == null || oldProperty instanceof StateProperty)
+				return new StatePropertyDialog(varName, varStaticTypeName, stackFrame, shell, oldProperty == null ? "" : oldProperty.toString(), extraMessage, new RefinementWorker(varName, exprs, stackFrame));
+			else if (oldProperty instanceof PrimitiveValueProperty)
+				return new PrimitiveValuePropertyDialog(varName, varStaticTypeName, stackFrame, shell, "", extraMessage, new RefinementWorker(varName, exprs, stackFrame));
+			else if (oldProperty instanceof ObjectValueProperty)
+				return new ObjectValuePropertyDialog(varName, varStaticTypeName, stackFrame, shell, "", extraMessage, new RefinementWorker(varName, exprs, stackFrame));
+			else if (oldProperty instanceof TypeProperty)
+				return new TypePropertyDialog(varName, varStaticTypeName, stackFrame, shell, ((TypeProperty)oldProperty).getTypeName(), extraMessage, new RefinementWorker(varName, exprs, stackFrame));
+			else if (oldProperty instanceof LambdaProperty)
+				return new LambdaPropertyDialog(varName, varStaticType.getName(), varStaticType, stackFrame, shell, oldProperty.toString(), extraMessage, new RefinementWorker(varName, exprs, stackFrame));
+			else
+				throw new IllegalArgumentException(oldProperty.toString());
 	    }
 	    
 	    /**
@@ -637,7 +545,7 @@ public class Synthesizer {
 	    
 	}
 	
-	private static String getValue(EvaluatedExpression cur, IJavaStackFrame stack) {
+	public static String getValue(EvaluatedExpression cur, IJavaStackFrame stack) {
 		try {
 			// TODO-optimization: I can compute this in EvaluationManager (only if the spec is true) and store it in the EvaluatedExpression to reduce overheads.
 			if (cur.getResult() instanceof IJavaPrimitiveValue)

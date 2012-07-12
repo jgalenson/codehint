@@ -6,11 +6,13 @@ import java.util.regex.Pattern;
 import org.eclipse.debug.core.DebugException;
 import org.eclipse.debug.core.model.IVariable;
 import org.eclipse.jdt.debug.core.IJavaStackFrame;
+import org.eclipse.jdt.debug.core.IJavaType;
 import org.eclipse.jdt.debug.core.IJavaVariable;
 import org.eclipse.swt.widgets.Shell;
 
 import codehint.utils.EclipseUtils;
 import codehint.Synthesizer;
+import codehint.Synthesizer.SynthesisWorker;
 import codehint.dialogs.SynthesisDialog;
 import codehint.dialogs.TypePropertyDialog;
 
@@ -30,7 +32,8 @@ public class DemonstrateTypeHandler extends CommandHandler {
     
     private static void handle(IVariable variable, String path, Shell shell, Matcher matcher, IJavaStackFrame stack) throws DebugException {
 		assert !EclipseUtils.isPrimitive(variable);
-		String varTypeName = EclipseUtils.sanitizeTypename(((IJavaVariable)variable).getJavaType().getName());
+		IJavaType varType = ((IJavaVariable)variable).getJavaType();
+		String varTypeName = EclipseUtils.sanitizeTypename(varType.getName());
 		String initValue = "";
 		if (matcher != null) {
 			if (!matcher.group(2).equals(variable.getName())) {
@@ -40,7 +43,7 @@ public class DemonstrateTypeHandler extends CommandHandler {
 			initValue = matcher.group(1);
 		} else
 			initValue = varTypeName;
-		SynthesisDialog dialog = new TypePropertyDialog(path, varTypeName, stack, shell, initValue, null, true);
+		SynthesisDialog dialog = new TypePropertyDialog(path, varTypeName, stack, shell, initValue, null, new SynthesisWorker(path, varType, stack));
     	Synthesizer.synthesizeAndInsertExpressions(variable, path, dialog, stack, matcher != null);
     }
 

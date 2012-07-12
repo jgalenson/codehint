@@ -10,6 +10,7 @@ import org.eclipse.jdt.debug.eval.IAstEvaluationEngine;
 import org.eclipse.jface.dialogs.IInputValidator;
 import org.eclipse.swt.widgets.Shell;
 
+import codehint.Synthesizer.DialogWorker;
 import codehint.property.LambdaProperty;
 import codehint.property.Property;
 import codehint.utils.EclipseUtils;
@@ -20,8 +21,8 @@ public class LambdaPropertyDialog extends SynthesisDialog {
 	private final String initialPdspecText;
 	private final IInputValidator pdspecValidator;
     
-    public LambdaPropertyDialog(String varName, String varTypeName, IJavaType varStaticType, IJavaStackFrame stack, Shell shell, String initialValue, String extraMessage, boolean getSkeleton) {
-    	super(shell, varName, varTypeName, stack, getSkeleton);
+    public LambdaPropertyDialog(String varName, String varTypeName, IJavaType varStaticType, IJavaStackFrame stack, Shell shell, String initialValue, String extraMessage, DialogWorker worker) {
+    	super(shell, varName, varTypeName, stack, worker);
     	String pdspecMessage = "Demonstrate a property (in the form of a boolean lambda expression) that should hold for " + varName + " after this statement is executed.";
     	this.pdspecMessage = getFullMessage(pdspecMessage, extraMessage);
     	try {
@@ -100,7 +101,7 @@ public class LambdaPropertyDialog extends SynthesisDialog {
     }
 
 	@Override
-	public Property getProperty() {
+	public Property computeProperty() {
 		String pdspecText = getPdspecText();
 		if (pdspecText == null)
 			return null;

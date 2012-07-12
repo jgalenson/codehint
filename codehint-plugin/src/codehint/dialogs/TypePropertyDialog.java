@@ -8,6 +8,7 @@ import org.eclipse.jdt.debug.core.IJavaStackFrame;
 import org.eclipse.jface.dialogs.IInputValidator;
 import org.eclipse.swt.widgets.Shell;
 
+import codehint.Synthesizer.DialogWorker;
 import codehint.property.Property;
 import codehint.property.TypeProperty;
 import codehint.utils.EclipseUtils;
@@ -18,8 +19,8 @@ public class TypePropertyDialog extends SynthesisDialog {
 	private final String initialPdspecText;
 	private final IInputValidator pdspecValidator;
 	
-    public TypePropertyDialog(String varName, String varTypeName, IJavaStackFrame stack, Shell shell, String initialValue, String extraMessage, boolean getSkeleton) {
-    	super(shell, varName, varTypeName, stack, getSkeleton);
+    public TypePropertyDialog(String varName, String varTypeName, IJavaStackFrame stack, Shell shell, String initialValue, String extraMessage, DialogWorker worker) {
+    	super(shell, varName, varTypeName, stack, worker);
     	String pdspecMessage = "Demonstrate a type for " + varName + ".  We will find expressions return that type when evaluated.";
     	this.pdspecMessage = getFullMessage(pdspecMessage, extraMessage);
     	try {
@@ -74,7 +75,7 @@ public class TypePropertyDialog extends SynthesisDialog {
     }
 
 	@Override
-	public Property getProperty() {
+	public Property computeProperty() {
 		String pdspecText = getPdspecText();
 		if (pdspecText == null)
 			return null;
