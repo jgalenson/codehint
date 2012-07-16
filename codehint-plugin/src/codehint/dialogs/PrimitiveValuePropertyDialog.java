@@ -3,10 +3,8 @@ package codehint.dialogs;
 import org.eclipse.debug.core.DebugException;
 import org.eclipse.jdt.debug.core.IJavaStackFrame;
 import org.eclipse.jdt.debug.core.IJavaValue;
-import org.eclipse.swt.widgets.Shell;
 
 import codehint.Synthesizer;
-import codehint.Synthesizer.DialogWorker;
 import codehint.expreval.EvaluationManager.EvaluationError;
 import codehint.property.PrimitiveValueProperty;
 import codehint.property.Property;
@@ -16,22 +14,21 @@ public class PrimitiveValuePropertyDialog extends ValuePropertyDialog {
 	
 	private final IJavaStackFrame stack;
 
-	public PrimitiveValuePropertyDialog(String varName, String varTypeName, IJavaStackFrame stack, Shell shell, String initialValue, String extraMessage, DialogWorker worker) {
-		super(varName, varTypeName, stack, shell, initialValue, extraMessage, worker);
+	public PrimitiveValuePropertyDialog(String varName, String varTypeName, IJavaStackFrame stack, String initialValue, String extraMessage) {
+		super(varName, varTypeName, stack, initialValue, extraMessage);
 		this.stack = stack;
 	}
 
 	@Override
-	public Property computeProperty() {
-		String pdspecText = getPdspecText();
-		if (pdspecText == null)
+	public Property computeProperty(String propertyText) {
+		if (propertyText == null)
 			return null;
 		else {
     		try {
-		    	IJavaValue demonstrationValue = EclipseUtils.evaluate(pdspecText, stack);
+		    	IJavaValue demonstrationValue = EclipseUtils.evaluate(propertyText, stack);
 		    	return PrimitiveValueProperty.fromPrimitive(EclipseUtils.javaStringOfValue(demonstrationValue), demonstrationValue);
     		} catch (EvaluationError e) {
-		    	Synthesizer.setLastCrashedInfo(varName, PrimitiveValueProperty.fromPrimitive(pdspecText, null), null);
+		    	Synthesizer.setLastCrashedInfo(varName, PrimitiveValueProperty.fromPrimitive(propertyText, null), null);
 				throw e;
 			} catch (DebugException e) {
 				throw new RuntimeException(e);

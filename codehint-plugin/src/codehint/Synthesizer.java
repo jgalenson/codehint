@@ -51,6 +51,7 @@ import org.eclipse.ui.texteditor.ITextEditor;
 import codehint.dialogs.LambdaPropertyDialog;
 import codehint.dialogs.ObjectValuePropertyDialog;
 import codehint.dialogs.PrimitiveValuePropertyDialog;
+import codehint.dialogs.PropertyDialog;
 import codehint.dialogs.StatePropertyDialog;
 import codehint.dialogs.SynthesisDialog;
 import codehint.dialogs.TypePropertyDialog;
@@ -486,18 +487,20 @@ public class Synthesizer {
 	    
 	    private static SynthesisDialog getRefinementDialog(final ArrayList<EvaluatedExpression> exprs, final String varName, final IJavaType varStaticType, final String varStaticTypeName, final String extraMessage, final IJavaStackFrame stackFrame, final Property oldProperty) throws DebugException {
 			Shell shell = getShell();
+			PropertyDialog propertyDialog = null;
 			if (oldProperty == null || oldProperty instanceof StateProperty)
-				return new StatePropertyDialog(varName, varStaticTypeName, stackFrame, shell, oldProperty == null ? "" : oldProperty.toString(), extraMessage, new RefinementWorker(varName, exprs, stackFrame));
+				propertyDialog = new StatePropertyDialog(varName, stackFrame, oldProperty == null ? "" : oldProperty.toString(), extraMessage);
 			else if (oldProperty instanceof PrimitiveValueProperty)
-				return new PrimitiveValuePropertyDialog(varName, varStaticTypeName, stackFrame, shell, "", extraMessage, new RefinementWorker(varName, exprs, stackFrame));
+				propertyDialog = new PrimitiveValuePropertyDialog(varName, varStaticTypeName, stackFrame, "", extraMessage);
 			else if (oldProperty instanceof ObjectValueProperty)
-				return new ObjectValuePropertyDialog(varName, varStaticTypeName, stackFrame, shell, "", extraMessage, new RefinementWorker(varName, exprs, stackFrame));
+				propertyDialog = new ObjectValuePropertyDialog(varName, varStaticTypeName, stackFrame, "", extraMessage);
 			else if (oldProperty instanceof TypeProperty)
-				return new TypePropertyDialog(varName, varStaticTypeName, stackFrame, shell, ((TypeProperty)oldProperty).getTypeName(), extraMessage, new RefinementWorker(varName, exprs, stackFrame));
+				propertyDialog = new TypePropertyDialog(varName, varStaticTypeName, stackFrame, ((TypeProperty)oldProperty).getTypeName(), extraMessage);
 			else if (oldProperty instanceof LambdaProperty)
-				return new LambdaPropertyDialog(varName, varStaticType.getName(), varStaticType, stackFrame, shell, oldProperty.toString(), extraMessage, new RefinementWorker(varName, exprs, stackFrame));
+				propertyDialog = new LambdaPropertyDialog(varName, varStaticType.getName(), varStaticType, stackFrame, oldProperty.toString(), extraMessage);
 			else
 				throw new IllegalArgumentException(oldProperty.toString());
+			return new SynthesisDialog(shell, varName, varStaticTypeName, varStaticType, stackFrame, propertyDialog, new RefinementWorker(varName, exprs, stackFrame));
 	    }
 	    
 	    /**

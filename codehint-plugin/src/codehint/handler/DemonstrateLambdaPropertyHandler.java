@@ -23,10 +23,10 @@ public class DemonstrateLambdaPropertyHandler extends CommandHandler {
     	try {
 	    	Property lastCrashedProperty = Synthesizer.getLastCrashedProperty(path);
 	    	String initValue = lastCrashedProperty instanceof LambdaProperty && !(lastCrashedProperty instanceof ValueProperty) ? lastCrashedProperty.toString() : "";
-	    	IJavaType varStaticType = ((IJavaVariable)variable).getJavaType();
-	    	String varTypeName = EclipseUtils.sanitizeTypename(varStaticType.getName());
+	    	IJavaType varType = ((IJavaVariable)variable).getJavaType();
+	    	String varTypeName = EclipseUtils.sanitizeTypename(varType.getName());
 	    	IJavaStackFrame stack = EclipseUtils.getStackFrame();
-	    	SynthesisDialog dialog = new LambdaPropertyDialog(path, varTypeName, varStaticType, stack, shell, initValue, null, new SynthesisWorker(path, varStaticType, stack));
+	    	SynthesisDialog dialog = new SynthesisDialog(shell, path, varTypeName, varType, stack, new LambdaPropertyDialog(path, varTypeName, varType, stack, initValue, null), new SynthesisWorker(path, varType, stack));
 	    	Synthesizer.synthesizeAndInsertExpressions(variable, path, dialog, stack, false);
 		} catch (DebugException e) {
 			throw new RuntimeException(e);

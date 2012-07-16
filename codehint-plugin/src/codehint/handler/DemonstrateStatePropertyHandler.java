@@ -46,7 +46,7 @@ public class DemonstrateStatePropertyHandler extends CommandHandler {
 		}
 		IJavaType varType = ((IJavaVariable)variable).getJavaType();
 		String varTypeName = EclipseUtils.sanitizeTypename(varType.getName());
-		SynthesisDialog dialog = new StatePropertyDialog(path, varTypeName, stack, shell, initValue, null, new SynthesisWorker(path, varType, stack));
+		SynthesisDialog dialog = new SynthesisDialog(shell, path, varTypeName, varType, stack, new StatePropertyDialog(path, stack, initValue, null), new SynthesisWorker(path, varType, stack));
     	Synthesizer.synthesizeAndInsertExpressions(variable, path, dialog, stack, matcher != null);
     }
 

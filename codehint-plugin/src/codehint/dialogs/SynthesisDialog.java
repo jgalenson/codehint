@@ -3,6 +3,7 @@ package codehint.dialogs;
 import java.util.ArrayList;
 
 import org.eclipse.jdt.debug.core.IJavaStackFrame;
+import org.eclipse.jdt.debug.core.IJavaType;
 import org.eclipse.jdt.debug.eval.IAstEvaluationEngine;
 import org.eclipse.jface.dialogs.IDialogConstants;
 import org.eclipse.jface.dialogs.IInputValidator;
@@ -14,6 +15,7 @@ import org.eclipse.swt.events.SelectionEvent;
 import org.eclipse.swt.layout.GridData;
 import org.eclipse.swt.layout.GridLayout;
 import org.eclipse.swt.widgets.Button;
+import org.eclipse.swt.widgets.Combo;
 import org.eclipse.swt.widgets.Composite;
 import org.eclipse.swt.widgets.Control;
 import org.eclipse.swt.widgets.Label;
@@ -33,11 +35,15 @@ import codehint.exprgen.ExpressionSkeleton;
 import codehint.property.Property;
 import codehint.utils.EclipseUtils;
 
-public abstract class SynthesisDialog extends ModelessDialog {
+public class SynthesisDialog extends ModelessDialog {
 	
+	private final String varTypeName;
+	private final IJavaType varType;
+	
+	private PropertyDialog propertyDialog;
+	private Composite pdspecComposite;
 	private Text pdspecInput;
 	private boolean pdspecIsValid;
-	private String pdspecResult;
 	
 	private final String initialSkeletonText;
 	private Text skeletonInput;
@@ -52,7 +58,7 @@ public abstract class SynthesisDialog extends ModelessDialog {
     private final IJavaStackFrame stack;
 
     private Button okButton;
-    private static final int TABLE_WIDTH = 250;
+    private static final int TABLE_WIDTH = 500;
     private static final int TABLE_HEIGHT = 300;
     private Table table;
     private ArrayList<EvaluatedExpression> expressions;
@@ -60,10 +66,12 @@ public abstract class SynthesisDialog extends ModelessDialog {
     private Property property;
     private ExpressionSkeleton skeleton;
 
-	protected SynthesisDialog(Shell parentShell, String varName, String varTypeName, IJavaStackFrame stack, DialogWorker worker) {
+    public SynthesisDialog(Shell parentShell, String varName, String varTypeName, IJavaType varType, IJavaStackFrame stack, PropertyDialog propertyDialog, DialogWorker worker) {
 		super(parentShell);
+		this.varTypeName = varTypeName;
+		this.varType = varType;
+		this.propertyDialog = propertyDialog;
 		this.pdspecIsValid = false;
-		this.pdspecResult = null;
 		ExpressionSkeleton lastCrashedSkeleton = Synthesizer.getLastCrashedSkeleton(varName);
 		if (lastCrashedSkeleton == null)
 			this.initialSkeletonText = ExpressionSkeleton.HOLE_SYNTAX;
@@ -90,13 +98,16 @@ public abstract class SynthesisDialog extends ModelessDialog {
 	protected Control createDialogArea(Composite parent) {
 		Composite composite = (Composite)super.createDialogArea(parent);
 
-		pdspecInput = createInput(composite, getPdspecMessage(), getInitialPdspecText(), getPdspecValidator(), getHelpID());
+		makeCombo(composite);
+
+		pdspecComposite = makeChildComposite(composite, GridData.HORIZONTAL_ALIGN_FILL, 1);
+		pdspecInput = createInput(pdspecComposite, propertyDialog.getPdspecMessage(), propertyDialog.getInitialPdspecText(), propertyDialog.getPdspecValidator(), propertyDialog.getHelpID());
 		
 		if (isInitialSynthesis) {
 			String message = "Give an expression skeleton that describes the form of the desired expression, using " + ExpressionSkeleton.HOLE_SYNTAX + "s for unknown expressions and names.";
 			skeletonInput = createInput(composite, message, initialSkeletonText, skeletonValidator, "skeleton");
 
-			Composite topButtonComposite = makeButtonComposite(composite);
+			Composite topButtonComposite = makeChildComposite(composite, GridData.HORIZONTAL_ALIGN_CENTER, 0);
 			searchButton = createButton(topButtonComposite, searchButtonID, "Search", true);
 			searchButton.setEnabled(pdspecIsValid && skeletonIsValid);
 			
@@ -109,7 +120,7 @@ public abstract class SynthesisDialog extends ModelessDialog {
 	    	table.setHeaderVisible(true);
 	        PlatformUI.getWorkbench().getHelpSystem().setHelp(table, Activator.PLUGIN_ID + "." + "candidate-selector");
 
-			Composite bottomButtonComposite = makeButtonComposite(composite);
+			Composite bottomButtonComposite = makeChildComposite(composite, GridData.HORIZONTAL_ALIGN_CENTER, 0);
 	        Button selectButton = createButton(bottomButtonComposite, IDialogConstants.SELECT_ALL_ID, "Select All", false);
 	        selectButton.addSelectionListener(new SelectionAdapter() {
 	            @Override
@@ -128,21 +139,76 @@ public abstract class SynthesisDialog extends ModelessDialog {
 		
 		return composite;
 	}
+
+	private void makeCombo(Composite composite) {
+		Composite comboComposite = makeChildComposite(composite, GridData.HORIZONTAL_ALIGN_CENTER, 2);
+		
+		Label comboLabel = new Label(comboComposite, SWT.NONE);
+		comboLabel.setText("Select pdspec type: ");
+		comboLabel.setFont(comboComposite.getFont());
+		
+		final Combo combo = new Combo(comboComposite, SWT.READ_ONLY);
+		final boolean isPrimitive = EclipseUtils.isPrimitive(varType);
+		if (isPrimitive)
+			combo.setItems(new String[] { "Demonstrate value", "Demonstrate state property", "Demonstrate lambda property" });
+		else
+			combo.setItems(new String[] { "Demonstrate value", "Demonstrate type", "Demonstrate state property", "Demonstrate lambda property" });
+		combo.addSelectionListener(new SelectionAdapter() {
+			@Override
+			public void widgetSelected(SelectionEvent e) {
+				int index = combo.getSelectionIndex();
+				if (index == 0) {
+					if (EclipseUtils.isObject(varType))
+						propertyDialog = new ObjectValuePropertyDialog(propertyDialog.getVarName(), varTypeName, stack, "", propertyDialog.getExtraMessage());
+					else if (EclipseUtils.isArray(varType))
+						propertyDialog = new ArrayValuePropertyDialog(propertyDialog.getVarName(), varTypeName, stack, "", propertyDialog.getExtraMessage());
+					else
+						propertyDialog = new PrimitiveValuePropertyDialog(propertyDialog.getVarName(), varTypeName, stack, "", propertyDialog.getExtraMessage());
+				} else if (!isPrimitive && index == 1)
+					propertyDialog = new TypePropertyDialog(propertyDialog.getVarName(), varTypeName, stack, varTypeName, propertyDialog.getExtraMessage());
+				else if (index == (isPrimitive ? 1 : 2))
+					propertyDialog = new StatePropertyDialog(propertyDialog.getVarName(), stack, "", propertyDialog.getExtraMessage());
+				else if (index == (isPrimitive ? 2 : 3))
+					propertyDialog = new LambdaPropertyDialog(propertyDialog.getVarName(), varTypeName, varType, stack, "", propertyDialog.getExtraMessage());
+				else
+					throw new IllegalArgumentException();
+				for (Control c: pdspecComposite.getChildren())
+					c.dispose();
+				pdspecInput = createInput(pdspecComposite, propertyDialog.getPdspecMessage(), propertyDialog.getInitialPdspecText(), propertyDialog.getPdspecValidator(), propertyDialog.getHelpID());
+				pdspecComposite.layout(true);
+			}
+		});
+		
+		if (propertyDialog instanceof ValuePropertyDialog)
+			combo.select(0);
+		else if (propertyDialog instanceof TypePropertyDialog)
+			combo.select(1);
+		else if (propertyDialog instanceof StatePropertyDialog)
+			combo.select(isPrimitive ? 1 : 2);
+		else if (propertyDialog instanceof LambdaPropertyDialog)
+			combo.select(isPrimitive ? 2 : 3);
+		else
+			throw new IllegalArgumentException();
+	}
 	
-	private static Composite makeButtonComposite(Composite composite) {
+	// For buttons, pass in 0 for numColumns, as createButtons increments it.
+	private static Composite makeChildComposite(Composite composite, int horizStyle, int numColumns) {
 		Composite buttonComposite = new Composite(composite, SWT.NONE);
 		GridLayout layout = new GridLayout();
-		layout.numColumns = 0;
+		layout.numColumns = numColumns;
 		buttonComposite.setLayout(layout);
-		buttonComposite.setLayoutData(new GridData(GridData.HORIZONTAL_ALIGN_CENTER | GridData.VERTICAL_ALIGN_CENTER));
+		buttonComposite.setLayoutData(new GridData(horizStyle | GridData.VERTICAL_ALIGN_CENTER));
 		buttonComposite.setFont(composite.getFont());
 		return buttonComposite;
 	}
 	
 	private Text createInput(Composite composite, String message, String initialText, final IInputValidator validator, String helpID) {
-		Label label = new Label(composite, SWT.NONE);
+		Label label = new Label(composite, SWT.WRAP);
 		label.setText(message);
 		label.setFont(composite.getFont());
+		GridData gridData = new GridData();
+		gridData.widthHint = TABLE_WIDTH * 2;
+		label.setLayoutData(gridData);
 		
 		final Text input = new Text(composite, SWT.SINGLE | SWT.BORDER);
 		input.setLayoutData(new GridData(SWT.FILL, SWT.BEGINNING, true, false));
@@ -189,6 +255,8 @@ public abstract class SynthesisDialog extends ModelessDialog {
     
     @Override
     protected Button createButton(Composite parent, int id, String label, boolean defaultButton) {
+    	if (id == IDialogConstants.OK_ID && isInitialSynthesis)
+    		defaultButton = false;
     	Button button = super.createButton(parent, id, label, defaultButton);
     	if (id == IDialogConstants.OK_ID && !isInitialSynthesis) {
             okButton = button;
@@ -200,10 +268,9 @@ public abstract class SynthesisDialog extends ModelessDialog {
     @Override
 	protected void buttonPressed(int buttonId) {
         if (buttonId == searchButtonID) {
-            pdspecResult = pdspecInput.getText();
             if (skeletonInput != null)
             	skeletonResult = skeletonInput.getText();
-            property = computeProperty();
+            property = propertyDialog.computeProperty(pdspecInput.getText());
             skeleton = computeSkeleton();
             enableOKCancel(false);
 	    	worker.synthesize(this);
@@ -214,8 +281,7 @@ public abstract class SynthesisDialog extends ModelessDialog {
 	         		if (table.getItem(i).getChecked())
 	         			results.add(expressions.get(i));
         	} else {
-                pdspecResult = pdspecInput.getText();
-                property = computeProperty();
+                property = propertyDialog.computeProperty(pdspecInput.getText());
     	    	worker.synthesize(this);
         	}
     	}
@@ -257,27 +323,6 @@ public abstract class SynthesisDialog extends ModelessDialog {
 	}
     
     // Logic code
-    
-    protected String getPdspecText() {
-    	return pdspecResult;
-    }
-    
-    protected static String getFullMessage(String message, String extraMessage) {
-    	if (extraMessage == null)
-    		return message;
-    	else
-    		return message + System.getProperty("line.separator") + extraMessage;
-    }
-    
-    protected abstract String getPdspecMessage();
-    
-    protected abstract String getInitialPdspecText();
-    
-    protected abstract IInputValidator getPdspecValidator();
-    
-    protected abstract String getHelpID();
-    
-    protected abstract Property computeProperty();
     
     private ExpressionSkeleton computeSkeleton() {
     	if (skeletonResult == null)

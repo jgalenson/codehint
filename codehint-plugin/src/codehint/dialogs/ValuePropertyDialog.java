@@ -7,21 +7,17 @@ import org.eclipse.jdt.core.dom.CompilationUnit;
 import org.eclipse.jdt.debug.core.IJavaStackFrame;
 import org.eclipse.jdt.debug.eval.IAstEvaluationEngine;
 import org.eclipse.jface.dialogs.IInputValidator;
-import org.eclipse.swt.widgets.Shell;
 
-import codehint.Synthesizer.DialogWorker;
 import codehint.utils.EclipseUtils;
 
-public abstract class ValuePropertyDialog extends SynthesisDialog {
+public abstract class ValuePropertyDialog extends PropertyDialog {
 	
-	protected final String varName;
 	private final String pdspecMessage;
 	private final String initialPdspecText;
 	private final IInputValidator pdspecValidator;
     
-    public ValuePropertyDialog(String varName, String varTypeName, IJavaStackFrame stack, Shell shell, String initialValue, String extraMessage, DialogWorker worker) {
-    	super(shell, varName, varTypeName, stack, worker);
-    	this.varName = varName;
+    public ValuePropertyDialog(String varName, String varTypeName, IJavaStackFrame stack, String initialValue, String extraMessage) {
+    	super(varName, extraMessage);
     	String pdspecMessage = "Demonstrate an expression for " + varName + ".  We will find expressions that evaluate to the same value.";
     	this.pdspecMessage = getFullMessage(pdspecMessage, extraMessage);
     	this.initialPdspecText = initialValue;
@@ -29,17 +25,17 @@ public abstract class ValuePropertyDialog extends SynthesisDialog {
     }
 
 	@Override
-	protected String getPdspecMessage() {
+	public String getPdspecMessage() {
     	return pdspecMessage;
 	}
 
 	@Override
-	protected String getInitialPdspecText() {
+	public String getInitialPdspecText() {
 		return initialPdspecText;
 	}
 
 	@Override
-	protected IInputValidator getPdspecValidator() {
+	public IInputValidator getPdspecValidator() {
 		return pdspecValidator;
 	}
 
@@ -69,7 +65,7 @@ public abstract class ValuePropertyDialog extends SynthesisDialog {
     }
 
 	@Override
-	protected String getHelpID() {
+	public String getHelpID() {
 		return "value";
 	}
 

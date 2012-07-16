@@ -3,23 +3,19 @@ package codehint.dialogs;
 import org.eclipse.jdt.debug.core.IJavaStackFrame;
 import org.eclipse.jdt.debug.eval.IAstEvaluationEngine;
 import org.eclipse.jface.dialogs.IInputValidator;
-import org.eclipse.swt.widgets.Shell;
 
-import codehint.Synthesizer.DialogWorker;
 import codehint.property.Property;
 import codehint.property.StateProperty;
 import codehint.utils.EclipseUtils;
 
-public class StatePropertyDialog extends SynthesisDialog {
+public class StatePropertyDialog extends PropertyDialog {
 	
-	private final String varName;
 	private final String pdspecMessage;
 	private final String initialPdspecText;
 	private final IInputValidator pdspecValidator;
     
-    public StatePropertyDialog(String varName, String varTypeName, IJavaStackFrame stack, Shell shell, String initialValue, String extraMessage, DialogWorker worker) {
-    	super(shell, varName, varTypeName, stack, worker);
-    	this.varName = varName;
+    public StatePropertyDialog(String varName, IJavaStackFrame stack, String initialValue, String extraMessage) {
+    	super(varName, extraMessage);
     	String pdspecMessage = "Demonstrate a state property that should hold for " + varName + " after this statement is executed.  You may refer to the values of variables after this statement is executed using the prime syntax, e.g., " + varName + "\'";
     	this.pdspecMessage = getFullMessage(pdspecMessage, extraMessage);
     	this.initialPdspecText = initialValue;
@@ -27,17 +23,17 @@ public class StatePropertyDialog extends SynthesisDialog {
     }
 
 	@Override
-	protected String getPdspecMessage() {
+	public String getPdspecMessage() {
     	return pdspecMessage;
 	}
 
 	@Override
-	protected String getInitialPdspecText() {
+	public String getInitialPdspecText() {
 		return initialPdspecText;
 	}
 
 	@Override
-	protected IInputValidator getPdspecValidator() {
+	public IInputValidator getPdspecValidator() {
 		return pdspecValidator;
 	}
 
@@ -58,16 +54,15 @@ public class StatePropertyDialog extends SynthesisDialog {
 	}
 
 	@Override
-	public Property computeProperty() {
-		String pdspecText = getPdspecText();
-		if (pdspecText == null)
+	public Property computeProperty(String propertyText) {
+		if (propertyText == null)
 			return null;
 		else
-			return StateProperty.fromPropertyString(varName, pdspecText);
+			return StateProperty.fromPropertyString(varName, propertyText);
 	}
 
 	@Override
-	protected String getHelpID() {
+	public String getHelpID() {
 		return "state";
 	}
 

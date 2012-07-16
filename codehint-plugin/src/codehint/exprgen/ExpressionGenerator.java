@@ -375,18 +375,14 @@ public class ExpressionGenerator {
 	// TODO: Convert field/method code to use the public API?  I can use IType to get fields/methods (but they only get declared ones, so I'd have to walk the supertype chain), IType to get their signature, Signature.getSignature{Qualifier,SimpleName} to get type names, and then EclipseUtils.getType-like code to get the IType back.
 	
 	public static List<Field> getFields(IJavaType type) {
-		try {
-			if (type != null && EclipseUtils.isObject(type)) {
-				List<?> untypedFields = ((ReferenceType)((JDIType)type).getUnderlyingType()).visibleFields();
-				ArrayList<Field> fields = new ArrayList<Field>(untypedFields.size());
-				for (Object o: untypedFields)
-					fields.add((Field)o);
-				return fields;
-			} else
-				return new ArrayList<Field>(0);
-		} catch (DebugException e) {
-			throw new RuntimeException(e);
-		}
+		if (type != null && EclipseUtils.isObject(type)) {
+			List<?> untypedFields = ((ReferenceType)((JDIType)type).getUnderlyingType()).visibleFields();
+			ArrayList<Field> fields = new ArrayList<Field>(untypedFields.size());
+			for (Object o: untypedFields)
+				fields.add((Field)o);
+			return fields;
+		} else
+			return new ArrayList<Field>(0);
 	}
 	
 	private static void addFieldAccesses(TypedExpression e, TypeConstraint typeConstraint, List<TypedExpression> ops, IJavaType thisType, IJavaDebugTarget target, IJavaStackFrame stack, SubtypeChecker subtypeChecker, Map<IJavaValue, Set<EvaluatedExpression>> equivalences, int depth, int maxDepth) throws DebugException {
@@ -420,18 +416,14 @@ public class ExpressionGenerator {
 	}
 
 	public static List<Method> getMethods(IJavaType type) {
-		try {
-			if (type != null && EclipseUtils.isObject(type)) {
-				List<?> untypedMethods = ((ReferenceType)((JDIType)type).getUnderlyingType()).visibleMethods();
-				ArrayList<Method> methods = new ArrayList<Method>(untypedMethods.size());
-				for (Object o: untypedMethods)
-					methods.add((Method)o);
-				return methods;
-			} else
-				return new ArrayList<Method>(0);
-		} catch (DebugException e) {
-			throw new RuntimeException(e);
-		}
+		if (type != null && EclipseUtils.isObject(type)) {
+			List<?> untypedMethods = ((ReferenceType)((JDIType)type).getUnderlyingType()).visibleMethods();
+			ArrayList<Method> methods = new ArrayList<Method>(untypedMethods.size());
+			for (Object o: untypedMethods)
+				methods.add((Method)o);
+			return methods;
+		} else
+			return new ArrayList<Method>(0);
 	}
 	
 	public static boolean isLegalMethod(Method method, IJavaType thisType, boolean isConstructor) {

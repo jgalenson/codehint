@@ -8,21 +8,19 @@ import org.eclipse.jdt.debug.core.IJavaStackFrame;
 import org.eclipse.jdt.debug.core.IJavaType;
 import org.eclipse.jdt.debug.eval.IAstEvaluationEngine;
 import org.eclipse.jface.dialogs.IInputValidator;
-import org.eclipse.swt.widgets.Shell;
 
-import codehint.Synthesizer.DialogWorker;
 import codehint.property.LambdaProperty;
 import codehint.property.Property;
 import codehint.utils.EclipseUtils;
 
-public class LambdaPropertyDialog extends SynthesisDialog {
+public class LambdaPropertyDialog extends PropertyDialog {
 
 	private final String pdspecMessage;
 	private final String initialPdspecText;
 	private final IInputValidator pdspecValidator;
     
-    public LambdaPropertyDialog(String varName, String varTypeName, IJavaType varStaticType, IJavaStackFrame stack, Shell shell, String initialValue, String extraMessage, DialogWorker worker) {
-    	super(shell, varName, varTypeName, stack, worker);
+    public LambdaPropertyDialog(String varName, String varTypeName, IJavaType varStaticType, IJavaStackFrame stack, String initialValue, String extraMessage) {
+    	super(varName, extraMessage);
     	String pdspecMessage = "Demonstrate a property (in the form of a boolean lambda expression) that should hold for " + varName + " after this statement is executed.";
     	this.pdspecMessage = getFullMessage(pdspecMessage, extraMessage);
     	try {
@@ -51,7 +49,7 @@ public class LambdaPropertyDialog extends SynthesisDialog {
         		return "x" + i;
     }
     
-    private static String getDefaultTypeName(IJavaType varStaticType, IJavaProject project, IType thisType, String varStaticTypeName) throws DebugException {
+    private static String getDefaultTypeName(IJavaType varStaticType, IJavaProject project, IType thisType, String varStaticTypeName) {
     	if (varStaticType == null || !EclipseUtils.isObject(varStaticType))
     		return "";
 		String unqualifiedTypename = EclipseUtils.getUnqualifiedName(varStaticTypeName);
@@ -62,17 +60,17 @@ public class LambdaPropertyDialog extends SynthesisDialog {
     }
 
 	@Override
-	protected String getPdspecMessage() {
+	public String getPdspecMessage() {
     	return pdspecMessage;
 	}
 
 	@Override
-	protected String getInitialPdspecText() {
+	public String getInitialPdspecText() {
 		return initialPdspecText;
 	}
 
 	@Override
-	protected IInputValidator getPdspecValidator() {
+	public IInputValidator getPdspecValidator() {
 		return pdspecValidator;
 	}
 
@@ -101,16 +99,15 @@ public class LambdaPropertyDialog extends SynthesisDialog {
     }
 
 	@Override
-	public Property computeProperty() {
-		String pdspecText = getPdspecText();
-		if (pdspecText == null)
+	public Property computeProperty(String propertyText) {
+		if (propertyText == null)
 			return null;
 		else
-			return LambdaProperty.fromPropertyString(pdspecText);
+			return LambdaProperty.fromPropertyString(propertyText);
 	}
 
 	@Override
-	protected String getHelpID() {
+	public String getHelpID() {
 		return "lambda";
 	}
 	

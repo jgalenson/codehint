@@ -43,7 +43,7 @@ public class DemonstrateTypeHandler extends CommandHandler {
 			initValue = matcher.group(1);
 		} else
 			initValue = varTypeName;
-		SynthesisDialog dialog = new TypePropertyDialog(path, varTypeName, stack, shell, initValue, null, new SynthesisWorker(path, varType, stack));
+		SynthesisDialog dialog = new SynthesisDialog(shell, path, varTypeName, varType, stack, new TypePropertyDialog(path, varTypeName, stack, initValue, null), new SynthesisWorker(path, varType, stack));
     	Synthesizer.synthesizeAndInsertExpressions(variable, path, dialog, stack, matcher != null);
     }
 

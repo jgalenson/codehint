@@ -81,8 +81,12 @@ public class EclipseUtils {
     	return isObject(getSignature(variable));
     }
     
-    public static boolean isObject(IJavaType type) throws DebugException {
-    	return type == null || isObject(type.getSignature());
+    public static boolean isObject(IJavaType type) {
+    	try {
+	    	return type == null || isObject(type.getSignature());
+		} catch (DebugException e) {
+			throw new RuntimeException(e);
+		}
     }
     
     private static boolean isObject(String signature) {
@@ -93,8 +97,12 @@ public class EclipseUtils {
     	return isPrimitive(getSignature(variable));
     }
     
-    public static boolean isPrimitive(IJavaType type) throws DebugException {
-    	return type != null && isPrimitive(type.getSignature());
+    public static boolean isPrimitive(IJavaType type) {
+    	try {
+    		return type != null && isPrimitive(type.getSignature());
+		} catch (DebugException e) {
+			throw new RuntimeException(e);
+		}
     }
     
     private static boolean isPrimitive(String signature) {
@@ -102,7 +110,19 @@ public class EclipseUtils {
     }
     
     public static boolean isArray(IVariable variable) {
-    	return Signature.getTypeSignatureKind(getSignature(variable)) == Signature.ARRAY_TYPE_SIGNATURE;
+    	return isArray(getSignature(variable));
+    }
+    
+    public static boolean isArray(IJavaType type) {
+    	try {
+			return isArray(type.getSignature());
+		} catch (DebugException e) {
+			throw new RuntimeException(e);
+		}
+    }
+    
+    private static boolean isArray(String signature) {
+    	return Signature.getTypeSignatureKind(signature) == Signature.ARRAY_TYPE_SIGNATURE;
     }
    	
     // TODO: There must be a better way to do this through Eclipse.

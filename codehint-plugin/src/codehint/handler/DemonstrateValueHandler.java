@@ -16,6 +16,7 @@ import codehint.Synthesizer.SynthesisWorker;
 import codehint.dialogs.ArrayValuePropertyDialog;
 import codehint.dialogs.ObjectValuePropertyDialog;
 import codehint.dialogs.PrimitiveValuePropertyDialog;
+import codehint.dialogs.PropertyDialog;
 import codehint.dialogs.SynthesisDialog;
 import codehint.property.Property;
 import codehint.property.ValueProperty;
@@ -48,14 +49,15 @@ public class DemonstrateValueHandler extends CommandHandler {
 		}
 		IJavaType varType = ((IJavaVariable)variable).getJavaType();
 		String varTypeName = EclipseUtils.sanitizeTypename(varType.getName());
-		SynthesisDialog dialog = null;
+		PropertyDialog propertyDialog = null;
 		if (EclipseUtils.isObject(variable))
-			dialog = new ObjectValuePropertyDialog(path, varTypeName, stack, shell, initValue, null, new SynthesisWorker(path, varType, stack));
+			propertyDialog = new ObjectValuePropertyDialog(path, varTypeName, stack, initValue, null);
 		else if (EclipseUtils.isArray(variable))
-			dialog = new ArrayValuePropertyDialog(path, varTypeName, stack, shell, initValue, null, new SynthesisWorker(path, varType, stack));
+			propertyDialog = new ArrayValuePropertyDialog(path, varTypeName, stack, initValue, null);
 		else
-			dialog = new PrimitiveValuePropertyDialog(path, varTypeName, stack, shell, initValue, null, new SynthesisWorker(path, varType, stack));
-    	Synthesizer.synthesizeAndInsertExpressions(variable, path, dialog, stack, initValue.length() > 0);
+			propertyDialog = new PrimitiveValuePropertyDialog(path, varTypeName, stack, initValue, null);
+		SynthesisDialog dialog = new SynthesisDialog(shell, path, varTypeName, varType, stack, propertyDialog, new SynthesisWorker(path, varType, stack));
+		Synthesizer.synthesizeAndInsertExpressions(variable, path, dialog, stack, initValue.length() > 0);
     }
 
 	public static void handleFromText(Matcher matcher, IJavaStackFrame stack) {
