@@ -13,7 +13,7 @@ import org.eclipse.swt.widgets.Shell;
 import codehint.utils.EclipseUtils;
 import codehint.Synthesizer;
 import codehint.Synthesizer.SynthesisWorker;
-import codehint.dialogs.SynthesisDialog;
+import codehint.dialogs.InitialSynthesisDialog;
 import codehint.dialogs.TypePropertyDialog;
 
 public class DemonstrateTypeHandler extends CommandHandler {
@@ -43,7 +43,7 @@ public class DemonstrateTypeHandler extends CommandHandler {
 			initValue = matcher.group(1);
 		} else
 			initValue = varTypeName;
-		SynthesisDialog dialog = new SynthesisDialog(shell, path, varTypeName, varType, stack, new TypePropertyDialog(path, varTypeName, stack, initValue, null), new SynthesisWorker(path, varType, stack));
+		InitialSynthesisDialog dialog = new InitialSynthesisDialog(shell, path, varTypeName, varType, stack, new TypePropertyDialog(path, varTypeName, stack, initValue, null), new SynthesisWorker(path, varType, stack));
     	Synthesizer.synthesizeAndInsertExpressions(variable, path, dialog, stack, matcher != null);
     }
 

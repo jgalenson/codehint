@@ -13,8 +13,8 @@ import org.eclipse.swt.widgets.Shell;
 import codehint.utils.EclipseUtils;
 import codehint.Synthesizer;
 import codehint.Synthesizer.SynthesisWorker;
+import codehint.dialogs.InitialSynthesisDialog;
 import codehint.dialogs.StatePropertyDialog;
-import codehint.dialogs.SynthesisDialog;
 import codehint.property.Property;
 import codehint.property.StateProperty;
 
@@ -46,7 +46,7 @@ public class DemonstrateStatePropertyHandler extends CommandHandler {
 		}
 		IJavaType varType = ((IJavaVariable)variable).getJavaType();
 		String varTypeName = EclipseUtils.sanitizeTypename(varType.getName());
-		SynthesisDialog dialog = new SynthesisDialog(shell, path, varTypeName, varType, stack, new StatePropertyDialog(path, stack, initValue, null), new SynthesisWorker(path, varType, stack));
+		InitialSynthesisDialog dialog = new InitialSynthesisDialog(shell, path, varTypeName, varType, stack, new StatePropertyDialog(path, stack, initValue, null), new SynthesisWorker(path, varType, stack));
     	Synthesizer.synthesizeAndInsertExpressions(variable, path, dialog, stack, matcher != null);
     }
 

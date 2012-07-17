@@ -48,10 +48,12 @@ import org.eclipse.swt.widgets.Display;
 import org.eclipse.swt.widgets.Shell;
 import org.eclipse.ui.texteditor.ITextEditor;
 
+import codehint.dialogs.InitialSynthesisDialog;
 import codehint.dialogs.LambdaPropertyDialog;
 import codehint.dialogs.ObjectValuePropertyDialog;
 import codehint.dialogs.PrimitiveValuePropertyDialog;
 import codehint.dialogs.PropertyDialog;
+import codehint.dialogs.RefinementSynthesisDialog;
 import codehint.dialogs.StatePropertyDialog;
 import codehint.dialogs.SynthesisDialog;
 import codehint.dialogs.TypePropertyDialog;
@@ -82,7 +84,7 @@ public class Synthesizer {
 	private static ExpressionSkeleton lastCrashedSkeleton;
 	private static Property lastCrashedProperty;
 	
-	public static void synthesizeAndInsertExpressions(final IVariable variable, final String fullVarName, final SynthesisDialog synthesisDialog, final IJavaStackFrame stack, final boolean replaceCurLine) {
+	public static void synthesizeAndInsertExpressions(final IVariable variable, final String fullVarName, final InitialSynthesisDialog synthesisDialog, final IJavaStackFrame stack, final boolean replaceCurLine) {
 		try {
 			synthesisDialog.open();
 			Property property = synthesisDialog.getProperty();
@@ -159,13 +161,7 @@ public class Synthesizer {
 		}
 	}
 	
-	public abstract static class DialogWorker {
-		
-		public abstract void synthesize(SynthesisDialog synthesisDialog);
-		
-	}
-	
-	public static class SynthesisWorker extends DialogWorker {
+	public static class SynthesisWorker {
 		
 		private final String varName;
 		private final IJavaType varStaticType;
@@ -177,8 +173,7 @@ public class Synthesizer {
 			this.stack = stack;
 		}
 		
-		@Override
-		public void synthesize(final SynthesisDialog synthesisDialog) {
+		public void synthesize(final InitialSynthesisDialog synthesisDialog) {
 			final Property property = synthesisDialog.getProperty();
 			final ExpressionSkeleton skeleton = synthesisDialog.getSkeleton();
 			Job job = new Job("Expression generation") {
@@ -208,7 +203,7 @@ public class Synthesizer {
 						Display.getDefault().asyncExec(new Runnable(){
 							@Override
 							public void run() {
-			                	synthesisDialog.enableOKCancel(true);
+			                	synthesisDialog.enableCancel(true);
 							}
 			        	});
 					}
@@ -221,7 +216,7 @@ public class Synthesizer {
 		
 	}
 	
-	public static class RefinementWorker extends DialogWorker {
+	public static class RefinementWorker {
 		
 		private final String varName;
 		private final ArrayList<EvaluatedExpression> exprs;
@@ -233,8 +228,7 @@ public class Synthesizer {
 			this.stack = stack;
 		}
 
-		@Override
-		public void synthesize(SynthesisDialog synthesisDialog) {
+		public void synthesize(RefinementSynthesisDialog synthesisDialog) {
 			Property property = synthesisDialog.getProperty();
    			try {
    				ArrayList<EvaluatedExpression> validExpressions =  EvaluationManager.filterExpressions(exprs, stack, property);
@@ -485,7 +479,7 @@ public class Synthesizer {
         	return result[0];
 	    }
 	    
-	    private static SynthesisDialog getRefinementDialog(final ArrayList<EvaluatedExpression> exprs, final String varName, final IJavaType varStaticType, final String varStaticTypeName, final String extraMessage, final IJavaStackFrame stackFrame, final Property oldProperty) throws DebugException {
+	    private static RefinementSynthesisDialog getRefinementDialog(final ArrayList<EvaluatedExpression> exprs, final String varName, final IJavaType varStaticType, final String varStaticTypeName, final String extraMessage, final IJavaStackFrame stackFrame, final Property oldProperty) throws DebugException {
 			Shell shell = getShell();
 			PropertyDialog propertyDialog = null;
 			if (oldProperty == null || oldProperty instanceof StateProperty)
@@ -500,7 +494,7 @@ public class Synthesizer {
 				propertyDialog = new LambdaPropertyDialog(varName, varStaticType.getName(), varStaticType, stackFrame, oldProperty.toString(), extraMessage);
 			else
 				throw new IllegalArgumentException(oldProperty.toString());
-			return new SynthesisDialog(shell, varName, varStaticTypeName, varStaticType, stackFrame, propertyDialog, new RefinementWorker(varName, exprs, stackFrame));
+			return new RefinementSynthesisDialog(shell, varStaticTypeName, varStaticType, stackFrame, propertyDialog, new RefinementWorker(varName, exprs, stackFrame));
 	    }
 	    
 	    /**

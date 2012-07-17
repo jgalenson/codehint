@@ -14,10 +14,10 @@ import codehint.utils.EclipseUtils;
 import codehint.Synthesizer;
 import codehint.Synthesizer.SynthesisWorker;
 import codehint.dialogs.ArrayValuePropertyDialog;
+import codehint.dialogs.InitialSynthesisDialog;
 import codehint.dialogs.ObjectValuePropertyDialog;
 import codehint.dialogs.PrimitiveValuePropertyDialog;
 import codehint.dialogs.PropertyDialog;
-import codehint.dialogs.SynthesisDialog;
 import codehint.property.Property;
 import codehint.property.ValueProperty;
 
@@ -56,7 +56,7 @@ public class DemonstrateValueHandler extends CommandHandler {
 			propertyDialog = new ArrayValuePropertyDialog(path, varTypeName, stack, initValue, null);
 		else
 			propertyDialog = new PrimitiveValuePropertyDialog(path, varTypeName, stack, initValue, null);
-		SynthesisDialog dialog = new SynthesisDialog(shell, path, varTypeName, varType, stack, propertyDialog, new SynthesisWorker(path, varType, stack));
+		InitialSynthesisDialog dialog = new InitialSynthesisDialog(shell, path, varTypeName, varType, stack, propertyDialog, new SynthesisWorker(path, varType, stack));
 		Synthesizer.synthesizeAndInsertExpressions(variable, path, dialog, stack, initValue.length() > 0);
     }
 
