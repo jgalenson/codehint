@@ -114,6 +114,7 @@ public abstract class SynthesisDialog extends ModelessDialog {
 					c.dispose();
 				pdspecInput = createInput(pdspecComposite, propertyDialog.getPdspecMessage(), propertyDialog.getInitialPdspecText(), propertyDialog.getPdspecValidator(), getPropertyModifyHandler(), propertyDialog.getHelpID());
 				pdspecComposite.layout(true);
+				pdspecComposite.getParent().layout(true);
 			}
 		});
 		
