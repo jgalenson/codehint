@@ -2,11 +2,18 @@ package codehint.dialogs;
 
 import java.util.ArrayList;
 
+import org.eclipse.jdt.debug.core.IJavaPrimitiveValue;
 import org.eclipse.jdt.debug.core.IJavaStackFrame;
 import org.eclipse.jdt.debug.core.IJavaType;
 import org.eclipse.jdt.debug.eval.IAstEvaluationEngine;
 import org.eclipse.jface.dialogs.IDialogConstants;
 import org.eclipse.jface.dialogs.IInputValidator;
+import org.eclipse.jface.viewers.ArrayContentProvider;
+import org.eclipse.jface.viewers.ColumnLabelProvider;
+import org.eclipse.jface.viewers.TableViewer;
+import org.eclipse.jface.viewers.TableViewerColumn;
+import org.eclipse.jface.viewers.Viewer;
+import org.eclipse.jface.viewers.ViewerComparator;
 import org.eclipse.swt.SWT;
 import org.eclipse.swt.events.SelectionAdapter;
 import org.eclipse.swt.events.SelectionEvent;
@@ -41,7 +48,9 @@ public class InitialSynthesisDialog extends SynthesisDialog {
 
     private static final int TABLE_WIDTH = 500;
     private static final int TABLE_HEIGHT = 300;
+    private TableViewer tableViewer;
     private Table table;
+    private SynthesisResultComparator synthesisResultComparator;
     private ArrayList<EvaluatedExpression> expressions;
 
 	private final SynthesisWorker worker;
@@ -58,7 +67,9 @@ public class InitialSynthesisDialog extends SynthesisDialog {
 		this.skeletonValidator = new ExpressionSkeletonValidator(stack, varTypeName);
 		this.skeletonResult = null;
 		this.searchButton = null;
+		this.tableViewer = null;
 		this.table = null;
+		this.synthesisResultComparator = null;
 		this.expressions = null;
 		this.worker = worker;
 		this.skeleton = null;
@@ -75,7 +86,8 @@ public class InitialSynthesisDialog extends SynthesisDialog {
 		searchButton = createButton(topButtonComposite, searchButtonID, "Search", true);
 		searchButton.setEnabled(pdspecIsValid && skeletonIsValid);
 		
-		table = new Table(composite, SWT.BORDER | SWT.CHECK);
+		tableViewer = new TableViewer(composite, SWT.BORDER | SWT.CHECK);
+		table = tableViewer.getTable();
         GridData tableData = new GridData(GridData.FILL_BOTH);
         tableData.widthHint = TABLE_WIDTH;
         tableData.heightHint = TABLE_HEIGHT;
@@ -96,6 +108,33 @@ public class InitialSynthesisDialog extends SynthesisDialog {
                 }
             }
         });
+    	TableViewerColumn column1 = addColumn("Expression", 0);
+    	column1.setLabelProvider(new ColumnLabelProvider() {
+			@Override
+			public String getText(Object element) {
+				return getExpressionLabel((EvaluatedExpression)element);
+			}
+			
+			/*@Override
+			public String getToolTipText(Object element) {
+				return "Tooltip (" + element + ")";
+			}
+			
+			@Override
+			public int getToolTipDisplayDelayTime(Object object) {
+				return 100;
+			}*/
+		});
+    	TableViewerColumn column2 = addColumn("Value", 1);
+    	column2.setLabelProvider(new ColumnLabelProvider() {
+			@Override
+			public String getText(Object element) {
+				return getValueLabel((EvaluatedExpression)element);
+			}
+		});
+    	tableViewer.setContentProvider(ArrayContentProvider.getInstance());
+    	synthesisResultComparator = new SynthesisResultComparator();
+    	//ColumnViewerToolTipSupport.enableFor(tableViewer, ToolTip.NO_RECREATE); 
         PlatformUI.getWorkbench().getHelpSystem().setHelp(table, Activator.PLUGIN_ID + "." + "candidate-selector");
 
 		Composite bottomButtonComposite = makeChildComposite(composite, GridData.HORIZONTAL_ALIGN_CENTER, 0);
@@ -186,16 +225,83 @@ public class InitialSynthesisDialog extends SynthesisDialog {
     // Table code
     
     private void showResults() {
-    	table.removeAll();
-    	(new TableColumn(table, SWT.NONE)).setText("Expression");
-    	(new TableColumn(table, SWT.NONE)).setText("Value");
-    	for (EvaluatedExpression e: expressions) {
-    		TableItem item = new TableItem(table, SWT.NONE);
-    		item.setText(0, e.getSnippet());
-    		item.setText(1, Synthesizer.getValue(e, stack));
-    	}
-    	table.getColumn(0).pack();
+    	// Reset column sort indicators.
+    	tableViewer.setComparator(null);  // We want to use the order in which we add elements as the initial sort.
+    	table.setSortDirection(SWT.NONE);
+		table.setSortColumn(null);
+		// Set and show the results.
+    	tableViewer.setInput(expressions);
+    	table.getColumn(0).pack();  // For some reason I need these two lines to update the screen.
     	table.getColumn(1).pack();
+    }
+    
+    private TableViewerColumn addColumn(String label, final int index) {
+    	TableViewerColumn columnViewer = new TableViewerColumn(tableViewer, SWT.NONE);
+    	final TableColumn column = columnViewer.getColumn();
+    	column.setText(label);
+    	column.addSelectionListener(new SelectionAdapter() {
+            @Override
+			public void widgetSelected(SelectionEvent e) {
+				synthesisResultComparator.setColumn(index);
+				table.setSortDirection(synthesisResultComparator.getDirection());
+				table.setSortColumn(column);
+            	tableViewer.setComparator(synthesisResultComparator);
+				tableViewer.refresh();
+            }
+        });
+    	return columnViewer;
+    }
+    
+    private static String getExpressionLabel(EvaluatedExpression e) {
+    	return e.getSnippet();
+    }
+    
+    private String getValueLabel(EvaluatedExpression e) {
+    	return Synthesizer.getValue(e, stack);
+    }
+    
+    private class SynthesisResultComparator extends ViewerComparator {
+
+    	private int column;
+    	private int direction;
+
+    	public SynthesisResultComparator() {
+    		this.column = -1;
+    		this.direction = SWT.DOWN;
+    	}
+
+    	public int getDirection() {
+    		return direction;
+    	}
+
+    	public void setColumn(int column) {
+    		if (column == this.column)
+    			direction = direction == SWT.DOWN ? SWT.UP : SWT.DOWN;
+    		else {
+    			this.column = column;
+    			direction = SWT.DOWN;
+    		}
+    	}
+
+    	@Override
+    	public int compare(Viewer viewer, Object o1, Object o2) {
+    		EvaluatedExpression e1 = (EvaluatedExpression)o1;
+    		EvaluatedExpression e2 = (EvaluatedExpression)o2;
+    		int result;
+    		if (column == 0)
+    			result = getExpressionLabel(e1).compareTo(getExpressionLabel(e2));
+    		else if (column == 1) {
+    			if (e1.getResult() instanceof IJavaPrimitiveValue && e2.getResult() instanceof IJavaPrimitiveValue)
+    				result = (int)(((IJavaPrimitiveValue)e1.getResult()).getDoubleValue() - ((IJavaPrimitiveValue)e2.getResult()).getDoubleValue());
+    			else
+    				result = getValueLabel(e1).compareTo(getValueLabel(e2));
+    		} else
+    			throw new RuntimeException("Unexpected column: " + column);
+    		if (direction == SWT.UP)
+    			result = -result;
+    		return result;
+    	}
+    	
     }
     
 	private void setAllChecked(boolean state) {
