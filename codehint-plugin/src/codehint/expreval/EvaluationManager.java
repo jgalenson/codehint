@@ -21,6 +21,7 @@ import org.eclipse.jdt.core.dom.InfixExpression;
 import org.eclipse.jdt.core.dom.MethodInvocation;
 import org.eclipse.jdt.core.dom.SimpleName;
 import org.eclipse.jdt.debug.core.IJavaArray;
+import org.eclipse.jdt.debug.core.IJavaArrayType;
 import org.eclipse.jdt.debug.core.IJavaDebugTarget;
 import org.eclipse.jdt.debug.core.IJavaFieldVariable;
 import org.eclipse.jdt.debug.core.IJavaPrimitiveValue;
@@ -84,6 +85,7 @@ public class EvaluationManager {
     		String propertyPreconditions = property instanceof ValueProperty ? "" : pf.getPreconditions();  // TODO: This will presumably fail if the user does their own null check.
 			IJavaReferenceType implType = (IJavaReferenceType)EclipseUtils.getTypeAndLoadIfNeeded(IMPL_NAME, stack, (IJavaDebugTarget)stack.getDebugTarget());
 			IJavaFieldVariable validField = implType.getField("valid");
+			IJavaFieldVariable toStringsField = implType.getField("toStrings");
 			IJavaFieldVariable countField = implType.getField("count");
 			Map<String, ArrayList<TypedExpression>> expressionsByType = getExpressionByType(exprs);
 			ArrayList<EvaluatedExpression> evaluatedExprs = new ArrayList<EvaluatedExpression>(exprs.size());
@@ -91,7 +93,7 @@ public class EvaluationManager {
 				String type = EclipseUtils.sanitizeTypename(expressionsOfType.getKey());
 				String valuesArrayName = getValuesArrayName(type);
 				IJavaFieldVariable valuesField = implType.getField(valuesArrayName);
-				evaluatedExprs.addAll(evaluateExpressions(expressionsOfType.getValue(), type, valuesField, validField, countField, engine, stack, property, validVal, preVarsString, propertyPreconditions, 0, batchSize, monitor));
+				evaluatedExprs.addAll(evaluateExpressions(expressionsOfType.getValue(), type, valuesField, validField, toStringsField, countField, engine, stack, property, validVal, preVarsString, propertyPreconditions, 0, batchSize, monitor));
 			}
 			return evaluatedExprs;
 		} catch (DebugException e) {
@@ -177,7 +179,7 @@ public class EvaluationManager {
 	 * @param batchSize The size of the batches.
      * @return the results of the evaluations of the given expressions.
 	 */
-	private static ArrayList<EvaluatedExpression> evaluateExpressions(ArrayList<TypedExpression> exprs, String type, IJavaFieldVariable valuesField, IJavaFieldVariable validField, IJavaFieldVariable countField, IAstEvaluationEngine engine, IJavaStackFrame stack, Property property, String validVal, String preVarsString, String propertyPreconditions, int startIndex, int batchSize, IProgressMonitor monitor) {
+	private static ArrayList<EvaluatedExpression> evaluateExpressions(ArrayList<TypedExpression> exprs, String type, IJavaFieldVariable valuesField, IJavaFieldVariable validField, IJavaFieldVariable toStringsField, IJavaFieldVariable countField, IAstEvaluationEngine engine, IJavaStackFrame stack, Property property, String validVal, String preVarsString, String propertyPreconditions, int startIndex, int batchSize, IProgressMonitor monitor) {
 		if (monitor.isCanceled())
 			throw new OperationCanceledException();
 		boolean hasPropertyPrecondition = propertyPreconditions.length() > 0;
@@ -190,7 +192,8 @@ public class EvaluationManager {
 			
 			expressionsStr.append(preVarsString);
 	    	for (int i = startIndex; i < exprs.size() && (!canThrowExceptions || numExprsToEvaluate < batchSize); i++) {
-	    		Expression curExpr = exprs.get(i).getExpression();
+	    		TypedExpression curTypedExpr = exprs.get(i);
+	    		Expression curExpr = curTypedExpr.getExpression();
 	    		NormalPreconditionFinder pf = new NormalPreconditionFinder();
 	    		curExpr.accept(pf);
 	    		String preconditions = pf.getPreconditions();
@@ -201,13 +204,16 @@ public class EvaluationManager {
 	    		curExprStr.append("{\n ").append(type).append(" _$curValue = ").append(curExpr.toString()).append(";\n ");
 	    		if (hasPropertyPrecondition)
 	    			curExprStr.append("if (" + propertyPreconditions + ") {\n ");
-	    		curExprStr.append(IMPL_QUALIFIER).append("valid[").append(numExprsToEvaluate).append("] = ").append(validVal).append(";\n ");
+	    		curExprStr.append("boolean _$curValid = ").append(validVal).append(";\n ");
+	    		curExprStr.append(IMPL_QUALIFIER).append("valid[").append(numExprsToEvaluate).append("] = _$curValid;\n ");
 	    		curExprStr.append(IMPL_QUALIFIER).append(valuesArrayName).append("[").append(numExprsToEvaluate).append("] = _$curValue;\n");
+	    		if ("Object".equals(type))
+	    			curExprStr.append(" if (_$curValid)\n  ").append(IMPL_QUALIFIER).append("toStrings[").append(numExprsToEvaluate).append("] = ").append(getToStringGetter(curTypedExpr)).append(";\n");
 	    		if (hasPropertyPrecondition)
 	    			curExprStr.append(" }\n");
+	    		curExprStr.append("}\n");
 	    		if (preconditions.length() > 0)
 	    			expressionsStr.append("if (" + preconditions + ") ");
-	    		curExprStr.append("}\n");
 				expressionsStr.append(curExprStr.toString()).append(IMPL_QUALIFIER + "count++;\n");
 	    		numExprsToEvaluate++;
 	    	}
@@ -217,7 +223,14 @@ public class EvaluationManager {
                 newTypeString = type.substring(0, index) + newTypeString + type.substring(index); 
             } else
                 newTypeString = type + newTypeString;
-			expressionsStr.insert(0, "{\n" + IMPL_QUALIFIER + valuesArrayName + " = new " + newTypeString + ";\n" + IMPL_QUALIFIER + "valid = new boolean[" + numExprsToEvaluate + "];\n" + IMPL_QUALIFIER + "count = 0;\n");
+            StringBuilder prefix = new StringBuilder();
+            prefix.append("{\n").append(IMPL_QUALIFIER).append(valuesArrayName).append(" = new ").append(newTypeString).append(";\n").append(IMPL_QUALIFIER).append("valid = new boolean[").append(numExprsToEvaluate).append("];\n");
+            if ("Object".equals(type))
+            	prefix.append(IMPL_QUALIFIER).append("toStrings = new String[").append(numExprsToEvaluate).append("];\n");
+            else
+            	prefix.append(IMPL_QUALIFIER).append("toStrings = null;\n");
+        	prefix.append(IMPL_QUALIFIER).append("count = 0;\n");
+			expressionsStr.insert(0, prefix.toString());
 	    	expressionsStr.append("}");
 	    	
 	    	ICompiledExpression compiled = engine.getCompiledExpression(expressionsStr.toString(), stack);
@@ -227,7 +240,7 @@ public class EvaluationManager {
     		
 	    	boolean hasError = result.getException() != null;
 			int count = ((IJavaPrimitiveValue)countField.getValue()).getIntValue();
-	    	ArrayList<EvaluatedExpression> results = count == 0 ? new ArrayList<EvaluatedExpression>() : getResultsFromArray(exprs, startIndex, valuesField, validField, count);
+	    	ArrayList<EvaluatedExpression> results = count == 0 ? new ArrayList<EvaluatedExpression>() : getResultsFromArray(exprs, startIndex, valuesField, validField, toStringsField, count, stack);
 	    	/*System.out.println("Evaluated " + count + " expressions.");
 	    	if (hasError)
 	    		System.out.println("Crashed on " + exprs.get(startIndex + count));*/
@@ -235,8 +248,20 @@ public class EvaluationManager {
 	    	monitor.worked(work);
 	    	int nextStartIndex = startIndex + work;
 	    	if (nextStartIndex < exprs.size())
-	    		results.addAll(evaluateExpressions(exprs, type, valuesField, validField, countField, engine, stack, property, validVal, preVarsString, propertyPreconditions, nextStartIndex, batchSize, monitor));
+	    		results.addAll(evaluateExpressions(exprs, type, valuesField, validField, toStringsField, countField, engine, stack, property, validVal, preVarsString, propertyPreconditions, nextStartIndex, batchSize, monitor));
 	    	return results;
+		} catch (DebugException e) {
+			throw new RuntimeException(e);
+		}
+	}
+	
+	private static String getToStringGetter(TypedExpression expr) {
+		try {
+			String nullCheck = "_$curValue == null ? \"null\" : ";
+			if (expr.getType() instanceof IJavaArrayType)
+				return nullCheck + "java.util.Arrays.toString((" + EclipseUtils.sanitizeTypename(expr.getType().getName()) + ")_$curValue)";
+			else
+				return nullCheck + "_$curValue.toString()";
 		} catch (DebugException e) {
 			throw new RuntimeException(e);
 		}
@@ -255,14 +280,18 @@ public class EvaluationManager {
 	 * whose execution did not crash.
 	 * @throws DebugException a DebugException occurs.
 	 */
-	private static ArrayList<EvaluatedExpression> getResultsFromArray(ArrayList<TypedExpression> exprs, int startIndex, IJavaFieldVariable valuesField, IJavaFieldVariable validField, int count) throws DebugException {
+	private static ArrayList<EvaluatedExpression> getResultsFromArray(ArrayList<TypedExpression> exprs, int startIndex, IJavaFieldVariable valuesField, IJavaFieldVariable validField, IJavaFieldVariable toStringsField, int count, IJavaStackFrame stack) throws DebugException {
 		IJavaValue[] values = ((IJavaArray)valuesField.getValue()).getValues();
 		IJavaValue[] valids = ((IJavaArray)validField.getValue()).getValues();
+		IJavaValue[] toStrings = ((IJavaValue)toStringsField.getValue()).isNull() ? null :((IJavaArray)toStringsField.getValue()).getValues();
 		ArrayList<EvaluatedExpression> results = new ArrayList<EvaluatedExpression>();
 		for (int i = 0; i < count; i++) {
 			if ("true".equals(valids[i].getValueString())) {
 				TypedExpression typedExpr = exprs.get(startIndex + i);
-				results.add(new EvaluatedExpression(typedExpr.getExpression(), values[i], typedExpr.getType()));
+				String resultString = toStrings == null ? EclipseUtils.javaStringOfValue(values[i], stack) : toStrings[i].getValueString();
+				if (!values[i].isNull() && "java.lang.String".equals(values[i].getJavaType().getName()))
+					resultString = "\"" + resultString + "\"";
+				results.add(new EvaluatedExpression(typedExpr.getExpression(), values[i], typedExpr.getType(), resultString));
 			}
 		}
 		return results;

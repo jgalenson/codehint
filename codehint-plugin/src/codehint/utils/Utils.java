@@ -29,5 +29,12 @@ public class Utils {
 		else
 			return str + suffix;
 	}
+	
+	public static String truncate(String str, int length) {
+		if (str.length() <= length)
+			return str;
+		else
+			return str.substring(0, length) + "...";
+	}
 
 }

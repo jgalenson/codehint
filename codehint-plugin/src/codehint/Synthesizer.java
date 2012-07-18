@@ -36,7 +36,6 @@ import org.eclipse.jdt.core.dom.SimpleName;
 import org.eclipse.jdt.debug.core.IJavaArray;
 import org.eclipse.jdt.debug.core.IJavaDebugTarget;
 import org.eclipse.jdt.debug.core.IJavaObject;
-import org.eclipse.jdt.debug.core.IJavaPrimitiveValue;
 import org.eclipse.jdt.debug.core.IJavaStackFrame;
 import org.eclipse.jdt.debug.core.IJavaType;
 import org.eclipse.jdt.debug.core.IJavaValue;
@@ -75,6 +74,7 @@ import codehint.property.StateProperty;
 import codehint.property.TypeProperty;
 import codehint.property.ValueProperty;
 import codehint.utils.EclipseUtils;
+import codehint.utils.Utils;
 
 public class Synthesizer {
 	
@@ -336,7 +336,7 @@ public class Synthesizer {
    	   				}
    	   			});
        			// Get the new concrete value from the user.
-   				final SynthesisDialog synthesisDialog = getRefinementDialog(exprs, varname, varStaticType, varStaticTypeName, "\nPotential values are: " + getLegalValues(exprs, frame), frame, initialProperty);
+   				final SynthesisDialog synthesisDialog = getRefinementDialog(exprs, varname, varStaticType, varStaticTypeName, "\nPotential values are: " + getLegalValues(exprs), frame, initialProperty);
    				Display.getDefault().syncExec(new Runnable() {
    	   				@Override
 					public void run() {
@@ -530,34 +530,16 @@ public class Synthesizer {
 	    	return null;
 	    }
 	    
-	    private static String getLegalValues(List<EvaluatedExpression> exprs, IJavaStackFrame stack) {
+	    private static String getLegalValues(List<EvaluatedExpression> exprs) {
 	    	StringBuilder sb = new StringBuilder();
 	    	for (EvaluatedExpression e: exprs) {
 	    		if (sb.length() > 0)
 	    			sb.append(", ");
-	    		sb.append(getValue(e, stack));
+	    		sb.append(Utils.truncate(e.getResultString(), 50));
 	    	}
 	    	return sb.toString();
 	    }
 	    
-	}
-	
-	public static String getValue(EvaluatedExpression cur, IJavaStackFrame stack) {
-		try {
-			// TODO-optimization: I can compute this in EvaluationManager (only if the spec is true) and store it in the EvaluatedExpression to reduce overheads.
-			if (cur.getResult() instanceof IJavaPrimitiveValue)
-				return EclipseUtils.javaStringOfValue(cur.getResult());
-			else if (cur.getResult().isNull())
-				return "null";
-			else if (cur.getResult() instanceof IJavaArray)
-				return EclipseUtils.evaluate("java.util.Arrays.toString(" + cur.getSnippet() + ")", stack).getValueString();
-			else if ("Ljava/lang/String;".equals(cur.getResult().getSignature()))
-				return EclipseUtils.javaStringOfValue(EclipseUtils.evaluate("(" + cur.getSnippet() + ").toString()", stack));
-			else
-				return EclipseUtils.evaluate("(" + cur.getSnippet() + ").toString()", stack).getValueString();
-		} catch (DebugException e) {
-			throw new RuntimeException(e);
-		}
 	}
 	
     private static String generateChooseOrChosenStmt(String varname, List<String> expressions) {

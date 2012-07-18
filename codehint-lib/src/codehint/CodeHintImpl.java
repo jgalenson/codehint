@@ -17,6 +17,7 @@ public class CodeHintImpl {
 	public static double[] doubles;
 
 	public static boolean[] valid;
+	public static String[] toStrings;
 	
 	public static int count;
 

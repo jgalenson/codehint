@@ -26,7 +26,9 @@ import org.eclipse.jdt.core.dom.ASTNode;
 import org.eclipse.jdt.core.dom.ASTParser;
 import org.eclipse.jdt.debug.core.IJavaArray;
 import org.eclipse.jdt.debug.core.IJavaDebugTarget;
+import org.eclipse.jdt.debug.core.IJavaObject;
 import org.eclipse.jdt.debug.core.IJavaStackFrame;
+import org.eclipse.jdt.debug.core.IJavaThread;
 import org.eclipse.jdt.debug.core.IJavaType;
 import org.eclipse.jdt.debug.core.IJavaValue;
 import org.eclipse.jdt.debug.core.IJavaVariable;
@@ -199,18 +201,21 @@ public class EclipseUtils {
      * a legal Java expression, except in the case of arrays,
      * where we show a debug-like view of them.
      * @param value The value whose string representation is desired.
+     * @param stack The current stack frame.
      * @return A string that is the legal Java expression of
      * the given value, except for arrays, which show their values.
      * @throws DebugException if we cannot get the value.
      */
-    public static String javaStringOfValue(IJavaValue value) throws DebugException {
-    	if (value instanceof IJavaArray) {
+    public static String javaStringOfValue(IJavaValue value, IJavaStackFrame stack) throws DebugException {
+    	if (value.isNull())
+    		return "null";
+    	else if (value instanceof IJavaArray) {
     		StringBuilder sb = new StringBuilder();
     		sb.append("[");
     		for (IJavaValue arrValue: ((IJavaArray)value).getValues()) {
     			if (sb.length() > 1)
     				sb.append(",");
-    			sb.append(javaStringOfValue(arrValue));
+    			sb.append(javaStringOfValue(arrValue, stack));
     		}
     		sb.append("]");
     		return sb.toString();
@@ -218,6 +223,8 @@ public class EclipseUtils {
     		return "'" + value.getValueString() + "'";
     	else if ("Ljava/lang/String;".equals(value.getSignature()))
     		return "\"" + value.getValueString() + "\"";
+    	else if (value instanceof IJavaObject)
+    		return ((IJavaObject)value).sendMessage("toString", "()Ljava/lang/String;", new IJavaValue[] { }, (IJavaThread)stack.getThread(), null).getValueString();
     	else
     		return value.getValueString();
     }

@@ -43,6 +43,8 @@ public class SubtypeChecker {
 				return true;
 			// Check arrays.
 			if (cur instanceof IJavaArrayType) {
+				if ("java.lang.Object".equals(expected.getName()))
+					return true;  // Arrays are subtypes of Object.
 				if (!(expected instanceof IJavaArrayType))
 					return false;
 				IJavaType curElemType = ((IJavaArrayType)cur).getComponentType();

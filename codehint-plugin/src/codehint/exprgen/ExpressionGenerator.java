@@ -120,7 +120,7 @@ public class ExpressionGenerator {
 	    		if (e.getValue() == null)
 	    			unevaluatedExprs.add(e);
 	    		else if (!"V".equals(e.getValue().getSignature()))
-	    			evaluatedExprs.add(new EvaluatedExpression(e.getExpression(), e.getValue(), e.getType()));
+	    			evaluatedExprs.add(new EvaluatedExpression(e.getExpression(), e.getValue(), e.getType(), null));
 	    	
 	    	EclipseUtils.log("Generated " + allTypedExprs.size() + " potential expressions, of which " + evaluatedExprs.size() + " already have values and " + unevaluatedExprs.size() + " still need to be evaluated.");
 			

@@ -17,11 +17,13 @@ public class EvaluatedExpression {
 	private final Expression expr;
 	private final IJavaValue result;
 	private final IJavaType type;
+	private final String resultString;
 	
-	public EvaluatedExpression(Expression expr, IJavaValue result, IJavaType type) {
+	public EvaluatedExpression(Expression expr, IJavaValue result, IJavaType type, String resultString) {
 		this.expr = expr;
 		this.result = result;
 		this.type = type;
+		this.resultString = resultString;
 	}
 	
 	public Expression getExpression() {
@@ -38,6 +40,10 @@ public class EvaluatedExpression {
 	
 	public IJavaType getType() {
 		return type;
+	}
+	
+	public String getResultString() {
+		return resultString;
 	}
 	
 	/**

@@ -256,8 +256,8 @@ public class InitialSynthesisDialog extends SynthesisDialog {
     	return e.getSnippet();
     }
     
-    private String getValueLabel(EvaluatedExpression e) {
-    	return Synthesizer.getValue(e, stack);
+    private static String getValueLabel(EvaluatedExpression e) {
+    	return e.getResultString();
     }
     
     private class SynthesisResultComparator extends ViewerComparator {
