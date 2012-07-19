@@ -80,7 +80,8 @@ public class InitialSynthesisDialog extends SynthesisDialog {
 		Composite composite = (Composite)super.createDialogArea(parent);
 		
 		String message = "Give an expression skeleton that describes the form of the desired expression, using " + ExpressionSkeleton.HOLE_SYNTAX + "s for unknown expressions and names.";
-		skeletonInput = createInput(composite, message, initialSkeletonText, skeletonValidator, new SkeletonModifyHandler(), "skeleton");
+		Composite skeletonComposite = makeChildComposite(composite, GridData.HORIZONTAL_ALIGN_FILL, 1);
+		skeletonInput = createInput(skeletonComposite, message, initialSkeletonText, skeletonValidator, new SkeletonModifyHandler(), "skeleton");
 
 		Composite topButtonComposite = makeChildComposite(composite, GridData.HORIZONTAL_ALIGN_CENTER, 0);
 		searchButton = createButton(topButtonComposite, searchButtonID, "Search", true);
