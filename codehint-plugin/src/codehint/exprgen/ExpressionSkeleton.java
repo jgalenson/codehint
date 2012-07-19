@@ -55,6 +55,7 @@ import org.eclipse.jdt.debug.eval.IAstEvaluationEngine;
 import com.sun.jdi.Field;
 import com.sun.jdi.Method;
 
+import codehint.dialogs.InitialSynthesisDialog;
 import codehint.expreval.EvaluatedExpression;
 import codehint.expreval.EvaluationManager;
 import codehint.exprgen.typeconstraint.DesiredType;
@@ -244,17 +245,17 @@ public class ExpressionSkeleton {
 		
 	}
 	
-	public ArrayList<EvaluatedExpression> synthesize(IJavaDebugTarget target, IJavaStackFrame stack, Property property, IJavaType varStaticType, IProgressMonitor monitor) {
+	public ArrayList<EvaluatedExpression> synthesize(IJavaDebugTarget target, IJavaStackFrame stack, Property property, IJavaType varStaticType, InitialSynthesisDialog synthesisDialog, IProgressMonitor monitor) {
 		try {
 			long startTime = System.currentTimeMillis();
 			// TODO: Improve progress monitor so it shows you which evaluation it is.
 			TypeConstraint typeConstraint = getInitialTypeConstraint(varStaticType, property, stack, target);
 			if (HOLE_SYNTAX.equals(sugaredString))  // Optimization: Optimize special case of "??" skeleton by simply calling old ExprGen code directly.
-				return ExpressionGenerator.generateExpression(target, stack, property, typeConstraint, new SubtypeChecker(), monitor, 1);
+				return ExpressionGenerator.generateExpression(target, stack, property, typeConstraint, new SubtypeChecker(), synthesisDialog, monitor, 1);
 			monitor.beginTask("Skeleton generation", holeInfos.size() + 2);
-			ArrayList<TypedExpression> exprs = SkeletonFiller.fillSkeleton(expression, typeConstraint, holeInfos, stack, target, monitor);
+			ArrayList<TypedExpression> exprs = SkeletonFiller.fillSkeleton(expression, typeConstraint, holeInfos, stack, target, synthesisDialog, monitor);
 			SubMonitor evalMonitor = SubMonitor.convert(monitor, "Expression evaluation", exprs.size());
-			ArrayList<EvaluatedExpression> results = EvaluationManager.evaluateExpressions(exprs, stack, property, evalMonitor);
+			ArrayList<EvaluatedExpression> results = EvaluationManager.evaluateExpressions(exprs, stack, property, synthesisDialog, evalMonitor);
 			EclipseUtils.log("Synthesis found " + exprs.size() + " expressions of which " + results.size() + " were valid and took " + (System.currentTimeMillis() - startTime) + " milliseconds.");
 	    	monitor.done();
 			return results;
@@ -340,12 +341,13 @@ public class ExpressionSkeleton {
 		private final SubtypeChecker subtypeChecker;
 		private final IJavaStackFrame stack;
 		private final IJavaDebugTarget target;
+		private final InitialSynthesisDialog synthesisDialog;
 		private final IProgressMonitor monitor;
 		
 		private final IJavaType intType;
 		private final IJavaType booleanType;
 		
-		private SkeletonFiller(Map<String, HoleInfo> holeInfos, IJavaStackFrame stack, IJavaDebugTarget target, IProgressMonitor monitor) {
+		private SkeletonFiller(Map<String, HoleInfo> holeInfos, IJavaStackFrame stack, IJavaDebugTarget target, InitialSynthesisDialog synthesisDialog, IProgressMonitor monitor) {
 			this.holeValues = new HashMap<String, Map<String, ArrayList<EvaluatedExpression>>>();
 			this.holeFields = new HashMap<String, Map<String, ArrayList<Field>>>();
 			this.holeMethods = new HashMap<String, Map<String, ArrayList<Method>>>();
@@ -353,13 +355,14 @@ public class ExpressionSkeleton {
 			this.subtypeChecker = new SubtypeChecker();
 			this.stack = stack;
 			this.target = target;
+			this.synthesisDialog = synthesisDialog;
 			this.monitor = monitor;
 			intType = EclipseUtils.getFullyQualifiedType("int", target);
 			booleanType = EclipseUtils.getFullyQualifiedType("boolean", target);
 		}
 		
-		public static ArrayList<TypedExpression> fillSkeleton(Expression skeleton, TypeConstraint initialTypeConstraint, Map<String, HoleInfo> holeInfos, IJavaStackFrame stack, IJavaDebugTarget target, IProgressMonitor monitor) {
-			SkeletonFiller filler = new SkeletonFiller(holeInfos, stack, target, monitor);
+		public static ArrayList<TypedExpression> fillSkeleton(Expression skeleton, TypeConstraint initialTypeConstraint, Map<String, HoleInfo> holeInfos, IJavaStackFrame stack, IJavaDebugTarget target, InitialSynthesisDialog synthesisDialog, IProgressMonitor monitor) {
+			SkeletonFiller filler = new SkeletonFiller(holeInfos, stack, target, synthesisDialog, monitor);
 			ExpressionsAndTypeConstraints result = filler.fillSkeleton(skeleton, initialTypeConstraint, HoleParentSetter.getParentsOfHoles(holeInfos, skeleton));
 			ArrayList<TypedExpression> exprs = new ArrayList<TypedExpression>();
 			for (ArrayList<TypedExpression> curExprs: result.getExprs().values())
@@ -629,9 +632,9 @@ public class ExpressionSkeleton {
 							ArrayList<TypedExpression> fakeTypedHoleInfos = new ArrayList<TypedExpression>(nonCrashingStrings.size());
 							for (String s: nonCrashingStrings)
 								fakeTypedHoleInfos.add(new TypedExpression((Expression)EclipseUtils.parseExpr(parser, s), null, null));
-							values = EvaluationManager.evaluateExpressions(fakeTypedHoleInfos, stack, null, childMonitor);
+							values = EvaluationManager.evaluateExpressions(fakeTypedHoleInfos, stack, null, synthesisDialog, childMonitor);
 						} else
-							values = ExpressionGenerator.generateExpression(target, stack, null, curConstraint, subtypeChecker, childMonitor, holeInfos.size() == 1 ? 1 : 0);
+							values = ExpressionGenerator.generateExpression(target, stack, null, curConstraint, subtypeChecker, synthesisDialog, childMonitor, holeInfos.size() == 1 ? 1 : 0);
 						Map<String, ArrayList<EvaluatedExpression>> valuesByType = new HashMap<String, ArrayList<EvaluatedExpression>>();
 						List<IJavaType> resultTypes = new ArrayList<IJavaType>(values.size());
 						for (EvaluatedExpression e: values) {

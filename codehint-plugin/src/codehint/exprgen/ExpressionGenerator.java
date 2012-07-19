@@ -47,6 +47,7 @@ import org.eclipse.jdt.debug.core.IJavaVariable;
 import org.eclipse.jdt.internal.debug.core.model.JDIStackFrame;
 import org.eclipse.jdt.internal.debug.core.model.JDIType;
 
+import codehint.dialogs.InitialSynthesisDialog;
 import codehint.expreval.EvaluatedExpression;
 import codehint.expreval.EvaluationManager;
 import codehint.exprgen.typeconstraint.SupertypeBound;
@@ -93,13 +94,14 @@ public class ExpressionGenerator {
 	 * @param typeConstraint The constraint on the type of the expressions
 	 * being generated.
 	 * @param subtypeChecker The subtype checker.
+	 * @param synthesisDialog 
 	 * @param monitor Progress monitor.
 	 * @param maxExprDepth The maximum depth of expressions to search.
 	 * @return A list containing strings of all the expressions (up
 	 * to a certain depth) whose value in the current stack frame is
 	 * that of the demonstration.
 	 */
-	public static ArrayList<EvaluatedExpression> generateExpression(IJavaDebugTarget target, IJavaStackFrame stack, Property property, TypeConstraint typeConstraint, SubtypeChecker subtypeChecker, IProgressMonitor monitor, int maxExprDepth) {
+	public static ArrayList<EvaluatedExpression> generateExpression(IJavaDebugTarget target, IJavaStackFrame stack, Property property, TypeConstraint typeConstraint, SubtypeChecker subtypeChecker, InitialSynthesisDialog synthesisDialog, IProgressMonitor monitor, int maxExprDepth) {
 		monitor.beginTask("Expression generation and evaluation", IProgressMonitor.UNKNOWN);
 		
 		try {
@@ -123,12 +125,11 @@ public class ExpressionGenerator {
 	    			evaluatedExprs.add(new EvaluatedExpression(e.getExpression(), e.getValue(), e.getType(), null));
 	    	
 	    	EclipseUtils.log("Generated " + allTypedExprs.size() + " potential expressions, of which " + evaluatedExprs.size() + " already have values and " + unevaluatedExprs.size() + " still need to be evaluated.");
-			
-	    	ArrayList<EvaluatedExpression> results = EvaluationManager.filterExpressions(evaluatedExprs, stack, property);
-	    	if (unevaluatedExprs.size() > 0) {
-	    		SubMonitor evalMonitor = SubMonitor.convert(monitor, "Expression evaluation", unevaluatedExprs.size());
-	    		results.addAll(EvaluationManager.evaluateExpressions(unevaluatedExprs, stack, property, evalMonitor));
-	    	}
+
+    		SubMonitor evalMonitor = SubMonitor.convert(monitor, "Expression evaluation", allTypedExprs.size());
+	    	ArrayList<EvaluatedExpression> results = EvaluationManager.filterExpressions(evaluatedExprs, stack, property, synthesisDialog, evalMonitor);
+	    	if (unevaluatedExprs.size() > 0)
+	    		results.addAll(EvaluationManager.evaluateExpressions(unevaluatedExprs, stack, property, synthesisDialog, evalMonitor));
 			for (EvaluatedExpression e : results)
 				ExpressionMaker.setExpressionValue(e.getExpression(), e.getResult());
 	    	//List<EvaluatedExpression> allEvaluatedExprs = expandEquivalences(evaluatedExprs, equivalences);

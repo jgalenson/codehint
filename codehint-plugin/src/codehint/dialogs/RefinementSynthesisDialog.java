@@ -54,7 +54,6 @@ public class RefinementSynthesisDialog extends SynthesisDialog {
         super.buttonPressed(buttonId);
     }
 
-    @Override
     public void setExpressions(ArrayList<EvaluatedExpression> exprs) {
 		results = exprs;
     }

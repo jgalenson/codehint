@@ -200,6 +200,12 @@ public class InitialSynthesisDialog extends SynthesisDialog {
             property = propertyDialog.computeProperty(pdspecInput.getText());
             skeleton = ExpressionSkeleton.fromString(skeletonResult);
             enableCancel(false);
+            expressions = new ArrayList<EvaluatedExpression>();
+        	// Reset column sort indicators.
+        	tableViewer.setComparator(null);  // We want to use the order in which we add elements as the initial sort.
+        	table.setSortDirection(SWT.NONE);
+    		table.setSortColumn(null);
+    		// Start the synthesis
 	    	worker.synthesize(this);
         } else if (buttonId == IDialogConstants.OK_ID) {
          	results = new ArrayList<EvaluatedExpression>();
@@ -210,9 +216,8 @@ public class InitialSynthesisDialog extends SynthesisDialog {
         super.buttonPressed(buttonId);
     }
     
-    @Override
-    public void setExpressions(ArrayList<EvaluatedExpression> exprs) {
-    	expressions = exprs;
+    public void addExpressions(ArrayList<EvaluatedExpression> foundExprs) {
+    	expressions.addAll(foundExprs);
 		showResults();
     }
 	
@@ -225,10 +230,6 @@ public class InitialSynthesisDialog extends SynthesisDialog {
     // Table code
     
     private void showResults() {
-    	// Reset column sort indicators.
-    	tableViewer.setComparator(null);  // We want to use the order in which we add elements as the initial sort.
-    	table.setSortDirection(SWT.NONE);
-		table.setSortColumn(null);
 		// Set and show the results.
     	tableViewer.setInput(expressions);
     	table.getColumn(0).pack();  // For some reason I need these two lines to update the screen.

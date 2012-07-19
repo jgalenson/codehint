@@ -6,7 +6,6 @@ import java.util.Map;
 import java.util.concurrent.Semaphore;
 
 import org.eclipse.core.runtime.IProgressMonitor;
-import org.eclipse.core.runtime.NullProgressMonitor;
 import org.eclipse.core.runtime.OperationCanceledException;
 import org.eclipse.debug.core.DebugEvent;
 import org.eclipse.debug.core.DebugException;
@@ -33,7 +32,9 @@ import org.eclipse.jdt.debug.eval.IAstEvaluationEngine;
 import org.eclipse.jdt.debug.eval.ICompiledExpression;
 import org.eclipse.jdt.debug.eval.IEvaluationListener;
 import org.eclipse.jdt.debug.eval.IEvaluationResult;
+import org.eclipse.swt.widgets.Display;
 
+import codehint.dialogs.InitialSynthesisDialog;
 import codehint.exprgen.TypedExpression;
 import codehint.property.StateProperty;
 import codehint.property.Property;
@@ -70,11 +71,12 @@ public class EvaluationManager {
 	 * @param exprs The expressions to evaluate
 	 * @param stack The current stack frame.
 	 * @param property The desired property, or null if there is none.
+	 * @param synthesisDialog The synthesis dialog.
 	 * @param monitor a progress monitor, or null if progress reporting and cancellation are not desired.
      * @return the results of the evaluations of the given expressions
      * that satisfy the given property, if it is non-null.
 	 */
-	public static ArrayList<EvaluatedExpression> evaluateExpressions(ArrayList<TypedExpression> exprs, IJavaStackFrame stack, Property property, IProgressMonitor monitor) {
+	public static ArrayList<EvaluatedExpression> evaluateExpressions(ArrayList<TypedExpression> exprs, IJavaStackFrame stack, Property property, InitialSynthesisDialog synthesisDialog, IProgressMonitor monitor) {
 		try {
 			IAstEvaluationEngine engine = EclipseUtils.getASTEvaluationEngine(stack);
 			int batchSize = exprs.size() >= 2 * BATCH_SIZE ? BATCH_SIZE : exprs.size() >= MIN_NUM_BATCHES ? exprs.size() / MIN_NUM_BATCHES : 1;
@@ -93,7 +95,7 @@ public class EvaluationManager {
 				String type = EclipseUtils.sanitizeTypename(expressionsOfType.getKey());
 				String valuesArrayName = getValuesArrayName(type);
 				IJavaFieldVariable valuesField = implType.getField(valuesArrayName);
-				evaluatedExprs.addAll(evaluateExpressions(expressionsOfType.getValue(), type, valuesField, validField, toStringsField, countField, engine, stack, property, validVal, preVarsString, propertyPreconditions, 0, batchSize, monitor));
+				evaluatedExprs.addAll(evaluateExpressions(expressionsOfType.getValue(), type, valuesField, validField, toStringsField, countField, engine, stack, property, validVal, preVarsString, propertyPreconditions, 0, batchSize, synthesisDialog, monitor));
 			}
 			return evaluatedExprs;
 		} catch (DebugException e) {
@@ -157,15 +159,16 @@ public class EvaluationManager {
 	 * @param stack The current stack frame.
 	 * @param type The static type of the desired expression.
 	 * @param property The desired property.
+	 * @param synthesisDialog The synthesis dialog.
 	 * @param monitor a progress monitor, or null if progress reporting and cancellation are not desired.
      * @return the evaluated expressions that satisfy
      * the given property.
 	 */
-	public static ArrayList<EvaluatedExpression> filterExpressions(ArrayList<EvaluatedExpression> evaledExprs, IJavaStackFrame stack, Property property) {
+	public static ArrayList<EvaluatedExpression> filterExpressions(ArrayList<EvaluatedExpression> evaledExprs, IJavaStackFrame stack, Property property, InitialSynthesisDialog synthesisDialog, IProgressMonitor monitor) {
 		ArrayList<TypedExpression> exprs = new ArrayList<TypedExpression>(evaledExprs.size());
 		for (EvaluatedExpression expr : evaledExprs)
 			exprs.add(new TypedExpression(expr.getExpression(), expr.getType(), null));
-		return evaluateExpressions(exprs, stack, property, new NullProgressMonitor());
+		return evaluateExpressions(exprs, stack, property, synthesisDialog, monitor);
 	}
 	
 	/**
@@ -179,7 +182,7 @@ public class EvaluationManager {
 	 * @param batchSize The size of the batches.
      * @return the results of the evaluations of the given expressions.
 	 */
-	private static ArrayList<EvaluatedExpression> evaluateExpressions(ArrayList<TypedExpression> exprs, String type, IJavaFieldVariable valuesField, IJavaFieldVariable validField, IJavaFieldVariable toStringsField, IJavaFieldVariable countField, IAstEvaluationEngine engine, IJavaStackFrame stack, Property property, String validVal, String preVarsString, String propertyPreconditions, int startIndex, int batchSize, IProgressMonitor monitor) {
+	private static ArrayList<EvaluatedExpression> evaluateExpressions(ArrayList<TypedExpression> exprs, String type, IJavaFieldVariable valuesField, IJavaFieldVariable validField, IJavaFieldVariable toStringsField, IJavaFieldVariable countField, IAstEvaluationEngine engine, IJavaStackFrame stack, Property property, String validVal, String preVarsString, String propertyPreconditions, int startIndex, int batchSize, final InitialSynthesisDialog synthesisDialog, IProgressMonitor monitor) {
 		if (monitor.isCanceled())
 			throw new OperationCanceledException();
 		boolean hasPropertyPrecondition = propertyPreconditions.length() > 0;
@@ -240,15 +243,23 @@ public class EvaluationManager {
     		
 	    	boolean hasError = result.getException() != null;
 			int count = ((IJavaPrimitiveValue)countField.getValue()).getIntValue();
-	    	ArrayList<EvaluatedExpression> results = count == 0 ? new ArrayList<EvaluatedExpression>() : getResultsFromArray(exprs, startIndex, valuesField, validField, toStringsField, count, stack);
+	    	final ArrayList<EvaluatedExpression> results = count == 0 ? new ArrayList<EvaluatedExpression>() : getResultsFromArray(exprs, startIndex, valuesField, validField, toStringsField, count, stack);
 	    	/*System.out.println("Evaluated " + count + " expressions.");
 	    	if (hasError)
 	    		System.out.println("Crashed on " + exprs.get(startIndex + count));*/
 	    	int work = hasError ? count + 1 : count;
+	    	if (synthesisDialog != null && !results.isEmpty()) {
+				Display.getDefault().asyncExec(new Runnable(){
+					@Override
+					public void run() {
+			    		synthesisDialog.addExpressions(results);
+					}
+	        	});
+	    	}
 	    	monitor.worked(work);
 	    	int nextStartIndex = startIndex + work;
 	    	if (nextStartIndex < exprs.size())
-	    		results.addAll(evaluateExpressions(exprs, type, valuesField, validField, toStringsField, countField, engine, stack, property, validVal, preVarsString, propertyPreconditions, nextStartIndex, batchSize, monitor));
+	    		results.addAll(evaluateExpressions(exprs, type, valuesField, validField, toStringsField, countField, engine, stack, property, validVal, preVarsString, propertyPreconditions, nextStartIndex, batchSize, synthesisDialog, monitor));
 	    	return results;
 		} catch (DebugException e) {
 			throw new RuntimeException(e);

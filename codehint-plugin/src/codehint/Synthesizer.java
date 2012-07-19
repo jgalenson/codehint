@@ -182,14 +182,8 @@ public class Synthesizer {
 					IJavaDebugTarget target = (IJavaDebugTarget)stack.getDebugTarget();
 					EclipseUtils.log("Beginning synthesis for " + varName + " with property " + property.toString() + " and skeleton " + skeleton.toString() + ".");
 					try {
-						final ArrayList<EvaluatedExpression> validExpressions = skeleton.synthesize(target, stack, property, varStaticType, monitor);
-			        	Display.getDefault().asyncExec(new Runnable(){
-							@Override
-							public void run() {
-			                	synthesisDialog.setExpressions(validExpressions);
-							}
-			        	});
-						return Status.OK_STATUS;
+						skeleton.synthesize(target, stack, property, varStaticType, synthesisDialog, monitor);
+			        	return Status.OK_STATUS;
 					} catch (EvaluationError e) {
 				    	setLastCrashedInfo(varName, property, skeleton);
 						return new Status(IStatus.ERROR, Activator.PLUGIN_ID, e.getMessage());
@@ -231,7 +225,7 @@ public class Synthesizer {
 		public void synthesize(RefinementSynthesisDialog synthesisDialog) {
 			Property property = synthesisDialog.getProperty();
    			try {
-   				ArrayList<EvaluatedExpression> validExpressions =  EvaluationManager.filterExpressions(exprs, stack, property);
+   				ArrayList<EvaluatedExpression> validExpressions =  EvaluationManager.filterExpressions(exprs, stack, property, null, new NullProgressMonitor());
             	synthesisDialog.setExpressions(validExpressions);
    			} catch (EvaluationError e) {
    		    	setLastCrashedInfo(varName, property, null);
@@ -306,7 +300,7 @@ public class Synthesizer {
    				initialExprs.add(new TypedExpression((Expression)it.next(), varStaticType, null));
         	assert initialExprs.size() > 0;  // We must have at least one expression.
         	// TODO: Run the following off the UI thread like above when we do the first synthesis.
-   			ArrayList<EvaluatedExpression> exprs = EvaluationManager.evaluateExpressions(initialExprs, frame, null, new NullProgressMonitor());
+   			ArrayList<EvaluatedExpression> exprs = EvaluationManager.evaluateExpressions(initialExprs, frame, null, null, new NullProgressMonitor());
    			if (exprs.isEmpty()) {
    				EclipseUtils.showError("No valid expressions", "No valid expressions were found.", null);
    				throw new RuntimeException("No valid expressions");
