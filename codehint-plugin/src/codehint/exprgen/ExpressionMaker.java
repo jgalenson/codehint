@@ -350,17 +350,21 @@ public class ExpressionMaker {
 	public static TypedExpression makeCall(String name, TypedExpression receiver, ArrayList<TypedExpression> args, IJavaType returnType, IJavaType thisType, Method method, IJavaDebugTarget target) {
 		//IJavaValue value = computeCall(method, receiver.getValue(), args, thread, target, ((JDIType)receiver.getType()));
 		IJavaValue value = null;
+		TypedExpression result = null;
 		if (receiver.getExpression() == null) {
 			assert "<init>".equals(name);
 			try {
-				return makeNewObject(receiver.getType(), args, value);
+				result = makeNewObject(receiver.getType(), args, value);
 			} catch (DebugException e) {
 				throw new RuntimeException(e);
 			}
+		} else {
+			if (receiver.getExpression() instanceof ThisExpression || receiver.getType().equals(thisType))
+				receiver = null;  // Don't use a receiver if it is null or the this type.
+			result = makeCall(name, receiver == null ? null : copyExpr(receiver.getExpression()), args, returnType, value);
 		}
-		if (receiver.getExpression() instanceof ThisExpression || receiver.getType().equals(thisType))
-			receiver = null;  // Don't use a receiver if it is null or the this type.
-		return makeCall(name, receiver == null ? null : copyExpr(receiver.getExpression()), args, returnType, value);
+		setMethod(result.getExpression(), method);
+		return result;
 	}
 	/*private static TypedExpression makeCall(String name, String classname, ArrayList<TypedExpression> args, IJavaType returnType) {
     	return makeCall(name, newStaticName(classname), args, returnType, null);
@@ -465,13 +469,14 @@ public class ExpressionMaker {
 	}
 
 	@SuppressWarnings("unchecked")
-	public static TypedExpression makeSuperCall(String name, Name qualifier, ArrayList<TypedExpression> args, IJavaType returnType, IJavaValue value) {
+	public static TypedExpression makeSuperCall(String name, Name qualifier, ArrayList<TypedExpression> args, IJavaType returnType, IJavaValue value, Method method) {
 		SuperMethodInvocation e = ast.newSuperMethodInvocation();
 		e.setName(ast.newSimpleName(name));
 		e.setQualifier(qualifier);
 		for (TypedExpression ex: args)
 			e.arguments().add(copyExpr(ex.getExpression()));
 		setExpressionValue(e, value);
+		setMethod(e, method);
 		return new TypedExpression(e, returnType, value);
 	}
 
@@ -518,6 +523,14 @@ public class ExpressionMaker {
 
 	public static boolean isStatic(Expression e) {
 		return e.getProperty("isStatic") != null;
+	}
+
+	private static void setMethod(Expression e, Method method) {
+		e.setProperty("method", method);
+	}
+
+	public static Method getMethod(Expression e) {
+		return (Method)e.getProperty("method");
 	}
 
 	/**

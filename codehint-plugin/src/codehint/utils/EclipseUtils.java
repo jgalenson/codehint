@@ -598,7 +598,7 @@ public class EclipseUtils {
     	return sanitizeTypename(typeName) + ".class";
     }
     
-    /**
+    /*
      * Checks whether the given classname represents an anonymous class
      * (and therefore cannot be instantiated as-is).  Such names end
      * with a dollar sign followed by a sequence number.
@@ -615,6 +615,21 @@ public class EclipseUtils {
     			return false;
     	}
     	return true;
+    }*/
+    
+    /*public static ArrayList<Method> getMethods(Expression expr) {
+    	final ArrayList<Method> result = new ArrayList<Method>();
+    	expr.accept(new ASTVisitor() {
+    		@Override
+    		public void postVisit(ASTNode node) {
+    			if (node instanceof Expression) {
+    				Method method = ExpressionMaker.getMethod((Expression)node);
+    				if (method != null)
+    					result.add(method);
+    			}
+    		}
+    	});
+    	return result;
     }*/
     
     /**

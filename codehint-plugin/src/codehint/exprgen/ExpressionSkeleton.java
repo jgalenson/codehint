@@ -839,7 +839,7 @@ public class ExpressionSkeleton {
 			if (curActuals.size() == possibleActuals.size()) {
 				TypedExpression callExpr = null;
 				if (callNode instanceof SuperMethodInvocation)
-					callExpr = ExpressionMaker.makeSuperCall(name, ((SuperMethodInvocation)callNode).getQualifier(), curActuals, returnType, null);
+					callExpr = ExpressionMaker.makeSuperCall(name, ((SuperMethodInvocation)callNode).getQualifier(), curActuals, returnType, null, method);
 				else
 					callExpr = ExpressionMaker.makeCall(name, receiver, curActuals, returnType, thisType, method, target);
 				Utils.addToMap(resultExprs, constraintName, callExpr);

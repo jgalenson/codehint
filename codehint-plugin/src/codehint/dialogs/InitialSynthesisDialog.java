@@ -117,7 +117,7 @@ public class InitialSynthesisDialog extends SynthesisDialog {
 			
 			/*@Override
 			public String getToolTipText(Object element) {
-				return "Tooltip (" + element + ")";
+				return "";
 			}
 			
 			@Override
@@ -134,7 +134,7 @@ public class InitialSynthesisDialog extends SynthesisDialog {
 		});
     	tableViewer.setContentProvider(ArrayContentProvider.getInstance());
     	synthesisResultComparator = new SynthesisResultComparator();
-    	//ColumnViewerToolTipSupport.enableFor(tableViewer, ToolTip.NO_RECREATE); 
+    	//ColumnViewerToolTipSupport.enableFor(tableViewer, ToolTip.NO_RECREATE);
         PlatformUI.getWorkbench().getHelpSystem().setHelp(table, Activator.PLUGIN_ID + "." + "candidate-selector");
 
 		Composite bottomButtonComposite = makeChildComposite(composite, GridData.HORIZONTAL_ALIGN_CENTER, 0);
