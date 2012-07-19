@@ -71,7 +71,8 @@ public class EvaluationManager {
 	 * @param exprs The expressions to evaluate
 	 * @param stack The current stack frame.
 	 * @param property The desired property, or null if there is none.
-	 * @param synthesisDialog The synthesis dialog.
+	 * @param synthesisDialog The synthesis dialog to pass the valid expressions,
+	 * or null if we should not pass anything.
 	 * @param monitor a progress monitor, or null if progress reporting and cancellation are not desired.
      * @return the results of the evaluations of the given expressions
      * that satisfy the given property, if it is non-null.
@@ -159,7 +160,8 @@ public class EvaluationManager {
 	 * @param stack The current stack frame.
 	 * @param type The static type of the desired expression.
 	 * @param property The desired property.
-	 * @param synthesisDialog The synthesis dialog.
+	 * @param synthesisDialog The synthesis dialog to pass the valid expressions,
+	 * or null if we should not pass anything.
 	 * @param monitor a progress monitor, or null if progress reporting and cancellation are not desired.
      * @return the evaluated expressions that satisfy
      * the given property.

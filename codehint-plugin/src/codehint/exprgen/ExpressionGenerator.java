@@ -94,7 +94,8 @@ public class ExpressionGenerator {
 	 * @param typeConstraint The constraint on the type of the expressions
 	 * being generated.
 	 * @param subtypeChecker The subtype checker.
-	 * @param synthesisDialog 
+	 * @param synthesisDialog The synthesis dialog to pass the valid expressions,
+	 * or null if we should not pass anything.
 	 * @param monitor Progress monitor.
 	 * @param maxExprDepth The maximum depth of expressions to search.
 	 * @return A list containing strings of all the expressions (up

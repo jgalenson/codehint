@@ -182,7 +182,7 @@ public class Synthesizer {
 					IJavaDebugTarget target = (IJavaDebugTarget)stack.getDebugTarget();
 					EclipseUtils.log("Beginning synthesis for " + varName + " with property " + property.toString() + " and skeleton " + skeleton.toString() + ".");
 					try {
-						skeleton.synthesize(target, stack, property, varStaticType, synthesisDialog, monitor);
+						skeleton.synthesize(target, stack, property, varStaticType, synthesisDialog, synthesisDialog.getProgressMonitor());
 			        	return Status.OK_STATUS;
 					} catch (EvaluationError e) {
 				    	setLastCrashedInfo(varName, property, skeleton);
@@ -197,14 +197,14 @@ public class Synthesizer {
 						Display.getDefault().asyncExec(new Runnable(){
 							@Override
 							public void run() {
-			                	synthesisDialog.enableCancel(true);
+			                	synthesisDialog.startEndSynthesis(false);
 							}
 			        	});
 					}
 				}
 			};
 			job.setPriority(Job.LONG);
-			job.setUser(true);
+			//job.setUser(true);
 			job.schedule();
 		}
 		

@@ -634,7 +634,7 @@ public class ExpressionSkeleton {
 								fakeTypedHoleInfos.add(new TypedExpression((Expression)EclipseUtils.parseExpr(parser, s), null, null));
 							values = EvaluationManager.evaluateExpressions(fakeTypedHoleInfos, stack, null, synthesisDialog, childMonitor);
 						} else
-							values = ExpressionGenerator.generateExpression(target, stack, null, curConstraint, subtypeChecker, synthesisDialog, childMonitor, holeInfos.size() == 1 ? 1 : 0);
+							values = ExpressionGenerator.generateExpression(target, stack, null, curConstraint, subtypeChecker, null, childMonitor, holeInfos.size() == 1 ? 1 : 0);
 						Map<String, ArrayList<EvaluatedExpression>> valuesByType = new HashMap<String, ArrayList<EvaluatedExpression>>();
 						List<IJavaType> resultTypes = new ArrayList<IJavaType>(values.size());
 						for (EvaluatedExpression e: values) {

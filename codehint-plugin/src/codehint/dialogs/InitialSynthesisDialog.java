@@ -2,6 +2,7 @@ package codehint.dialogs;
 
 import java.util.ArrayList;
 
+import org.eclipse.core.runtime.IProgressMonitor;
 import org.eclipse.jdt.debug.core.IJavaPrimitiveValue;
 import org.eclipse.jdt.debug.core.IJavaStackFrame;
 import org.eclipse.jdt.debug.core.IJavaType;
@@ -14,6 +15,7 @@ import org.eclipse.jface.viewers.TableViewer;
 import org.eclipse.jface.viewers.TableViewerColumn;
 import org.eclipse.jface.viewers.Viewer;
 import org.eclipse.jface.viewers.ViewerComparator;
+import org.eclipse.jface.wizard.ProgressMonitorPart;
 import org.eclipse.swt.SWT;
 import org.eclipse.swt.events.SelectionAdapter;
 import org.eclipse.swt.events.SelectionEvent;
@@ -21,6 +23,8 @@ import org.eclipse.swt.layout.GridData;
 import org.eclipse.swt.widgets.Button;
 import org.eclipse.swt.widgets.Composite;
 import org.eclipse.swt.widgets.Control;
+import org.eclipse.swt.widgets.Display;
+import org.eclipse.swt.widgets.Layout;
 import org.eclipse.swt.widgets.Shell;
 import org.eclipse.swt.widgets.Table;
 import org.eclipse.swt.widgets.TableColumn;
@@ -45,6 +49,10 @@ public class InitialSynthesisDialog extends SynthesisDialog {
 
     private static final int searchButtonID = IDialogConstants.CLIENT_ID;
     private Button searchButton;
+    private static final int searchCancelButtonID = IDialogConstants.CLIENT_ID + 1;
+    private Button searchCancelButton;
+    private Composite monitorComposite;
+    private ProgressMonitorPart monitor;
 
     private static final int TABLE_WIDTH = 500;
     private static final int TABLE_HEIGHT = 300;
@@ -67,6 +75,7 @@ public class InitialSynthesisDialog extends SynthesisDialog {
 		this.skeletonValidator = new ExpressionSkeletonValidator(stack, varTypeName);
 		this.skeletonResult = null;
 		this.searchButton = null;
+		this.monitor = null;
 		this.tableViewer = null;
 		this.table = null;
 		this.synthesisResultComparator = null;
@@ -86,6 +95,10 @@ public class InitialSynthesisDialog extends SynthesisDialog {
 		Composite topButtonComposite = makeChildComposite(composite, GridData.HORIZONTAL_ALIGN_CENTER, 0);
 		searchButton = createButton(topButtonComposite, searchButtonID, "Search", true);
 		searchButton.setEnabled(pdspecIsValid && skeletonIsValid);
+		searchCancelButton = createButton(topButtonComposite, searchCancelButtonID, "Cancel", false);
+		searchCancelButton.setEnabled(false);
+		
+		monitorComposite = makeChildComposite(composite, GridData.HORIZONTAL_ALIGN_CENTER, 1);
 		
 		tableViewer = new TableViewer(composite, SWT.BORDER | SWT.CHECK);
 		table = tableViewer.getTable();
@@ -200,12 +213,17 @@ public class InitialSynthesisDialog extends SynthesisDialog {
         	skeletonResult = skeletonInput.getText();
             property = propertyDialog.computeProperty(pdspecInput.getText());
             skeleton = ExpressionSkeleton.fromString(skeletonResult);
-            enableCancel(false);
+            startEndSynthesis(true);
             expressions = new ArrayList<EvaluatedExpression>();
+            showResults();  // Clears any existing results.
         	// Reset column sort indicators.
         	tableViewer.setComparator(null);  // We want to use the order in which we add elements as the initial sort.
         	table.setSortDirection(SWT.NONE);
     		table.setSortColumn(null);
+    		// Set up progress monitor
+    		monitor = new SynthesisProgressMonitor(monitorComposite, null);
+    		monitor.attachToCancelComponent(searchCancelButton);
+    		monitorComposite.getParent().layout(true);
     		// Start the synthesis
 	    	worker.synthesize(this);
         } else if (buttonId == IDialogConstants.OK_ID) {
@@ -215,6 +233,67 @@ public class InitialSynthesisDialog extends SynthesisDialog {
          			results.add(expressions.get(i));
     	}
         super.buttonPressed(buttonId);
+    }
+
+	public void startEndSynthesis(boolean isStart) {
+        getButton(IDialogConstants.CANCEL_ID).setEnabled(!isStart);
+    	searchCancelButton.setEnabled(isStart);
+    	if (!isStart) {
+    		monitor.dispose();
+    		monitorComposite.getParent().layout(true);
+    	}
+    }
+    
+    public IProgressMonitor getProgressMonitor() {
+    	return monitor;
+    }
+    
+    private static class SynthesisProgressMonitor extends ProgressMonitorPart {
+
+		public SynthesisProgressMonitor(Composite parent, Layout layout) {
+			super(parent, layout);
+		}
+
+		@Override
+		public void beginTask(final String name, final int totalWork) {
+			Display.getDefault().asyncExec(new Runnable(){
+				@Override
+				public void run() {
+					SynthesisProgressMonitor.super.beginTask(name, totalWork);
+				}
+        	});
+	    }
+
+		@Override
+	    public void setTaskName(final String name) {
+	    	Display.getDefault().asyncExec(new Runnable(){
+				@Override
+				public void run() {
+					SynthesisProgressMonitor.super.setTaskName(name);
+				}
+        	});
+	    }
+
+		@Override
+		public void worked(final int work) {
+			Display.getDefault().asyncExec(new Runnable(){
+				@Override
+				public void run() {
+					SynthesisProgressMonitor.super.worked(work);
+				}
+        	});
+		}
+
+	    @Override
+		public void done() {
+	    	Display.getDefault().asyncExec(new Runnable(){
+				@Override
+				public void run() {
+					SynthesisProgressMonitor.super.done();
+				}
+        	});
+	    }
+    	
     }
     
     public void addExpressions(ArrayList<EvaluatedExpression> foundExprs) {

@@ -213,10 +213,6 @@ public abstract class SynthesisDialog extends ModelessDialog {
     	return hasError;
     }
     
-    public void enableCancel(boolean flag) {
-        getButton(IDialogConstants.CANCEL_ID).setEnabled(flag);
-    }
-    
     // Logic code
     
     public ArrayList<EvaluatedExpression> getExpressions() {
