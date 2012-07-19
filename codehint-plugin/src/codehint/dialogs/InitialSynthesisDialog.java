@@ -53,6 +53,7 @@ public class InitialSynthesisDialog extends SynthesisDialog {
     private Button searchCancelButton;
     private Composite monitorComposite;
     private ProgressMonitorPart monitor;
+    private static final int MONITOR_WIDTH = 300;
 
     private static final int TABLE_WIDTH = 500;
     private static final int TABLE_HEIGHT = 300;
@@ -223,6 +224,9 @@ public class InitialSynthesisDialog extends SynthesisDialog {
     		// Set up progress monitor
     		monitor = new SynthesisProgressMonitor(monitorComposite, null);
     		monitor.attachToCancelComponent(searchCancelButton);
+    		GridData gridData = new GridData();
+    		gridData.widthHint = MONITOR_WIDTH;
+    		monitor.setLayoutData(gridData);
     		monitorComposite.getParent().layout(true);
     		// Start the synthesis
 	    	worker.synthesize(this);
