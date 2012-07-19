@@ -56,7 +56,7 @@ public class DemonstrateValueHandler extends CommandHandler {
 			propertyDialog = new ArrayValuePropertyDialog(path, varTypeName, stack, initValue, null);
 		else
 			propertyDialog = new PrimitiveValuePropertyDialog(path, varTypeName, stack, initValue, null);
-		InitialSynthesisDialog dialog = new InitialSynthesisDialog(shell, path, varTypeName, varType, stack, propertyDialog, new SynthesisWorker(path, varType, stack));
+		InitialSynthesisDialog dialog = new InitialSynthesisDialog(shell, path, varTypeName, varType, stack, propertyDialog, new SynthesisWorker(path, varType));
 		Synthesizer.synthesizeAndInsertExpressions(variable, path, dialog, stack, initValue.length() > 0);
     }
 

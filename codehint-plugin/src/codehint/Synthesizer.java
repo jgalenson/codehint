@@ -34,7 +34,6 @@ import org.eclipse.jdt.core.dom.NumberLiteral;
 import org.eclipse.jdt.core.dom.QualifiedName;
 import org.eclipse.jdt.core.dom.SimpleName;
 import org.eclipse.jdt.debug.core.IJavaArray;
-import org.eclipse.jdt.debug.core.IJavaDebugTarget;
 import org.eclipse.jdt.debug.core.IJavaObject;
 import org.eclipse.jdt.debug.core.IJavaStackFrame;
 import org.eclipse.jdt.debug.core.IJavaType;
@@ -165,12 +164,10 @@ public class Synthesizer {
 		
 		private final String varName;
 		private final IJavaType varStaticType;
-		private final IJavaStackFrame stack;
 		
-		public SynthesisWorker(String varName, IJavaType varStaticType, IJavaStackFrame stack) {
+		public SynthesisWorker(String varName, IJavaType varStaticType) {
 			this.varName = varName;
 			this.varStaticType = varStaticType;
-			this.stack = stack;
 		}
 		
 		public void synthesize(final InitialSynthesisDialog synthesisDialog) {
@@ -179,10 +176,9 @@ public class Synthesizer {
 			Job job = new Job("Expression generation") {
 				@Override
 				protected IStatus run(IProgressMonitor monitor) {
-					IJavaDebugTarget target = (IJavaDebugTarget)stack.getDebugTarget();
 					EclipseUtils.log("Beginning synthesis for " + varName + " with property " + property.toString() + " and skeleton " + skeleton.toString() + ".");
 					try {
-						skeleton.synthesize(target, stack, property, varStaticType, synthesisDialog, synthesisDialog.getProgressMonitor());
+						skeleton.synthesize(property, varStaticType, synthesisDialog, synthesisDialog.getProgressMonitor());
 			        	return Status.OK_STATUS;
 					} catch (EvaluationError e) {
 				    	setLastCrashedInfo(varName, property, skeleton);
@@ -214,18 +210,18 @@ public class Synthesizer {
 		
 		private final String varName;
 		private final ArrayList<EvaluatedExpression> exprs;
-		private final IJavaStackFrame stack;
+		private final EvaluationManager evalManager;
 		
-		public RefinementWorker(String varName, ArrayList<EvaluatedExpression> exprs, IJavaStackFrame stack) {
+		public RefinementWorker(String varName, ArrayList<EvaluatedExpression> exprs, EvaluationManager evalManager) {
 			this.varName = varName;
 			this.exprs = exprs;
-			this.stack = stack;
+			this.evalManager = evalManager;
 		}
 
 		public void synthesize(RefinementSynthesisDialog synthesisDialog) {
 			Property property = synthesisDialog.getProperty();
    			try {
-   				ArrayList<EvaluatedExpression> validExpressions =  EvaluationManager.filterExpressions(exprs, stack, property, null, new NullProgressMonitor());
+   				ArrayList<EvaluatedExpression> validExpressions = evalManager.filterExpressions(exprs, property, null, new NullProgressMonitor());
             	synthesisDialog.setExpressions(validExpressions);
    			} catch (EvaluationError e) {
    		    	setLastCrashedInfo(varName, property, null);
@@ -300,7 +296,8 @@ public class Synthesizer {
    				initialExprs.add(new TypedExpression((Expression)it.next(), varStaticType, null));
         	assert initialExprs.size() > 0;  // We must have at least one expression.
         	// TODO: Run the following off the UI thread like above when we do the first synthesis.
-   			ArrayList<EvaluatedExpression> exprs = EvaluationManager.evaluateExpressions(initialExprs, frame, null, null, new NullProgressMonitor());
+        	EvaluationManager evalManager = new EvaluationManager(frame);
+   			ArrayList<EvaluatedExpression> exprs = evalManager.evaluateExpressions(initialExprs, null, null, new NullProgressMonitor());
    			if (exprs.isEmpty()) {
    				EclipseUtils.showError("No valid expressions", "No valid expressions were found.", null);
    				throw new RuntimeException("No valid expressions");
@@ -330,7 +327,7 @@ public class Synthesizer {
    	   				}
    	   			});
        			// Get the new concrete value from the user.
-   				final SynthesisDialog synthesisDialog = getRefinementDialog(exprs, varname, varStaticType, varStaticTypeName, "\nPotential values are: " + getLegalValues(exprs), frame, initialProperty);
+   				final SynthesisDialog synthesisDialog = getRefinementDialog(exprs, varname, varStaticType, varStaticTypeName, "\nPotential values are: " + getLegalValues(exprs), frame, initialProperty, evalManager);
    				Display.getDefault().syncExec(new Runnable() {
    	   				@Override
 					public void run() {
@@ -473,7 +470,7 @@ public class Synthesizer {
         	return result[0];
 	    }
 	    
-	    private static RefinementSynthesisDialog getRefinementDialog(final ArrayList<EvaluatedExpression> exprs, final String varName, final IJavaType varStaticType, final String varStaticTypeName, final String extraMessage, final IJavaStackFrame stackFrame, final Property oldProperty) throws DebugException {
+	    private static RefinementSynthesisDialog getRefinementDialog(ArrayList<EvaluatedExpression> exprs, String varName, IJavaType varStaticType, String varStaticTypeName, String extraMessage, IJavaStackFrame stackFrame, Property oldProperty, EvaluationManager evalManager) throws DebugException {
 			Shell shell = getShell();
 			PropertyDialog propertyDialog = null;
 			if (oldProperty == null || oldProperty instanceof StateProperty)
@@ -488,7 +485,7 @@ public class Synthesizer {
 				propertyDialog = new LambdaPropertyDialog(varName, varStaticType.getName(), varStaticType, stackFrame, oldProperty.toString(), extraMessage);
 			else
 				throw new IllegalArgumentException(oldProperty.toString());
-			return new RefinementSynthesisDialog(shell, varStaticTypeName, varStaticType, stackFrame, propertyDialog, new RefinementWorker(varName, exprs, stackFrame));
+			return new RefinementSynthesisDialog(shell, varStaticTypeName, varStaticType, stackFrame, propertyDialog, new RefinementWorker(varName, exprs, evalManager));
 	    }
 	    
 	    /**

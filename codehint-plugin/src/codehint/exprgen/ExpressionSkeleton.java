@@ -74,7 +74,7 @@ import codehint.property.ValueProperty;
 import codehint.utils.EclipseUtils;
 import codehint.utils.Utils;
 
-public class ExpressionSkeleton {
+public final class ExpressionSkeleton {
 	
     private final static ASTParser parser = ASTParser.newParser(AST.JLS4);
     
@@ -84,15 +84,25 @@ public class ExpressionSkeleton {
     private final String sugaredString;
     private final Expression expression;
     private final Map<String, HoleInfo> holeInfos;
+    private final IJavaDebugTarget target;
+    private final IJavaStackFrame stack;
+    private final SubtypeChecker subtypeChecker;
+    private final EvaluationManager evalManager;
+    private final ExpressionGenerator expressionGenerator;
 	
-	private ExpressionSkeleton(String sugaredString, Expression node, Map<String, HoleInfo> holeInfos) {
+	private ExpressionSkeleton(String sugaredString, Expression node, Map<String, HoleInfo> holeInfos, IJavaDebugTarget target, IJavaStackFrame stack, SubtypeChecker subtypeChecker, EvaluationManager evalManager, ExpressionGenerator expressionGenerator) {
 		this.sugaredString = sugaredString;
 		this.expression = node;
 		this.holeInfos = holeInfos;
+		this.target = target;
+		this.stack = stack;
+		this.subtypeChecker = subtypeChecker;
+		this.evalManager = evalManager;
+		this.expressionGenerator = expressionGenerator;
 	}
 
-	public static ExpressionSkeleton fromString(String skeletonStr) {
-		return SkeletonParser.rewriteHoleSyntax(skeletonStr);
+	public static ExpressionSkeleton fromString(String skeletonStr, IJavaDebugTarget target, IJavaStackFrame stack, SubtypeChecker subtypeChecker, EvaluationManager evalManager, ExpressionGenerator expressionGenerator) {
+		return SkeletonParser.rewriteHoleSyntax(skeletonStr, target, stack, subtypeChecker, evalManager, expressionGenerator);
 	}
 	
 	public static String isLegalSkeleton(String str, String varTypeName, IJavaStackFrame stackFrame, IAstEvaluationEngine evaluationEngine) {
@@ -124,8 +134,8 @@ public class ExpressionSkeleton {
 		
 		public static String isLegalSkeleton(String str, String varTypeName, IJavaStackFrame stackFrame, IAstEvaluationEngine evaluationEngine) {
 			try {
-				ExpressionSkeleton skeleton = rewriteHoleSyntax(str);
-				Set<String> compileErrors = EclipseUtils.getSetOfCompileErrors(skeleton.expression.toString(), varTypeName, stackFrame, evaluationEngine);
+				Expression skeletonExpr = rewriteHoleSyntax(str, new HashMap<String, HoleInfo>());
+				Set<String> compileErrors = EclipseUtils.getSetOfCompileErrors(skeletonExpr.toString(), varTypeName, stackFrame, evaluationEngine);
 				if (compileErrors != null)
 					for (String error: compileErrors)
 						if (!error.contains(DESUGARED_HOLE_NAME))
@@ -136,9 +146,8 @@ public class ExpressionSkeleton {
 			}
 		}
 		
-		private static ExpressionSkeleton rewriteHoleSyntax(String sugaredString) {
+		private static Expression rewriteHoleSyntax(String sugaredString, Map<String, HoleInfo> holeInfos) {
 			String str = sugaredString;
-			Map<String, HoleInfo> holeInfos = new HashMap<String, HoleInfo>();
 			for (int holeNum = 0; true; holeNum++) {
 				int holeStart = str.indexOf(HOLE_SYNTAX);
 				if (holeStart != -1)
@@ -156,7 +165,13 @@ public class ExpressionSkeleton {
 			ASTNode node = EclipseUtils.parseExpr(parser, str);
 			if (node instanceof CompilationUnit)
 				throw new ParserError("Enter a valid skeleton: " + ((CompilationUnit)node).getProblems()[0].getMessage());
-			return new ExpressionSkeleton(sugaredString, (Expression)ExpressionMaker.resetAST(node), holeInfos);
+			return (Expression)ExpressionMaker.resetAST(node);
+		}
+		
+		private static ExpressionSkeleton rewriteHoleSyntax(String sugaredString, IJavaDebugTarget target, IJavaStackFrame stack, SubtypeChecker subtypeChecker, EvaluationManager evalManager, ExpressionGenerator expressionGenerator) {
+			Map<String, HoleInfo> holeInfos = new HashMap<String, HoleInfo>();
+			Expression expr = rewriteHoleSyntax(sugaredString, holeInfos);
+			return new ExpressionSkeleton(sugaredString, (Expression)ExpressionMaker.resetAST(expr), holeInfos, target, stack, subtypeChecker, evalManager, expressionGenerator);
 		}
 	
 		private static String rewriteSingleHole(String str, int holeIndex, int holeNum, Map<String, HoleInfo> holeInfos) {
@@ -245,17 +260,17 @@ public class ExpressionSkeleton {
 		
 	}
 	
-	public ArrayList<EvaluatedExpression> synthesize(IJavaDebugTarget target, IJavaStackFrame stack, Property property, IJavaType varStaticType, InitialSynthesisDialog synthesisDialog, IProgressMonitor monitor) {
+	public ArrayList<EvaluatedExpression> synthesize(Property property, IJavaType varStaticType, InitialSynthesisDialog synthesisDialog, IProgressMonitor monitor) {
 		try {
 			long startTime = System.currentTimeMillis();
 			// TODO: Improve progress monitor so it shows you which evaluation it is.
 			TypeConstraint typeConstraint = getInitialTypeConstraint(varStaticType, property, stack, target);
 			if (HOLE_SYNTAX.equals(sugaredString))  // Optimization: Optimize special case of "??" skeleton by simply calling old ExprGen code directly.
-				return ExpressionGenerator.generateExpression(target, stack, property, typeConstraint, new SubtypeChecker(), synthesisDialog, monitor, 1);
+				return expressionGenerator.generateExpression(property, typeConstraint, synthesisDialog, monitor, 1);
 			monitor.beginTask("Skeleton generation", holeInfos.size() + 2);
-			ArrayList<TypedExpression> exprs = SkeletonFiller.fillSkeleton(expression, typeConstraint, holeInfos, stack, target, synthesisDialog, monitor);
+			ArrayList<TypedExpression> exprs = SkeletonFiller.fillSkeleton(expression, typeConstraint, holeInfos, stack, target, evalManager, expressionGenerator, subtypeChecker, synthesisDialog, monitor);
 			SubMonitor evalMonitor = SubMonitor.convert(monitor, "Expression evaluation", exprs.size());
-			ArrayList<EvaluatedExpression> results = EvaluationManager.evaluateExpressions(exprs, stack, property, synthesisDialog, evalMonitor);
+			ArrayList<EvaluatedExpression> results = evalManager.evaluateExpressions(exprs, property, synthesisDialog, evalMonitor);
 			EclipseUtils.log("Synthesis found " + exprs.size() + " expressions of which " + results.size() + " were valid and took " + (System.currentTimeMillis() - startTime) + " milliseconds.");
 	    	monitor.done();
 			return results;
@@ -338,6 +353,8 @@ public class ExpressionSkeleton {
 		private final Map<String, Map<String, ArrayList<Field>>> holeFields;
 		private final Map<String, Map<String, ArrayList<Method>>> holeMethods;
 		private final Map<String, HoleInfo> holeInfos;
+		private final EvaluationManager evalManager;
+		private final ExpressionGenerator expressionGenerator;
 		private final SubtypeChecker subtypeChecker;
 		private final IJavaStackFrame stack;
 		private final IJavaDebugTarget target;
@@ -347,12 +364,14 @@ public class ExpressionSkeleton {
 		private final IJavaType intType;
 		private final IJavaType booleanType;
 		
-		private SkeletonFiller(Map<String, HoleInfo> holeInfos, IJavaStackFrame stack, IJavaDebugTarget target, InitialSynthesisDialog synthesisDialog, IProgressMonitor monitor) {
+		private SkeletonFiller(Map<String, HoleInfo> holeInfos, IJavaStackFrame stack, IJavaDebugTarget target, EvaluationManager evalManager, ExpressionGenerator expressionGenerator, SubtypeChecker subtypeChecker, InitialSynthesisDialog synthesisDialog, IProgressMonitor monitor) {
 			this.holeValues = new HashMap<String, Map<String, ArrayList<EvaluatedExpression>>>();
 			this.holeFields = new HashMap<String, Map<String, ArrayList<Field>>>();
 			this.holeMethods = new HashMap<String, Map<String, ArrayList<Method>>>();
 			this.holeInfos = holeInfos;
-			this.subtypeChecker = new SubtypeChecker();
+			this.evalManager = evalManager;
+			this.expressionGenerator = expressionGenerator;
+			this.subtypeChecker = subtypeChecker;
 			this.stack = stack;
 			this.target = target;
 			this.synthesisDialog = synthesisDialog;
@@ -361,8 +380,8 @@ public class ExpressionSkeleton {
 			booleanType = EclipseUtils.getFullyQualifiedType("boolean", target);
 		}
 		
-		public static ArrayList<TypedExpression> fillSkeleton(Expression skeleton, TypeConstraint initialTypeConstraint, Map<String, HoleInfo> holeInfos, IJavaStackFrame stack, IJavaDebugTarget target, InitialSynthesisDialog synthesisDialog, IProgressMonitor monitor) {
-			SkeletonFiller filler = new SkeletonFiller(holeInfos, stack, target, synthesisDialog, monitor);
+		public static ArrayList<TypedExpression> fillSkeleton(Expression skeleton, TypeConstraint initialTypeConstraint, Map<String, HoleInfo> holeInfos, IJavaStackFrame stack, IJavaDebugTarget target, EvaluationManager evalManager, ExpressionGenerator expressionGenerator, SubtypeChecker subtypeChecker, InitialSynthesisDialog synthesisDialog, IProgressMonitor monitor) {
+			SkeletonFiller filler = new SkeletonFiller(holeInfos, stack, target, evalManager, expressionGenerator, subtypeChecker, synthesisDialog, monitor);
 			ExpressionsAndTypeConstraints result = filler.fillSkeleton(skeleton, initialTypeConstraint, HoleParentSetter.getParentsOfHoles(holeInfos, skeleton));
 			ArrayList<TypedExpression> exprs = new ArrayList<TypedExpression>();
 			for (ArrayList<TypedExpression> curExprs: result.getExprs().values())
@@ -632,9 +651,9 @@ public class ExpressionSkeleton {
 							ArrayList<TypedExpression> fakeTypedHoleInfos = new ArrayList<TypedExpression>(nonCrashingStrings.size());
 							for (String s: nonCrashingStrings)
 								fakeTypedHoleInfos.add(new TypedExpression((Expression)EclipseUtils.parseExpr(parser, s), null, null));
-							values = EvaluationManager.evaluateExpressions(fakeTypedHoleInfos, stack, null, synthesisDialog, childMonitor);
+							values = evalManager.evaluateExpressions(fakeTypedHoleInfos, null, synthesisDialog, childMonitor);
 						} else
-							values = ExpressionGenerator.generateExpression(target, stack, null, curConstraint, subtypeChecker, null, childMonitor, holeInfos.size() == 1 ? 1 : 0);
+							values = expressionGenerator.generateExpression(null, curConstraint, null, childMonitor, holeInfos.size() == 1 ? 1 : 0);
 						Map<String, ArrayList<EvaluatedExpression>> valuesByType = new HashMap<String, ArrayList<EvaluatedExpression>>();
 						List<IJavaType> resultTypes = new ArrayList<IJavaType>(values.size());
 						for (EvaluatedExpression e: values) {

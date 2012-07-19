@@ -583,7 +583,7 @@ public class ExpressionMaker {
 	}
 	
 	/**
-	 * Make a copy of the given noe so that it uses
+	 * Make a copy of the given node so that it uses
 	 * the AST object of this class.  We need to do
 	 * this because we cannot combine nodes that come
 	 * from different AST objects.

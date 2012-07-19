@@ -44,7 +44,7 @@ import codehint.utils.EclipseUtils;
 /**
  * Class for evaluating expressions.
  */
-public class EvaluationManager {
+public final class EvaluationManager {
 	
 	private final static int BATCH_SIZE = 100;
 	private final static int MIN_NUM_BATCHES = 4;
@@ -63,13 +63,40 @@ public class EvaluationManager {
 		}
 		
 	}
+	
+	private final IJavaStackFrame stack;
+	private final IAstEvaluationEngine engine;
+	private final IJavaReferenceType implType;
+	private final IJavaFieldVariable validField;
+	private final IJavaFieldVariable toStringsField;
+	private final IJavaFieldVariable countField;
+	
+	private InitialSynthesisDialog synthesisDialog;
+	private IProgressMonitor monitor;
+	private int batchSize;
+	private String validVal;
+	private String preVarsString;
+	private String propertyPreconditions;
+	
+	public EvaluationManager(IJavaStackFrame stack) {
+		this.stack = stack;
+		this.engine = EclipseUtils.getASTEvaluationEngine(stack);
+		this.implType = (IJavaReferenceType)EclipseUtils.getTypeAndLoadIfNeeded(IMPL_NAME, stack, (IJavaDebugTarget)stack.getDebugTarget());
+		try {
+			this.validField = implType.getField("valid");
+			this.toStringsField = implType.getField("toStrings");
+			this.countField = implType.getField("count");
+		} catch (DebugException e) {
+			throw new RuntimeException(e);
+		}
+		
+	}
 
 	/**
 	 * Evaluates the given expressions.
 	 * If the desired property is non-null, it returns those that satisfy it;
 	 * otherwise, it returns all those whose execution does not crash.
 	 * @param exprs The expressions to evaluate
-	 * @param stack The current stack frame.
 	 * @param property The desired property, or null if there is none.
 	 * @param synthesisDialog The synthesis dialog to pass the valid expressions,
 	 * or null if we should not pass anything.
@@ -77,26 +104,23 @@ public class EvaluationManager {
      * @return the results of the evaluations of the given expressions
      * that satisfy the given property, if it is non-null.
 	 */
-	public static ArrayList<EvaluatedExpression> evaluateExpressions(ArrayList<TypedExpression> exprs, IJavaStackFrame stack, Property property, InitialSynthesisDialog synthesisDialog, IProgressMonitor monitor) {
+	public ArrayList<EvaluatedExpression> evaluateExpressions(ArrayList<TypedExpression> exprs, Property property, InitialSynthesisDialog synthesisDialog, IProgressMonitor monitor) {
 		try {
-			IAstEvaluationEngine engine = EclipseUtils.getASTEvaluationEngine(stack);
-			int batchSize = exprs.size() >= 2 * BATCH_SIZE ? BATCH_SIZE : exprs.size() >= MIN_NUM_BATCHES ? exprs.size() / MIN_NUM_BATCHES : 1;
-			String validVal = property == null ? "true" : property.getReplacedString("_$curValue", stack);
-			String preVarsString = getPreVarsString(stack, property);
+			this.synthesisDialog = synthesisDialog;
+			this.monitor = monitor;
+			batchSize = exprs.size() >= 2 * BATCH_SIZE ? BATCH_SIZE : exprs.size() >= MIN_NUM_BATCHES ? exprs.size() / MIN_NUM_BATCHES : 1;
+			validVal = property == null ? "true" : property.getReplacedString("_$curValue", stack);
+			preVarsString = getPreVarsString(stack, property);
 			PropertyPreconditionFinder pf = new PropertyPreconditionFinder();
     		EclipseUtils.parseExpr(parser, validVal).accept(pf);
-    		String propertyPreconditions = property instanceof ValueProperty ? "" : pf.getPreconditions();  // TODO: This will presumably fail if the user does their own null check.
-			IJavaReferenceType implType = (IJavaReferenceType)EclipseUtils.getTypeAndLoadIfNeeded(IMPL_NAME, stack, (IJavaDebugTarget)stack.getDebugTarget());
-			IJavaFieldVariable validField = implType.getField("valid");
-			IJavaFieldVariable toStringsField = implType.getField("toStrings");
-			IJavaFieldVariable countField = implType.getField("count");
+    		propertyPreconditions = property instanceof ValueProperty ? "" : pf.getPreconditions();  // TODO: This will presumably fail if the user does their own null check.
 			Map<String, ArrayList<TypedExpression>> expressionsByType = getExpressionByType(exprs);
 			ArrayList<EvaluatedExpression> evaluatedExprs = new ArrayList<EvaluatedExpression>(exprs.size());
 			for (Map.Entry<String, ArrayList<TypedExpression>> expressionsOfType: expressionsByType.entrySet()) {
 				String type = EclipseUtils.sanitizeTypename(expressionsOfType.getKey());
 				String valuesArrayName = getValuesArrayName(type);
 				IJavaFieldVariable valuesField = implType.getField(valuesArrayName);
-				evaluatedExprs.addAll(evaluateExpressions(expressionsOfType.getValue(), type, valuesField, validField, toStringsField, countField, engine, stack, property, validVal, preVarsString, propertyPreconditions, 0, batchSize, synthesisDialog, monitor));
+				evaluatedExprs.addAll(evaluateExpressions(expressionsOfType.getValue(), type, valuesField, 0));
 			}
 			return evaluatedExprs;
 		} catch (DebugException e) {
@@ -157,7 +181,6 @@ public class EvaluationManager {
 	 * Filters the given evaluated expressions and keeps only
 	 * those that satisfy the given property.
 	 * @param evaledExprs The expressions to filter
-	 * @param stack The current stack frame.
 	 * @param type The static type of the desired expression.
 	 * @param property The desired property.
 	 * @param synthesisDialog The synthesis dialog to pass the valid expressions,
@@ -166,25 +189,21 @@ public class EvaluationManager {
      * @return the evaluated expressions that satisfy
      * the given property.
 	 */
-	public static ArrayList<EvaluatedExpression> filterExpressions(ArrayList<EvaluatedExpression> evaledExprs, IJavaStackFrame stack, Property property, InitialSynthesisDialog synthesisDialog, IProgressMonitor monitor) {
+	public ArrayList<EvaluatedExpression> filterExpressions(ArrayList<EvaluatedExpression> evaledExprs, Property property, InitialSynthesisDialog synthesisDialog, IProgressMonitor monitor) {
 		ArrayList<TypedExpression> exprs = new ArrayList<TypedExpression>(evaledExprs.size());
 		for (EvaluatedExpression expr : evaledExprs)
 			exprs.add(new TypedExpression(expr.getExpression(), expr.getType(), null));
-		return evaluateExpressions(exprs, stack, property, synthesisDialog, monitor);
+		return evaluateExpressions(exprs, property, synthesisDialog, monitor);
 	}
 	
 	/**
 	 * Evaluates the given expressions.
 	 * @param exprs The expressions to evaluate
-	 * @param engine The evaluation engine.
-	 * @param stack The current stack frame.
 	 * @param type The static type of the desired expression.
-	 * @param property The desired property, or null if there is none.
 	 * @param startIndex The index at which to start evaluation.
-	 * @param batchSize The size of the batches.
      * @return the results of the evaluations of the given expressions.
 	 */
-	private static ArrayList<EvaluatedExpression> evaluateExpressions(ArrayList<TypedExpression> exprs, String type, IJavaFieldVariable valuesField, IJavaFieldVariable validField, IJavaFieldVariable toStringsField, IJavaFieldVariable countField, IAstEvaluationEngine engine, IJavaStackFrame stack, Property property, String validVal, String preVarsString, String propertyPreconditions, int startIndex, int batchSize, final InitialSynthesisDialog synthesisDialog, IProgressMonitor monitor) {
+	private ArrayList<EvaluatedExpression> evaluateExpressions(ArrayList<TypedExpression> exprs, String type, IJavaFieldVariable valuesField, int startIndex) {
 		if (monitor.isCanceled())
 			throw new OperationCanceledException();
 		boolean hasPropertyPrecondition = propertyPreconditions.length() > 0;
@@ -261,7 +280,7 @@ public class EvaluationManager {
 	    	monitor.worked(work);
 	    	int nextStartIndex = startIndex + work;
 	    	if (nextStartIndex < exprs.size())
-	    		results.addAll(evaluateExpressions(exprs, type, valuesField, validField, toStringsField, countField, engine, stack, property, validVal, preVarsString, propertyPreconditions, nextStartIndex, batchSize, synthesisDialog, monitor));
+	    		results.addAll(evaluateExpressions(exprs, type, valuesField, nextStartIndex));
 	    	return results;
 		} catch (DebugException e) {
 			throw new RuntimeException(e);

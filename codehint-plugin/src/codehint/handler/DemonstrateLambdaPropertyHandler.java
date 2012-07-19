@@ -26,7 +26,7 @@ public class DemonstrateLambdaPropertyHandler extends CommandHandler {
 	    	IJavaType varType = ((IJavaVariable)variable).getJavaType();
 	    	String varTypeName = EclipseUtils.sanitizeTypename(varType.getName());
 	    	IJavaStackFrame stack = EclipseUtils.getStackFrame();
-	    	InitialSynthesisDialog dialog = new InitialSynthesisDialog(shell, path, varTypeName, varType, stack, new LambdaPropertyDialog(path, varTypeName, varType, stack, initValue, null), new SynthesisWorker(path, varType, stack));
+	    	InitialSynthesisDialog dialog = new InitialSynthesisDialog(shell, path, varTypeName, varType, stack, new LambdaPropertyDialog(path, varTypeName, varType, stack, initValue, null), new SynthesisWorker(path, varType));
 	    	Synthesizer.synthesizeAndInsertExpressions(variable, path, dialog, stack, false);
 		} catch (DebugException e) {
 			throw new RuntimeException(e);
