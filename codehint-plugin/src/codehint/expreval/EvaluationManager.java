@@ -2,7 +2,9 @@ package codehint.expreval;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.Semaphore;
 
 import org.eclipse.core.runtime.IProgressMonitor;
@@ -69,7 +71,10 @@ public final class EvaluationManager {
 	private final IJavaReferenceType implType;
 	private final IJavaFieldVariable validField;
 	private final IJavaFieldVariable toStringsField;
-	private final IJavaFieldVariable countField;
+	private final IJavaFieldVariable valueCountField;
+	private final IJavaFieldVariable fullCountField;
+	// As an optimization, we cache expressions that crash and do not evaluate them again.
+	private final Set<String> crashingExpressions;
 	
 	private InitialSynthesisDialog synthesisDialog;
 	private IProgressMonitor monitor;
@@ -85,11 +90,12 @@ public final class EvaluationManager {
 		try {
 			this.validField = implType.getField("valid");
 			this.toStringsField = implType.getField("toStrings");
-			this.countField = implType.getField("count");
+			this.valueCountField = implType.getField("valueCount");
+			this.fullCountField = implType.getField("fullCount");
 		} catch (DebugException e) {
 			throw new RuntimeException(e);
 		}
-		
+		this.crashingExpressions = new HashSet<String>();
 	}
 
 	/**
@@ -207,7 +213,6 @@ public final class EvaluationManager {
 		if (monitor.isCanceled())
 			throw new OperationCanceledException();
 		boolean hasPropertyPrecondition = propertyPreconditions.length() > 0;
-		int numExprsToEvaluate = 0;
 		boolean canThrowExceptions = false;
 		StringBuilder expressionsStr = new StringBuilder();
 		
@@ -215,45 +220,53 @@ public final class EvaluationManager {
 			String valuesArrayName = valuesField.getName();
 			
 			expressionsStr.append(preVarsString);
-	    	for (int i = startIndex; i < exprs.size() && (!canThrowExceptions || numExprsToEvaluate < batchSize); i++) {
+			ArrayList<TypedExpression> exprsToEvaluate = new ArrayList<TypedExpression>();
+			int i;
+	    	for (i = startIndex; i < exprs.size() && (!canThrowExceptions || exprsToEvaluate.size() < batchSize); i++) {
 	    		TypedExpression curTypedExpr = exprs.get(i);
 	    		Expression curExpr = curTypedExpr.getExpression();
+	    		String curExprStr = curExpr.toString();
+	    		if (crashingExpressions.contains(curExprStr))
+	    			continue;
 	    		NormalPreconditionFinder pf = new NormalPreconditionFinder();
 	    		curExpr.accept(pf);
 	    		String preconditions = pf.getPreconditions();
 	    		if (pf.canThrowException())
 	    			canThrowExceptions = true;
-	    		StringBuilder curExprStr = new StringBuilder();
+	    		StringBuilder curString = new StringBuilder();
 	    		// TODO: If the user has variables with the same names as the ones I introduce, this will crash....
-	    		curExprStr.append("{\n ").append(type).append(" _$curValue = ").append(curExpr.toString()).append(";\n ");
+	    		curString.append("{\n ").append(type).append(" _$curValue = ").append(curExprStr).append(";\n ");
+	    		curString.append(IMPL_QUALIFIER).append("valueCount++;\n ");
 	    		if (hasPropertyPrecondition)
-	    			curExprStr.append("if (" + propertyPreconditions + ") {\n ");
-	    		curExprStr.append("boolean _$curValid = ").append(validVal).append(";\n ");
-	    		curExprStr.append(IMPL_QUALIFIER).append("valid[").append(numExprsToEvaluate).append("] = _$curValid;\n ");
-	    		curExprStr.append(IMPL_QUALIFIER).append(valuesArrayName).append("[").append(numExprsToEvaluate).append("] = _$curValue;\n");
+	    			curString.append("if (" + propertyPreconditions + ") {\n ");
+	    		curString.append("boolean _$curValid = ").append(validVal).append(";\n ");
+	    		curString.append(IMPL_QUALIFIER).append("valid[").append(exprsToEvaluate.size()).append("] = _$curValid;\n ");
+	    		curString.append(IMPL_QUALIFIER).append(valuesArrayName).append("[").append(exprsToEvaluate.size()).append("] = _$curValue;\n");
 	    		if ("Object".equals(type))
-	    			curExprStr.append(" if (_$curValid)\n  ").append(IMPL_QUALIFIER).append("toStrings[").append(numExprsToEvaluate).append("] = ").append(getToStringGetter(curTypedExpr)).append(";\n");
+	    			curString.append(" if (_$curValid)\n  ").append(IMPL_QUALIFIER).append("toStrings[").append(exprsToEvaluate.size()).append("] = ").append(getToStringGetter(curTypedExpr)).append(";\n");
 	    		if (hasPropertyPrecondition)
-	    			curExprStr.append(" }\n");
-	    		curExprStr.append("}\n");
+	    			curString.append(" }\n");
+	    		curString.append(" ").append(IMPL_QUALIFIER).append("fullCount++;\n");
+	    		curString.append("}\n");
 	    		if (preconditions.length() > 0)
 	    			expressionsStr.append("if (" + preconditions + ") ");
-				expressionsStr.append(curExprStr.toString()).append(IMPL_QUALIFIER + "count++;\n");
-	    		numExprsToEvaluate++;
+				expressionsStr.append(curString.toString());
+				exprsToEvaluate.add(exprs.get(i));
 	    	}
-	    	String newTypeString = "[" + numExprsToEvaluate + "]";
+	    	String newTypeString = "[" + exprsToEvaluate.size() + "]";
             if (type.contains("[]")) {  // If this is an array type, we must specify our new size as the first array dimension, not the last one.
                 int index = type.indexOf("[]");
                 newTypeString = type.substring(0, index) + newTypeString + type.substring(index); 
             } else
                 newTypeString = type + newTypeString;
             StringBuilder prefix = new StringBuilder();
-            prefix.append("{\n").append(IMPL_QUALIFIER).append(valuesArrayName).append(" = new ").append(newTypeString).append(";\n").append(IMPL_QUALIFIER).append("valid = new boolean[").append(numExprsToEvaluate).append("];\n");
+            prefix.append("{\n").append(IMPL_QUALIFIER).append(valuesArrayName).append(" = new ").append(newTypeString).append(";\n").append(IMPL_QUALIFIER).append("valid = new boolean[").append(exprsToEvaluate.size()).append("];\n");
             if ("Object".equals(type))
-            	prefix.append(IMPL_QUALIFIER).append("toStrings = new String[").append(numExprsToEvaluate).append("];\n");
+            	prefix.append(IMPL_QUALIFIER).append("toStrings = new String[").append(exprsToEvaluate.size()).append("];\n");
             else
             	prefix.append(IMPL_QUALIFIER).append("toStrings = null;\n");
-        	prefix.append(IMPL_QUALIFIER).append("count = 0;\n");
+        	prefix.append(IMPL_QUALIFIER).append("valueCount = 0;\n");
+        	prefix.append(IMPL_QUALIFIER).append("fullCount = 0;\n");
 			expressionsStr.insert(0, prefix.toString());
 	    	expressionsStr.append("}");
 	    	
@@ -263,12 +276,11 @@ public final class EvaluationManager {
 	    	IEvaluationResult result = Evaluator.evaluateExpression(compiled, engine, stack);
     		
 	    	boolean hasError = result.getException() != null;
-			int count = ((IJavaPrimitiveValue)countField.getValue()).getIntValue();
-	    	final ArrayList<EvaluatedExpression> results = count == 0 ? new ArrayList<EvaluatedExpression>() : getResultsFromArray(exprs, startIndex, valuesField, validField, toStringsField, count, stack);
+			int fullCount = ((IJavaPrimitiveValue)fullCountField.getValue()).getIntValue();
+	    	final ArrayList<EvaluatedExpression> results = fullCount == 0 ? new ArrayList<EvaluatedExpression>() : getResultsFromArray(exprsToEvaluate, valuesField, validField, toStringsField, fullCount, stack);
 	    	/*System.out.println("Evaluated " + count + " expressions.");
 	    	if (hasError)
 	    		System.out.println("Crashed on " + exprs.get(startIndex + count));*/
-	    	int work = hasError ? count + 1 : count;
 	    	if (synthesisDialog != null && !results.isEmpty()) {
 				Display.getDefault().asyncExec(new Runnable(){
 					@Override
@@ -276,6 +288,14 @@ public final class EvaluationManager {
 			    		synthesisDialog.addExpressions(results);
 					}
 	        	});
+	    	}
+	    	int work = i - startIndex;
+	    	if (hasError) {
+	    		TypedExpression crashingExpr = exprsToEvaluate.get(fullCount);
+				int valueCount = ((IJavaPrimitiveValue)valueCountField.getValue()).getIntValue();
+				if (valueCount == fullCount)
+					crashingExpressions.add(crashingExpr.getExpression().toString());
+	    		work = exprs.indexOf(crashingExpr) - startIndex + 1;
 	    	}
 	    	monitor.worked(work);
 	    	int nextStartIndex = startIndex + work;
@@ -304,22 +324,20 @@ public final class EvaluationManager {
 	 * whose execution did not crash and that produce a
 	 * valid result.  See evaluateExpressions for the
 	 * string on whose evaluation this is called.
-	 * @param exprs The original expressions.
-	 * @param startIndex The index in the list of expressions
-	 * where the evaluated started.
+	 * @param exprs The expressions that were evaluated.
 	 * @param evaluationResult The result of the evaluation.
 	 * @return the evaluated expressions of those expressions
 	 * whose execution did not crash.
 	 * @throws DebugException a DebugException occurs.
 	 */
-	private static ArrayList<EvaluatedExpression> getResultsFromArray(ArrayList<TypedExpression> exprs, int startIndex, IJavaFieldVariable valuesField, IJavaFieldVariable validField, IJavaFieldVariable toStringsField, int count, IJavaStackFrame stack) throws DebugException {
+	private static ArrayList<EvaluatedExpression> getResultsFromArray(ArrayList<TypedExpression> exprs, IJavaFieldVariable valuesField, IJavaFieldVariable validField, IJavaFieldVariable toStringsField, int count, IJavaStackFrame stack) throws DebugException {
 		IJavaValue[] values = ((IJavaArray)valuesField.getValue()).getValues();
 		IJavaValue[] valids = ((IJavaArray)validField.getValue()).getValues();
 		IJavaValue[] toStrings = ((IJavaValue)toStringsField.getValue()).isNull() ? null :((IJavaArray)toStringsField.getValue()).getValues();
 		ArrayList<EvaluatedExpression> results = new ArrayList<EvaluatedExpression>();
 		for (int i = 0; i < count; i++) {
 			if ("true".equals(valids[i].getValueString())) {
-				TypedExpression typedExpr = exprs.get(startIndex + i);
+				TypedExpression typedExpr = exprs.get(i);
 				String resultString = toStrings == null ? EclipseUtils.javaStringOfValue(values[i], stack) : toStrings[i].getValueString();
 				if (!values[i].isNull() && "java.lang.String".equals(values[i].getJavaType().getName()))
 					resultString = "\"" + resultString + "\"";

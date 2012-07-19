@@ -4,7 +4,7 @@ package codehint;
  * This class is used in the implementation of the CodeHint
  * plugin and should not be used by clients.
  */
-public class CodeHintImpl {
+public final class CodeHintImpl {
 	
 	public static Object[] objects;
 	public static int[] ints;
@@ -19,6 +19,7 @@ public class CodeHintImpl {
 	public static boolean[] valid;
 	public static String[] toStrings;
 	
-	public static int count;
+	public static int valueCount;
+	public static int fullCount;
 
 }
