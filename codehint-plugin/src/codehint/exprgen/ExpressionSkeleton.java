@@ -837,27 +837,31 @@ public final class ExpressionSkeleton {
 		}
 
 		private void buildCalls(Method method, TypedExpression receiverExpr, Expression callNode, ArrayList<ExpressionsAndTypeConstraints> argResults, boolean isListHole, Map<String, ArrayList<TypedExpression>> resultExprs, OverloadChecker overloadChecker) {
-			String methodReturnTypeName = method.returnTypeName();
-			overloadChecker.setMethod(method);
-			ArrayList<ArrayList<TypedExpression>> allPossibleActuals = new ArrayList<ArrayList<TypedExpression>>(method.argumentTypeNames().size());
-			for (int i = 0; i < method.argumentTypeNames().size(); i++) {
-				IJavaType argType = EclipseUtils.getFullyQualifiedType((String)method.argumentTypeNames().get(i), target);
-				ArrayList<TypedExpression> allArgs = new ArrayList<TypedExpression>();
-				for (ArrayList<TypedExpression> curArgs: argResults.get(isListHole ? 0 : i).getExprs().values()) {
-					IJavaType curType = curArgs.get(0).getType();
-					if (subtypeChecker.isSubtypeOf(curType, argType)) {
-						if (overloadChecker.needsCast(argType, curType, i))
-							for (TypedExpression cur: curArgs)
-								allArgs.add(ExpressionMaker.makeCast(cur, argType, cur.getValue()));
-						else
-							allArgs.addAll(curArgs);
+			try {
+				String methodReturnTypeName = method.isConstructor() ? receiverExpr.getType().getName() : method.returnTypeName();  // The method class returns void for the return type of constructors....
+				overloadChecker.setMethod(method);
+				ArrayList<ArrayList<TypedExpression>> allPossibleActuals = new ArrayList<ArrayList<TypedExpression>>(method.argumentTypeNames().size());
+				for (int i = 0; i < method.argumentTypeNames().size(); i++) {
+					IJavaType argType = EclipseUtils.getFullyQualifiedType((String)method.argumentTypeNames().get(i), target);
+					ArrayList<TypedExpression> allArgs = new ArrayList<TypedExpression>();
+					for (ArrayList<TypedExpression> curArgs: argResults.get(isListHole ? 0 : i).getExprs().values()) {
+						IJavaType curType = curArgs.get(0).getType();
+						if (subtypeChecker.isSubtypeOf(curType, argType)) {
+							if (overloadChecker.needsCast(argType, curType, i))
+								for (TypedExpression cur: curArgs)
+									allArgs.add(ExpressionMaker.makeCast(cur, argType, cur.getValue()));
+							else
+								allArgs.addAll(curArgs);
+						}
 					}
+					if (allArgs.size() == 0)
+						return;
+					allPossibleActuals.add(allArgs);
 				}
-				if (allArgs.size() == 0)
-					return;
-				allPossibleActuals.add(allArgs);
+				makeAllCalls(method, method.name(), methodReturnTypeName, receiverExpr, callNode, EclipseUtils.getTypeAndLoadIfNeeded(methodReturnTypeName, stack, target), getThisType(), allPossibleActuals, new ArrayList<TypedExpression>(allPossibleActuals.size()), resultExprs);
+			} catch (DebugException e) {
+				throw new RuntimeException(e);
 			}
-			makeAllCalls(method, method.name(), methodReturnTypeName, receiverExpr, callNode, EclipseUtils.getTypeAndLoadIfNeeded(methodReturnTypeName, stack, target), getThisType(), allPossibleActuals, new ArrayList<TypedExpression>(allPossibleActuals.size()), resultExprs);
 		}
 		
 		private void makeAllCalls(Method method, String name, String constraintName, TypedExpression receiver, Expression callNode, IJavaType returnType, IJavaType thisType, ArrayList<ArrayList<TypedExpression>> possibleActuals, ArrayList<TypedExpression> curActuals, Map<String, ArrayList<TypedExpression>> resultExprs) {
