@@ -15,8 +15,6 @@ import codehint.Synthesizer;
 import codehint.Synthesizer.SynthesisWorker;
 import codehint.dialogs.InitialSynthesisDialog;
 import codehint.dialogs.StatePropertyDialog;
-import codehint.property.Property;
-import codehint.property.StateProperty;
 
 public class DemonstrateStatePropertyHandler extends CommandHandler {
 
@@ -40,13 +38,11 @@ public class DemonstrateStatePropertyHandler extends CommandHandler {
 				return;
 			}
 			initValue = matcher.group(2);
-		} else {
-			Property lastCrashedProperty = Synthesizer.getLastCrashedProperty(path);
-			initValue = lastCrashedProperty instanceof StateProperty ? lastCrashedProperty.toString() : "";
-		}
+		} else
+			initValue = "";
 		IJavaType varType = ((IJavaVariable)variable).getJavaType();
 		String varTypeName = EclipseUtils.sanitizeTypename(varType.getName());
-		InitialSynthesisDialog dialog = new InitialSynthesisDialog(shell, path, varTypeName, varType, stack, new StatePropertyDialog(path, stack, initValue, null), new SynthesisWorker(path, varType));
+		InitialSynthesisDialog dialog = new InitialSynthesisDialog(shell, varTypeName, varType, stack, new StatePropertyDialog(path, stack, initValue, null), new SynthesisWorker(path, varType));
     	Synthesizer.synthesizeAndInsertExpressions(variable, path, dialog, stack, matcher != null);
     }
 

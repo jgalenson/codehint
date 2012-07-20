@@ -49,7 +49,7 @@ public class RefinementSynthesisDialog extends SynthesisDialog {
 	protected void buttonPressed(int buttonId) {
         if (buttonId == IDialogConstants.OK_ID) {
             property = propertyDialog.computeProperty(pdspecInput.getText());
-	    	worker.synthesize(this);
+	    	worker.refine(this);
     	}
         super.buttonPressed(buttonId);
     }

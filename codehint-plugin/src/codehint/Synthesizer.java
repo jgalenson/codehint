@@ -78,11 +78,23 @@ import codehint.utils.Utils;
 public class Synthesizer {
 	
 	private static Map<String, Property> initialDemonstrations;
-	// We store the last property we have seen demonstrated demonstrated while we are processing it.  If everything works, we clear this, but if there is an error, we keep this and use it as the initial value for the user's next demonstrated property.
-	private static String lastCrashedVariable;
-	private static ExpressionSkeleton lastCrashedSkeleton;
-	private static Property lastCrashedProperty;
 	
+	/**
+	 * Synthesizes expressions and inserts them into the code.
+	 * It first opens the synthesis dialog, which lets the user
+	 * give a pdspec and skeleton and synthesizes and shows the
+	 * candidate expressions.
+	 * Once the user selects some, it inserts them into the code.
+	 * @param variable The variable (really, LHS) that should be 
+	 * assigned the synthesized expressions.
+	 * @param fullVarName The full name of the variable, which
+	 * could be an array access or field dereference.
+	 * @param synthesisDialog The dialog that handles the synthesis.
+	 * @param stack The current stack frame.
+	 * @param replaceCurLine Whether or the current line should
+	 * be replaced by the inserted expressions or if they should
+	 * be added after it.
+	 */
 	public static void synthesizeAndInsertExpressions(final IVariable variable, final String fullVarName, final InitialSynthesisDialog synthesisDialog, final IJavaStackFrame stack, final boolean replaceCurLine) {
 		try {
 			synthesisDialog.open();
@@ -90,7 +102,6 @@ public class Synthesizer {
 			ExpressionSkeleton skeleton = synthesisDialog.getSkeleton();
 			List<EvaluatedExpression> finalExpressions = synthesisDialog.getExpressions();
 	        if (finalExpressions == null) {
-		    	setLastCrashedInfo(null, null, null);
 		    	if (property != null && skeleton != null)
 		    		EclipseUtils.log("Cancelling synthesis for " + variable.toString() + " with property " + property.toString() + " and skeleton " + skeleton.toString() + ".");
 				return;
@@ -116,12 +127,8 @@ public class Synthesizer {
 			//Insert ourselves a breakpoint so that we stop here again
 			// Note: Really we'd like to break only on a trace without an override.  Can we do this?
 
-			//Don't want to actually change the value.  The invocation of choose (that we just inserted) will do that.
-
 			//Insert breakpoint so we can find this line again
 			//get the current frame from the current active editor to get the cursor line
-			// Note: This is not how the variable visit does this, 
-			// hopefully, we get the same value
 
 			int line = stack.getLineNumber();  // Comment from Eclipse sources: Document line numbers are 0-based. Debug line numbers are 1-based.
 			assert line >= 0;
@@ -145,8 +152,6 @@ public class Synthesizer {
 			IJavaValue value = property instanceof ValueProperty ? ((ValueProperty)property).getValue() : finalExpressions.get(0).getResult();
 			if (value != null)
 				variable.setValue(value);
-
-	    	setLastCrashedInfo(null, null, null);
 			
 			//NOTE: Our current implementation does not save.  Without a manual save, our added 
 			// code gets ignored for this invocation.  Should we force a save and restart?
@@ -160,6 +165,9 @@ public class Synthesizer {
 		}
 	}
 	
+	/**
+	 * Class that does the actual synthesis on a separate thread.
+	 */
 	public static class SynthesisWorker {
 		
 		private final String varName;
@@ -170,6 +178,12 @@ public class Synthesizer {
 			this.varStaticType = varStaticType;
 		}
 		
+		/**
+		 * Synthesizes the expressions that meet the user's specifications.
+		 * It does this on a separate thread and then reports the results
+		 * back to the synthesis dialog on the UI thread.
+		 * @param synthesisDialog The dialog controlling the synthesis.
+		 */
 		public void synthesize(final InitialSynthesisDialog synthesisDialog) {
 			final Property property = synthesisDialog.getProperty();
 			final ExpressionSkeleton skeleton = synthesisDialog.getSkeleton();
@@ -181,7 +195,6 @@ public class Synthesizer {
 						skeleton.synthesize(property, varStaticType, synthesisDialog, synthesisDialog.getProgressMonitor());
 			        	return Status.OK_STATUS;
 					} catch (EvaluationError e) {
-				    	setLastCrashedInfo(varName, property, skeleton);
 						return new Status(IStatus.ERROR, Activator.PLUGIN_ID, e.getMessage());
 					} catch (OperationCanceledException e) {
 						EclipseUtils.log("Cancelling synthesis for " + varName + " with property " + property.toString() + " and skeleton " + skeleton.toString() + ".");
@@ -206,25 +219,37 @@ public class Synthesizer {
 		
 	}
 	
+	/**
+	 * Class that refines the given expressions to keep only those
+	 * that meet the user's specifications.
+	 */
 	public static class RefinementWorker {
 		
-		private final String varName;
 		private final ArrayList<EvaluatedExpression> exprs;
 		private final EvaluationManager evalManager;
 		
-		public RefinementWorker(String varName, ArrayList<EvaluatedExpression> exprs, EvaluationManager evalManager) {
-			this.varName = varName;
+		/**
+		 * Creates a new RefinementWorker that will filter
+		 * the given expressions.
+		 * @param exprs The candidate expressions to filter.
+		 * @param evalManager The evaluation manager.
+		 */
+		public RefinementWorker(ArrayList<EvaluatedExpression> exprs, EvaluationManager evalManager) {
 			this.exprs = exprs;
 			this.evalManager = evalManager;
 		}
 
-		public void synthesize(RefinementSynthesisDialog synthesisDialog) {
+		/**
+		 * Refines the current expressions and keeps only those
+		 * that meet the user's specifications.
+		 * @param synthesisDialog The dialog controlling the synthesis.
+		 */
+		public void refine(RefinementSynthesisDialog synthesisDialog) {
 			Property property = synthesisDialog.getProperty();
    			try {
    				ArrayList<EvaluatedExpression> validExpressions = evalManager.filterExpressions(exprs, property, null, new NullProgressMonitor());
             	synthesisDialog.setExpressions(validExpressions);
    			} catch (EvaluationError e) {
-   		    	setLastCrashedInfo(varName, property, null);
    		    	EclipseUtils.showError("Error", e.getMessage(), e);
 				throw e;
 			}
@@ -232,6 +257,9 @@ public class Synthesizer {
 		
 	}
 
+	/**
+	 * A class that handles refinement and pdspecs in code.
+	 */
 	private static class ChoiceBreakpointListener implements IDebugEventSetListener {
 	    
 	    private final static ASTParser parser = ASTParser.newParser(AST.JLS4);
@@ -275,7 +303,15 @@ public class Synthesizer {
 	        
 	    }
 
-		private static void refineExpressions(IJavaStackFrame frame, Matcher matcher, IThread thread, int line) throws DebugException {
+	    /**
+	     * Refines the choose expression on the given line.
+	     * @param frame The stack frame.
+	     * @param matcher A Matcher that has parsed the current line.
+	     * @param thread The current thread.
+	     * @param lineNumber The source code line that is being refined.
+	     * @throws DebugException
+	     */
+		private static void refineExpressions(IJavaStackFrame frame, Matcher matcher, IThread thread, int lineNumber) throws DebugException {
 	    	String curLine = matcher.group(0).trim();
    			
 	    	EclipseUtils.log("Beginning refinement for " + curLine + ".");
@@ -313,7 +349,7 @@ public class Synthesizer {
    			// If all expressions evaluate to the same value, use that and move on.
    			if (allHaveSameResult(exprs)) {
    				if (exprs.size() < initialExprs.size())  // Some expressions crashed, so remove them from the code.
-           			newLine = rewriteLine(matcher, varname, curLine, initialProperty, exprs, line);
+           			newLine = rewriteLine(matcher, varname, curLine, initialProperty, exprs, lineNumber);
    				value = exprs.get(0).getResult();
    				automatic = true;
    			} else {
@@ -343,14 +379,13 @@ public class Synthesizer {
        				return;
        			}
        			
-       	    	setLastCrashedInfo(null, null, null);
        			if (validExprs.isEmpty()) {
        				EclipseUtils.showError("Error", "No legal expressions remain after refinement.", null);
        				throw new RuntimeException("No legal expressions remain after refinement");
        			}
    				value = validExprs.get(0).getResult();  // The returned values could be different, so we arbitrarily use the first one.  This might not be the best thing to do.
        			
-       			newLine = rewriteLine(matcher, varname, curLine, synthesisDialog.getProperty(), validExprs, line);
+       			newLine = rewriteLine(matcher, varname, curLine, synthesisDialog.getProperty(), validExprs, lineNumber);
 
        			if (validExprs.size() == 1) {
            			// If there's only a single possibility remaining, remove the breakpoint.
@@ -379,6 +414,12 @@ public class Synthesizer {
    			thread.resume();
 	    }
 	    
+		/**
+		 * Checks to see if there is a pdspec at the current line, and synthesizes
+		 * it if there is.
+		 * @param fullCurLine The current line of code.
+		 * @param stack The current stack frame.
+		 */
 	    private static void checkLineForSpecs(String fullCurLine, final IJavaStackFrame stack) {
 	    	final Matcher statePropertyMatcher = DemonstrateStatePropertyHandler.PATTERN.matcher(fullCurLine);
        		if(statePropertyMatcher.matches()) {
@@ -414,7 +455,19 @@ public class Synthesizer {
        		}
 		}
 
-		private static String rewriteLine(Matcher matcher, final String varname, String curLine, Property property, ArrayList<EvaluatedExpression> validExprs, final int line) {
+	    /**
+	     * Rewrites the current choose statement to show the
+	     * results of the refinement.
+	     * @param matcher A Matcher that has parsed the current line.
+	     * @param varname The name of the variable being assigned
+	     * the expressions.
+	     * @param curLine The old line of code.
+	     * @param property The pdspec given by the user.
+	     * @param validExprs The new expressions.
+	     * @param lineNumber
+	     * @return
+	     */
+		private static String rewriteLine(Matcher matcher, String varname, String curLine, Property property, ArrayList<EvaluatedExpression> validExprs, final int lineNumber) {
 			List<String> newExprsStrs = EvaluatedExpression.snippetsOfEvaluatedExpressions(validExprs);
 			String varDeclaration = matcher.group(1) != null ? matcher.group(1) + " " : "";
 			final String newLine = varDeclaration + generateChooseOrChosenStmt(varname, newExprsStrs);
@@ -423,7 +476,7 @@ public class Synthesizer {
 				@Override
 				public void run() {
 					try {
-						EclipseUtils.replaceLine(newLine, line);
+						EclipseUtils.replaceLine(newLine, lineNumber);
 					} catch (BadLocationException e) {
 						throw new RuntimeException(e);
 					}
@@ -435,10 +488,10 @@ public class Synthesizer {
 		}
 	    
 	    /**
-	     * Checks whether all the evaluated expressions have the same results.
+	     * Checks whether all the evaluated expressions have the same result.
 	     * @param exprs The list of evaluated expressions.
 	     * @return Whether or not all the given evaluated expressions
-	     * have the same results.
+	     * have the same result.
 	     */
 	    private static boolean allHaveSameResult(ArrayList<EvaluatedExpression> exprs) { 
 	    	IJavaValue first = exprs.get(0).getResult();  // For efficiency, let's only do one cast.
@@ -448,6 +501,10 @@ public class Synthesizer {
 	    	return true;
 	    }
 	    
+	    /**
+	     * Gets the current Document on the UI thread.
+	     * @return The current document.
+	     */
 	    private static IDocument getDocument() {
 	    	final IDocument[] result = new IDocument[] { null };
         	Display.getDefault().syncExec(new Runnable(){
@@ -458,7 +515,11 @@ public class Synthesizer {
         	});
         	return result[0];
 	    }
-	    
+
+	    /**
+	     * Gets the current Shell on the UI thread.
+	     * @return The current shell.
+	     */
 	    private static Shell getShell() {
 	    	final Shell[] result = new Shell[] { null };
         	Display.getDefault().syncExec(new Runnable(){
@@ -470,6 +531,24 @@ public class Synthesizer {
         	return result[0];
 	    }
 	    
+	    /**
+	     * Gets the proper dialog to use for the refinement.  This
+	     * dialog will default to asking for the type of pdspec the
+	     * user gave the last time at this line.
+	     * @param exprs The initial set of expressions.
+	     * @param varName The name of the variable being assigned
+	     * the expressions.
+	     * @param varStaticType The static type of the variable.
+	     * @param varStaticTypeName The name of the type of the variable.
+	     * @param extraMessage An extra message to display to the user.
+	     * @param stackFrame The stack frame.
+	     * @param oldProperty The property the user gave the last time
+	     * at this line.
+	     * @param evalManager The evaluation manager.
+	     * @return A dialog that defaults to asking for the type of
+	     * pdspec the user gave the last time at this line.
+	     * @throws DebugException
+	     */
 	    private static RefinementSynthesisDialog getRefinementDialog(ArrayList<EvaluatedExpression> exprs, String varName, IJavaType varStaticType, String varStaticTypeName, String extraMessage, IJavaStackFrame stackFrame, Property oldProperty, EvaluationManager evalManager) throws DebugException {
 			Shell shell = getShell();
 			PropertyDialog propertyDialog = null;
@@ -485,7 +564,7 @@ public class Synthesizer {
 				propertyDialog = new LambdaPropertyDialog(varName, varStaticType.getName(), varStaticType, stackFrame, oldProperty.toString(), extraMessage);
 			else
 				throw new IllegalArgumentException(oldProperty.toString());
-			return new RefinementSynthesisDialog(shell, varStaticTypeName, varStaticType, stackFrame, propertyDialog, new RefinementWorker(varName, exprs, evalManager));
+			return new RefinementSynthesisDialog(shell, varStaticTypeName, varStaticType, stackFrame, propertyDialog, new RefinementWorker(exprs, evalManager));
 	    }
 	    
 	    /**
@@ -521,6 +600,11 @@ public class Synthesizer {
 	    	return null;
 	    }
 	    
+	    /**
+	     * Gets a nice string representing the legal values.
+	     * @param exprs The legal strings.
+	     * @return A nice string representation of the legal values.
+	     */
 	    private static String getLegalValues(List<EvaluatedExpression> exprs) {
 	    	StringBuilder sb = new StringBuilder();
 	    	for (EvaluatedExpression e: exprs) {
@@ -533,6 +617,14 @@ public class Synthesizer {
 	    
 	}
 	
+	/**
+	 * Generates the text of a choose or chosen call
+	 * that should be inserted into the document.
+	 * @param varname The name of the variable being assigned.
+	 * @param expressions The candidate expressions.
+	 * @return The text of the choose or chosen call
+	 * to insert.
+	 */
     private static String generateChooseOrChosenStmt(String varname, List<String> expressions) {
     	String functionName = "CodeHint." + (expressions.size() == 1 ? "chosen" : "choose");
 		String statement = varname + " = " + functionName + "(";
@@ -545,43 +637,30 @@ public class Synthesizer {
 
     private static ChoiceBreakpointListener listener;
 	
-    //Called externally (from the plugin startup) to register our breakpoint listener
+    /**
+     * Registers our breakpoint listener and initializes some
+     * static fields.
+     * This is called externally from plugin startup.
+     */
     public static void start() {
     	if (listener == null)
     		listener = new ChoiceBreakpointListener();
     	initialDemonstrations = new HashMap<String, Property>();
-    	setLastCrashedInfo(null, null, null);
     	DebugPlugin.getDefault().addDebugEventListener(listener);
     	ExpressionGenerator.initBlacklist();
     }
 
     //Called externally (from the plugin shutdown) to unregister our breakpoint listener
+    /**
+     * Unregisters our breakpoint listener and clears some
+     * static fields.
+     * This is called externally from plugin shutdown.
+     */
     public static void stop() {
     	DebugPlugin.getDefault().removeDebugEventListener(listener);
     	listener = null;
     	initialDemonstrations = null;
-    	setLastCrashedInfo(null, null, null);
     	ExpressionGenerator.clearBlacklist();
-    }
-    
-    public static Property getLastCrashedProperty(String varName) {
-    	if (lastCrashedVariable != null && lastCrashedVariable.equals(varName))
-    		return lastCrashedProperty;
-    	else
-    		return null;
-    }
-    
-    public static ExpressionSkeleton getLastCrashedSkeleton(String varName) {
-    	if (lastCrashedVariable != null && lastCrashedVariable.equals(varName))
-    		return lastCrashedSkeleton;
-    	else
-    		return null;
-    }
-    
-    public static void setLastCrashedInfo(String varName, Property property, ExpressionSkeleton skeleton) {
-    	lastCrashedVariable = varName;
-    	lastCrashedProperty = property;
-    	lastCrashedSkeleton = skeleton;
     }
 
 }

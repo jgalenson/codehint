@@ -34,7 +34,6 @@ import org.eclipse.swt.widgets.Text;
 import org.eclipse.ui.PlatformUI;
 
 import codehint.Activator;
-import codehint.Synthesizer;
 import codehint.Synthesizer.SynthesisWorker;
 import codehint.expreval.EvaluatedExpression;
 import codehint.expreval.EvaluationManager;
@@ -73,13 +72,9 @@ public class InitialSynthesisDialog extends SynthesisDialog {
     private final ExpressionGenerator expressionGenerator;
     private ExpressionSkeleton skeleton;
 
-	public InitialSynthesisDialog(Shell parentShell, String varName, String varTypeName, IJavaType varType, IJavaStackFrame stack, PropertyDialog propertyDialog, SynthesisWorker worker) {
+	public InitialSynthesisDialog(Shell parentShell, String varTypeName, IJavaType varType, IJavaStackFrame stack, PropertyDialog propertyDialog, SynthesisWorker worker) {
 		super(parentShell, varTypeName, varType, stack, propertyDialog);
-		ExpressionSkeleton lastCrashedSkeleton = Synthesizer.getLastCrashedSkeleton(varName);
-		if (lastCrashedSkeleton == null)
-			this.initialSkeletonText = ExpressionSkeleton.HOLE_SYNTAX;
-		else
-			this.initialSkeletonText = lastCrashedSkeleton.getSugaredString();
+		this.initialSkeletonText = ExpressionSkeleton.HOLE_SYNTAX;
 		this.skeletonIsValid = false;
 		this.skeletonValidator = new ExpressionSkeletonValidator(stack, varTypeName);
 		this.skeletonResult = null;

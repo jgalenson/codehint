@@ -18,8 +18,6 @@ import codehint.dialogs.InitialSynthesisDialog;
 import codehint.dialogs.ObjectValuePropertyDialog;
 import codehint.dialogs.PrimitiveValuePropertyDialog;
 import codehint.dialogs.PropertyDialog;
-import codehint.property.Property;
-import codehint.property.ValueProperty;
 
 public class DemonstrateValueHandler extends CommandHandler {
 
@@ -43,10 +41,8 @@ public class DemonstrateValueHandler extends CommandHandler {
 				return;
 			}
 			initValue = matcher.group(2);
-		} else {
-	    	Property lastCrashedProperty = Synthesizer.getLastCrashedProperty(path);
-	    	initValue = lastCrashedProperty instanceof ValueProperty ? ((ValueProperty)lastCrashedProperty).getValueString() : "";
-		}
+		} else
+			initValue = "";
 		IJavaType varType = ((IJavaVariable)variable).getJavaType();
 		String varTypeName = EclipseUtils.sanitizeTypename(varType.getName());
 		PropertyDialog propertyDialog = null;
@@ -56,7 +52,7 @@ public class DemonstrateValueHandler extends CommandHandler {
 			propertyDialog = new ArrayValuePropertyDialog(path, varTypeName, stack, initValue, null);
 		else
 			propertyDialog = new PrimitiveValuePropertyDialog(path, varTypeName, stack, initValue, null);
-		InitialSynthesisDialog dialog = new InitialSynthesisDialog(shell, path, varTypeName, varType, stack, propertyDialog, new SynthesisWorker(path, varType));
+		InitialSynthesisDialog dialog = new InitialSynthesisDialog(shell, varTypeName, varType, stack, propertyDialog, new SynthesisWorker(path, varType));
 		Synthesizer.synthesizeAndInsertExpressions(variable, path, dialog, stack, initValue.length() > 0);
     }
 

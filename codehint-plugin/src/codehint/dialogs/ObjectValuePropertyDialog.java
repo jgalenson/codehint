@@ -4,7 +4,6 @@ import org.eclipse.debug.core.DebugException;
 import org.eclipse.jdt.debug.core.IJavaStackFrame;
 import org.eclipse.jdt.debug.core.IJavaValue;
 
-import codehint.Synthesizer;
 import codehint.expreval.EvaluationManager.EvaluationError;
 import codehint.property.ObjectValueProperty;
 import codehint.property.Property;
@@ -28,7 +27,6 @@ public class ObjectValuePropertyDialog extends ValuePropertyDialog {
     			IJavaValue demonstrationValue = EclipseUtils.evaluate(propertyText, stack);
     			return ObjectValueProperty.fromObject(propertyText, demonstrationValue);
     		} catch (EvaluationError e) {
-		    	Synthesizer.setLastCrashedInfo(varName, ObjectValueProperty.fromObject(propertyText, null), null);
 				throw e;
 			} catch (DebugException e) {
 				throw new RuntimeException(e);

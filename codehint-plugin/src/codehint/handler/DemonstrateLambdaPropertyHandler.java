@@ -11,9 +11,6 @@ import codehint.Synthesizer;
 import codehint.Synthesizer.SynthesisWorker;
 import codehint.dialogs.InitialSynthesisDialog;
 import codehint.dialogs.LambdaPropertyDialog;
-import codehint.property.LambdaProperty;
-import codehint.property.Property;
-import codehint.property.ValueProperty;
 import codehint.utils.EclipseUtils;
 
 public class DemonstrateLambdaPropertyHandler extends CommandHandler {
@@ -21,12 +18,10 @@ public class DemonstrateLambdaPropertyHandler extends CommandHandler {
     @Override
 	public void handle(IVariable variable, String path, Shell shell) {
     	try {
-	    	Property lastCrashedProperty = Synthesizer.getLastCrashedProperty(path);
-	    	String initValue = lastCrashedProperty instanceof LambdaProperty && !(lastCrashedProperty instanceof ValueProperty) ? lastCrashedProperty.toString() : "";
 	    	IJavaType varType = ((IJavaVariable)variable).getJavaType();
 	    	String varTypeName = EclipseUtils.sanitizeTypename(varType.getName());
 	    	IJavaStackFrame stack = EclipseUtils.getStackFrame();
-	    	InitialSynthesisDialog dialog = new InitialSynthesisDialog(shell, path, varTypeName, varType, stack, new LambdaPropertyDialog(path, varTypeName, varType, stack, initValue, null), new SynthesisWorker(path, varType));
+	    	InitialSynthesisDialog dialog = new InitialSynthesisDialog(shell, varTypeName, varType, stack, new LambdaPropertyDialog(path, varTypeName, varType, stack, "", null), new SynthesisWorker(path, varType));
 	    	Synthesizer.synthesizeAndInsertExpressions(variable, path, dialog, stack, false);
 		} catch (DebugException e) {
 			throw new RuntimeException(e);
