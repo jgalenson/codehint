@@ -22,4 +22,29 @@ public abstract class NameConstraint extends TypeConstraint {
 		throw new RuntimeException("Cannot get the types of a name constraint.");
 	}
 
+	@Override
+	public int hashCode() {
+		final int prime = 31;
+		int result = 1;
+		result = prime * result + ((legalNames == null) ? 0 : legalNames.hashCode());
+		return result;
+	}
+
+	@Override
+	public boolean equals(Object obj) {
+		if (this == obj)
+			return true;
+		if (obj == null)
+			return false;
+		if (getClass() != obj.getClass())
+			return false;
+		NameConstraint other = (NameConstraint) obj;
+		if (legalNames == null) {
+			if (other.legalNames != null)
+				return false;
+		} else if (!legalNames.equals(other.legalNames))
+			return false;
+		return true;
+	}
+
 }

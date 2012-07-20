@@ -77,4 +77,41 @@ public class MethodNameConstraint extends NameConstraint {
 		return "Method with receiver " + expressionConstraint.toString() + " and result " + methodConstraint.toString() + " and args " + argConstraints.toString();
 	}
 
+	@Override
+	public int hashCode() {
+		final int prime = 31;
+		int result = super.hashCode();
+		result = prime * result + ((argConstraints == null) ? 0 : argConstraints.hashCode());
+		result = prime * result + ((expressionConstraint == null) ? 0 : expressionConstraint.hashCode());
+		result = prime * result + ((methodConstraint == null) ? 0 : methodConstraint.hashCode());
+		return result;
+	}
+
+	@Override
+	public boolean equals(Object obj) {
+		if (this == obj)
+			return true;
+		if (!super.equals(obj))
+			return false;
+		if (getClass() != obj.getClass())
+			return false;
+		MethodNameConstraint other = (MethodNameConstraint) obj;
+		if (argConstraints == null) {
+			if (other.argConstraints != null)
+				return false;
+		} else if (!argConstraints.equals(other.argConstraints))
+			return false;
+		if (expressionConstraint == null) {
+			if (other.expressionConstraint != null)
+				return false;
+		} else if (!expressionConstraint.equals(other.expressionConstraint))
+			return false;
+		if (methodConstraint == null) {
+			if (other.methodConstraint != null)
+				return false;
+		} else if (!methodConstraint.equals(other.methodConstraint))
+			return false;
+		return true;
+	}
+
 }

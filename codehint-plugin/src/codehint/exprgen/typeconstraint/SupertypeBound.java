@@ -29,4 +29,29 @@ public class SupertypeBound extends TypeConstraint {
 		return "<=" + supertypeBound.toString();
 	}
 
+	@Override
+	public int hashCode() {
+		final int prime = 31;
+		int result = 1;
+		result = prime * result + ((supertypeBound == null) ? 0 : supertypeBound.hashCode());
+		return result;
+	}
+
+	@Override
+	public boolean equals(Object obj) {
+		if (this == obj)
+			return true;
+		if (obj == null)
+			return false;
+		if (getClass() != obj.getClass())
+			return false;
+		SupertypeBound other = (SupertypeBound) obj;
+		if (supertypeBound == null) {
+			if (other.supertypeBound != null)
+				return false;
+		} else if (!supertypeBound.equals(other.supertypeBound))
+			return false;
+		return true;
+	}
+
 }

@@ -29,4 +29,29 @@ public class SameHierarchy extends TypeConstraint {
 		return "comparable to " + targetType.toString();
 	}
 
+	@Override
+	public int hashCode() {
+		final int prime = 31;
+		int result = 1;
+		result = prime * result + ((targetType == null) ? 0 : targetType.hashCode());
+		return result;
+	}
+
+	@Override
+	public boolean equals(Object obj) {
+		if (this == obj)
+			return true;
+		if (obj == null)
+			return false;
+		if (getClass() != obj.getClass())
+			return false;
+		SameHierarchy other = (SameHierarchy) obj;
+		if (targetType == null) {
+			if (other.targetType != null)
+				return false;
+		} else if (!targetType.equals(other.targetType))
+			return false;
+		return true;
+	}
+
 }

@@ -54,6 +54,7 @@ import codehint.exprgen.typeconstraint.TypeConstraint;
 import codehint.property.Property;
 import codehint.property.ValueProperty;
 import codehint.utils.EclipseUtils;
+import codehint.utils.Pair;
 
 import com.sun.jdi.Field;
 import com.sun.jdi.Method;
@@ -93,6 +94,8 @@ public final class ExpressionGenerator {
 	private final IJavaValue zero;
 	private final IJavaValue one;
 	private final IJavaValue two;
+	// Cache the generated expressions
+	private final Map<Pair<TypeConstraint, Integer>, List<TypedExpression>> cachedExprs;
 
 	private TypeConstraint typeConstraint;
 	//private Map<IJavaValue, Set<EvaluatedExpression>> equivalences;
@@ -112,6 +115,7 @@ public final class ExpressionGenerator {
 		this.zero = ExpressionMaker.makeIntValue(target, 0);
 		this.one = ExpressionMaker.makeIntValue(target, 1);
 		this.two = ExpressionMaker.makeIntValue(target, 2);
+		this.cachedExprs = new HashMap<Pair<TypeConstraint, Integer>, List<TypedExpression>>();
 	}
 	
 	/**
@@ -138,7 +142,12 @@ public final class ExpressionGenerator {
 	
 			long startTime = System.currentTimeMillis();
 			
-			List<TypedExpression> allTypedExprs = genAllExprs(demonstration, 0, maxExprDepth, monitor);
+			Pair<TypeConstraint, Integer> cacheKey = new Pair<TypeConstraint, Integer>(typeConstraint, maxExprDepth);
+			List<TypedExpression> allTypedExprs = cachedExprs.get(cacheKey);
+			if (allTypedExprs == null) {
+				allTypedExprs = genAllExprs(demonstration, 0, maxExprDepth, monitor);
+				cachedExprs.put(cacheKey, allTypedExprs);
+			}
 			
 			/*for (Map.Entry<IJavaValue, Set<EvaluatedExpression>> entry : equivalences.entrySet())
 				System.out.println(entry.getKey() + " -> " + entry.getValue().toString());*/

@@ -61,4 +61,35 @@ public class FieldNameConstraint extends NameConstraint {
 		return "Field with receiver " + expressionConstraint.toString() + " and result " + fieldConstraint.toString();
 	}
 
+	@Override
+	public int hashCode() {
+		final int prime = 31;
+		int result = super.hashCode();
+		result = prime * result + ((expressionConstraint == null) ? 0 : expressionConstraint.hashCode());
+		result = prime * result + ((fieldConstraint == null) ? 0 : fieldConstraint.hashCode());
+		return result;
+	}
+
+	@Override
+	public boolean equals(Object obj) {
+		if (this == obj)
+			return true;
+		if (!super.equals(obj))
+			return false;
+		if (getClass() != obj.getClass())
+			return false;
+		FieldNameConstraint other = (FieldNameConstraint) obj;
+		if (expressionConstraint == null) {
+			if (other.expressionConstraint != null)
+				return false;
+		} else if (!expressionConstraint.equals(other.expressionConstraint))
+			return false;
+		if (fieldConstraint == null) {
+			if (other.fieldConstraint != null)
+				return false;
+		} else if (!fieldConstraint.equals(other.fieldConstraint))
+			return false;
+		return true;
+	}
+
 }

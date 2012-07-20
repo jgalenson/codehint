@@ -51,7 +51,44 @@ public class MethodConstraint extends TypeConstraint {
 
 	@Override
 	public String toString() {
-		return "Object with method named " + methodName + " of type " + methodConstraint.toString()+ " and args " + argConstraints.toString();
+		return "Object with method named " + methodName + " of type " + methodConstraint.toString()+ " and args " + (argConstraints == null ? "null" : argConstraints.toString());
+	}
+
+	@Override
+	public int hashCode() {
+		final int prime = 31;
+		int result = 1;
+		result = prime * result + ((argConstraints == null) ? 0 : argConstraints.hashCode());
+		result = prime * result + ((methodConstraint == null) ? 0 : methodConstraint.hashCode());
+		result = prime * result + ((methodName == null) ? 0 : methodName.hashCode());
+		return result;
+	}
+
+	@Override
+	public boolean equals(Object obj) {
+		if (this == obj)
+			return true;
+		if (obj == null)
+			return false;
+		if (getClass() != obj.getClass())
+			return false;
+		MethodConstraint other = (MethodConstraint) obj;
+		if (argConstraints == null) {
+			if (other.argConstraints != null)
+				return false;
+		} else if (!argConstraints.equals(other.argConstraints))
+			return false;
+		if (methodConstraint == null) {
+			if (other.methodConstraint != null)
+				return false;
+		} else if (!methodConstraint.equals(other.methodConstraint))
+			return false;
+		if (methodName == null) {
+			if (other.methodName != null)
+				return false;
+		} else if (!methodName.equals(other.methodName))
+			return false;
+		return true;
 	}
 
 }
