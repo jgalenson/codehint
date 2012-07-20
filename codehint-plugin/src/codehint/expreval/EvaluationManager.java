@@ -213,7 +213,6 @@ public final class EvaluationManager {
 		if (monitor.isCanceled())
 			throw new OperationCanceledException();
 		boolean hasPropertyPrecondition = propertyPreconditions.length() > 0;
-		boolean canThrowExceptions = false;
 		StringBuilder expressionsStr = new StringBuilder();
 		
 		try {
@@ -222,7 +221,7 @@ public final class EvaluationManager {
 			expressionsStr.append(preVarsString);
 			ArrayList<TypedExpression> exprsToEvaluate = new ArrayList<TypedExpression>();
 			int i;
-	    	for (i = startIndex; i < exprs.size() && (!canThrowExceptions || exprsToEvaluate.size() < batchSize); i++) {
+	    	for (i = startIndex; i < exprs.size() && exprsToEvaluate.size() < batchSize; i++) {
 	    		TypedExpression curTypedExpr = exprs.get(i);
 	    		Expression curExpr = curTypedExpr.getExpression();
 	    		String curExprStr = curExpr.toString();
@@ -231,8 +230,6 @@ public final class EvaluationManager {
 	    		NormalPreconditionFinder pf = new NormalPreconditionFinder();
 	    		curExpr.accept(pf);
 	    		String preconditions = pf.getPreconditions();
-	    		if (pf.canThrowException())
-	    			canThrowExceptions = true;
 	    		StringBuilder curString = new StringBuilder();
 	    		// TODO: If the user has variables with the same names as the ones I introduce, this will crash....
 	    		curString.append("{\n ").append(type).append(" _$curValue = ").append(curExprStr).append(";\n ");
@@ -438,10 +435,10 @@ public final class EvaluationManager {
      */
     private static class NormalPreconditionFinder extends PreconditionFinder {
     	
-    	private boolean canThrowException;
+    	//private boolean canThrowException;
     	
     	public NormalPreconditionFinder() {
-    		canThrowException = false;
+    		//canThrowException = false;
     	}
     	
     	// a[i] -> a != null && i >= 0 && i < a.length 
@@ -460,7 +457,7 @@ public final class EvaluationManager {
     			add(node.getExpression() + " != null");*/
     		if ((IJavaValue)node.getProperty("value") != null)
     			return true;  // The node can be evaluated safely because we already computed its value (so it must have one).
-    		canThrowException = true;
+    		//canThrowException = true;
     		IJavaValue exprValue = (IJavaValue)node.getExpression().getProperty("value");
     		if (exprValue != null && exprValue.isNull())
     			add("false");  // We know the expression is null and this will crash.
@@ -483,7 +480,7 @@ public final class EvaluationManager {
     			add(node.getExpression() + " != null");*/
     		if ((IJavaValue)node.getProperty("value") != null)
     			return true;  // The node can be evaluated safely because we already computed its value (so it must have one).
-    		canThrowException = true;
+    		//canThrowException = true;
     		IJavaValue exprValue = node.getExpression() == null ? null : (IJavaValue)node.getExpression().getProperty("value");
     		if (exprValue != null && exprValue.isNull())
     			add("false");  // We know the expression is null and this will crash.
@@ -493,7 +490,7 @@ public final class EvaluationManager {
     	// Constructor calls can always throw and we can't (currently) statically evaluate them.
     	@Override
 		public boolean visit(ClassInstanceCreation node) {
-    		canThrowException = true;
+    		//canThrowException = true;
     		return true;
     	}
     	
@@ -503,9 +500,9 @@ public final class EvaluationManager {
     	 * @return whether this expression can throw an exception
     	 * even if the precondition is true.
     	 */
-    	public boolean canThrowException() {
+    	/*public boolean canThrowException() {
     		return canThrowException;
-    	}
+    	}*/
     	
     }
 
