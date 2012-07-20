@@ -570,6 +570,8 @@ public class EclipseUtils {
 			else
 				System.out.println("Loaded " + typeName);*/
 		}
+		if (typeName.endsWith("[]"))  // If an array's component type is not loaded, we can crash during evaluation of expressions involving it.
+			getTypeAndLoadIfNeeded(typeName.substring(0, typeName.length() - 2), stack, target);
 		return type;
     }
     

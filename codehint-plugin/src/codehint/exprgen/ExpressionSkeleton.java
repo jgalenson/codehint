@@ -265,14 +265,17 @@ public final class ExpressionSkeleton {
 			long startTime = System.currentTimeMillis();
 			// TODO: Improve progress monitor so it shows you which evaluation it is.
 			TypeConstraint typeConstraint = getInitialTypeConstraint(varStaticType, property, stack, target);
+			ArrayList<EvaluatedExpression> results;
 			if (HOLE_SYNTAX.equals(sugaredString))  // Optimization: Optimize special case of "??" skeleton by simply calling old ExprGen code directly.
-				return expressionGenerator.generateExpression(property, typeConstraint, synthesisDialog, monitor, 1);
-			monitor.beginTask("Skeleton generation", holeInfos.size() + 2);
-			ArrayList<TypedExpression> exprs = SkeletonFiller.fillSkeleton(expression, typeConstraint, holeInfos, stack, target, evalManager, expressionGenerator, subtypeChecker, synthesisDialog, monitor);
-			SubMonitor evalMonitor = SubMonitor.convert(monitor, "Expression evaluation", exprs.size());
-			ArrayList<EvaluatedExpression> results = evalManager.evaluateExpressions(exprs, property, synthesisDialog, evalMonitor);
-			EclipseUtils.log("Synthesis found " + exprs.size() + " expressions of which " + results.size() + " were valid and took " + (System.currentTimeMillis() - startTime) + " milliseconds.");
-	    	monitor.done();
+				results = expressionGenerator.generateExpression(property, typeConstraint, synthesisDialog, monitor, 1);
+			else {
+				monitor.beginTask("Skeleton generation", holeInfos.size() + 2);
+				ArrayList<TypedExpression> exprs = SkeletonFiller.fillSkeleton(expression, typeConstraint, holeInfos, stack, target, evalManager, expressionGenerator, subtypeChecker, synthesisDialog, monitor);
+				SubMonitor evalMonitor = SubMonitor.convert(monitor, "Expression evaluation", exprs.size());
+				results = evalManager.evaluateExpressions(exprs, property, synthesisDialog, evalMonitor);
+				EclipseUtils.log("Synthesis found " + exprs.size() + " expressions of which " + results.size() + " were valid and took " + (System.currentTimeMillis() - startTime) + " milliseconds.");
+		    	monitor.done();
+			}
 			return results;
 		} catch (DebugException e) {
 			throw new RuntimeException(e);
