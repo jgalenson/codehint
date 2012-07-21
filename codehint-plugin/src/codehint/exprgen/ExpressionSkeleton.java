@@ -64,6 +64,7 @@ import codehint.exprgen.typeconstraint.FieldNameConstraint;
 import codehint.exprgen.typeconstraint.MethodConstraint;
 import codehint.exprgen.typeconstraint.MethodNameConstraint;
 import codehint.exprgen.typeconstraint.SameHierarchy;
+import codehint.exprgen.typeconstraint.SingleTypeConstraint;
 import codehint.exprgen.typeconstraint.SupertypeBound;
 import codehint.exprgen.typeconstraint.SupertypeSet;
 import codehint.exprgen.typeconstraint.TypeConstraint;
@@ -90,6 +91,17 @@ public final class ExpressionSkeleton {
     private final EvaluationManager evalManager;
     private final ExpressionGenerator expressionGenerator;
 	
+    /**
+     * Creates a new ExpressionSkeleton.
+     * @param sugaredString The sugared form of the skeleton string.
+     * @param node The desugared expression representing the skeleton.
+     * @param holeInfos The information about the holes in the skeleton.
+     * @param target The debug target.
+     * @param stack The stack frame.
+     * @param subtypeChecker The subtype checker.
+     * @param evalManager The evaluation manager.
+     * @param expressionGenerator The expression generator.
+     */
 	private ExpressionSkeleton(String sugaredString, Expression node, Map<String, HoleInfo> holeInfos, IJavaDebugTarget target, IJavaStackFrame stack, SubtypeChecker subtypeChecker, EvaluationManager evalManager, ExpressionGenerator expressionGenerator) {
 		this.sugaredString = sugaredString;
 		this.expression = node;
@@ -101,14 +113,36 @@ public final class ExpressionSkeleton {
 		this.expressionGenerator = expressionGenerator;
 	}
 
+	/**
+	 * Creates an ExpressionSkeleton from the given sugared string.
+	 * @param skeletonStr The sugared string from which to create the skeleton.
+	 * @param target The debug target.
+	 * @param stack The stack frame.
+     * @param subtypeChecker The subtype checker.
+     * @param evalManager The evaluation manager.
+     * @param expressionGenerator The expression generator.
+	 * @return The ExpressionSkeleton representing the given sugared string.
+	 */
 	public static ExpressionSkeleton fromString(String skeletonStr, IJavaDebugTarget target, IJavaStackFrame stack, SubtypeChecker subtypeChecker, EvaluationManager evalManager, ExpressionGenerator expressionGenerator) {
 		return SkeletonParser.rewriteHoleSyntax(skeletonStr, target, stack, subtypeChecker, evalManager, expressionGenerator);
 	}
 	
+	/**
+	 * Checks whether the given string represents a legal sugared skeleton.
+	 * @param str The string to check.
+	 * @param varTypeName The name of the type of the variable being assigned.
+	 * @param stackFrame The stack frame.
+	 * @param evaluationEngine The AST evaluation engine.
+	 * @return Whether the given string represents a legal sugared skeleton.
+	 */
 	public static String isLegalSkeleton(String str, String varTypeName, IJavaStackFrame stackFrame, IAstEvaluationEngine evaluationEngine) {
 		return SkeletonParser.isLegalSkeleton(str, varTypeName, stackFrame, evaluationEngine);
 	}
 	
+	/**
+	 * Gets the sugared string representing this skeleton.
+	 * @return The sugared string form of this skeleton.
+	 */
 	public String getSugaredString() {
 		return sugaredString;
 	}
@@ -118,6 +152,9 @@ public final class ExpressionSkeleton {
 		return sugaredString;
 	}
 	
+	/**
+	 * A helper class for parsing sugared skeleton strings.
+	 */
 	private static class SkeletonParser {
 
 	    private final static String DESUGARED_HOLE_NAME = "_$hole";
@@ -131,7 +168,15 @@ public final class ExpressionSkeleton {
 			}
 			
 		}
-		
+
+		/**
+		 * Checks whether the given string represents a legal sugared skeleton.
+		 * @param str The string to check.
+		 * @param varTypeName The name of the type of the variable being assigned.
+		 * @param stackFrame The stack frame.
+		 * @param evaluationEngine The AST evaluation engine.
+		 * @return Whether the given string represents a legal sugared skeleton.
+		 */
 		public static String isLegalSkeleton(String str, String varTypeName, IJavaStackFrame stackFrame, IAstEvaluationEngine evaluationEngine) {
 			try {
 				Expression skeletonExpr = rewriteHoleSyntax(str, new HashMap<String, HoleInfo>());
@@ -145,7 +190,14 @@ public final class ExpressionSkeleton {
 				return e.getMessage();
 			}
 		}
-		
+
+		/**
+		 * Creates an ExpressionSkeleton from the given sugared string or throws
+		 * a ParserError if the string is not valid.
+		 * @param sugaredString The sugared string from which to create the skeleton.
+		 * @param holeInfos Map in which to store information about the holes in the skeleton.
+		 * @return The ExpressionSkeleton representing the given sugared string.
+		 */
 		private static Expression rewriteHoleSyntax(String sugaredString, Map<String, HoleInfo> holeInfos) {
 			String str = sugaredString;
 			for (int holeNum = 0; true; holeNum++) {
@@ -167,13 +219,33 @@ public final class ExpressionSkeleton {
 				throw new ParserError("Enter a valid skeleton: " + ((CompilationUnit)node).getProblems()[0].getMessage());
 			return (Expression)ExpressionMaker.resetAST(node);
 		}
-		
+
+		/**
+		 * Creates an ExpressionSkeleton from the given sugared string or throws
+		 * a ParserError if the string is not valid.
+		 * @param sugaredString The sugared string from which to create the skeleton.
+		 * @param target The debug target.
+		 * @param stack The stack frame.
+	     * @param subtypeChecker The subtype checker.
+	     * @param evalManager The evaluation manager.
+	     * @param expressionGenerator The expression generator.
+		 * @return The ExpressionSkeleton representing the given sugared string.
+		 */
 		private static ExpressionSkeleton rewriteHoleSyntax(String sugaredString, IJavaDebugTarget target, IJavaStackFrame stack, SubtypeChecker subtypeChecker, EvaluationManager evalManager, ExpressionGenerator expressionGenerator) {
 			Map<String, HoleInfo> holeInfos = new HashMap<String, HoleInfo>();
 			Expression expr = rewriteHoleSyntax(sugaredString, holeInfos);
 			return new ExpressionSkeleton(sugaredString, (Expression)ExpressionMaker.resetAST(expr), holeInfos, target, stack, subtypeChecker, evalManager, expressionGenerator);
 		}
 	
+		/**
+		 * Rewrites a single ?? hole in a skeleton string to its
+		 * desugared form.
+		 * @param str The string.
+		 * @param holeIndex The starting index of the hole.
+		 * @param holeNum A unique number identifying the hole.
+		 * @param holeInfos Map that stores information about holes.
+		 * @return The original string with this hole desugared.
+		 */
 		private static String rewriteSingleHole(String str, int holeIndex, int holeNum, Map<String, HoleInfo> holeInfos) {
 			if (holeIndex >= 1 && Character.isJavaIdentifierPart(str.charAt(holeIndex - 1)))
 				throw new ParserError("You cannot put a " + HOLE_SYNTAX + " hole immediately after an identifier.");
@@ -200,7 +272,16 @@ public final class ExpressionSkeleton {
 			holeInfos.put(holeName, makeHoleInfo(args, isNegative));
 			return str;
 		}
-		
+
+		/**
+		 * Rewrites a single ** hole in a skeleton string to its
+		 * desugared form.
+		 * @param str The string.
+		 * @param holeIndex The starting index of the hole.
+		 * @param holeNum A unique number identifying the hole.
+		 * @param holeInfos Map that stores information about holes.
+		 * @return The original string with this hole desugared.
+		 */
 		private static String rewriteSingleListHole(String str, int holeIndex, int holeNum, Map<String, HoleInfo> holeInfos) {
 			if (holeIndex < 2 || holeIndex + LIST_HOLE_SYNTAX.length() >= str.length() || str.charAt(holeIndex - 1) != '(' || !Character.isJavaIdentifierPart(str.charAt(holeIndex - 2)) || str.charAt(holeIndex + LIST_HOLE_SYNTAX.length()) != ')')
 				throw new ParserError("You can only use a " + LIST_HOLE_SYNTAX + " hole as the only argument to a method.");
@@ -210,6 +291,16 @@ public final class ExpressionSkeleton {
 			return str;
 		}
 		
+		/**
+		 * Makes a class that stores information about holes,
+		 * such as the list of possible expressions.
+		 * @param argsStr The string representing the declared
+		 * arguments, e.g., "{x, y, z}".
+		 * @param isNegative Whether the hole is negative, e.g.,
+		 * for "??-{x,y,z}".
+		 * @return The HoleInfo representing information
+		 * about this hole.
+		 */
 		private static HoleInfo makeHoleInfo(String argsStr, boolean isNegative) {
 			ArrayList<String> args = null;
 			if (argsStr != null) {
@@ -227,6 +318,10 @@ public final class ExpressionSkeleton {
 	
 	}
 	
+	/**
+	 * A class that stores information about ?? holes
+	 * such as their list of possible expressions, if any.
+	 */
 	private static class HoleInfo {
 		
 		private final ArrayList<String> args;
@@ -251,7 +346,10 @@ public final class ExpressionSkeleton {
 		}
 		
 	}
-	
+
+	/**
+	 * A class that stores information about ** holes.
+	 */
 	private static class ListHoleInfo extends HoleInfo {
 
 		public ListHoleInfo(ArrayList<String> args, boolean isNegative) {
@@ -293,25 +391,6 @@ public final class ExpressionSkeleton {
 				return new SupertypeBound(EclipseUtils.getType(typeName, stack, target));
 		}
 		return new SupertypeBound(varStaticType);
-	}
-	
-	private static ArrayList<String> filterCrashingExpression(ArrayList<String> expressionStrings, IJavaType varStaticType, IJavaStackFrame stack, IProgressMonitor monitor) {
-		try {
-			SubMonitor evalMonitor = SubMonitor.convert(monitor, "Expression typecheck", expressionStrings.size());
-			ArrayList<String> result = new ArrayList<String>();
-			IAstEvaluationEngine engine = EclipseUtils.getASTEvaluationEngine(stack);
-			String varStaticTypeName = varStaticType == null ? null : EclipseUtils.sanitizeTypename(varStaticType.getName());
-			for (String s: expressionStrings) {
-    			if (monitor.isCanceled())
-    				throw new OperationCanceledException();
-				if (EclipseUtils.getCompileErrors(s, varStaticTypeName, stack, engine) == null)
-					result.add(s);
-				evalMonitor.worked(1);
-			}
-			return result;
-		} catch (DebugException e) {
-			throw new RuntimeException(e);
-		}
 	}
 	
 	private static class HoleParentSetter extends ASTVisitor {
@@ -650,11 +729,14 @@ public final class ExpressionSkeleton {
 					} else {
 						ArrayList<EvaluatedExpression> values;
 						if (holeInfo.getArgs() != null) {
-							ArrayList<String> nonCrashingStrings = filterCrashingExpression(holeInfo.getArgs(), null, stack, childMonitor);
+							ArrayList<String> nonCrashingStrings = filterCrashingExpression(holeInfo.getArgs(), childMonitor);
 							ArrayList<TypedExpression> fakeTypedHoleInfos = new ArrayList<TypedExpression>(nonCrashingStrings.size());
-							for (String s: nonCrashingStrings)
-								fakeTypedHoleInfos.add(new TypedExpression((Expression)EclipseUtils.parseExpr(parser, s), null, null));
-							values = evalManager.evaluateExpressions(fakeTypedHoleInfos, null, synthesisDialog, childMonitor);
+							for (String s: nonCrashingStrings) {
+								Expression e = (Expression)ExpressionMaker.resetAST(EclipseUtils.parseExpr(parser, s));
+								IJavaType type = curConstraint instanceof DesiredType ? ((DesiredType)curConstraint).getDesiredType() : ((SingleTypeConstraint)fillSkeleton(e, curConstraint, null).getTypeConstraint()).getTypeConstraint();
+								fakeTypedHoleInfos.add(new TypedExpression(e, type, null));
+							}
+							values = evalManager.evaluateExpressions(fakeTypedHoleInfos, null, null, childMonitor);
 						} else
 							values = expressionGenerator.generateExpression(null, curConstraint, null, childMonitor, holeInfos.size() == 1 ? 1 : 0);
 						Map<String, ArrayList<EvaluatedExpression>> valuesByType = new HashMap<String, ArrayList<EvaluatedExpression>>();
@@ -936,6 +1018,20 @@ public final class ExpressionSkeleton {
 			} catch (DebugException e) {
 				throw new RuntimeException(e);
 			}
+    	}
+    	
+    	private ArrayList<String> filterCrashingExpression(ArrayList<String> expressionStrings, IProgressMonitor monitor) {
+			SubMonitor evalMonitor = SubMonitor.convert(monitor, "Expression typecheck", expressionStrings.size());
+			ArrayList<String> result = new ArrayList<String>();
+			IAstEvaluationEngine engine = EclipseUtils.getASTEvaluationEngine(stack);
+			for (String s: expressionStrings) {
+    			if (monitor.isCanceled())
+    				throw new OperationCanceledException();
+				if (EclipseUtils.getCompileErrors(s, null, stack, engine) == null)
+					result.add(s);
+				evalMonitor.worked(1);
+			}
+			return result;
     	}
 		
 	}

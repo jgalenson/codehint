@@ -160,6 +160,15 @@ public final class EvaluationManager {
 		return expressionsByType;
 	}
 
+	/**
+	 * Gets a string whose evaluation will cache the results of
+	 * pre-state variables used in the given pdspec.
+	 * @param stack The current stack frame.
+	 * @param property The current pdspec.
+	 * @return A string whose evaluation will cache the results
+	 * of pre-state variables used in the given pdspec.
+	 * @throws DebugException
+	 */
 	private static String getPreVarsString(IJavaStackFrame stack, Property property) throws DebugException {
 		if (property instanceof StateProperty) {
 			StringBuilder expressionsStr = new StringBuilder();
@@ -187,7 +196,6 @@ public final class EvaluationManager {
 	 * Filters the given evaluated expressions and keeps only
 	 * those that satisfy the given property.
 	 * @param evaledExprs The expressions to filter
-	 * @param type The static type of the desired expression.
 	 * @param property The desired property.
 	 * @param synthesisDialog The synthesis dialog to pass the valid expressions,
 	 * or null if we should not pass anything.
@@ -206,8 +214,11 @@ public final class EvaluationManager {
 	 * Evaluates the given expressions.
 	 * @param exprs The expressions to evaluate
 	 * @param type The static type of the desired expression.
+	 * @param valuesField The field of the proper type to store the
+	 * results of the given expressions.
 	 * @param startIndex The index at which to start evaluation.
-     * @return the results of the evaluations of the given expressions.
+     * @return the results of the evaluations of the given expressions
+     * that do not crash and satisfy the current pdspec.
 	 */
 	private ArrayList<EvaluatedExpression> evaluateExpressions(ArrayList<TypedExpression> exprs, String type, IJavaFieldVariable valuesField, int startIndex) {
 		if (monitor.isCanceled())
@@ -274,7 +285,7 @@ public final class EvaluationManager {
     		
 	    	boolean hasError = result.getException() != null;
 			int fullCount = ((IJavaPrimitiveValue)fullCountField.getValue()).getIntValue();
-	    	final ArrayList<EvaluatedExpression> results = fullCount == 0 ? new ArrayList<EvaluatedExpression>() : getResultsFromArray(exprsToEvaluate, valuesField, validField, toStringsField, fullCount, stack);
+	    	final ArrayList<EvaluatedExpression> results = fullCount == 0 ? new ArrayList<EvaluatedExpression>() : getResultsFromArray(exprsToEvaluate, valuesField, fullCount);
 	    	/*System.out.println("Evaluated " + count + " expressions.");
 	    	if (hasError)
 	    		System.out.println("Crashed on " + exprs.get(startIndex + count));*/
@@ -304,6 +315,14 @@ public final class EvaluationManager {
 		}
 	}
 	
+	/**
+	 * Gets a string whose evaluation will get a String
+	 * representation of the result of the given expression.
+	 * @param expr The expression of whose result we want
+	 * a string representation.
+	 * @return A String representation of the value of the
+	 * given expression.
+	 */
 	private static String getToStringGetter(TypedExpression expr) {
 		try {
 			String nullCheck = "_$curValue == null ? \"null\" : ";
@@ -322,12 +341,16 @@ public final class EvaluationManager {
 	 * valid result.  See evaluateExpressions for the
 	 * string on whose evaluation this is called.
 	 * @param exprs The expressions that were evaluated.
-	 * @param evaluationResult The result of the evaluation.
+	 * @param valuesField The field of the proper type to store the
+	 * results of the given expressions.
+	 * @param count The number of expressions that were successfully
+	 * evaluated.
 	 * @return the evaluated expressions of those expressions
-	 * whose execution did not crash.
-	 * @throws DebugException a DebugException occurs.
+	 * whose execution did not crash and that satisfy the current
+	 * pdspec.
+	 * @throws DebugException
 	 */
-	private static ArrayList<EvaluatedExpression> getResultsFromArray(ArrayList<TypedExpression> exprs, IJavaFieldVariable valuesField, IJavaFieldVariable validField, IJavaFieldVariable toStringsField, int count, IJavaStackFrame stack) throws DebugException {
+	private ArrayList<EvaluatedExpression> getResultsFromArray(ArrayList<TypedExpression> exprs, IJavaFieldVariable valuesField, int count) throws DebugException {
 		IJavaValue[] values = ((IJavaArray)valuesField.getValue()).getValues();
 		IJavaValue[] valids = ((IJavaArray)validField.getValue()).getValues();
 		IJavaValue[] toStrings = ((IJavaValue)toStringsField.getValue()).isNull() ? null :((IJavaArray)toStringsField.getValue()).getValues();
@@ -507,6 +530,11 @@ public final class EvaluationManager {
     }
 
     // TODO: This doesn't work for lambda properties with types, since they always insert a cast.
+    /**
+     * Gets a simple precondition for a pdspec.
+     * It ensures that we do not evaluate the pdspecs
+     * for some pdspecs that we know will crash.
+     */
     private static class PropertyPreconditionFinder extends PreconditionFinder {
     	
     	@Override
@@ -521,6 +549,12 @@ public final class EvaluationManager {
     		return true;
     	}
     	
+    	/**
+    	 * If the given node is a synthetic variable,
+    	 * we ensure that it is not null before
+    	 * evaluating the pdspec. 
+    	 * @param node The node to check.
+    	 */
     	private void checkForSyntheticVar(Expression node) {
     		if (node instanceof SimpleName) {
     			String name = ((SimpleName)node).getIdentifier();

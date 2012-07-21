@@ -14,6 +14,10 @@ import org.eclipse.jdt.debug.core.IJavaType;
 
 import com.sun.jdi.ClassNotLoadedException;
 
+/**
+ * A class that can compute subtype checks and
+ * caches the results for efficiency.
+ */
 public class SubtypeChecker {
 	
 	private final Map<IJavaType, Set<IJavaType>> supertypesMap;
@@ -30,7 +34,6 @@ public class SubtypeChecker {
 	 * @param cur Type to check.
 	 * @param expected Expected type.
 	 * @return Whether cur is a subtype of expected.
-	 * @throws DebugException 
 	 */
 	public boolean isSubtypeOf(IJavaType cur, IJavaType expected) {
 		try {

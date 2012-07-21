@@ -8,61 +8,38 @@ import org.eclipse.jdt.debug.core.IJavaType;
 
 import codehint.exprgen.SubtypeChecker;
 
-public class DesiredType extends TypeConstraint {
-	
-	private final IJavaType desiredType;
+public class DesiredType extends SingleTypeConstraint {
 	
 	public DesiredType(IJavaType desiredType) {
-		this.desiredType = desiredType;
+		super(desiredType);
+	}
+	
+	public IJavaType getDesiredType() {
+		return typeConstraint;
 	}
 
 	@Override
 	public boolean isFulfilledBy(IJavaType type, SubtypeChecker subtypeChecker, IJavaStackFrame stack, IJavaDebugTarget target) {
 		if (type == null)
-			return desiredType instanceof IJavaReferenceType;
-		if (desiredType == null)
+			return typeConstraint instanceof IJavaReferenceType;
+		if (typeConstraint == null)
 			return type instanceof IJavaReferenceType;
-		return desiredType.equals(type); // subtypeChecker.isSubtypeOf(desiredType, curType);
+		return typeConstraint.equals(type); // subtypeChecker.isSubtypeOf(desiredType, curType);
 	}
 
 	@Override
 	public IJavaType[] getTypes(IJavaDebugTarget target) {
-		return new IJavaType[] { desiredType };
+		return new IJavaType[] { typeConstraint };
 	}
 
 	@Override
 	public String toString() {
 		try {
-			return "=" + desiredType.getName();
+			return "=" + typeConstraint.getName();
 		} catch (DebugException e) {
 			e.printStackTrace();
-			return "=" + desiredType.toString();
+			return "=" + typeConstraint.toString();
 		}
-	}
-
-	@Override
-	public int hashCode() {
-		final int prime = 31;
-		int result = 1;
-		result = prime * result + ((desiredType == null) ? 0 : desiredType.hashCode());
-		return result;
-	}
-
-	@Override
-	public boolean equals(Object obj) {
-		if (this == obj)
-			return true;
-		if (obj == null)
-			return false;
-		if (getClass() != obj.getClass())
-			return false;
-		DesiredType other = (DesiredType) obj;
-		if (desiredType == null) {
-			if (other.desiredType != null)
-				return false;
-		} else if (!desiredType.equals(other.desiredType))
-			return false;
-		return true;
 	}
 
 }

@@ -74,11 +74,17 @@ public final class ExpressionGenerator {
 	private final static Set<String> classBlacklist = new HashSet<String>();
 	private final static Map<String, Set<String>> methodBlacklist = new HashMap<String, Set<String>>();
 	
+	/**
+	 * Initializes the blacklist.
+	 */
 	public static void initBlacklist() {
 		classBlacklist.add("codehint.CodeHint");
 		methodBlacklist.put("java.io.File", new HashSet<String>(Arrays.asList("createNewFile", "delete", "mkdir", "mkdirs", "renameTo", "setLastModified", "setReadOnly")));
 	}
 	
+	/**
+	 * Clears the blacklist.
+	 */
 	public static void clearBlacklist() {
 		classBlacklist.clear();
 		methodBlacklist.clear();
@@ -129,8 +135,8 @@ public final class ExpressionGenerator {
 	 * @param monitor Progress monitor.
 	 * @param maxExprDepth The maximum depth of expressions to search.
 	 * @return A list containing strings of all the expressions (up
-	 * to a certain depth) whose value in the current stack frame is
-	 * that of the demonstration.
+	 * to the given depth) whose result in the current stack frame satisfies
+	 * the given pdspec.
 	 */
 	public ArrayList<EvaluatedExpression> generateExpression(Property property, TypeConstraint typeConstraint, InitialSynthesisDialog synthesisDialog, IProgressMonitor monitor, int maxExprDepth) {
 		monitor.beginTask("Expression generation and evaluation", IProgressMonitor.UNKNOWN);
@@ -186,8 +192,8 @@ public final class ExpressionGenerator {
 	 * @param depth The current depth, counting up from 0.
 	 * @param maxDepth The maximum depth to search (inclusive).
 	 * @param monitor Progress monitor.
-	 * @return all expressions whose value in the
-	 * current stack frame is that of the demonstration.
+	 * @return all expressions whose result in the
+	 * current stack frame satisfies the current pdspec.
 	 */
 	private List<TypedExpression> genAllExprs(IJavaValue demonstration, int depth, int maxDepth, IProgressMonitor monitor) {
 		if (depth > maxDepth)
@@ -399,6 +405,11 @@ public final class ExpressionGenerator {
 	
 	// TODO: Convert field/method code to use the public API?  I can use IType to get fields/methods (but they only get declared ones, so I'd have to walk the supertype chain), IType to get their signature, Signature.getSignature{Qualifier,SimpleName} to get type names, and then EclipseUtils.getType-like code to get the IType back.
 	
+	/**
+	 * Gets all the visible fields of the given type.
+	 * @param type The type whose fields we want to get.
+	 * @return All of the visible fields of the given type.
+	 */
 	public static List<Field> getFields(IJavaType type) {
 		if (type != null && EclipseUtils.isObject(type)) {
 			List<?> untypedFields = ((ReferenceType)((JDIType)type).getUnderlyingType()).visibleFields();
@@ -410,6 +421,15 @@ public final class ExpressionGenerator {
 			return new ArrayList<Field>(0);
 	}
 	
+	/**
+	 * Adds field accesses of the given expression.
+	 * @param e The receiver expression.
+	 * @param ops The list into which we will insert
+	 * the newly-generated expressions.
+	 * @param depth The current search depth.
+	 * @param maxDepth The maximum search depth.
+	 * @throws DebugException
+	 */
 	private void addFieldAccesses(TypedExpression e, List<TypedExpression> ops, int depth, int maxDepth) throws DebugException {
 		// We could use the public Eclipse API here, but it isn't as clean and works on objects not types, so wouldn't work with our static accesses, which we give a null value.  Note that as below with methods, we must now be careful converting between jdi types and Eclipse types. 
 		IJavaObject obj = e.getValue() != null ? (IJavaObject)e.getValue() : null;
@@ -440,6 +460,11 @@ public final class ExpressionGenerator {
 		}
 	}
 
+	/**
+	 * Gets all the visible methods of the given type.
+	 * @param type The type whose methods we want to get.
+	 * @return All of the visible methods of the given type.
+	 */
 	public static List<Method> getMethods(IJavaType type) {
 		if (type != null && EclipseUtils.isObject(type)) {
 			List<?> untypedMethods = ((ReferenceType)((JDIType)type).getUnderlyingType()).visibleMethods();
@@ -451,11 +476,29 @@ public final class ExpressionGenerator {
 			return new ArrayList<Method>(0);
 	}
 	
+	/**
+	 * Checks whether the given method can legally be called.
+	 * @param method The method to check.
+	 * @param thisType The type of the this object.
+	 * @param isConstructor Whether we are expecting a constructor.
+	 * @return Whether the given method is legal to call.
+	 */
 	public static boolean isLegalMethod(Method method, IJavaType thisType, boolean isConstructor) {
 		return ((method.isPublic() || method.declaringType().equals(((JDIType)thisType).getUnderlyingType())) && (!method.isConstructor() || !method.isPackagePrivate()))  // Constructors are not marked as public.
 				&& isConstructor == method.isConstructor() && !method.isSynthetic() && !method.isStaticInitializer() && !method.declaringType().name().equals("java.lang.Object");
 	}
-	
+
+	/**
+	 * Adds method calls of the given expression.
+	 * @param e The receiver expression.
+	 * @param nextLevel The expressions to use as
+	 * arguments.
+	 * @param ops The list into which we will insert
+	 * the newly-generated expressions.
+	 * @param depth The current search depth.
+	 * @param maxDepth The maximum search depth.
+	 * @throws DebugException
+	 */
 	private void addMethodCalls(TypedExpression e, List<TypedExpression> nextLevel, List<TypedExpression> ops, int depth, int maxDepth) throws DebugException {
 		// The public API doesn't tell us the methods of a class, so we need to use the jdi.  Note that we must now be careful converting between jdi types and Eclipse types.
 		Type objTypeImpl = ((JDIType)e.getType()).getUnderlyingType();
@@ -527,6 +570,8 @@ public final class ExpressionGenerator {
 	 * expressions again.
 	 * @param list List to which to add unique expressions.
 	 * @param e Expression to add if it is unique.
+	 * @param depth The current search depth.
+	 * @param maxDepth The maximum search depth.
 	 */
 	private static void addUniqueExpressionToList(List<TypedExpression> list, TypedExpression e, int depth, int maxDepth) {
 		if (e != null && getDepth(e) == (maxDepth - depth) && isUnique(e))
@@ -582,6 +627,8 @@ public final class ExpressionGenerator {
 	 * @param possibleActuals A list of all the possible actuals for each argument.
 	 * @param curActuals The current list of actuals, which is built
 	 * up through recursion.
+	 * @param depth The current search depth.
+	 * @param maxDepth The maximum search depth.
 	 * @throws DebugException 
 	 */
 	private void makeAllCalls(Method method, String name, TypedExpression receiver, IJavaType returnType, List<TypedExpression> ops, ArrayList<ArrayList<TypedExpression>> possibleActuals, ArrayList<TypedExpression> curActuals, int depth, int maxDepth) {
@@ -769,6 +816,11 @@ public final class ExpressionGenerator {
     	return checker.isUnique();
     }
     
+    /**
+     * Gets the depth of the given expression.
+     * @param expr The expression whose depth we want.
+     * @return The depth of the given expression.
+     */
     private static int getDepth(TypedExpression expr) {
     	Object depthProp = expr.getExpression().getProperty("depth");
     	if (depthProp != null)
@@ -776,7 +828,12 @@ public final class ExpressionGenerator {
     	else
     		return getDepth(expr.getExpression());
     }
-    
+
+    /**
+     * Gets the depth of the given expression.
+     * @param expr The expression whose depth we want.
+     * @return The depth of the given expression.
+     */
     private static int getDepth(Expression expr) {
     	if (expr instanceof NumberLiteral || expr instanceof BooleanLiteral || expr instanceof Name || expr instanceof ThisExpression || expr instanceof NullLiteral)
 			return 0;

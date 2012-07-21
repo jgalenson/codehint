@@ -70,6 +70,11 @@ public class EclipseUtils {
 		return ((IJavaElement)sourceElement).getJavaProject();
 	}
     
+	/**
+	 * Gets the Java signature of the given variable.
+	 * @param variable The variable.
+	 * @return The signature of the given variable.
+	 */
     public static String getSignature(IVariable variable) {
     	try {
 	        IJavaVariable javaVariable = (IJavaVariable)variable.getAdapter(IJavaVariable.class);
@@ -79,10 +84,20 @@ public class EclipseUtils {
 		}
     }
     
+    /**
+     * Checks whether the given variable is an object.
+     * @param variable The variable to check.
+     * @return Whether the given variable is an object.
+     */
     public static boolean isObject(IVariable variable) {
     	return isObject(getSignature(variable));
     }
-    
+
+    /**
+     * Checks whether the given type is an object.
+     * @param type The type to check.
+     * @return Whether the given type is an object.
+     */
     public static boolean isObject(IJavaType type) {
     	try {
 	    	return type == null || isObject(type.getSignature());
@@ -90,15 +105,30 @@ public class EclipseUtils {
 			throw new RuntimeException(e);
 		}
     }
-    
+
+    /**
+     * Checks whether the given signature represents an object.
+     * @param signature The signature to check.
+     * @return Whether the given signature represents an object.
+     */
     private static boolean isObject(String signature) {
     	return Signature.getTypeSignatureKind(signature) == Signature.CLASS_TYPE_SIGNATURE;
     }
-    
+
+    /**
+     * Checks whether the given variable is a primitive.
+     * @param variable The variable to check.
+     * @return Whether the given variable is a primitive.
+     */
     public static boolean isPrimitive(IVariable variable) {
     	return isPrimitive(getSignature(variable));
     }
-    
+
+    /**
+     * Checks whether the given type is a primitive.
+     * @param type The type to check.
+     * @return Whether the given type is a primitive.
+     */
     public static boolean isPrimitive(IJavaType type) {
     	try {
     		return type != null && isPrimitive(type.getSignature());
@@ -106,15 +136,30 @@ public class EclipseUtils {
 			throw new RuntimeException(e);
 		}
     }
-    
+
+    /**
+     * Checks whether the given signature represents a primitive.
+     * @param signature The signature to check.
+     * @return Whether the given signature represents a primitive.
+     */
     private static boolean isPrimitive(String signature) {
     	return Signature.getTypeSignatureKind(signature) == Signature.BASE_TYPE_SIGNATURE;
     }
-    
+
+    /**
+     * Checks whether the given variable is an array.
+     * @param variable The variable to check.
+     * @return Whether the given variable is an array.
+     */
     public static boolean isArray(IVariable variable) {
     	return isArray(getSignature(variable));
     }
-    
+
+    /**
+     * Checks whether the given type is an array.
+     * @param type The type to check.
+     * @return Whether the given type is an array.
+     */
     public static boolean isArray(IJavaType type) {
     	try {
 			return isArray(type.getSignature());
@@ -122,16 +167,21 @@ public class EclipseUtils {
 			throw new RuntimeException(e);
 		}
     }
-    
+
+    /**
+     * Checks whether the given signature represents an array.
+     * @param signature The signature to check.
+     * @return Whether the given signature represents an array.
+     */
     private static boolean isArray(String signature) {
     	return Signature.getTypeSignatureKind(signature) == Signature.ARRAY_TYPE_SIGNATURE;
     }
    	
-    // TODO: There must be a better way to do this through Eclipse.
 	/**
 	 * Rewrites a type name so that it can be executed in code.
 	 * For example "Test.Foo foo" compiles but "Test$Foo foo",
 	 * the full typename, does not.
+	 * TODO: There must be a better way to do this through Eclipse.
 	 * @param name The type name.
 	 * @return A sanitized version of the given type name.
 	 */
@@ -164,13 +214,21 @@ public class EclipseUtils {
         }
    		return null;
    	}
-    
+
+    /**
+     * Gets the current editor part.
+     * @return The current editor part.
+     */
     private static IEditorPart getActiveEditorPart() {
    		IWorkbench workbench = PlatformUI.getWorkbench();
        	IWorkbenchPage page = workbench.getActiveWorkbenchWindow().getActivePage();
        	return page.getActiveEditor();
     }
     
+    /**
+     * Gets the current text editor.
+     * @return The current text editor.
+     */
     public static ITextEditor getActiveTextEditor() {
     	IEditorPart editorPart = getActiveEditorPart();
     	ITextEditor editor = (ITextEditor) editorPart.getAdapter(ITextEditor.class);
@@ -229,6 +287,11 @@ public class EclipseUtils {
     		return value.getValueString();
     }
     
+    /**
+     * Gets an AST evaluation engine.
+     * @param stackFrame The current stack frame.
+     * @return An AST evaluation engine.
+     */
     public static IAstEvaluationEngine getASTEvaluationEngine(IJavaStackFrame stackFrame) {
     	return org.eclipse.jdt.debug.eval.EvaluationManager.newAstEvaluationEngine(getProject(stackFrame), (IJavaDebugTarget)stackFrame.getDebugTarget());
     }
@@ -300,6 +363,14 @@ public class EclipseUtils {
 		}
 	}
     
+	/**
+	 * Gets the IType representation of the this object.
+	 * @param project The current project.
+	 * @param stackFrame The current stack frame.
+	 * @return An IType representation of the this object.
+	 * @throws DebugException
+	 * @throws JavaModelException
+	 */
     public static IType getThisType(IJavaProject project, IJavaStackFrame stackFrame) throws DebugException, JavaModelException {
     	String thisTypeName = stackFrame.getDeclaringTypeName();
 		IType thisType = project.findType(thisTypeName);
@@ -314,6 +385,17 @@ public class EclipseUtils {
 		return null;
     }
     
+    /**
+     * Gets the string representation of an error when trying
+     * to use the given string as a subtype of the variable's type.
+     * @param project The current project.
+     * @param varTypeName The name of the type of the variable.
+     * @param thisType The type of the this object.
+     * @param newTypeName A string that should be the name of a
+     * subtype of the variable type name.
+     * @return An error for why the string is not acceptable or
+     * null if it is a valid subtype of the variable type.
+     */
     public static String getValidTypeError(IJavaProject project, String varTypeName, IType thisType, String newTypeName) {
     	try {
     		if (thisType == null)
@@ -371,7 +453,16 @@ public class EclipseUtils {
 			throw new RuntimeException(e);
 		}
     }
-    
+
+    /**
+     * Gets the type with the given unique name
+     * @param project The current project.
+     * @param thisType The type of the this object.
+     * @param typeName The name of the type to get, which does not need
+     * to be fully-qualified but must be unique.
+     * @param target The debug target.
+     * @return The IJavaType representing the given name.
+     */
     private static IJavaType getType(IJavaProject project, IType thisType, String typeName, IJavaDebugTarget target) {
     	try {
     		if (thisType == null || project == null || target == null)
@@ -430,6 +521,12 @@ public class EclipseUtils {
 		}
     }
     
+    /**
+     * Inserts the given text at the given line.
+     * @param text The text to insert.
+     * @param line The line at which to insert it.
+     * @throws BadLocationException
+     */
    	public static void insertIndentedLineAtCurrentDebugPoint(String text, int line) throws BadLocationException {
    		IDocument document = getDocument();
    		
@@ -442,17 +539,25 @@ public class EclipseUtils {
    		String indent = document.get(offset, firstchar-offset);
    		//Bug fix: need to keep the debug cursor before the inserted line so we can
    		// execute it.  Inserting at beginning of line shifts it down one.
-   		document.replace(firstchar, 0, text + "\n" + indent); //$NON-NLS-1$
-   		
-   		//Log the change for debugging
-   		//System.out.println("Inserting text: \"\"\"" + text + "\"\"\" at " + path + " line " + line + " position " + start + " to " + end);
-
+   		document.replace(firstchar, 0, text + "\n" + indent);
    	}
-   	
+
+    /**
+     * Replaces the text at the given line with the next text.
+     * @param newText The text to insert.
+     * @param line The line at which to insert it.
+     * @throws BadLocationException
+     */
    	public static void replaceLineAtCurrentDebugPoint(String newText, int line) throws BadLocationException {
    		replaceLine(newText, line);
    	}
-   	
+
+    /**
+     * Replaces the text at the given line with the next text.
+     * @param newText The text to insert.
+     * @param line The line at which to insert it.
+     * @throws BadLocationException
+     */
    	public static void replaceLine(String newText, int line) throws BadLocationException {
    		IDocument document = getDocument();
    		
@@ -468,24 +573,51 @@ public class EclipseUtils {
    		document.replace(firstChar, lastChar - firstChar, newText);
    	}
    	
+   	/**
+   	 * Gets the current document.
+   	 * This must be called from the UI thread.
+   	 * @return The current document.
+   	 */
    	public static IDocument getDocument() {
    		ITextEditor editor = EclipseUtils.getActiveTextEditor();
    		return editor.getDocumentProvider().getDocument(editor.getEditorInput());
    	}
 
-   	// This only seems to work when called from the UI thread (e.g., when called with Display.syncExec).
+   	/**
+   	 * Gets the current shell.
+   	 * This must be called from the UI thread.
+   	 * @return The current shell.
+   	 */
 	public static Shell getShell() {
 		return PlatformUI.getWorkbench().getActiveWorkbenchWindow().getShell();
 	}
    	
+	/**
+	 * Shows an error to the user.
+	 * @param title The title of the textbox.
+	 * @param text The text of the error to show.
+	 * @param exception The exception that caused the error, if any.
+	 */
    	public static void showError(final String title, String text, Throwable exception) {
    		showErrorOrWarning(title, text, exception, IStatus.ERROR);
    	}
-   	
+
+	/**
+	 * Shows a warning to the user.
+	 * @param title The title of the textbox.
+	 * @param text The text of the warning to show.
+	 * @param exception The exception that caused the warning, if any.
+	 */
    	public static void showWarning(final String title, String text, Throwable exception) {
    		showErrorOrWarning(title, text, exception, IStatus.WARNING);
    	}
-   	
+
+	/**
+	 * Shows an error or warning to the user.
+	 * @param title The title of the textbox.
+	 * @param text The text of the error or warning to show.
+	 * @param exception The exception that caused the error or warning, if any.
+	 */
    	private static void showErrorOrWarning(final String title, String text, Throwable exception, int severity) {
    		final IStatus status = new Status(severity, Activator.PLUGIN_ID, IStatus.OK, text, exception);
 		Display.getDefault().asyncExec(new Runnable() {
@@ -496,18 +628,22 @@ public class EclipseUtils {
 		});
    	}
    	
+   	/**
+   	 * Logs the given message to Eclipse's log.
+   	 * @param msg The message to log.
+   	 */
    	public static void log(String msg) {
    		Activator.getDefault().getLog().log(new Status(IStatus.INFO, Activator.PLUGIN_ID, msg));
    	}
 
     /**
      * Evaluates the given snippet. Reports any errors to the user.
+     * TODO: Integrate with codehint.expreval code?
      * @param stringValue the snippet to evaluate
      * @param stack The current stack frame.
      * @return the value that was computed or <code>null</code> if any errors occurred.
      * @throws DebugException 
      */
-   	// TODO: Integrate with codehint.expreval code?
     public static IJavaValue evaluate(String stringValue, final IJavaStackFrame stack) throws DebugException {
         IAstEvaluationEngine engine = getASTEvaluationEngine(stack);
         final IEvaluationResult[] results = new IEvaluationResult[1];
@@ -540,13 +676,29 @@ public class EclipseUtils {
 		return result.getValue();
     }
     
+    /**
+     * Gets the unqualified version of the given type.
+     * For example, given "java.lang.String" it returns
+     * "Strings".
+     * @param name The name of a type.
+     * @return An unqualified version of the name of the
+     * given type.
+     */
     public static String getUnqualifiedName(String name) {
     	int lastDot = name.lastIndexOf('.');
     	if (lastDot != -1)
     		name = name.substring(lastDot + 1);
     	return name;
     }
-    
+
+    /**
+     * Gets a type if it exists, loading it if needed.
+     * @param typeName The name of the type to get.
+     * @param stack The current stack frame.
+     * @param target The debug target.
+     * @return The type with the given name, or null if
+     * no such type exists.
+     */
     public static IJavaType getTypeAndLoadIfNeededAndExists(String typeName, IJavaStackFrame stack, IJavaDebugTarget target) {
     	try {
     		IJavaType type = getFullyQualifiedTypeIfExists(typeName, target);
@@ -561,6 +713,13 @@ public class EclipseUtils {
     	}
     }
     
+    /**
+     * Gets a type, loading it if needed.
+     * @param typeName The name of the type to get.
+     * @param stack The current stack frame.
+     * @param target The debug target.
+     * @return The type with the given name.
+     */
     public static IJavaType getTypeAndLoadIfNeeded(String typeName, IJavaStackFrame stack, IJavaDebugTarget target) {
 		IJavaType type = getFullyQualifiedTypeIfExists(typeName, target);
 		if (type == null) {
@@ -575,6 +734,13 @@ public class EclipseUtils {
 		return type;
     }
     
+    /**
+     * Load and return the given type.
+     * @param typeName The name of the type to load and return.
+     * @param stack The current stack frame.
+     * @param target The debug target.
+     * @return The newly-loaded type.
+     */
     private static IJavaType loadAndGetType(String typeName, IJavaStackFrame stack, IJavaDebugTarget target) {
 		loadClass(typeName, stack);
 		IJavaType type = getFullyQualifiedTypeIfExists(typeName, target);
@@ -584,7 +750,12 @@ public class EclipseUtils {
 			return getType(typeName, stack, target);
     }
     
-    // TODO: There must be a better way to do this.
+    /**
+     * Loads the given type.
+     * TODO: There must be a better way to do this.
+     * @param typeName The name of the type to load.
+     * @param stack The current stack frame.
+     */
     private static void loadClass(String typeName, IJavaStackFrame stack) {
     	try {
     		int dollar = typeName.indexOf('$');  // For inner classes, we seem to need to load the outer class first.
@@ -596,6 +767,11 @@ public class EclipseUtils {
     	}
     }
     
+    /**
+     * Gets a string whose evaluation will load the given type.
+     * @param typeName The name of a type to load.
+     * @return A string whose evaluation will load the given type.
+     */
     private static String getClassLoadExpression(String typeName) {
     	return sanitizeTypename(typeName) + ".class";
     }
@@ -652,10 +828,13 @@ public class EclipseUtils {
     	return sb.toString();
     }
 	
-    /*
-     * Inspired by org.eclipse.jdt.internal.debug.ui.actions.EvaluateAction.getExceptionMessage.
-     */
-	private static String getExceptionMessage(Throwable exception) {
+	/**
+	 * Gets the message of an exception.
+	 * Inspired by org.eclipse.jdt.internal.debug.ui.actions.EvaluateAction.getExceptionMessage.
+	 * @param exception The exception whose message we want to get.
+	 * @return The message of the given exception.
+	 */
+    private static String getExceptionMessage(Throwable exception) {
 		if (exception instanceof CoreException) {
 			CoreException ce = (CoreException)exception;
 			Throwable throwable= ce.getStatus().getException();
