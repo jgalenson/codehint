@@ -45,8 +45,10 @@ import org.eclipse.jdt.core.dom.ThisExpression;
 import org.eclipse.jdt.core.dom.Type;
 import org.eclipse.jdt.core.dom.TypeLiteral;
 import org.eclipse.jdt.debug.core.IJavaArrayType;
+import org.eclipse.jdt.debug.core.IJavaClassObject;
 import org.eclipse.jdt.debug.core.IJavaClassType;
 import org.eclipse.jdt.debug.core.IJavaDebugTarget;
+import org.eclipse.jdt.debug.core.IJavaReferenceType;
 import org.eclipse.jdt.debug.core.IJavaStackFrame;
 import org.eclipse.jdt.debug.core.IJavaType;
 import org.eclipse.jdt.debug.core.IJavaVariable;
@@ -537,8 +539,7 @@ public final class ExpressionSkeleton {
 				IJavaType type = getThisType();
 				return new ExpressionsAndTypeConstraints(new TypedExpression(node, type, null), new SupertypeBound(type)); 
 			} else if (node instanceof TypeLiteral) {
-				IJavaType type = EclipseUtils.getType(((TypeLiteral)node).getType().toString(), stack, target);
-				return new ExpressionsAndTypeConstraints(new TypedExpression(node, type, null), new SupertypeBound(type));
+				return fillTypeLiteral(node);
 			} else
 				throw new RuntimeException("Unexpected expression type " + node.getClass().toString());
 		}
@@ -778,6 +779,17 @@ public final class ExpressionSkeleton {
 					assert type != null : name.getIdentifier();
 					return new ExpressionsAndTypeConstraints(ExpressionMaker.makeStaticName(name.getIdentifier(), type), new SupertypeBound(type));
 				}
+			} catch (DebugException e) {
+				throw new RuntimeException(e);
+			}
+		}
+
+		private ExpressionsAndTypeConstraints fillTypeLiteral(Expression node) {
+			try {
+				IJavaType type = EclipseUtils.getType(((TypeLiteral)node).getType().toString(), stack, target);
+				IJavaClassObject classObj = ((IJavaReferenceType)type).getClassObject();
+				IJavaType classObjType = classObj.getJavaType();
+				return new ExpressionsAndTypeConstraints(new TypedExpression(node, classObjType, classObj), new SupertypeBound(classObjType));
 			} catch (DebugException e) {
 				throw new RuntimeException(e);
 			}
