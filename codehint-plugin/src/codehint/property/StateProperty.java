@@ -46,7 +46,7 @@ public class StateProperty extends Property {
 		ASTNode property = rewritePrimeSyntax(str);
 		if (property instanceof CompilationUnit)
 			return "Enter a valid expression: " + ((CompilationUnit)property).getProblems()[0].getMessage();
-		String compileErrors = EclipseUtils.getCompileErrors(property.toString(), "boolean", stackFrame, evaluationEngine);
+		String compileErrors = EclipseUtils.getCompileErrors(property.toString().replaceAll("CodeHint.post", ""), "boolean", stackFrame, evaluationEngine);
 		if (compileErrors != null)
 			return compileErrors;
 		return ValidityChecker.getError((Expression)property);
