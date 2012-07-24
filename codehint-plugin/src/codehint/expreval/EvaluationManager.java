@@ -23,10 +23,10 @@ import org.eclipse.jdt.core.dom.MethodInvocation;
 import org.eclipse.jdt.core.dom.SimpleName;
 import org.eclipse.jdt.debug.core.IJavaArray;
 import org.eclipse.jdt.debug.core.IJavaArrayType;
+import org.eclipse.jdt.debug.core.IJavaClassType;
 import org.eclipse.jdt.debug.core.IJavaDebugTarget;
 import org.eclipse.jdt.debug.core.IJavaFieldVariable;
 import org.eclipse.jdt.debug.core.IJavaPrimitiveValue;
-import org.eclipse.jdt.debug.core.IJavaReferenceType;
 import org.eclipse.jdt.debug.core.IJavaStackFrame;
 import org.eclipse.jdt.debug.core.IJavaType;
 import org.eclipse.jdt.debug.core.IJavaValue;
@@ -68,7 +68,7 @@ public final class EvaluationManager {
 	
 	private final IJavaStackFrame stack;
 	private final IAstEvaluationEngine engine;
-	private final IJavaReferenceType implType;
+	private final IJavaClassType implType;
 	private final IJavaFieldVariable validField;
 	private final IJavaFieldVariable toStringsField;
 	private final IJavaFieldVariable valueCountField;
@@ -86,7 +86,7 @@ public final class EvaluationManager {
 	public EvaluationManager(IJavaStackFrame stack) {
 		this.stack = stack;
 		this.engine = EclipseUtils.getASTEvaluationEngine(stack);
-		this.implType = (IJavaReferenceType)EclipseUtils.getTypeAndLoadIfNeeded(IMPL_NAME, stack, (IJavaDebugTarget)stack.getDebugTarget());
+		this.implType = (IJavaClassType)EclipseUtils.getTypeAndLoadIfNeeded(IMPL_NAME, stack, (IJavaDebugTarget)stack.getDebugTarget());
 		try {
 			this.validField = implType.getField("valid");
 			this.toStringsField = implType.getField("toStrings");
@@ -365,6 +365,14 @@ public final class EvaluationManager {
 			}
 		}
 		return results;
+	}
+	
+	public void resetFields() {
+		try {
+			EclipseUtils.evaluate(IMPL_QUALIFIER + "reset()", stack);
+		} catch (DebugException e) {
+			throw new RuntimeException(e);
+		}
 	}
 	
 	private static class Evaluator {

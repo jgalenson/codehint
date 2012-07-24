@@ -184,7 +184,7 @@ public class Synthesizer {
 		 * back to the synthesis dialog on the UI thread.
 		 * @param synthesisDialog The dialog controlling the synthesis.
 		 */
-		public void synthesize(final InitialSynthesisDialog synthesisDialog) {
+		public void synthesize(final InitialSynthesisDialog synthesisDialog, final EvaluationManager evalManager) {
 			final Property property = synthesisDialog.getProperty();
 			final ExpressionSkeleton skeleton = synthesisDialog.getSkeleton();
 			Job job = new Job("Expression generation") {
@@ -209,6 +209,7 @@ public class Synthesizer {
 			                	synthesisDialog.startEndSynthesis(false);
 							}
 			        	});
+						evalManager.resetFields();
 					}
 				}
 			};
@@ -370,6 +371,7 @@ public class Synthesizer {
    	   					synthesisDialog.open();
    	   				}
    	   			});
+   				evalManager.resetFields();
    				ArrayList<EvaluatedExpression> validExprs = synthesisDialog.getExpressions();
        			if (validExprs == null) {
        				//The user cancelled, just drop back into the debugger and let the 
@@ -389,7 +391,7 @@ public class Synthesizer {
 
        			if (validExprs.size() == 1) {
            			// If there's only a single possibility remaining, remove the breakpoint.
-           			assert thread.getBreakpoints().length > 0;
+           			assert thread.getBreakpoints().length > 0 : thread.getBreakpoints().length;
            			// If there are multiple breakpoints at this line, only remove one (presumably the user added the others).
            			IBreakpoint curBreakpoint = thread.getBreakpoints()[0];
            			try {

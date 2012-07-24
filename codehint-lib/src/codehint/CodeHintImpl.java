@@ -21,5 +21,19 @@ public final class CodeHintImpl {
 	
 	public static int valueCount;
 	public static int fullCount;
+	
+	public static void reset() {
+		objects = null;
+		ints = null;
+		booleans = null;
+		longs = null;
+		bytes = null;
+		chars = null;
+		shorts = null;
+		floats = null;
+		doubles = null;
+		valid = null;
+		toStrings = null;
+	}
 
 }

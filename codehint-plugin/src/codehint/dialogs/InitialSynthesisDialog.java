@@ -236,7 +236,7 @@ public class InitialSynthesisDialog extends SynthesisDialog {
     		monitor.setLayoutData(gridData);
     		monitorComposite.getParent().layout(true);
     		// Start the synthesis
-	    	worker.synthesize(this);
+	    	worker.synthesize(this, evalManager);
         } else if (buttonId == IDialogConstants.OK_ID) {
          	results = new ArrayList<EvaluatedExpression>();
          	for (int i = 0; i < table.getItemCount(); i++)
