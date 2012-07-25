@@ -325,9 +325,10 @@ public class EclipseUtils {
 
     /**
      * Checks the given text for compile errors, including that it
-     * has the correct type.
+     * has the correct type, if applicable.
      * @param newText A string of the expression to compile.
-     * @param typeName A string of the name of the desired type of the expression.
+     * @param typeName A string of the name of the desired type of
+     * the expression or null if we should just evaluate the expression.
      * @param stackFrame The stack frame.
      * @param evaluationEngine The evaluation engine.
      * @return Any compile errors from the expression, including an error
@@ -343,9 +344,10 @@ public class EclipseUtils {
 
     /**
      * Checks the given text for compile errors, including that it
-     * has the correct type.
+     * has the correct type, if applicable.
      * @param newText A string of the expression to compile.
-     * @param typeName A string of the name of the desired type of the expression.
+     * @param typeName A string of the name of the desired type of
+     * the expression or null if we should just evaluate the expression.
      * @param stackFrame The stack frame.
      * @param evaluationEngine The evaluation engine.
      * @return Any compile errors from the expression, including an error
