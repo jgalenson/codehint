@@ -360,11 +360,19 @@ public final class ExpressionSkeleton {
 		
 	}
 	
+	/**
+	 * Synthesizes expressions that satisfy this skeleton and the user's pdspec.
+	 * @param property The pdspec entered by the user.
+	 * @param varStaticType The static type of the variable being assigned.
+	 * @param synthesisDialog The synthesis dialog to pass valid expressions.
+	 * @param monitor The progress monitor.
+	 * @return Expressions that satisfy this skeletonn and the pdspec.
+	 */
 	public ArrayList<EvaluatedExpression> synthesize(Property property, IJavaType varStaticType, InitialSynthesisDialog synthesisDialog, IProgressMonitor monitor) {
 		try {
 			long startTime = System.currentTimeMillis();
 			// TODO: Improve progress monitor so it shows you which evaluation it is.
-			TypeConstraint typeConstraint = getInitialTypeConstraint(varStaticType, property, stack, target);
+			TypeConstraint typeConstraint = getInitialTypeConstraint(varStaticType, property);
 			ArrayList<EvaluatedExpression> results;
 			if (HOLE_SYNTAX.equals(sugaredString))  // Optimization: Optimize special case of "??" skeleton by simply calling old ExprGen code directly.
 				results = expressionGenerator.generateExpression(property, typeConstraint, synthesisDialog, monitor, 1);
@@ -382,19 +390,30 @@ public final class ExpressionSkeleton {
 		}
 	}
 	
-	private static TypeConstraint getInitialTypeConstraint(IJavaType varStaticType, Property property, IJavaStackFrame stack, IJavaDebugTarget target) throws DebugException {
-		if (property instanceof ValueProperty)
+	/**
+	 * Gets the initial type constraint for the whole skeleton based on the
+	 * static type of the varible being assigned and the pdspec.
+	 * @param varStaticType The static type of the variable being assigned.
+	 * @param property The pdspec.
+	 * @return The initial type constraint for the whole skeleton.
+	 * @throws DebugException
+	 */
+	private TypeConstraint getInitialTypeConstraint(IJavaType varStaticType, Property property) throws DebugException {
+		if (property instanceof ValueProperty)  // We want exactly the type of the value.
 			return new DesiredType(((ValueProperty)property).getValue().getJavaType());
-		else if (property instanceof TypeProperty)
+		else if (property instanceof TypeProperty)  // We want the type specified by the type property.
 			return new SupertypeBound(EclipseUtils.getType(((TypeProperty)property).getTypeName(), stack, target));
 		else if (property instanceof LambdaProperty) {
 			String typeName = ((LambdaProperty)property).getTypeName();
-			if (typeName != null)
+			if (typeName != null)  // We want the type specified in the lambda expression.
 				return new SupertypeBound(EclipseUtils.getType(typeName, stack, target));
 		}
-		return new SupertypeBound(varStaticType);
+		return new SupertypeBound(varStaticType);  // Just use the variable's static type.
 	}
 	
+	/**
+	 * A class that computes the parents of holes.
+	 */
 	private static class HoleParentSetter extends ASTVisitor {
 
 		private final Map<String, HoleInfo> holeInfos;
@@ -405,6 +424,12 @@ public final class ExpressionSkeleton {
 			parentsOfHoles = new HashSet<ASTNode>();
 		}
 		
+		/**
+		 * Finds all the nodes that are parents of a hole.
+		 * @param holeInfos The information about the holes.
+		 * @param skeleton The skeleton expression.
+		 * @return All the nodes that are parents of a hole.
+		 */
 		public static Set<ASTNode> getParentsOfHoles(Map<String, HoleInfo> holeInfos, Expression skeleton) {
 			HoleParentSetter holeParentSetter = new HoleParentSetter(holeInfos);
 			skeleton.accept(holeParentSetter);
@@ -421,6 +446,9 @@ public final class ExpressionSkeleton {
 		
 	}
 	
+	/**
+	 * A class that represents a type error in the skeleton.
+	 */
 	public static class TypeError extends RuntimeException {
 		
 		private static final long serialVersionUID = 1L;
@@ -431,6 +459,10 @@ public final class ExpressionSkeleton {
 		
 	}
 	
+	/**
+	 * The class responsible for filling the skeleton with
+	 * candidate expressions, i.e., doing the actual synthesis.
+	 */
 	private static class SkeletonFiller {
 
 		private final Map<String, Map<String, ArrayList<EvaluatedExpression>>> holeValues;
@@ -447,6 +479,17 @@ public final class ExpressionSkeleton {
 		private final IJavaType intType;
 		private final IJavaType booleanType;
 		
+		/**
+		 * Creates a new SkeletonFiller.  Many common values are
+		 * stored as ivars for convenience.
+		 * @param holeInfos The information about the holes in the skeleton.
+		 * @param stack The current stack frame.
+		 * @param target The debug target.
+		 * @param evalManager The evaluation manager.
+		 * @param expressionGenerator The expression generator.
+		 * @param subtypeChecker The subtype checker.
+		 * @param monitor The progress monitor.
+		 */
 		private SkeletonFiller(Map<String, HoleInfo> holeInfos, IJavaStackFrame stack, IJavaDebugTarget target, EvaluationManager evalManager, ExpressionGenerator expressionGenerator, SubtypeChecker subtypeChecker, IProgressMonitor monitor) {
 			this.holeValues = new HashMap<String, Map<String, ArrayList<EvaluatedExpression>>>();
 			this.holeFields = new HashMap<String, Map<String, ArrayList<Field>>>();
@@ -462,6 +505,23 @@ public final class ExpressionSkeleton {
 			booleanType = EclipseUtils.getFullyQualifiedType("boolean", target);
 		}
 		
+		/**
+		 * Fill the skeleton by synthesizing expressions that meet it.
+		 * That is, it finds expressions that can complete the holes
+		 * in type-correct ways and returns the entire expressions.
+		 * @param skeleton The actual skeleton.
+		 * @param initialTypeConstraint The type constraint for the
+		 * entire skeleton.  This constrains what type it must return.
+		 * @param holeInfos The information about the holes in the skeleton.
+		 * @param stack The current stack frame.
+		 * @param target The debug target.
+		 * @param evalManager The evaluation manager.
+		 * @param expressionGenerator The expression generator.
+		 * @param subtypeChecker The subtype checker.
+		 * @param monitor The progress monitor.
+		 * @return Expressions that meet the skeleton (with the
+		 * holes filled in).
+		 */
 		public static ArrayList<TypedExpression> fillSkeleton(Expression skeleton, TypeConstraint initialTypeConstraint, Map<String, HoleInfo> holeInfos, IJavaStackFrame stack, IJavaDebugTarget target, EvaluationManager evalManager, ExpressionGenerator expressionGenerator, SubtypeChecker subtypeChecker, IProgressMonitor monitor) {
 			SkeletonFiller filler = new SkeletonFiller(holeInfos, stack, target, evalManager, expressionGenerator, subtypeChecker, monitor);
 			ExpressionsAndTypeConstraints result = filler.fillSkeleton(skeleton, initialTypeConstraint, HoleParentSetter.getParentsOfHoles(holeInfos, skeleton));
@@ -471,7 +531,22 @@ public final class ExpressionSkeleton {
 			return exprs;
 		}
 		
-		// TODO: Instead of simply setting the node's constraint to the new thing, should we also keep what we have from the old one?  E.g., in get{Fields,Methods}AndSetConstraint, the old constraint might be "thing with a field" and the new might be "thing of type Foo".  We want to combine those two.
+		/**
+		 * Recursively fills the given skeleton pieces.  We split on
+		 * the type of the current AST node, handling each differently.
+		 * 
+		 * TODO: Instead of simply setting the node's constraint to the new thing,
+		 * should we also keep what we have from the old one? 
+		 * E.g., in get{Fields,Methods}AndSetConstraint, the old constraint might be
+		 * "thing with a field" and the new might be "thing of type Foo".
+		 * We want to combine those two.
+		 * @param node The current piece of the skeleton.
+		 * @param curConstraint The constraint for the type of the
+		 * expressions generated from this piece of the skeleton.
+		 * @param parentsOfHoles All the nodes that are parents of some hole.
+		 * @return The synthesized expressions corresponding to this
+		 * skeleton piece and the type constraint representing their types.
+		 */
 		private ExpressionsAndTypeConstraints fillSkeleton(Expression node, TypeConstraint curConstraint, Set<ASTNode> parentsOfHoles) {
 			if (node instanceof ArrayAccess) {
 				return fillArrayAccess((ArrayAccess)node, curConstraint, parentsOfHoles);
@@ -544,6 +619,15 @@ public final class ExpressionSkeleton {
 				throw new RuntimeException("Unexpected expression type " + node.getClass().toString());
 		}
 
+		/**
+		 * Fills array access skeleton pieces.
+		 * @param arrayAccess The array access part of the skeleton.
+		 * @param curConstraint The constraint for the type of the
+		 * expressions generated from this piece of the skeleton.
+		 * @param parentsOfHoles All nodes that are parents of some hole.
+		 * @return The synthesized expressions corresponding to this
+		 * skeleton piece and the type constraint representing their types.
+		 */
 		private ExpressionsAndTypeConstraints fillArrayAccess(ArrayAccess arrayAccess, TypeConstraint curConstraint, Set<ASTNode> parentsOfHoles) {
 			try {
 				TypeConstraint arrayConstraint = null;
@@ -573,6 +657,15 @@ public final class ExpressionSkeleton {
 			}
 		}
 
+		/**
+		 * Fills cast skeleton pieces.
+		 * @param cast The cast part of the skeleton.
+		 * @param curConstraint The constraint for the type of the
+		 * expressions generated from this piece of the skeleton.
+		 * @param parentsOfHoles All nodes that are parents of some hole.
+		 * @return The synthesized expressions corresponding to this
+		 * skeleton piece and the type constraint representing their types.
+		 */
 		private ExpressionsAndTypeConstraints fillCast(CastExpression cast, TypeConstraint curConstraint, Set<ASTNode> parentsOfHoles) {
 			// TODO: Allow any type or ensure comparable with the given type with SameHierarchy?
 			ExpressionsAndTypeConstraints exprResult = fillSkeleton(cast.getExpression(), curConstraint, parentsOfHoles);
@@ -584,6 +677,15 @@ public final class ExpressionSkeleton {
 			return new ExpressionsAndTypeConstraints(resultExprs, new SupertypeBound(castType));
 		}
 
+		/**
+		 * Fills class instance creation skeleton pieces.
+		 * @param node The class instance creation part of the skeleton.
+		 * @param curConstraint The constraint for the type of the
+		 * expressions generated from this piece of the skeleton.
+		 * @param parentsOfHoles All nodes that are parents of some hole.
+		 * @return The synthesized expressions corresponding to this
+		 * skeleton piece and the type constraint representing their types.
+		 */
 		private ExpressionsAndTypeConstraints fillClassInstanceCreation(Expression node, Set<ASTNode> parentsOfHoles) {
 			ClassInstanceCreation cons = (ClassInstanceCreation)node;
 			assert cons.getExpression() == null;  // TODO: Handle this case.
@@ -599,6 +701,15 @@ public final class ExpressionSkeleton {
 			return new ExpressionsAndTypeConstraints(resultExprs, new DesiredType(consType));
 		}
 
+		/**
+		 * Fills conditional/ternary skeleton pieces.
+		 * @param node The conditional/ternary part of the skeleton.
+		 * @param curConstraint The constraint for the type of the
+		 * expressions generated from this piece of the skeleton.
+		 * @param parentsOfHoles All nodes that are parents of some hole.
+		 * @return The synthesized expressions corresponding to this
+		 * skeleton piece and the type constraint representing their types.
+		 */
 		private ExpressionsAndTypeConstraints fillConditionalExpression(Expression node, TypeConstraint curConstraint, Set<ASTNode> parentsOfHoles) {
 			ConditionalExpression cond = (ConditionalExpression)node;
 			// TODO: Do a better job of constraining left/right to be similar?  E.g., if we have right but not left.
@@ -615,6 +726,15 @@ public final class ExpressionSkeleton {
 			return new ExpressionsAndTypeConstraints(resultExprs, thenResult.getTypeConstraint());
 		}
 
+		/**
+		 * Fills infix skeleton pieces.
+		 * @param node The infix part of the skeleton.
+		 * @param curConstraint The constraint for the type of the
+		 * expressions generated from this piece of the skeleton.
+		 * @param parentsOfHoles All nodes that are parents of some hole.
+		 * @return The synthesized expressions corresponding to this
+		 * skeleton piece and the type constraint representing their types.
+		 */
 		private ExpressionsAndTypeConstraints fillInfixExpression(Expression node, TypeConstraint curConstraint, Set<ASTNode> parentsOfHoles) {
 			try {
 				InfixExpression infix = (InfixExpression)node;
@@ -651,6 +771,15 @@ public final class ExpressionSkeleton {
 			}
 		}
 
+		/**
+		 * Fills instanceof skeleton pieces.
+		 * @param node The instanceof part of the skeleton.
+		 * @param curConstraint The constraint for the type of the
+		 * expressions generated from this piece of the skeleton.
+		 * @param parentsOfHoles All nodes that are parents of some hole.
+		 * @return The synthesized expressions corresponding to this
+		 * skeleton piece and the type constraint representing their types.
+		 */
 		private ExpressionsAndTypeConstraints fillInstanceof(InstanceofExpression instance, Set<ASTNode> parentsOfHoles) {
 			IJavaType castType = EclipseUtils.getType(instance.getRightOperand().toString(), stack, target);
 			ExpressionsAndTypeConstraints exprResult = fillSkeleton(instance.getLeftOperand(), new SameHierarchy(castType), parentsOfHoles);
@@ -661,6 +790,15 @@ public final class ExpressionSkeleton {
 			return new ExpressionsAndTypeConstraints(resultExprs, new SupertypeBound(booleanType));
 		}
 
+		/**
+		 * Fills number literal skeleton pieces.
+		 * @param node The number literal part of the skeleton.
+		 * @param curConstraint The constraint for the type of the
+		 * expressions generated from this piece of the skeleton.
+		 * @param parentsOfHoles All nodes that are parents of some hole.
+		 * @return The synthesized expressions corresponding to this
+		 * skeleton piece and the type constraint representing their types.
+		 */
 		private ExpressionsAndTypeConstraints fillNumberLiteral(Expression node) {
 			String str = ((NumberLiteral)node).getToken();
 			int lastChar = str.charAt(str.length() - 1);
@@ -677,6 +815,15 @@ public final class ExpressionSkeleton {
 			return new ExpressionsAndTypeConstraints(new TypedExpression(node, resultType, null), new SupertypeBound(resultType));
 		}
 
+		/**
+		 * Fills parenthesized skeleton pieces.
+		 * @param node The parenthesized part of the skeleton.
+		 * @param curConstraint The constraint for the type of the
+		 * expressions generated from this piece of the skeleton.
+		 * @param parentsOfHoles All nodes that are parents of some hole.
+		 * @return The synthesized expressions corresponding to this
+		 * skeleton piece and the type constraint representing their types.
+		 */
 		private ExpressionsAndTypeConstraints fillParenthesized(ParenthesizedExpression paren, TypeConstraint curConstraint, Set<ASTNode> parentsOfHoles) {
 			ExpressionsAndTypeConstraints exprResult = fillSkeleton(paren.getExpression(), curConstraint, parentsOfHoles);
 			Map<String, ArrayList<TypedExpression>> resultExprs = new HashMap<String, ArrayList<TypedExpression>>(exprResult.getExprs().size());
@@ -685,9 +832,19 @@ public final class ExpressionSkeleton {
 					Utils.addToMap(resultExprs, res.getKey(), ExpressionMaker.makeParenthesized(expr));
 			return new ExpressionsAndTypeConstraints(resultExprs, curConstraint);
 		}
-		
-		// TODO: Support increment/decrement.  I need to ensure that the expr is a non-final variable.
 
+		/**
+		 * Fills postfix skeleton pieces.
+		 *
+		 * TODO: Support increment/decrement (and in prefix).
+		 * I need to ensure that the expr is a non-final variable.
+		 * @param node The postfix part of the skeleton.
+		 * @param curConstraint The constraint for the type of the
+		 * expressions generated from this piece of the skeleton.
+		 * @param parentsOfHoles All nodes that are parents of some hole.
+		 * @return The synthesized expressions corresponding to this
+		 * skeleton piece and the type constraint representing their types.
+		 */
 		private ExpressionsAndTypeConstraints fillPostfix(PostfixExpression postfix, TypeConstraint curConstraint, Set<ASTNode> parentsOfHoles) {
 			ExpressionsAndTypeConstraints exprResult = fillSkeleton(postfix.getOperand(), curConstraint, parentsOfHoles);
 			Map<String, ArrayList<TypedExpression>> resultExprs = new HashMap<String, ArrayList<TypedExpression>>(exprResult.getExprs().size());
@@ -697,6 +854,15 @@ public final class ExpressionSkeleton {
 			return new ExpressionsAndTypeConstraints(resultExprs, curConstraint);
 		}
 
+		/**
+		 * Fills prefix skeleton pieces.
+		 * @param node The prefix part of the skeleton.
+		 * @param curConstraint The constraint for the type of the
+		 * expressions generated from this piece of the skeleton.
+		 * @param parentsOfHoles All nodes that are parents of some hole.
+		 * @return The synthesized expressions corresponding to this
+		 * skeleton piece and the type constraint representing their types.
+		 */
 		private ExpressionsAndTypeConstraints fillPrefix(PrefixExpression prefix, TypeConstraint curConstraint, Set<ASTNode> parentsOfHoles) {
 			ExpressionsAndTypeConstraints exprResult = fillSkeleton(prefix.getOperand(), curConstraint, parentsOfHoles);
 			Map<String, ArrayList<TypedExpression>> resultExprs = new HashMap<String, ArrayList<TypedExpression>>(exprResult.getExprs().size());
@@ -706,38 +872,52 @@ public final class ExpressionSkeleton {
 			return new ExpressionsAndTypeConstraints(resultExprs, curConstraint);
 		}
 
+		/**
+		 * Fills simple name (i.e., no qualifiers) skeleton pieces.
+		 * @param node The simple name part of the skeleton.
+		 * @param curConstraint The constraint for the type of the
+		 * expressions generated from this piece of the skeleton.
+		 * @param parentsOfHoles All nodes that are parents of some hole.
+		 * @return The synthesized expressions corresponding to this
+		 * skeleton piece and the type constraint representing their types.
+		 */
 		private ExpressionsAndTypeConstraints fillSimpleName(Expression node, TypeConstraint curConstraint) {
 			try {
 				SimpleName name = (SimpleName)node;
-				if (holeInfos.containsKey(name.getIdentifier())) {
+				if (holeInfos.containsKey(name.getIdentifier())) {  // This is a hole.
 					HoleInfo holeInfo = holeInfos.get(name.getIdentifier());
 					SubMonitor childMonitor = SubMonitor.convert(monitor, "Hole generation and evaluation", 1);
 					assert !holeInfo.isNegative();  // TODO: Use negative arg information.
 					// TODO: Optimization: If this is the only hole, evaluate the skeleton directly?
 					// TODO: Improve heuristics to reduce search space when too many holes.
-					if (curConstraint instanceof FieldNameConstraint) {
+					if (curConstraint instanceof FieldNameConstraint) {  // Field name hole
 						FieldNameConstraint fieldNameConstraint = (FieldNameConstraint)curConstraint;
 						if (holeInfo.getArgs() != null)
 							fieldNameConstraint.setLegalNames(new HashSet<String>(holeInfo.getArgs()));
 						return new ExpressionsAndTypeConstraints(getFieldsAndSetConstraint(name, fieldNameConstraint, true));
-					} else if (curConstraint instanceof MethodNameConstraint) {
+					} else if (curConstraint instanceof MethodNameConstraint) {  // Method name hole
 						MethodNameConstraint methodNameConstraint = (MethodNameConstraint)curConstraint;
 						if (holeInfo.getArgs() != null)
 							methodNameConstraint.setLegalNames(new HashSet<String>(holeInfo.getArgs()));
 						return new ExpressionsAndTypeConstraints(getMethodsAndSetConstraint(name, methodNameConstraint, true));
-					} else {
+					} else {  // Expression hole
 						ArrayList<EvaluatedExpression> values;
-						if (holeInfo.getArgs() != null) {
-							ArrayList<String> nonCrashingStrings = filterCrashingExpression(holeInfo.getArgs(), childMonitor);
+						if (holeInfo.getArgs() != null) {  // If the user supplied potential expressions, use them.
+							// Filter out potential expressions that do not compile.
+							ArrayList<String> nonCrashingStrings = removeNonCompilingExpressions(holeInfo.getArgs(), childMonitor);
+							// Get the correct type of each expression.
 							ArrayList<TypedExpression> fakeTypedHoleInfos = new ArrayList<TypedExpression>(nonCrashingStrings.size());
 							for (String s: nonCrashingStrings) {
 								Expression e = (Expression)ExpressionMaker.resetAST(EclipseUtils.parseExpr(parser, s));
+								// The current evaluation manager needs to know the type of the expression, so we figure it out.
 								IJavaType type = curConstraint instanceof DesiredType ? ((DesiredType)curConstraint).getDesiredType() : ((SingleTypeConstraint)fillSkeleton(e, curConstraint, null).getTypeConstraint()).getTypeConstraint();
 								fakeTypedHoleInfos.add(new TypedExpression(e, type, null));
 							}
+							// Evaluate all the expressions.
 							values = evalManager.evaluateExpressions(fakeTypedHoleInfos, null, null, childMonitor);
-						} else
+						} else  // If the user did not provide potential expressions, synthesize some.
 							values = expressionGenerator.generateExpression(null, curConstraint, null, childMonitor, holeInfos.size() == 1 ? 1 : 0);
+						// Group the expressions by their type.
 						Map<String, ArrayList<EvaluatedExpression>> valuesByType = new HashMap<String, ArrayList<EvaluatedExpression>>();
 						List<IJavaType> resultTypes = new ArrayList<IJavaType>(values.size());
 						for (EvaluatedExpression e: values) {
@@ -745,6 +925,7 @@ public final class ExpressionSkeleton {
 							String typeName = e.getType() == null ? "null" : e.getType().getName();
 							Utils.addToMap(valuesByType, typeName, e);
 						}
+						// Group the expressions by the constraints they satisfy.
 						TypeConstraint resultConstraint = getSupertypeConstraintForTypes(resultTypes);
 						IJavaType[] constraintTypes = curConstraint.getTypes(target);
 						Map<String, ArrayList<TypedExpression>> typedValuesForType = new HashMap<String, ArrayList<TypedExpression>>(constraintTypes.length);
@@ -784,6 +965,15 @@ public final class ExpressionSkeleton {
 			}
 		}
 
+		/**
+		 * Fills type literal skeleton pieces.
+		 * @param node The type literal part of the skeleton.
+		 * @param curConstraint The constraint for the type of the
+		 * expressions generated from this piece of the skeleton.
+		 * @param parentsOfHoles All nodes that are parents of some hole.
+		 * @return The synthesized expressions corresponding to this
+		 * skeleton piece and the type constraint representing their types.
+		 */
 		private ExpressionsAndTypeConstraints fillTypeLiteral(Expression node) {
 			try {
 				IJavaType type = EclipseUtils.getType(((TypeLiteral)node).getType().toString(), stack, target);
@@ -975,6 +1165,15 @@ public final class ExpressionSkeleton {
 			}
 		}
 		
+		/**
+		 * Gets a constraint saying that something must be a subtype
+		 * of one of the given types.
+		 * Note that the input types can contain duplicates, which
+		 * this method filters out.
+		 * @param types The list of types.
+		 * @return A constraint that ensures that something is
+		 * a subtype of one of the given types.
+		 */
 		private static TypeConstraint getSupertypeConstraintForTypes(Collection<IJavaType> types) {
 			try {
 				// Putting IJavaTypes into a Set doesn't remove duplicates, so I need to map them based on their names.
@@ -993,6 +1192,13 @@ public final class ExpressionSkeleton {
 			}
 		}
 		
+		/**
+		 * Gets a type constraint saying that something must be
+		 * a subtype of one of the given types.
+		 * @param types The list of types.
+		 * @return A constraint that ensures that something is
+		 * a subtype of one of the given types.
+		 */
 		private static SupertypeSet makeSupertypeSet(IJavaType... types) {
 			Set<IJavaType> supertypeSet = new HashSet<IJavaType>(types.length);
 			for (IJavaType type: types)
@@ -1000,6 +1206,10 @@ public final class ExpressionSkeleton {
 			return new SupertypeSet(supertypeSet);
 		}
 
+		/**
+		 * Gets the type of the this object.
+		 * @return The type of the this object.
+		 */
 		private IJavaType getThisType() {
 			try {
 				return stack.getReferenceType();
@@ -1008,6 +1218,14 @@ public final class ExpressionSkeleton {
 			}
 		}
 
+		/**
+		 * Gets the supertype of the type with the given name,
+		 * or the supertype of the this object if name is null.
+		 * @param name The type whose supertype to get.
+		 * If this is null, we get the supertype of this.
+		 * @return The supertype of the type with the given name
+		 * or of the this type if name is null.
+		 */
 		private IJavaType getSuperType(Name name) {
     		try {
     			IJavaType curType = name == null ? stack.getReferenceType() : EclipseUtils.getType(name.toString(), stack, target);
@@ -1017,6 +1235,15 @@ public final class ExpressionSkeleton {
 			}
 		}
     	
+		/**
+		 * Gets all the constructors of the given type that
+		 * fulfill the given argument constraints.
+		 * @param type The type whose constructors we want.
+		 * @param argConstraints The constraints on the
+		 * arguments to the constructor.
+		 * @return All the constructors of the given type
+		 * that fulfill the given argument constraints.
+		 */
     	private Map<String, ArrayList<Method>> getConstructors(IJavaType type, ArrayList<TypeConstraint> argConstraints) {
 			try {
 				Map<String, ArrayList<Method>> methodsByType = new HashMap<String, ArrayList<Method>>(1);
@@ -1030,7 +1257,15 @@ public final class ExpressionSkeleton {
 			}
     	}
     	
-    	private ArrayList<String> filterCrashingExpression(ArrayList<String> expressionStrings, IProgressMonitor monitor) {
+    	/**
+    	 * Removes expressions that do not compile.
+    	 * @param expressionStrings Strings of the expressions to test.
+    	 * @param monitor The progress monitor, which can be used
+    	 * to cancel the process.
+    	 * @return The input list with all strings whose evaluation
+    	 * does not compile removed.
+    	 */
+    	private ArrayList<String> removeNonCompilingExpressions(ArrayList<String> expressionStrings, IProgressMonitor monitor) {
 			SubMonitor evalMonitor = SubMonitor.convert(monitor, "Expression typecheck", expressionStrings.size());
 			ArrayList<String> result = new ArrayList<String>();
 			IAstEvaluationEngine engine = EclipseUtils.getASTEvaluationEngine(stack);
@@ -1075,10 +1310,21 @@ public final class ExpressionSkeleton {
 			this.typeConstraint = typeConstraint;
 		}
 
+		/**
+		 * Gets the potential expressions this object represents.
+		 * The return value is a map from type name to the expressions
+		 * that can satisfy that type.
+		 * @return The potential expressions this object represents,
+		 * grouped by the types they satisfy.
+		 */
 		public Map<String, ArrayList<TypedExpression>> getExprs() {
 			return exprs;
 		}
 
+		/**
+		 * Gets the type constraint this object represents.
+		 * @return The type constraint this object represents.
+		 */
 		public TypeConstraint getTypeConstraint() {
 			return typeConstraint;
 		}

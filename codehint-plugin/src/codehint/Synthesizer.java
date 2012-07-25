@@ -183,6 +183,7 @@ public class Synthesizer {
 		 * It does this on a separate thread and then reports the results
 		 * back to the synthesis dialog on the UI thread.
 		 * @param synthesisDialog The dialog controlling the synthesis.
+		 * @param evalManager The evaluation manager.
 		 */
 		public void synthesize(final InitialSynthesisDialog synthesisDialog, final EvaluationManager evalManager) {
 			final Property property = synthesisDialog.getProperty();
