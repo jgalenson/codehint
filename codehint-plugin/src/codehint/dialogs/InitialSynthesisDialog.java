@@ -64,8 +64,12 @@ public class InitialSynthesisDialog extends SynthesisDialog {
     private Table table;
     private SynthesisResultComparator synthesisResultComparator;
     private ArrayList<EvaluatedExpression> expressions;
+    private Button checkAllButton;
+    private Button uncheckAllButton;
     private static final int checkSelectedButtonID = IDialogConstants.CLIENT_ID + 2;
+    private Button checkSelectedButton;
     private static final int uncheckSelectedButtonID = IDialogConstants.CLIENT_ID + 3;
+    private Button uncheckSelectedButton;
 
     private final IJavaDebugTarget target;
 	private final SynthesisWorker worker;
@@ -162,34 +166,38 @@ public class InitialSynthesisDialog extends SynthesisDialog {
         PlatformUI.getWorkbench().getHelpSystem().setHelp(table, Activator.PLUGIN_ID + "." + "candidate-selector");
 
 		Composite bottomButtonComposite = makeChildComposite(composite, GridData.HORIZONTAL_ALIGN_CENTER, 0);
-        Button checkAllButton = createButton(bottomButtonComposite, IDialogConstants.SELECT_ALL_ID, "Check All", false);
+        checkAllButton = createButton(bottomButtonComposite, IDialogConstants.SELECT_ALL_ID, "Check All", false);
         checkAllButton.addSelectionListener(new SelectionAdapter() {
             @Override
 			public void widgetSelected(SelectionEvent e) {
                 setAllChecked(true);
             }
         });
-        Button uncheckAllButton = createButton(bottomButtonComposite, IDialogConstants.DESELECT_ALL_ID, "Uncheck All", false);
+        checkAllButton.setEnabled(false);
+        uncheckAllButton = createButton(bottomButtonComposite, IDialogConstants.DESELECT_ALL_ID, "Uncheck All", false);
         uncheckAllButton.addSelectionListener(new SelectionAdapter() {
             @Override
 			public void widgetSelected(SelectionEvent e) {
                 setAllChecked(false);
             }
         });
-        Button checkSelectedButton = createButton(bottomButtonComposite, checkSelectedButtonID, "Check selected", false);
+        uncheckAllButton.setEnabled(false);
+        checkSelectedButton = createButton(bottomButtonComposite, checkSelectedButtonID, "Check selected", false);
         checkSelectedButton.addSelectionListener(new SelectionAdapter() {
             @Override
 			public void widgetSelected(SelectionEvent e) {
             	setSelectedChecked(true);
             }
         });
-        Button uncheckSelectedButton = createButton(bottomButtonComposite, uncheckSelectedButtonID, "Uncheck selected", false);
+        checkSelectedButton.setEnabled(false);
+        uncheckSelectedButton = createButton(bottomButtonComposite, uncheckSelectedButtonID, "Uncheck selected", false);
         uncheckSelectedButton.addSelectionListener(new SelectionAdapter() {
             @Override
 			public void widgetSelected(SelectionEvent e) {
             	setSelectedChecked(false);
             }
         });
+        uncheckSelectedButton.setEnabled(false);
 		
 		return composite;
 	}
@@ -341,6 +349,12 @@ public class InitialSynthesisDialog extends SynthesisDialog {
     	tableViewer.setInput(expressions);
     	table.getColumn(0).pack();  // For some reason I need these two lines to update the screen.
     	table.getColumn(1).pack();
+    	// Enable/Disable check/selection buttons.
+    	boolean haveResults = !expressions.isEmpty();
+    	checkAllButton.setEnabled(haveResults);
+    	uncheckAllButton.setEnabled(haveResults);
+    	checkSelectedButton.setEnabled(haveResults);
+    	uncheckSelectedButton.setEnabled(haveResults);
     }
     
     private TableViewerColumn addColumn(String label, final int index) {
