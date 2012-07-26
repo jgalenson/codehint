@@ -119,13 +119,14 @@ public final class ExpressionSkeleton {
 	 * @param skeletonStr The sugared string from which to create the skeleton.
 	 * @param target The debug target.
 	 * @param stack The stack frame.
+	 * @param evaluationEngine The AST evaluation engine.
      * @param subtypeChecker The subtype checker.
      * @param evalManager The evaluation manager.
      * @param expressionGenerator The expression generator.
 	 * @return The ExpressionSkeleton representing the given sugared string.
 	 */
-	public static ExpressionSkeleton fromString(String skeletonStr, IJavaDebugTarget target, IJavaStackFrame stack, SubtypeChecker subtypeChecker, EvaluationManager evalManager, ExpressionGenerator expressionGenerator) {
-		return SkeletonParser.rewriteHoleSyntax(skeletonStr, target, stack, subtypeChecker, evalManager, expressionGenerator);
+	public static ExpressionSkeleton fromString(String skeletonStr, IJavaDebugTarget target, IJavaStackFrame stack, IAstEvaluationEngine evaluationEngine, SubtypeChecker subtypeChecker, EvaluationManager evalManager, ExpressionGenerator expressionGenerator) {
+		return SkeletonParser.rewriteHoleSyntax(skeletonStr, target, stack, evaluationEngine, subtypeChecker, evalManager, expressionGenerator);
 	}
 	
 	/**
@@ -180,7 +181,7 @@ public final class ExpressionSkeleton {
 		 */
 		private static String isLegalSkeleton(String str, String varTypeName, IJavaStackFrame stackFrame, IAstEvaluationEngine evaluationEngine) {
 			try {
-				Expression skeletonExpr = rewriteHoleSyntax(str, new HashMap<String, HoleInfo>(), stackFrame);
+				Expression skeletonExpr = rewriteHoleSyntax(str, new HashMap<String, HoleInfo>(), stackFrame, evaluationEngine);
 				Set<String> compileErrors = EclipseUtils.getSetOfCompileErrors(skeletonExpr.toString(), varTypeName, stackFrame, evaluationEngine);
 				if (compileErrors != null)
 					for (String error: compileErrors)
@@ -199,12 +200,12 @@ public final class ExpressionSkeleton {
 		 * @param holeInfos Map in which to store information about the holes in the skeleton.
 		 * @return The ExpressionSkeleton representing the given sugared string.
 		 */
-		private static Expression rewriteHoleSyntax(String sugaredString, Map<String, HoleInfo> holeInfos, IJavaStackFrame stack) {
+		private static Expression rewriteHoleSyntax(String sugaredString, Map<String, HoleInfo> holeInfos, IJavaStackFrame stack, IAstEvaluationEngine evaluationEngine) {
 			String str = sugaredString;
 			for (int holeNum = 0; true; holeNum++) {
 				int holeStart = str.indexOf(HOLE_SYNTAX);
 				if (holeStart != -1)
-					str = rewriteSingleHole(str, holeStart, holeNum, holeInfos, stack);
+					str = rewriteSingleHole(str, holeStart, holeNum, holeInfos, stack, evaluationEngine);
 				else {
 					holeStart = str.indexOf(LIST_HOLE_SYNTAX);
 					if (holeStart != -1)
@@ -227,14 +228,15 @@ public final class ExpressionSkeleton {
 		 * @param sugaredString The sugared string from which to create the skeleton.
 		 * @param target The debug target.
 		 * @param stack The stack frame.
+		 * @param evaluationEngine The AST evaluation engine.
 	     * @param subtypeChecker The subtype checker.
 	     * @param evalManager The evaluation manager.
 	     * @param expressionGenerator The expression generator.
 		 * @return The ExpressionSkeleton representing the given sugared string.
 		 */
-		private static ExpressionSkeleton rewriteHoleSyntax(String sugaredString, IJavaDebugTarget target, IJavaStackFrame stack, SubtypeChecker subtypeChecker, EvaluationManager evalManager, ExpressionGenerator expressionGenerator) {
+		private static ExpressionSkeleton rewriteHoleSyntax(String sugaredString, IJavaDebugTarget target, IJavaStackFrame stack, IAstEvaluationEngine evaluationEngine, SubtypeChecker subtypeChecker, EvaluationManager evalManager, ExpressionGenerator expressionGenerator) {
 			Map<String, HoleInfo> holeInfos = new HashMap<String, HoleInfo>();
-			Expression expr = rewriteHoleSyntax(sugaredString, holeInfos, stack);
+			Expression expr = rewriteHoleSyntax(sugaredString, holeInfos, stack, evaluationEngine);
 			return new ExpressionSkeleton(sugaredString, (Expression)ExpressionMaker.resetAST(expr), holeInfos, target, stack, subtypeChecker, evalManager, expressionGenerator);
 		}
 	
@@ -245,9 +247,11 @@ public final class ExpressionSkeleton {
 		 * @param holeIndex The starting index of the hole.
 		 * @param holeNum A unique number identifying the hole.
 		 * @param holeInfos Map that stores information about holes.
+		 * @param stack The stack frame.
+		 * @param evaluationEngine The AST evaluation engine.
 		 * @return The original string with this hole desugared.
 		 */
-		private static String rewriteSingleHole(String str, int holeIndex, int holeNum, Map<String, HoleInfo> holeInfos, IJavaStackFrame stack) {
+		private static String rewriteSingleHole(String str, int holeIndex, int holeNum, Map<String, HoleInfo> holeInfos, IJavaStackFrame stack, IAstEvaluationEngine evaluationEngine) {
 			if (holeIndex >= 1 && Character.isJavaIdentifierPart(str.charAt(holeIndex - 1)))
 				throw new ParserError("You cannot put a " + HOLE_SYNTAX + " hole immediately after an identifier.");
 			String args = null;
@@ -270,7 +274,7 @@ public final class ExpressionSkeleton {
 				throw new ParserError("You cannot put a " + HOLE_SYNTAX + " hole immediately before an identifier.");
 			String holeName = DESUGARED_HOLE_NAME + holeNum;
 			str = str.substring(0, holeIndex) + holeName + str.substring(i);
-			holeInfos.put(holeName, makeHoleInfo(args, isNegative, stack));
+			holeInfos.put(holeName, makeHoleInfo(args, isNegative, stack, evaluationEngine));
 			return str;
 		}
 
@@ -299,10 +303,12 @@ public final class ExpressionSkeleton {
 		 * arguments, e.g., "{x, y, z}".
 		 * @param isNegative Whether the hole is negative, e.g.,
 		 * for "??-{x,y,z}".
+		 * @param stack The stack frame.
+		 * @param evaluationEngine The AST evaluation engine.
 		 * @return The HoleInfo representing information
 		 * about this hole.
 		 */
-		private static HoleInfo makeHoleInfo(String argsStr, boolean isNegative, IJavaStackFrame stack) {
+		private static HoleInfo makeHoleInfo(String argsStr, boolean isNegative, IJavaStackFrame stack, IAstEvaluationEngine evaluationEngine) {
 			ArrayList<String> args = null;
 			if (argsStr != null) {
 				// Ensure the argument string parses
@@ -312,8 +318,7 @@ public final class ExpressionSkeleton {
 					// We do this by pretending to use the arguments list to initialize an array of Objects.
 					// Since anything can be coerced into an Object, this works.
 					// This allows us to make only one call to the compiler instead of one per arg.
-					IAstEvaluationEngine engine = EclipseUtils.getASTEvaluationEngine(stack);
-					String error = EclipseUtils.getCompileErrors("new Object[] {" + argsStr + "}", null, stack, engine);
+					String error = EclipseUtils.getCompileErrors("new Object[] {" + argsStr + "}", null, stack, evaluationEngine);
 					if (error != null)
 						throw new ParserError(error);
 					// Add the arguments.

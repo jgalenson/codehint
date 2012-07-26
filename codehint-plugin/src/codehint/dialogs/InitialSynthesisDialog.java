@@ -72,6 +72,7 @@ public class InitialSynthesisDialog extends SynthesisDialog {
     private Button uncheckSelectedButton;
 
     private final IJavaDebugTarget target;
+    private final IAstEvaluationEngine evaluationEngine;
 	private final SynthesisWorker worker;
     private final SubtypeChecker subtypeChecker;
     private final EvaluationManager evalManager;
@@ -80,9 +81,10 @@ public class InitialSynthesisDialog extends SynthesisDialog {
 
 	public InitialSynthesisDialog(Shell parentShell, String varTypeName, IJavaType varType, IJavaStackFrame stack, PropertyDialog propertyDialog, SynthesisWorker worker) {
 		super(parentShell, varTypeName, varType, stack, propertyDialog);
+		IAstEvaluationEngine engine = EclipseUtils.getASTEvaluationEngine(stack);
 		this.initialSkeletonText = ExpressionSkeleton.HOLE_SYNTAX;
 		this.skeletonIsValid = false;
-		this.skeletonValidator = new ExpressionSkeletonValidator(stack, varTypeName);
+		this.skeletonValidator = new ExpressionSkeletonValidator(stack, varTypeName, engine);
 		this.skeletonResult = null;
 		this.searchButton = null;
 		this.monitor = null;
@@ -92,6 +94,7 @@ public class InitialSynthesisDialog extends SynthesisDialog {
 		this.expressions = null;
 		this.worker = worker;
 		this.target = (IJavaDebugTarget)stack.getDebugTarget();
+		this.evaluationEngine = engine;
 		this.subtypeChecker = new SubtypeChecker();
 		this.evalManager = new EvaluationManager(stack);
 		this.expressionGenerator = new ExpressionGenerator(target, stack, subtypeChecker, evalManager);
@@ -244,7 +247,7 @@ public class InitialSynthesisDialog extends SynthesisDialog {
         if (buttonId == searchButtonID) {
         	skeletonResult = skeletonInput.getText();
             property = propertyDialog.computeProperty(pdspecInput.getText());
-            skeleton = ExpressionSkeleton.fromString(skeletonResult, target, stack, subtypeChecker, evalManager, expressionGenerator);
+            skeleton = ExpressionSkeleton.fromString(skeletonResult, target, stack, evaluationEngine, subtypeChecker, evalManager, expressionGenerator);
             startEndSynthesis(true);
             expressions = new ArrayList<EvaluatedExpression>();
             showResults();  // Clears any existing results.
@@ -460,9 +463,9 @@ public class InitialSynthesisDialog extends SynthesisDialog {
 	    private final IAstEvaluationEngine evaluationEngine;
 	    private final String varTypeName;
 	    
-	    public ExpressionSkeletonValidator(IJavaStackFrame stackFrame, String varTypeName) {
+	    public ExpressionSkeletonValidator(IJavaStackFrame stackFrame, String varTypeName, IAstEvaluationEngine evaluationEngine) {
 	    	this.stackFrame = stackFrame;
-	    	this.evaluationEngine = EclipseUtils.getASTEvaluationEngine(stackFrame);
+	    	this.evaluationEngine = evaluationEngine;
 	    	this.varTypeName = varTypeName;
 	    }
 	    
