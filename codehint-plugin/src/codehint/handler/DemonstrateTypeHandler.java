@@ -32,7 +32,7 @@ public class DemonstrateTypeHandler extends CommandHandler {
     
     private static void handle(IVariable variable, String path, Shell shell, Matcher matcher, IJavaStackFrame stack) throws DebugException {
 		assert !EclipseUtils.isPrimitive(variable);
-		IJavaType varType = ((IJavaVariable)variable).getJavaType();
+		IJavaType varType = EclipseUtils.getTypeOfVariableAndLoadIfNeeded((IJavaVariable)variable, stack);
 		String varTypeName = EclipseUtils.sanitizeTypename(varType.getName());
 		String initValue = "";
 		if (matcher != null) {

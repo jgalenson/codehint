@@ -40,7 +40,7 @@ public class DemonstrateStatePropertyHandler extends CommandHandler {
 			initValue = matcher.group(2);
 		} else
 			initValue = "";
-		IJavaType varType = ((IJavaVariable)variable).getJavaType();
+		IJavaType varType = EclipseUtils.getTypeOfVariableAndLoadIfNeeded((IJavaVariable)variable, stack);
 		String varTypeName = EclipseUtils.sanitizeTypename(varType.getName());
 		InitialSynthesisDialog dialog = new InitialSynthesisDialog(shell, varTypeName, varType, stack, new StatePropertyDialog(path, stack, initValue, null), new SynthesisWorker(path, varType));
     	Synthesizer.synthesizeAndInsertExpressions(variable, path, dialog, stack, matcher != null);

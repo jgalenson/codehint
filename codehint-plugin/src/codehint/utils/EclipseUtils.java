@@ -778,6 +778,25 @@ public class EclipseUtils {
     	return sanitizeTypename(typeName) + ".class";
     }
     
+    /**
+     * Gets the type of a variable, loading it if necessary.
+     * @param var The variable whose type to get.
+     * @param stack The current stack frame.
+     * @return The type of the given variable.
+     */
+    public static IJavaType getTypeOfVariableAndLoadIfNeeded(IJavaVariable var, IJavaStackFrame stack) {
+    	try {
+			return var.getJavaType();
+		} catch (DebugException e1) {
+			try {
+				loadClass(var.getReferenceTypeName(), stack);
+				return var.getJavaType();
+			} catch (DebugException e2) {
+				throw new RuntimeException(e1);
+			}
+		}
+    }
+    
     /*
      * Checks whether the given classname represents an anonymous class
      * (and therefore cannot be instantiated as-is).  Such names end

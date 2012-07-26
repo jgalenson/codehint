@@ -43,7 +43,7 @@ public class DemonstrateValueHandler extends CommandHandler {
 			initValue = matcher.group(2);
 		} else
 			initValue = "";
-		IJavaType varType = ((IJavaVariable)variable).getJavaType();
+		IJavaType varType = EclipseUtils.getTypeOfVariableAndLoadIfNeeded((IJavaVariable)variable, stack);
 		String varTypeName = EclipseUtils.sanitizeTypename(varType.getName());
 		PropertyDialog propertyDialog = null;
 		if (EclipseUtils.isObject(variable))
