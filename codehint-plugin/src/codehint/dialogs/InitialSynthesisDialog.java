@@ -40,6 +40,7 @@ import codehint.expreval.EvaluationManager;
 import codehint.exprgen.ExpressionGenerator;
 import codehint.exprgen.ExpressionSkeleton;
 import codehint.exprgen.SubtypeChecker;
+import codehint.exprgen.TypeCache;
 import codehint.utils.EclipseUtils;
 
 public class InitialSynthesisDialog extends SynthesisDialog {
@@ -75,6 +76,7 @@ public class InitialSynthesisDialog extends SynthesisDialog {
     private final IAstEvaluationEngine evaluationEngine;
 	private final SynthesisWorker worker;
     private final SubtypeChecker subtypeChecker;
+    private final TypeCache typeCache;
     private final EvaluationManager evalManager;
     private final ExpressionGenerator expressionGenerator;
     private ExpressionSkeleton skeleton;
@@ -96,8 +98,9 @@ public class InitialSynthesisDialog extends SynthesisDialog {
 		this.target = (IJavaDebugTarget)stack.getDebugTarget();
 		this.evaluationEngine = engine;
 		this.subtypeChecker = new SubtypeChecker();
-		this.evalManager = new EvaluationManager(stack);
-		this.expressionGenerator = new ExpressionGenerator(target, stack, subtypeChecker, evalManager);
+		this.typeCache = new TypeCache();
+		this.evalManager = new EvaluationManager(stack, typeCache);
+		this.expressionGenerator = new ExpressionGenerator(target, stack, subtypeChecker, typeCache, evalManager);
 		this.skeleton = null;
 	}
 
@@ -247,7 +250,7 @@ public class InitialSynthesisDialog extends SynthesisDialog {
         if (buttonId == searchButtonID) {
         	skeletonResult = skeletonInput.getText();
             property = propertyDialog.computeProperty(pdspecInput.getText());
-            skeleton = ExpressionSkeleton.fromString(skeletonResult, target, stack, evaluationEngine, subtypeChecker, evalManager, expressionGenerator);
+            skeleton = ExpressionSkeleton.fromString(skeletonResult, target, stack, evaluationEngine, subtypeChecker, typeCache, evalManager, expressionGenerator);
             startEndSynthesis(true);
             expressions = new ArrayList<EvaluatedExpression>();
             showResults();  // Clears any existing results.

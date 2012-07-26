@@ -37,6 +37,7 @@ import org.eclipse.jdt.debug.eval.IEvaluationResult;
 import org.eclipse.swt.widgets.Display;
 
 import codehint.dialogs.InitialSynthesisDialog;
+import codehint.exprgen.TypeCache;
 import codehint.exprgen.TypedExpression;
 import codehint.property.StateProperty;
 import codehint.property.Property;
@@ -83,10 +84,10 @@ public final class EvaluationManager {
 	private String preVarsString;
 	private String propertyPreconditions;
 	
-	public EvaluationManager(IJavaStackFrame stack) {
+	public EvaluationManager(IJavaStackFrame stack, TypeCache typeCache) {
 		this.stack = stack;
 		this.engine = EclipseUtils.getASTEvaluationEngine(stack);
-		this.implType = (IJavaClassType)EclipseUtils.getTypeAndLoadIfNeeded(IMPL_NAME, stack, (IJavaDebugTarget)stack.getDebugTarget());
+		this.implType = (IJavaClassType)EclipseUtils.getTypeAndLoadIfNeeded(IMPL_NAME, stack, (IJavaDebugTarget)stack.getDebugTarget(), typeCache);
 		try {
 			this.validField = implType.getField("valid");
 			this.toStringsField = implType.getField("toStrings");

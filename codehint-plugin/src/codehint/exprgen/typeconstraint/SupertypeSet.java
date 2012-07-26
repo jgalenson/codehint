@@ -7,6 +7,7 @@ import org.eclipse.jdt.debug.core.IJavaStackFrame;
 import org.eclipse.jdt.debug.core.IJavaType;
 
 import codehint.exprgen.SubtypeChecker;
+import codehint.exprgen.TypeCache;
 
 public class SupertypeSet extends TypeConstraint {
 	
@@ -17,7 +18,7 @@ public class SupertypeSet extends TypeConstraint {
 	}
 
 	@Override
-	public boolean isFulfilledBy(IJavaType type, SubtypeChecker subtypeChecker, IJavaStackFrame stack, IJavaDebugTarget target) {
+	public boolean isFulfilledBy(IJavaType type, SubtypeChecker subtypeChecker, TypeCache typeCache, IJavaStackFrame stack, IJavaDebugTarget target) {
 		for (IJavaType supertype: supertypes)
 			if (subtypeChecker.isSubtypeOf(type, supertype))// || subtypeChecker.isSubtypeOf(supertype, type);
 				return true;
@@ -25,7 +26,7 @@ public class SupertypeSet extends TypeConstraint {
 	}
 
 	@Override
-	public IJavaType[] getTypes(IJavaDebugTarget target) {
+	public IJavaType[] getTypes(IJavaDebugTarget target, TypeCache typeCache) {
 		return supertypes.toArray(new IJavaType[supertypes.size()]);
 	}
 

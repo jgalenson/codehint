@@ -52,6 +52,7 @@ import com.sun.jdi.ObjectReference;
 
 import codehint.Activator;
 import codehint.expreval.EvaluationManager;
+import codehint.exprgen.TypeCache;
 
 public class EclipseUtils {
     
@@ -445,10 +446,10 @@ public class EclipseUtils {
      * @param target The debug target.
      * @return The IJavaType representing the given name.
      */
-    public static IJavaType getType(String typeName, IJavaStackFrame stackFrame, IJavaDebugTarget target) {
+    public static IJavaType getType(String typeName, IJavaStackFrame stackFrame, IJavaDebugTarget target, TypeCache typeCache) {
 		try {
 			IJavaProject project = getProject(stackFrame);
-			return getType(project, getThisType(project, stackFrame), typeName, target);
+			return getType(project, getThisType(project, stackFrame), typeName, target, typeCache);
 		} catch (JavaModelException e) {
 			throw new RuntimeException(e);
 		} catch (DebugException e) {
@@ -465,7 +466,7 @@ public class EclipseUtils {
      * @param target The debug target.
      * @return The IJavaType representing the given name.
      */
-    private static IJavaType getType(IJavaProject project, IType thisType, String typeName, IJavaDebugTarget target) {
+    private static IJavaType getType(IJavaProject project, IType thisType, String typeName, IJavaDebugTarget target, TypeCache typeCache) {
     	try {
     		if (thisType == null || project == null || target == null)
     			return null;
@@ -475,7 +476,7 @@ public class EclipseUtils {
     		String arrayTypes = firstArray == -1 ? "" : typeName.substring(firstArray);
     		// Handle primitives
     		if ("int".equals(componentTypeName) || "boolean".equals(componentTypeName) || "long".equals(componentTypeName) || "byte".equals(componentTypeName) || "char".equals(componentTypeName) || "short".equals(componentTypeName) || "float".equals(componentTypeName) || "double".equals(componentTypeName))
-    			return getFullyQualifiedType(typeName, target);
+    			return getFullyQualifiedType(typeName, target, typeCache);
     		// Find the full type name.
     		String[][] allTypes = thisType.resolveType(componentTypeName);
     		assert allTypes != null && allTypes.length == 1 : typeName;
@@ -487,7 +488,7 @@ public class EclipseUtils {
 					fullTypeName += ".";
 				fullTypeName += typeParts[i];
 			}
-			return getFullyQualifiedType(fullTypeName + arrayTypes, target);
+			return getFullyQualifiedType(fullTypeName + arrayTypes, target, typeCache);
     	} catch (JavaModelException e) {
 			throw new RuntimeException(e);
 		}
@@ -499,8 +500,8 @@ public class EclipseUtils {
      * @param target The debug target.
      * @return The type with the given name.
      */
-    public static IJavaType getFullyQualifiedType(String fullTypeName, IJavaDebugTarget target) {
-		IJavaType type = getFullyQualifiedTypeIfExists(fullTypeName, target);
+    public static IJavaType getFullyQualifiedType(String fullTypeName, IJavaDebugTarget target, TypeCache typeCache) {
+		IJavaType type = getFullyQualifiedTypeIfExists(fullTypeName, target, typeCache);
 		assert type != null : fullTypeName;
 		return type;
     }
@@ -511,13 +512,18 @@ public class EclipseUtils {
      * @param target The debug target.
      * @return The type with the given name, or null.
      */
-    public static IJavaType getFullyQualifiedTypeIfExists(String fullTypeName, IJavaDebugTarget target) {
+    public static IJavaType getFullyQualifiedTypeIfExists(String fullTypeName, IJavaDebugTarget target, TypeCache typeCache) {
     	try {
+    		IJavaType cachedType = typeCache.get(fullTypeName);
+    		if (cachedType != null)
+    			return cachedType;
 			IJavaType[] curTypes = target.getJavaTypes(fullTypeName);
 			if (curTypes == null || curTypes.length != 1)
 				return null;
-			else
+			else {
+				typeCache.add(fullTypeName, curTypes[0]);
 				return curTypes[0];
+			}
     	} catch (DebugException e) {
 			throw new RuntimeException(e);
 		}
@@ -701,15 +707,15 @@ public class EclipseUtils {
      * @return The type with the given name, or null if
      * no such type exists.
      */
-    public static IJavaType getTypeAndLoadIfNeededAndExists(String typeName, IJavaStackFrame stack, IJavaDebugTarget target) {
+    public static IJavaType getTypeAndLoadIfNeededAndExists(String typeName, IJavaStackFrame stack, IJavaDebugTarget target, TypeCache typeCache) {
     	try {
-    		IJavaType type = getFullyQualifiedTypeIfExists(typeName, target);
+    		IJavaType type = getFullyQualifiedTypeIfExists(typeName, target, typeCache);
     		if (type != null)
     			return type;
 	    	if (getASTEvaluationEngine(stack).getCompiledExpression(getClassLoadExpression(typeName), stack).hasErrors())
 	    		return null;
 	    	else
-	    		return loadAndGetType(typeName, stack, target);
+	    		return loadAndGetType(typeName, stack, target, typeCache);
     	} catch (DebugException e) {
     		throw new RuntimeException(e);
     	}
@@ -722,17 +728,17 @@ public class EclipseUtils {
      * @param target The debug target.
      * @return The type with the given name.
      */
-    public static IJavaType getTypeAndLoadIfNeeded(String typeName, IJavaStackFrame stack, IJavaDebugTarget target) {
-		IJavaType type = getFullyQualifiedTypeIfExists(typeName, target);
+    public static IJavaType getTypeAndLoadIfNeeded(String typeName, IJavaStackFrame stack, IJavaDebugTarget target, TypeCache typeCache) {
+		IJavaType type = getFullyQualifiedTypeIfExists(typeName, target, typeCache);
 		if (type == null) {
-			type = loadAndGetType(typeName, stack, target);
+			type = loadAndGetType(typeName, stack, target, typeCache);
 			/*if (type == null)
 				System.out.println("Failed to load " + typeName);
 			else
 				System.out.println("Loaded " + typeName);*/
 		}
 		if (typeName.endsWith("[]"))  // If an array's component type is not loaded, we can crash during evaluation of expressions involving it.
-			getTypeAndLoadIfNeeded(typeName.substring(0, typeName.length() - 2), stack, target);
+			getTypeAndLoadIfNeeded(typeName.substring(0, typeName.length() - 2), stack, target, typeCache);
 		return type;
     }
     
@@ -743,13 +749,13 @@ public class EclipseUtils {
      * @param target The debug target.
      * @return The newly-loaded type.
      */
-    private static IJavaType loadAndGetType(String typeName, IJavaStackFrame stack, IJavaDebugTarget target) {
+    private static IJavaType loadAndGetType(String typeName, IJavaStackFrame stack, IJavaDebugTarget target, TypeCache typeCache) {
 		loadClass(typeName, stack);
-		IJavaType type = getFullyQualifiedTypeIfExists(typeName, target);
+		IJavaType type = getFullyQualifiedTypeIfExists(typeName, target, typeCache);
 		if (type != null)  // getType will fail for inner types but getFullyQualified will work if they use $, so we try it first.
 			return type;
 		else
-			return getType(typeName, stack, target);
+			return getType(typeName, stack, target, typeCache);
     }
     
     /**

@@ -5,6 +5,7 @@ import org.eclipse.jdt.debug.core.IJavaStackFrame;
 import org.eclipse.jdt.debug.core.IJavaType;
 
 import codehint.exprgen.SubtypeChecker;
+import codehint.exprgen.TypeCache;
 
 public class SupertypeBound extends SingleTypeConstraint {
 	
@@ -17,12 +18,12 @@ public class SupertypeBound extends SingleTypeConstraint {
 	}
 
 	@Override
-	public boolean isFulfilledBy(IJavaType type, SubtypeChecker subtypeChecker, IJavaStackFrame stack, IJavaDebugTarget target) {
+	public boolean isFulfilledBy(IJavaType type, SubtypeChecker subtypeChecker, TypeCache typeCache, IJavaStackFrame stack, IJavaDebugTarget target) {
 		return subtypeChecker.isSubtypeOf(type, typeConstraint);// || subtypeChecker.isSubtypeOf(supertypeBound, type);
 	}
 
 	@Override
-	public IJavaType[] getTypes(IJavaDebugTarget target) {
+	public IJavaType[] getTypes(IJavaDebugTarget target, TypeCache typeCache) {
 		return new IJavaType[] { typeConstraint };
 	}
 

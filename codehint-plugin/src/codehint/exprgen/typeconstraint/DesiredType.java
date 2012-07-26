@@ -7,6 +7,7 @@ import org.eclipse.jdt.debug.core.IJavaStackFrame;
 import org.eclipse.jdt.debug.core.IJavaType;
 
 import codehint.exprgen.SubtypeChecker;
+import codehint.exprgen.TypeCache;
 
 public class DesiredType extends SingleTypeConstraint {
 	
@@ -19,7 +20,7 @@ public class DesiredType extends SingleTypeConstraint {
 	}
 
 	@Override
-	public boolean isFulfilledBy(IJavaType type, SubtypeChecker subtypeChecker, IJavaStackFrame stack, IJavaDebugTarget target) {
+	public boolean isFulfilledBy(IJavaType type, SubtypeChecker subtypeChecker, TypeCache typeCache, IJavaStackFrame stack, IJavaDebugTarget target) {
 		if (type == null)
 			return typeConstraint instanceof IJavaReferenceType;
 		if (typeConstraint == null)
@@ -28,7 +29,7 @@ public class DesiredType extends SingleTypeConstraint {
 	}
 
 	@Override
-	public IJavaType[] getTypes(IJavaDebugTarget target) {
+	public IJavaType[] getTypes(IJavaDebugTarget target, TypeCache typeCache) {
 		return new IJavaType[] { typeConstraint };
 	}
 

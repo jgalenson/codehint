@@ -9,6 +9,7 @@ import com.sun.jdi.Field;
 import codehint.utils.EclipseUtils;
 import codehint.exprgen.ExpressionGenerator;
 import codehint.exprgen.SubtypeChecker;
+import codehint.exprgen.TypeCache;
 
 public class FieldConstraint extends TypeConstraint {
 	
@@ -21,17 +22,17 @@ public class FieldConstraint extends TypeConstraint {
 	}
 
 	@Override
-	public boolean isFulfilledBy(IJavaType type, SubtypeChecker subtypeChecker, IJavaStackFrame stack, IJavaDebugTarget target) {
+	public boolean isFulfilledBy(IJavaType type, SubtypeChecker subtypeChecker, TypeCache typeCache, IJavaStackFrame stack, IJavaDebugTarget target) {
 		for (Field field: ExpressionGenerator.getFields(type)) {
 			if (fieldName == null || field.name().equals(fieldName))
-				return fieldConstraint.isFulfilledBy(EclipseUtils.getFullyQualifiedType(field.typeName(), target), subtypeChecker, stack, target);
+				return fieldConstraint.isFulfilledBy(EclipseUtils.getFullyQualifiedType(field.typeName(), target, typeCache), subtypeChecker, typeCache, stack, target);
 		}
 		return false;
 	}
 
 	@Override
-	public IJavaType[] getTypes(IJavaDebugTarget target) {
-		return new IJavaType[] { EclipseUtils.getFullyQualifiedType("java.lang.Object", target) };
+	public IJavaType[] getTypes(IJavaDebugTarget target, TypeCache typeCache) {
+		return new IJavaType[] { EclipseUtils.getFullyQualifiedType("java.lang.Object", target, typeCache) };
 	}
 
 	@Override
