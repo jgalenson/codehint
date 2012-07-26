@@ -474,7 +474,6 @@ public final class ExpressionSkeleton {
 	 */
 	private static class SkeletonFiller {
 
-		private final Map<String, Map<String, ArrayList<EvaluatedExpression>>> holeValues;
 		private final Map<String, Map<String, ArrayList<Field>>> holeFields;
 		private final Map<String, Map<String, ArrayList<Method>>> holeMethods;
 		private final Map<String, HoleInfo> holeInfos;
@@ -500,7 +499,6 @@ public final class ExpressionSkeleton {
 		 * @param monitor The progress monitor.
 		 */
 		private SkeletonFiller(Map<String, HoleInfo> holeInfos, IJavaStackFrame stack, IJavaDebugTarget target, EvaluationManager evalManager, ExpressionGenerator expressionGenerator, SubtypeChecker subtypeChecker, IProgressMonitor monitor) {
-			this.holeValues = new HashMap<String, Map<String, ArrayList<EvaluatedExpression>>>();
 			this.holeFields = new HashMap<String, Map<String, ArrayList<Field>>>();
 			this.holeMethods = new HashMap<String, Map<String, ArrayList<Method>>>();
 			this.holeInfos = holeInfos;
@@ -936,23 +934,23 @@ public final class ExpressionSkeleton {
 						TypeConstraint resultConstraint = getSupertypeConstraintForTypes(resultTypes);
 						IJavaType[] constraintTypes = curConstraint.getTypes(target);
 						Map<String, ArrayList<TypedExpression>> typedValuesForType = new HashMap<String, ArrayList<TypedExpression>>(constraintTypes.length);
-						Map<String, ArrayList<EvaluatedExpression>> evaluatedValuesForType = new HashMap<String, ArrayList<EvaluatedExpression>>(constraintTypes.length);
-						Set<EvaluatedExpression> added = new HashSet<EvaluatedExpression>();
-						for (IJavaType constraintType: constraintTypes) {
-							for (Entry<String, ArrayList<EvaluatedExpression>> exprs: valuesByType.entrySet()) {
-								String typeName = exprs.getKey();
-								if (subtypeChecker.isSubtypeOf(exprs.getValue().get(0).getType(), constraintType)) {
-									for (EvaluatedExpression e: exprs.getValue()) {
-										if (!added.contains(e)) {
-											Utils.addToMap(typedValuesForType, typeName, new TypedExpression(e.getExpression(), e.getType(), e.getResult()));
-											Utils.addToMap(evaluatedValuesForType, typeName, e);
-											added.add(e);
-										}
-									}
+						for (Entry<String, ArrayList<EvaluatedExpression>> exprs: valuesByType.entrySet()) {
+							// Ensure that the type of these expressions satisfies some constraint.
+							IJavaType curType = exprs.getValue().get(0).getType();
+							boolean satisfiesSomeConstraint = false;
+							for (IJavaType constraintType: constraintTypes) {
+								if (subtypeChecker.isSubtypeOf(curType, constraintType)) {
+									satisfiesSomeConstraint = true;
+									break;
 								}
 							}
+							if (satisfiesSomeConstraint) {
+								// Add the results.
+								String typeName = exprs.getKey();
+								for (EvaluatedExpression e: exprs.getValue())
+									Utils.addToMap(typedValuesForType, typeName, new TypedExpression(e.getExpression(), e.getType(), e.getResult()));
+							}
 						}
-						holeValues.put(name.getIdentifier(), evaluatedValuesForType);
 						return new ExpressionsAndTypeConstraints(typedValuesForType, resultConstraint);
 					}
 				} else if (curConstraint instanceof FieldNameConstraint) {
@@ -1298,7 +1296,7 @@ public final class ExpressionSkeleton {
 		/**
 		 * Gets the potential expressions this object represents.
 		 * The return value is a map from type name to the expressions
-		 * that can satisfy that type.
+		 * of that type.
 		 * @return The potential expressions this object represents,
 		 * grouped by the types they satisfy.
 		 */
