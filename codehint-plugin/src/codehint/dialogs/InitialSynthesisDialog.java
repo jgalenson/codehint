@@ -64,6 +64,8 @@ public class InitialSynthesisDialog extends SynthesisDialog {
     private Table table;
     private SynthesisResultComparator synthesisResultComparator;
     private ArrayList<EvaluatedExpression> expressions;
+    private static final int checkSelectedButtonID = IDialogConstants.CLIENT_ID + 2;
+    private static final int uncheckSelectedButtonID = IDialogConstants.CLIENT_ID + 3;
 
     private final IJavaDebugTarget target;
 	private final SynthesisWorker worker;
@@ -108,7 +110,7 @@ public class InitialSynthesisDialog extends SynthesisDialog {
 		
 		monitorComposite = makeChildComposite(composite, GridData.HORIZONTAL_ALIGN_CENTER, 1);
 		
-		tableViewer = new TableViewer(composite, SWT.BORDER | SWT.CHECK);
+		tableViewer = new TableViewer(composite, SWT.BORDER | SWT.CHECK | SWT.MULTI);
 		table = tableViewer.getTable();
         GridData tableData = new GridData(GridData.FILL_BOTH);
         tableData.widthHint = TABLE_WIDTH;
@@ -160,18 +162,32 @@ public class InitialSynthesisDialog extends SynthesisDialog {
         PlatformUI.getWorkbench().getHelpSystem().setHelp(table, Activator.PLUGIN_ID + "." + "candidate-selector");
 
 		Composite bottomButtonComposite = makeChildComposite(composite, GridData.HORIZONTAL_ALIGN_CENTER, 0);
-        Button selectButton = createButton(bottomButtonComposite, IDialogConstants.SELECT_ALL_ID, "Select All", false);
-        selectButton.addSelectionListener(new SelectionAdapter() {
+        Button checkAllButton = createButton(bottomButtonComposite, IDialogConstants.SELECT_ALL_ID, "Check All", false);
+        checkAllButton.addSelectionListener(new SelectionAdapter() {
             @Override
 			public void widgetSelected(SelectionEvent e) {
                 setAllChecked(true);
             }
         });
-        Button deselectButton = createButton(bottomButtonComposite,  IDialogConstants.DESELECT_ALL_ID, "Deselect All", false);
-        deselectButton.addSelectionListener(new SelectionAdapter() {
+        Button uncheckAllButton = createButton(bottomButtonComposite, IDialogConstants.DESELECT_ALL_ID, "Uncheck All", false);
+        uncheckAllButton.addSelectionListener(new SelectionAdapter() {
             @Override
 			public void widgetSelected(SelectionEvent e) {
                 setAllChecked(false);
+            }
+        });
+        Button checkSelectedButton = createButton(bottomButtonComposite, checkSelectedButtonID, "Check selected", false);
+        checkSelectedButton.addSelectionListener(new SelectionAdapter() {
+            @Override
+			public void widgetSelected(SelectionEvent e) {
+            	setSelectedChecked(true);
+            }
+        });
+        Button uncheckSelectedButton = createButton(bottomButtonComposite, uncheckSelectedButtonID, "Uncheck selected", false);
+        uncheckSelectedButton.addSelectionListener(new SelectionAdapter() {
+            @Override
+			public void widgetSelected(SelectionEvent e) {
+            	setSelectedChecked(false);
             }
         });
 		
@@ -401,6 +417,25 @@ public class InitialSynthesisDialog extends SynthesisDialog {
 			if (item.getChecked() != state)
 				item.setChecked(state);
 		okButton.setEnabled(state && table.getItemCount() > 0);
+	}
+    
+	private void setSelectedChecked(boolean state) {
+		TableItem[] selected = table.getSelection();
+		for (TableItem item: selected)
+			item.setChecked(state);
+		if (selected.length > 0) {
+			if (state)
+				okButton.setEnabled(true);
+			else {
+				for (TableItem item: table.getItems()) {
+					if (item.getChecked()) {
+						okButton.setEnabled(true);
+						return;
+					}
+				}
+				okButton.setEnabled(false);
+			}
+		}
 	}
     
     // Expression validator
