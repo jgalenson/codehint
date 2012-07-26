@@ -51,6 +51,7 @@ Begin expression generation when the user clicks demonstration, i.e., when we op
 If multiple expressions have the same value, only generate with one and then replace later.
 Investigate using IClassFileEvaluationEngine instead of ASTEvaluation.  See JavaSnippetEditor.evaluate().
 Optimize evaluation string: when given a property with a type (x: Foo => ...) don't insert the casts if the variable has static type Foo.
+I could optimize value demonstrations for primitives by doing the comparison directly for expressions whose result I already have.  This could potentially be a big win when searching classes with a large number of fields. E.g., ExpressionAnalyzer searching for int constant has 4943 already evaled and 9 not evaled.
 
 Research questions
 ------------------

@@ -207,7 +207,7 @@ public final class EvaluationManager {
 	public ArrayList<EvaluatedExpression> filterExpressions(ArrayList<EvaluatedExpression> evaledExprs, Property property, InitialSynthesisDialog synthesisDialog, IProgressMonitor monitor) {
 		ArrayList<TypedExpression> exprs = new ArrayList<TypedExpression>(evaledExprs.size());
 		for (EvaluatedExpression expr : evaledExprs)
-			exprs.add(new TypedExpression(expr.getExpression(), expr.getType(), null));
+			exprs.add(new TypedExpression(expr.getExpression(), expr.getType(), expr.getResult()));
 		return evaluateExpressions(exprs, property, synthesisDialog, monitor);
 	}
 	
@@ -225,6 +225,7 @@ public final class EvaluationManager {
 		if (monitor.isCanceled())
 			throw new OperationCanceledException();
 		boolean hasPropertyPrecondition = propertyPreconditions.length() > 0;
+		boolean arePrimitives = !"Object".equals(type);
 		StringBuilder expressionsStr = new StringBuilder();
 		
 		try {
@@ -239,25 +240,29 @@ public final class EvaluationManager {
 	    		String curExprStr = curExpr.toString();
 	    		if (crashingExpressions.contains(curExprStr))
 	    			continue;
+	    		IJavaValue curValue = curTypedExpr.getValue();
 	    		NormalPreconditionFinder pf = new NormalPreconditionFinder();
 	    		curExpr.accept(pf);
 	    		String preconditions = pf.getPreconditions();
 	    		StringBuilder curString = new StringBuilder();
 	    		// TODO: If the user has variables with the same names as the ones I introduce, this will crash....
-	    		curString.append("{\n ").append(type).append(" _$curValue = ").append(curExprStr).append(";\n ");
+	    		String curRHSStr = curExprStr;
+	    		if (arePrimitives && curValue != null)
+	    			curRHSStr = curValue.toString();
+	    		curString.append("{\n ").append(type).append(" _$curValue = ").append(curRHSStr).append(";\n ");
 	    		curString.append(IMPL_QUALIFIER).append("valueCount++;\n ");
 	    		if (hasPropertyPrecondition)
 	    			curString.append("if (" + propertyPreconditions + ") {\n ");
 	    		curString.append("boolean _$curValid = ").append(validVal).append(";\n ");
 	    		curString.append(IMPL_QUALIFIER).append("valid[").append(exprsToEvaluate.size()).append("] = _$curValid;\n ");
 	    		curString.append(IMPL_QUALIFIER).append(valuesArrayName).append("[").append(exprsToEvaluate.size()).append("] = _$curValue;\n");
-	    		if ("Object".equals(type))
+	    		if (!arePrimitives)
 	    			curString.append(" if (_$curValid)\n  ").append(IMPL_QUALIFIER).append("toStrings[").append(exprsToEvaluate.size()).append("] = ").append(getToStringGetter(curTypedExpr)).append(";\n");
 	    		if (hasPropertyPrecondition)
 	    			curString.append(" }\n");
 	    		curString.append(" ").append(IMPL_QUALIFIER).append("fullCount++;\n");
 	    		curString.append("}\n");
-	    		if (preconditions.length() > 0)
+	    		if (preconditions.length() > 0 && curValue == null)  // if the value is non-null, I know the execution won't crash.
 	    			expressionsStr.append("if (" + preconditions + ") ");
 				expressionsStr.append(curString.toString());
 				exprsToEvaluate.add(exprs.get(i));
@@ -270,7 +275,7 @@ public final class EvaluationManager {
                 newTypeString = type + newTypeString;
             StringBuilder prefix = new StringBuilder();
             prefix.append("{\n").append(IMPL_QUALIFIER).append(valuesArrayName).append(" = new ").append(newTypeString).append(";\n").append(IMPL_QUALIFIER).append("valid = new boolean[").append(exprsToEvaluate.size()).append("];\n");
-            if ("Object".equals(type))
+            if (!arePrimitives)
             	prefix.append(IMPL_QUALIFIER).append("toStrings = new String[").append(exprsToEvaluate.size()).append("];\n");
             else
             	prefix.append(IMPL_QUALIFIER).append("toStrings = null;\n");
