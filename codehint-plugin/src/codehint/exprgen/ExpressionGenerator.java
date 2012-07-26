@@ -239,7 +239,7 @@ public final class ExpressionGenerator {
 	    		// Get variables of helpful types.
 				IJavaVariable[] locals = stack.getLocalVariables();
 				for (IJavaVariable l : locals) {
-					IJavaType lType = l.getJavaType();
+					IJavaType lType = EclipseUtils.getTypeOfVariableAndLoadIfNeeded(l, stack);
 					if (isHelpfulType(lType, depth))
 						addUniqueExpressionToList(curLevel, ExpressionMaker.makeVar(l.getName(), (IJavaValue)l.getValue(), lType, false), depth, maxDepth);
 				}
