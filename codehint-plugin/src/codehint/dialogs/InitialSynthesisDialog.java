@@ -99,7 +99,7 @@ public class InitialSynthesisDialog extends SynthesisDialog {
 		this.evaluationEngine = engine;
 		this.subtypeChecker = new SubtypeChecker();
 		this.typeCache = new TypeCache();
-		this.evalManager = new EvaluationManager(stack, typeCache);
+		this.evalManager = new EvaluationManager(stack, subtypeChecker, typeCache);
 		this.expressionGenerator = new ExpressionGenerator(target, stack, subtypeChecker, typeCache, evalManager);
 		this.skeleton = null;
 	}

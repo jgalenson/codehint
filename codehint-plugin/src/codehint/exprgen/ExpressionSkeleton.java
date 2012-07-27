@@ -101,6 +101,7 @@ public final class ExpressionSkeleton {
      * @param target The debug target.
      * @param stack The stack frame.
      * @param subtypeChecker The subtype checker.
+     * @param typeCache The type cache.
      * @param evalManager The evaluation manager.
      * @param expressionGenerator The expression generator.
      */
@@ -123,6 +124,7 @@ public final class ExpressionSkeleton {
 	 * @param stack The stack frame.
 	 * @param evaluationEngine The AST evaluation engine.
      * @param subtypeChecker The subtype checker.
+     * @param typeCache The type cache.
      * @param evalManager The evaluation manager.
      * @param expressionGenerator The expression generator.
 	 * @return The ExpressionSkeleton representing the given sugared string.
@@ -232,6 +234,7 @@ public final class ExpressionSkeleton {
 		 * @param stack The stack frame.
 		 * @param evaluationEngine The AST evaluation engine.
 	     * @param subtypeChecker The subtype checker.
+	     * @param typeCache The type cache.
 	     * @param evalManager The evaluation manager.
 	     * @param expressionGenerator The expression generator.
 		 * @return The ExpressionSkeleton representing the given sugared string.
@@ -504,6 +507,7 @@ public final class ExpressionSkeleton {
 		 * @param evalManager The evaluation manager.
 		 * @param expressionGenerator The expression generator.
 		 * @param subtypeChecker The subtype checker.
+		 * @param typeCache The type cache.
 		 * @param monitor The progress monitor.
 		 */
 		private SkeletonFiller(Map<String, HoleInfo> holeInfos, IJavaStackFrame stack, IJavaDebugTarget target, EvaluationManager evalManager, ExpressionGenerator expressionGenerator, SubtypeChecker subtypeChecker, TypeCache typeCache, IProgressMonitor monitor) {
@@ -534,6 +538,7 @@ public final class ExpressionSkeleton {
 		 * @param evalManager The evaluation manager.
 		 * @param expressionGenerator The expression generator.
 		 * @param subtypeChecker The subtype checker.
+		 * @param typeCache The type cache.
 		 * @param monitor The progress monitor.
 		 * @return Expressions that meet the skeleton (with the
 		 * holes filled in).

@@ -57,7 +57,7 @@ public class SubtypeChecker {
 			// Check objects and interfaces.
 			if (cur instanceof IJavaReferenceType) {
 				if ("java.lang.Object".equals(expected.getName()))  // Shortcut a common case.  Also, this ensures that interfaces are subtypes of Object.
-						return true;
+					return true;
 				// Compute supertypes and add to cache if not there.
 				if (!supertypesMap.containsKey(cur)) {
 					Set<IJavaType> supertypes = new HashSet<IJavaType>();

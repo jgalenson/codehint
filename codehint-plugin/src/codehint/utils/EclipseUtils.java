@@ -444,6 +444,7 @@ public class EclipseUtils {
      * to be fully-qualified but must be unique.
      * @param stackFrame The current stack frame.
      * @param target The debug target.
+     * @param typeCache The type cache.
      * @return The IJavaType representing the given name.
      */
     public static IJavaType getType(String typeName, IJavaStackFrame stackFrame, IJavaDebugTarget target, TypeCache typeCache) {
@@ -464,6 +465,7 @@ public class EclipseUtils {
      * @param typeName The name of the type to get, which does not need
      * to be fully-qualified but must be unique.
      * @param target The debug target.
+     * @param typeCache The type cache.
      * @return The IJavaType representing the given name.
      */
     private static IJavaType getType(IJavaProject project, IType thisType, String typeName, IJavaDebugTarget target, TypeCache typeCache) {
@@ -498,6 +500,7 @@ public class EclipseUtils {
      * Gets the type with the given fully-qualified name.
      * @param fullTypeName The fully-qualified name of a type.
      * @param target The debug target.
+     * @param typeCache The type cache.
      * @return The type with the given name.
      */
     public static IJavaType getFullyQualifiedType(String fullTypeName, IJavaDebugTarget target, TypeCache typeCache) {
@@ -510,6 +513,7 @@ public class EclipseUtils {
      * Gets the type with the given fully-qualified name if one exists.
      * @param fullTypeName The fully-qualified name of a type.
      * @param target The debug target.
+     * @param typeCache The type cache.
      * @return The type with the given name, or null.
      */
     public static IJavaType getFullyQualifiedTypeIfExists(String fullTypeName, IJavaDebugTarget target, TypeCache typeCache) {
@@ -704,6 +708,7 @@ public class EclipseUtils {
      * @param typeName The name of the type to get.
      * @param stack The current stack frame.
      * @param target The debug target.
+     * @param typeCache The type cache.
      * @return The type with the given name, or null if
      * no such type exists.
      */
@@ -726,6 +731,7 @@ public class EclipseUtils {
      * @param typeName The name of the type to get.
      * @param stack The current stack frame.
      * @param target The debug target.
+     * @param typeCache The type cache.
      * @return The type with the given name.
      */
     public static IJavaType getTypeAndLoadIfNeeded(String typeName, IJavaStackFrame stack, IJavaDebugTarget target, TypeCache typeCache) {
@@ -747,6 +753,7 @@ public class EclipseUtils {
      * @param typeName The name of the type to load and return.
      * @param stack The current stack frame.
      * @param target The debug target.
+     * @param typeCache The type cache.
      * @return The newly-loaded type.
      */
     private static IJavaType loadAndGetType(String typeName, IJavaStackFrame stack, IJavaDebugTarget target, TypeCache typeCache) {

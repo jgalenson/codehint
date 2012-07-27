@@ -37,10 +37,13 @@ import org.eclipse.jdt.debug.eval.IEvaluationResult;
 import org.eclipse.swt.widgets.Display;
 
 import codehint.dialogs.InitialSynthesisDialog;
+import codehint.exprgen.SubtypeChecker;
 import codehint.exprgen.TypeCache;
 import codehint.exprgen.TypedExpression;
+import codehint.property.PrimitiveValueProperty;
 import codehint.property.StateProperty;
 import codehint.property.Property;
+import codehint.property.TypeProperty;
 import codehint.property.ValueProperty;
 import codehint.utils.EclipseUtils;
 
@@ -69,6 +72,9 @@ public final class EvaluationManager {
 	
 	private final IJavaStackFrame stack;
 	private final IAstEvaluationEngine engine;
+	private final IJavaDebugTarget target;
+	private final SubtypeChecker subtypeChecker;
+	private final TypeCache typeCache;
 	private final IJavaClassType implType;
 	private final IJavaFieldVariable validField;
 	private final IJavaFieldVariable toStringsField;
@@ -84,10 +90,13 @@ public final class EvaluationManager {
 	private String preVarsString;
 	private String propertyPreconditions;
 	
-	public EvaluationManager(IJavaStackFrame stack, TypeCache typeCache) {
+	public EvaluationManager(IJavaStackFrame stack, SubtypeChecker subtypeChecker, TypeCache typeCache) {
 		this.stack = stack;
 		this.engine = EclipseUtils.getASTEvaluationEngine(stack);
-		this.implType = (IJavaClassType)EclipseUtils.getTypeAndLoadIfNeeded(IMPL_NAME, stack, (IJavaDebugTarget)stack.getDebugTarget(), typeCache);
+		this.target = (IJavaDebugTarget)stack.getDebugTarget();
+		this.subtypeChecker = subtypeChecker;
+		this.typeCache = typeCache;
+		this.implType = (IJavaClassType)EclipseUtils.getTypeAndLoadIfNeeded(IMPL_NAME, stack, target, typeCache);
 		try {
 			this.validField = implType.getField("valid");
 			this.toStringsField = implType.getField("toStrings");
@@ -205,10 +214,39 @@ public final class EvaluationManager {
      * the given property.
 	 */
 	public ArrayList<EvaluatedExpression> filterExpressions(ArrayList<EvaluatedExpression> evaledExprs, Property property, InitialSynthesisDialog synthesisDialog, IProgressMonitor monitor) {
-		ArrayList<TypedExpression> exprs = new ArrayList<TypedExpression>(evaledExprs.size());
-		for (EvaluatedExpression expr : evaledExprs)
-			exprs.add(new TypedExpression(expr.getExpression(), expr.getType(), expr.getResult()));
-		return evaluateExpressions(exprs, property, synthesisDialog, monitor);
+		this.synthesisDialog = synthesisDialog;  // We need to set the dialog so it gets used in reportResults.
+		if (property instanceof PrimitiveValueProperty) {  // Optimization: manually check primitive value equality.
+			// TODO: If I changed value pdspecs to check reference instead of deep equality for objects, I could do this for them as well. 
+			IJavaValue demonstratedValue = ((PrimitiveValueProperty)property).getValue();
+			String valueStr = demonstratedValue.toString();
+			ArrayList<EvaluatedExpression> results = new ArrayList<EvaluatedExpression>();
+			for (EvaluatedExpression e: evaledExprs)
+				if (e.getResult().toString().equals(valueStr))
+					results.add(e);
+			reportResults(results);
+			monitor.worked(evaledExprs.size());
+			return results;
+		} else if (property instanceof TypeProperty) {  // Optimization: manually do type checks.
+			IJavaType targetType = EclipseUtils.getTypeAndLoadIfNeeded(((TypeProperty)property).getTypeName(), stack, target, typeCache);
+			ArrayList<EvaluatedExpression> results = new ArrayList<EvaluatedExpression>();
+			try {
+				for (EvaluatedExpression e: evaledExprs) {
+					IJavaValue value = e.getResult();
+					if (!value.isNull() && subtypeChecker.isSubtypeOf(value.getJavaType(), targetType))  // null is not instanceof Object
+						results.add(e);
+				}
+			} catch (DebugException e) {
+				throw new RuntimeException(e);
+			}
+			reportResults(results);
+			monitor.worked(evaledExprs.size());
+			return results;
+		} else {  // Evaluate the pdspecs directly.
+			ArrayList<TypedExpression> exprs = new ArrayList<TypedExpression>(evaledExprs.size());
+			for (EvaluatedExpression expr : evaledExprs)
+				exprs.add(new TypedExpression(expr.getExpression(), expr.getType(), expr.getResult()));
+			return evaluateExpressions(exprs, property, synthesisDialog, monitor);
+		}
 	}
 	
 	/**
@@ -284,7 +322,8 @@ public final class EvaluationManager {
 			expressionsStr.insert(0, prefix.toString());
 	    	expressionsStr.append("}");
 	    	
-	    	ICompiledExpression compiled = engine.getCompiledExpression(expressionsStr.toString(), stack);
+	    	String finalStr = expressionsStr.toString();
+	    	ICompiledExpression compiled = engine.getCompiledExpression(finalStr, stack);
 	    	if (compiled.hasErrors())  // The user entered a property that does not compile, so notify them.
 	    		throw new EvaluationError("Evaluation error: " + "The following errors were encountered during evaluation.\nDid you enter a valid property?\n\n" + EclipseUtils.getCompileErrors(compiled));
 	    	IEvaluationResult result = Evaluator.evaluateExpression(compiled, engine, stack);
@@ -295,14 +334,7 @@ public final class EvaluationManager {
 	    	/*System.out.println("Evaluated " + count + " expressions.");
 	    	if (hasError)
 	    		System.out.println("Crashed on " + exprs.get(startIndex + count));*/
-	    	if (synthesisDialog != null && !results.isEmpty()) {
-				Display.getDefault().asyncExec(new Runnable(){
-					@Override
-					public void run() {
-			    		synthesisDialog.addExpressions(results);
-					}
-	        	});
-	    	}
+	    	reportResults(results);
 	    	int work = i - startIndex;
 	    	if (hasError) {
 	    		TypedExpression crashingExpr = exprsToEvaluate.get(fullCount);
@@ -372,7 +404,27 @@ public final class EvaluationManager {
 		}
 		return results;
 	}
+
+	/**
+	 * Records the given expressions in the synthesis dialog,
+	 * or does nothing if there is no dialog.
+	 * @param results The expressions to record.
+	 */
+	private void reportResults(final ArrayList<EvaluatedExpression> results) {
+		if (synthesisDialog != null && !results.isEmpty()) {
+			Display.getDefault().asyncExec(new Runnable(){
+				@Override
+				public void run() {
+		    		synthesisDialog.addExpressions(results);
+				}
+			});
+		}
+	}
 	
+	/**
+	 * Nulls out the CodeHintImpl fields used during evaluation
+	 * to free up memory.
+	 */
 	public void resetFields() {
 		try {
 			EclipseUtils.evaluate(IMPL_QUALIFIER + "reset()", stack);
