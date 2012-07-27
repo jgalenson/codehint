@@ -53,7 +53,7 @@ import codehint.utils.EclipseUtils;
 public final class EvaluationManager {
 	
 	private final static int BATCH_SIZE = 100;
-	private final static int MIN_NUM_BATCHES = 4;
+	//private final static int MIN_NUM_BATCHES = 4;
 
 	private final static String IMPL_NAME = "codehint.CodeHintImpl";
 	private final static String IMPL_QUALIFIER = IMPL_NAME + ".";
@@ -85,7 +85,6 @@ public final class EvaluationManager {
 	
 	private InitialSynthesisDialog synthesisDialog;
 	private IProgressMonitor monitor;
-	private int batchSize;
 	private String validVal;
 	private String preVarsString;
 	private String propertyPreconditions;
@@ -124,7 +123,7 @@ public final class EvaluationManager {
 		try {
 			this.synthesisDialog = synthesisDialog;
 			this.monitor = monitor;
-			batchSize = exprs.size() >= 2 * BATCH_SIZE ? BATCH_SIZE : exprs.size() >= MIN_NUM_BATCHES ? exprs.size() / MIN_NUM_BATCHES : 1;
+			//batchSize = exprs.size() >= 2 * BATCH_SIZE ? BATCH_SIZE : exprs.size() >= MIN_NUM_BATCHES ? exprs.size() / MIN_NUM_BATCHES : 1;
 			validVal = property == null ? "true" : property.getReplacedString("_$curValue", stack);
 			preVarsString = getPreVarsString(stack, property);
 			PropertyPreconditionFinder pf = new PropertyPreconditionFinder();
@@ -272,7 +271,7 @@ public final class EvaluationManager {
 			expressionsStr.append(preVarsString);
 			ArrayList<TypedExpression> exprsToEvaluate = new ArrayList<TypedExpression>();
 			int i;
-	    	for (i = startIndex; i < exprs.size() && exprsToEvaluate.size() < batchSize; i++) {
+	    	for (i = startIndex; i < exprs.size() && exprsToEvaluate.size() < BATCH_SIZE; i++) {
 	    		TypedExpression curTypedExpr = exprs.get(i);
 	    		Expression curExpr = curTypedExpr.getExpression();
 	    		String curExprStr = curExpr.toString();
