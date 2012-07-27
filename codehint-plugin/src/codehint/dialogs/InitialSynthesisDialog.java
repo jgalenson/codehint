@@ -214,7 +214,7 @@ public class InitialSynthesisDialog extends SynthesisDialog {
 		public void inputChanged(boolean hasError) {
         	skeletonIsValid = !hasError;
         	if (searchButton != null)
-        		searchButton.setEnabled(pdspecIsValid && skeletonIsValid);
+        		searchButton.setEnabled(pdspecIsValid && skeletonIsValid && !searchCancelButton.isEnabled());
         }
 		
 	}
@@ -225,7 +225,7 @@ public class InitialSynthesisDialog extends SynthesisDialog {
 		public void inputChanged(boolean hasError) {
 			super.inputChanged(hasError);
         	if (searchButton != null)
-        		searchButton.setEnabled(pdspecIsValid && skeletonIsValid);
+        		searchButton.setEnabled(pdspecIsValid && skeletonIsValid && !searchCancelButton.isEnabled());
         }
 		
 	}
@@ -278,6 +278,7 @@ public class InitialSynthesisDialog extends SynthesisDialog {
 
 	public void startEndSynthesis(boolean isStart) {
         getButton(IDialogConstants.CANCEL_ID).setEnabled(!isStart);
+    	searchButton.setEnabled(!isStart && pdspecIsValid && skeletonIsValid);
     	searchCancelButton.setEnabled(isStart);
     	if (!isStart) {
     		monitor.dispose();
