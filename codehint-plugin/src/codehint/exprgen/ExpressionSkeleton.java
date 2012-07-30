@@ -47,6 +47,7 @@ import org.eclipse.jdt.debug.core.IJavaArrayType;
 import org.eclipse.jdt.debug.core.IJavaClassObject;
 import org.eclipse.jdt.debug.core.IJavaClassType;
 import org.eclipse.jdt.debug.core.IJavaDebugTarget;
+import org.eclipse.jdt.debug.core.IJavaObject;
 import org.eclipse.jdt.debug.core.IJavaReferenceType;
 import org.eclipse.jdt.debug.core.IJavaStackFrame;
 import org.eclipse.jdt.debug.core.IJavaType;
@@ -573,7 +574,7 @@ public final class ExpressionSkeleton {
 			if (node instanceof ArrayAccess) {
 				return fillArrayAccess((ArrayAccess)node, curConstraint, parentsOfHoles);
 			} else if (node instanceof BooleanLiteral) {
-	    		return new ExpressionsAndTypeConstraints(new TypedExpression(node, booleanType, null), new SupertypeBound(booleanType));
+	    		return new ExpressionsAndTypeConstraints(new TypedExpression(node, booleanType, ExpressionMaker.makeBooleanValue(target, ((BooleanLiteral)node).booleanValue())), new SupertypeBound(booleanType));
 			} else if (node instanceof CastExpression) {
 				return fillCast((CastExpression)node, curConstraint, parentsOfHoles);
 			} else if (node instanceof CharacterLiteral) {
@@ -634,7 +635,7 @@ public final class ExpressionSkeleton {
 				return fillMethod(superAccess, superAccess.getName(), superAccess.arguments(), parentsOfHoles, curConstraint, argTypes, new ExpressionsAndTypeConstraints(new TypedExpression(null, superType, null), new SupertypeBound(superType)));
 			} else if (node instanceof ThisExpression) {
 				IJavaType type = getThisType();
-				return new ExpressionsAndTypeConstraints(new TypedExpression(node, type, null), new SupertypeBound(type)); 
+				return new ExpressionsAndTypeConstraints(new TypedExpression(node, type, getThis()), new SupertypeBound(type)); 
 			} else if (node instanceof TypeLiteral) {
 				return fillTypeLiteral(node);
 			} else
@@ -975,7 +976,7 @@ public final class ExpressionSkeleton {
 				} else {
 					IJavaVariable var = stack.findVariable(name.getIdentifier());
 					if (var != null)
-						return new ExpressionsAndTypeConstraints(new TypedExpression(name, var.getJavaType(), null), new SupertypeBound(var.getJavaType()));
+						return new ExpressionsAndTypeConstraints(new TypedExpression(name, var.getJavaType(), (IJavaValue)var.getValue()), new SupertypeBound(var.getJavaType()));
 					IJavaType type = EclipseUtils.getTypeAndLoadIfNeeded(name.getIdentifier(), stack, target, typeCache);
 					assert type != null : name.getIdentifier();
 					return new ExpressionsAndTypeConstraints(ExpressionMaker.makeStaticName(name.getIdentifier(), type), new SupertypeBound(type));
@@ -1053,12 +1054,13 @@ public final class ExpressionSkeleton {
 							if (!ExpressionMaker.isStatic(receiverExpr.getExpression()) || field.isStatic()) {
 								String fieldTypeName = field.typeName();
 								IJavaValue fieldValue = null;
-								if (field.isStatic()) {
-									try {
+								try {
+									if (receiverExpr.getValue() != null)
+										fieldValue = (IJavaValue)((IJavaObject)receiverExpr.getValue()).getField(field.name(), !field.declaringType().name().equals(receiverExpr.getType().getName())).getValue();
+									else if (field.isStatic())
 										fieldValue = (IJavaValue)((IJavaReferenceType)receiverExpr.getType()).getField(field.name()).getValue();
-									} catch (DebugException e) {
-										throw new RuntimeException(e);
-									}
+								} catch (DebugException e) {
+									e.printStackTrace();
 								}
 								TypedExpression newExpr = null;
 								if (receiverExpr.getExpression() == null)
@@ -1241,6 +1243,18 @@ public final class ExpressionSkeleton {
 		private IJavaType getThisType() {
 			try {
 				return stack.getReferenceType();
+			} catch (DebugException e) {
+				throw new RuntimeException(e);
+			}
+		}
+
+		/**
+		 * Gets the this object.
+		 * @return The this object.
+		 */
+		private IJavaValue getThis() {
+			try {
+				return stack.getThis();
 			} catch (DebugException e) {
 				throw new RuntimeException(e);
 			}

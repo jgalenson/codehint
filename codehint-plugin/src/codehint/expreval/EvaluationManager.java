@@ -240,6 +240,7 @@ public final class EvaluationManager {
 		boolean arePrimitives = !"Object".equals(type);
 		ArrayList<Integer> evalExprIndices = new ArrayList<Integer>();
 		int numEvaluated = 0;
+		boolean validateStatically = property instanceof PrimitiveValueProperty || property instanceof TypeProperty;
 		StringBuilder expressionsStr = new StringBuilder();
 		
 		try {
@@ -252,7 +253,6 @@ public final class EvaluationManager {
 	    		Expression curExpr = curTypedExpr.getExpression();
 	    		String curExprStr = curExpr.toString();
 	    		IJavaValue curValue = curTypedExpr.getValue();
-	    		boolean validateStatically = property instanceof PrimitiveValueProperty || property instanceof TypeProperty;
 	    		if (curValue == null || !validateStatically) {
 		    		NormalPreconditionFinder pf = new NormalPreconditionFinder();
 		    		curExpr.accept(pf);
@@ -263,8 +263,8 @@ public final class EvaluationManager {
 		    		if (arePrimitives && curValue != null)
 		    			curRHSStr = curValue.toString();
 		    		curString.append("{\n ").append(type).append(" _$curValue = ").append(curRHSStr).append(";\n ");
-		    		curString.append(IMPL_QUALIFIER).append("valueCount++;\n ");
 		    		if (!validateStatically) {
+		    			curString.append(IMPL_QUALIFIER).append("valueCount = ").append(numEvaluated + 1).append(";\n ");
 			    		if (hasPropertyPrecondition)
 			    			curString.append("if (" + propertyPreconditions + ") {\n ");
 			    		curString.append("boolean _$curValid = ").append(validVal).append(";\n ");
@@ -275,7 +275,7 @@ public final class EvaluationManager {
 		    			curString.append(" if (_$curValid)\n  ").append(IMPL_QUALIFIER).append("toStrings[").append(numEvaluated).append("] = ").append(getToStringGetter(curTypedExpr)).append(";\n");
 		    		if (hasPropertyPrecondition && !validateStatically)
 		    			curString.append(" }\n");
-		    		curString.append(" ").append(IMPL_QUALIFIER).append("fullCount++;\n");
+		    		curString.append(" ").append(IMPL_QUALIFIER).append("fullCount = ").append(numEvaluated + 1).append(";\n");
 		    		curString.append("}\n");
 		    		if (preconditions.length() > 0 && curValue == null)  // if the value is non-null, I know the execution won't crash.
 		    			expressionsStr.append("if (" + preconditions + ") ");
@@ -316,7 +316,7 @@ public final class EvaluationManager {
 				int fullCount = ((IJavaPrimitiveValue)fullCountField.getValue()).getIntValue();
 				int valueCount = ((IJavaPrimitiveValue)valueCountField.getValue()).getIntValue();
 	    		int crashingIndex = evalExprIndices.get(fullCount);
-				if (valueCount == fullCount)
+				if (valueCount == fullCount || validateStatically)
 					crashingExpressions.add(exprs.get(crashingIndex).getExpression().toString());
 	    		work = crashingIndex - startIndex + 1;
 	    	}
@@ -374,9 +374,12 @@ public final class EvaluationManager {
 		ArrayList<EvaluatedExpression> results = new ArrayList<EvaluatedExpression>();
 		if (count == 0)
 			return results;
-		IJavaValue[] values = ((IJavaValue)valuesField.getValue()).isNull() ? null : ((IJavaArray)valuesField.getValue()).getValues();
-		IJavaValue[] valids = ((IJavaValue)validField.getValue()).isNull() ? null : ((IJavaArray)validField.getValue()).getValues();
-		IJavaValue[] toStrings = ((IJavaValue)toStringsField.getValue()).isNull() ? null : ((IJavaArray)toStringsField.getValue()).getValues();
+		IJavaValue valuesFieldValue = (IJavaValue)valuesField.getValue();
+		IJavaValue[] values = valuesFieldValue.isNull() ? null : ((IJavaArray)valuesFieldValue).getValues();
+		IJavaValue validFieldValue = (IJavaValue)validField.getValue();
+		IJavaValue[] valids = validFieldValue.isNull() ? null : ((IJavaArray)validFieldValue).getValues();
+		IJavaValue toStringsFieldValue = (IJavaValue)toStringsField.getValue();
+		IJavaValue[] toStrings = toStringsFieldValue.isNull() ? null : ((IJavaArray)toStringsFieldValue).getValues();
 		int evalIndex = 0;
 		for (int i = 0; i < count; i++) {
 			TypedExpression typedExpr = exprs.get(startIndex + i);
