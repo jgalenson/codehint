@@ -50,6 +50,7 @@ import org.eclipse.jdt.debug.core.IJavaDebugTarget;
 import org.eclipse.jdt.debug.core.IJavaReferenceType;
 import org.eclipse.jdt.debug.core.IJavaStackFrame;
 import org.eclipse.jdt.debug.core.IJavaType;
+import org.eclipse.jdt.debug.core.IJavaValue;
 import org.eclipse.jdt.debug.core.IJavaVariable;
 import org.eclipse.jdt.debug.eval.IAstEvaluationEngine;
 
@@ -1051,11 +1052,19 @@ public final class ExpressionSkeleton {
 						for (Field field: fields.get(receiverExprs.getKey())) {
 							if (!ExpressionMaker.isStatic(receiverExpr.getExpression()) || field.isStatic()) {
 								String fieldTypeName = field.typeName();
+								IJavaValue fieldValue = null;
+								if (field.isStatic()) {
+									try {
+										fieldValue = (IJavaValue)((IJavaReferenceType)receiverExpr.getType()).getField(field.name()).getValue();
+									} catch (DebugException e) {
+										throw new RuntimeException(e);
+									}
+								}
 								TypedExpression newExpr = null;
 								if (receiverExpr.getExpression() == null)
-									newExpr = ExpressionMaker.makeSuperFieldAccess(superQualifier, field.name(), EclipseUtils.getTypeAndLoadIfNeeded(fieldTypeName, stack, target, typeCache), null);
+									newExpr = ExpressionMaker.makeSuperFieldAccess(superQualifier, field.name(), EclipseUtils.getTypeAndLoadIfNeeded(fieldTypeName, stack, target, typeCache), fieldValue);
 								else
-									newExpr = ExpressionMaker.makeFieldAccess(receiverExpr, field.name(), EclipseUtils.getTypeAndLoadIfNeeded(fieldTypeName, stack, target, typeCache), null);
+									newExpr = ExpressionMaker.makeFieldAccess(receiverExpr, field.name(), EclipseUtils.getTypeAndLoadIfNeeded(fieldTypeName, stack, target, typeCache), fieldValue);
 								Utils.addToMap(resultExprs, fieldTypeName, newExpr);
 							}
 						}
