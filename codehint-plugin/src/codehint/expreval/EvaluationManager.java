@@ -240,7 +240,7 @@ public final class EvaluationManager {
 		boolean arePrimitives = !"Object".equals(type);
 		ArrayList<Integer> evalExprIndices = new ArrayList<Integer>();
 		int numEvaluated = 0;
-		boolean validateStatically = property instanceof PrimitiveValueProperty || property instanceof TypeProperty;
+		boolean validateStatically = property == null || property instanceof PrimitiveValueProperty || property instanceof TypeProperty;
 		StringBuilder expressionsStr = new StringBuilder();
 		
 		try {
@@ -271,8 +271,11 @@ public final class EvaluationManager {
 			    		curString.append(IMPL_QUALIFIER).append("valid[").append(numEvaluated).append("] = _$curValid;\n ");
 		    		}
 		    		curString.append(IMPL_QUALIFIER).append(valuesArrayName).append("[").append(numEvaluated).append("] = _$curValue;\n");
-		    		if (!arePrimitives && !validateStatically)
-		    			curString.append(" if (_$curValid)\n  ").append(IMPL_QUALIFIER).append("toStrings[").append(numEvaluated).append("] = ").append(getToStringGetter(curTypedExpr)).append(";\n");
+		    		if (!arePrimitives) {
+		    			if (!validateStatically)
+		    				curString.append(" if (_$curValid)\n  ");
+		    			curString.append(IMPL_QUALIFIER).append("toStrings[").append(numEvaluated).append("] = ").append(getToStringGetter(curTypedExpr)).append(";\n");
+		    		}
 		    		if (hasPropertyPrecondition && !validateStatically)
 		    			curString.append(" }\n");
 		    		curString.append(" ").append(IMPL_QUALIFIER).append("fullCount = ").append(numEvaluated + 1).append(";\n");
@@ -386,7 +389,10 @@ public final class EvaluationManager {
 			IJavaValue curValue = typedExpr.getValue() != null ? typedExpr.getValue() : values[evalIndex];
 			boolean valid = false;
 			String resultString = null;
-			if (property instanceof PrimitiveValueProperty) {
+			if (property == null) {
+				valid = true;
+				resultString = toStrings == null ? EclipseUtils.javaStringOfValue(curValue, stack) : toStrings[evalIndex].getValueString();
+			} else if (property instanceof PrimitiveValueProperty) {
 				valid = curValue.toString().equals(((PrimitiveValueProperty)property).getValue().toString());
 				resultString = EclipseUtils.javaStringOfValue(curValue, stack);
     		} else if (property instanceof TypeProperty) {

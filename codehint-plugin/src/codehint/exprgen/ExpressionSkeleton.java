@@ -1082,26 +1082,27 @@ public final class ExpressionSkeleton {
 			for (Map.Entry<String, ArrayList<TypedExpression>> receiverExprs: receiverResult.getExprs().entrySet())
 				if (fields.containsKey(receiverExprs.getKey())) {
 					for (TypedExpression receiverExpr: receiverExprs.getValue())
-						for (Field field: fields.get(receiverExprs.getKey())) {
-							if (!ExpressionMaker.isStatic(receiverExpr.getExpression()) || field.isStatic()) {
-								String fieldTypeName = field.typeName();
-								IJavaValue fieldValue = null;
-								try {
-									if (receiverExpr.getValue() != null)
-										fieldValue = (IJavaValue)((IJavaObject)receiverExpr.getValue()).getField(field.name(), !field.declaringType().name().equals(receiverExpr.getType().getName())).getValue();
-									else if (field.isStatic())
-										fieldValue = (IJavaValue)((IJavaReferenceType)receiverExpr.getType()).getField(field.name()).getValue();
-								} catch (DebugException e) {
-									e.printStackTrace();
+						if (receiverExpr.getValue() == null || !receiverExpr.getValue().isNull())
+							for (Field field: fields.get(receiverExprs.getKey())) {
+								if (!ExpressionMaker.isStatic(receiverExpr.getExpression()) || field.isStatic()) {
+									String fieldTypeName = field.typeName();
+									IJavaValue fieldValue = null;
+									try {
+										if (receiverExpr.getValue() != null)
+											fieldValue = (IJavaValue)((IJavaObject)receiverExpr.getValue()).getField(field.name(), !field.declaringType().name().equals(receiverExpr.getType().getName())).getValue();
+										else if (field.isStatic())
+											fieldValue = (IJavaValue)((IJavaReferenceType)receiverExpr.getType()).getField(field.name()).getValue();
+									} catch (DebugException e) {
+										e.printStackTrace();
+									}
+									TypedExpression newExpr = null;
+									if (receiverExpr.getExpression() == null)
+										newExpr = ExpressionMaker.makeSuperFieldAccess(superQualifier, field.name(), EclipseUtils.getTypeAndLoadIfNeeded(fieldTypeName, stack, target, typeCache), fieldValue);
+									else
+										newExpr = ExpressionMaker.makeFieldAccess(receiverExpr, field.name(), EclipseUtils.getTypeAndLoadIfNeeded(fieldTypeName, stack, target, typeCache), fieldValue);
+									Utils.addToMap(resultExprs, fieldTypeName, newExpr);
 								}
-								TypedExpression newExpr = null;
-								if (receiverExpr.getExpression() == null)
-									newExpr = ExpressionMaker.makeSuperFieldAccess(superQualifier, field.name(), EclipseUtils.getTypeAndLoadIfNeeded(fieldTypeName, stack, target, typeCache), fieldValue);
-								else
-									newExpr = ExpressionMaker.makeFieldAccess(receiverExpr, field.name(), EclipseUtils.getTypeAndLoadIfNeeded(fieldTypeName, stack, target, typeCache), fieldValue);
-								Utils.addToMap(resultExprs, fieldTypeName, newExpr);
 							}
-						}
 				}
 			return new ExpressionsAndTypeConstraints(resultExprs, fieldResult.getTypeConstraint());
 		}
@@ -1137,12 +1138,13 @@ public final class ExpressionSkeleton {
 			if (receiverResult.getExprs() != null) {
 				for (Map.Entry<String, ArrayList<TypedExpression>> receiverExprs: receiverResult.getExprs().entrySet())
 					if (methods.containsKey(receiverExprs.getKey()))
-						for (TypedExpression receiverExpr: receiverExprs.getValue()) {
-							OverloadChecker overloadChecker = new OverloadChecker(receiverExpr.getType());
-							for (Method method: methods.get(receiverExprs.getKey()))
-								if (!ExpressionMaker.isStatic(receiverExpr.getExpression()) || method.isStatic())
-									buildCalls(method, receiverExpr, node, argResults, isListHole, resultExprs, overloadChecker);
-						}
+						for (TypedExpression receiverExpr: receiverExprs.getValue())
+							if (receiverExpr.getValue() == null || !receiverExpr.getValue().isNull()) {
+								OverloadChecker overloadChecker = new OverloadChecker(receiverExpr.getType());
+								for (Method method: methods.get(receiverExprs.getKey()))
+									if (!ExpressionMaker.isStatic(receiverExpr.getExpression()) || method.isStatic())
+										buildCalls(method, receiverExpr, node, argResults, isListHole, resultExprs, overloadChecker);
+							}
 			} else {  // No receiver (implicit this).
 				IJavaType thisType = getThisType();
 				OverloadChecker overloadChecker = new OverloadChecker(thisType);
