@@ -10,11 +10,24 @@ import org.eclipse.jdt.debug.core.IJavaType;
 
 import com.sun.jdi.Method;
 
+/**
+ * A class that checks whether a given argument to a
+ * method call needs a cast to remove ambiguities due
+ * to overloaded methods.
+ * The current implementation is conservative; it could
+ * add unnecessary casts.
+ */
 public class OverloadChecker {
 	
 	private final Map<String, Map<Integer, List<Method>>> methodsByName;
 	private boolean[] allHaveSameType;
 	
+	/**
+	 * Creates a new OverloadChecker that will check methods
+	 * of the given receiver.
+	 * @param receiverType The type of the receiver of whose
+	 * methods this object will check.
+	 */
 	public OverloadChecker(IJavaType receiverType) {
 		List<Method> visibleMethods = ExpressionGenerator.getMethods(receiverType);
 		methodsByName = new HashMap<String, Map<Integer, List<Method>>>();
@@ -30,6 +43,13 @@ public class OverloadChecker {
 		}
 	}
 	
+	/**
+	 * Sets the method that future calls to needsCast will
+	 * check.  This can be called multiple times, and will
+	 * use the information from the last call.
+	 * @param method The method to which future calls to
+	 * needsCast will check.
+	 */
 	public void setMethod(Method method) {
 		// TODO: Improve overloading detection.
 		List<?> argumentTypeNames = method.argumentTypeNames();
@@ -41,6 +61,16 @@ public class OverloadChecker {
 					allHaveSameType[i] = false;
 	}
 	
+	/**
+	 * Checks whether the given parameter to the current method
+	 * needs to be cast to the expected type to resolve overload
+	 * ambiguities.
+	 * @param argType The expected type of the parameter.
+	 * @param curType The current type of the parameter.
+	 * @param index The index of this parameter in the call.
+	 * @return Whether this parameter needs a cast to resolve
+	 * ambiguities.
+	 */
 	public boolean needsCast(IJavaType argType, IJavaType curType, int index) {
 		return !allHaveSameType[index] && !argType.equals(curType);
 	}

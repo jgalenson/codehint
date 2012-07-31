@@ -703,8 +703,6 @@ public final class ExpressionSkeleton {
 		/**
 		 * Fills class instance creation skeleton pieces.
 		 * @param node The class instance creation part of the skeleton.
-		 * @param curConstraint The constraint for the type of the
-		 * expressions generated from this piece of the skeleton.
 		 * @param parentsOfHoles All nodes that are parents of some hole.
 		 * @return The synthesized expressions corresponding to this
 		 * skeleton piece and the type constraint representing their types.
@@ -796,9 +794,7 @@ public final class ExpressionSkeleton {
 
 		/**
 		 * Fills instanceof skeleton pieces.
-		 * @param node The instanceof part of the skeleton.
-		 * @param curConstraint The constraint for the type of the
-		 * expressions generated from this piece of the skeleton.
+		 * @param instance The instanceof part of the skeleton.
 		 * @param parentsOfHoles All nodes that are parents of some hole.
 		 * @return The synthesized expressions corresponding to this
 		 * skeleton piece and the type constraint representing their types.
@@ -816,9 +812,6 @@ public final class ExpressionSkeleton {
 		/**
 		 * Fills number literal skeleton pieces.
 		 * @param node The number literal part of the skeleton.
-		 * @param curConstraint The constraint for the type of the
-		 * expressions generated from this piece of the skeleton.
-		 * @param parentsOfHoles All nodes that are parents of some hole.
 		 * @return The synthesized expressions corresponding to this
 		 * skeleton piece and the type constraint representing their types.
 		 */
@@ -900,7 +893,6 @@ public final class ExpressionSkeleton {
 		 * @param node The simple name part of the skeleton.
 		 * @param curConstraint The constraint for the type of the
 		 * expressions generated from this piece of the skeleton.
-		 * @param parentsOfHoles All nodes that are parents of some hole.
 		 * @return The synthesized expressions corresponding to this
 		 * skeleton piece and the type constraint representing their types.
 		 */
@@ -917,12 +909,12 @@ public final class ExpressionSkeleton {
 						FieldNameConstraint fieldNameConstraint = (FieldNameConstraint)curConstraint;
 						if (holeInfo.getArgs() != null)
 							fieldNameConstraint.setLegalNames(new HashSet<String>(holeInfo.getArgs()));
-						return new ExpressionsAndTypeConstraints(getFieldsAndSetConstraint(name, fieldNameConstraint, true));
+						return new ExpressionsAndTypeConstraints(getFieldsAndConstraint(name, fieldNameConstraint, true));
 					} else if (curConstraint instanceof MethodNameConstraint) {  // Method name hole
 						MethodNameConstraint methodNameConstraint = (MethodNameConstraint)curConstraint;
 						if (holeInfo.getArgs() != null)
 							methodNameConstraint.setLegalNames(new HashSet<String>(holeInfo.getArgs()));
-						return new ExpressionsAndTypeConstraints(getMethodsAndSetConstraint(name, methodNameConstraint, true));
+						return new ExpressionsAndTypeConstraints(getMethodsAndConstraint(name, methodNameConstraint, true));
 					} else {  // Expression hole
 						ArrayList<EvaluatedExpression> values;
 						if (holeInfo.getArgs() != null) {  // If the user supplied potential expressions, use them.
@@ -970,9 +962,9 @@ public final class ExpressionSkeleton {
 						return new ExpressionsAndTypeConstraints(typedValuesForType, resultConstraint);
 					}
 				} else if (curConstraint instanceof FieldNameConstraint) {
-					return new ExpressionsAndTypeConstraints(getFieldsAndSetConstraint(name, (FieldNameConstraint)curConstraint, false));
+					return new ExpressionsAndTypeConstraints(getFieldsAndConstraint(name, (FieldNameConstraint)curConstraint, false));
 				} else if (curConstraint instanceof MethodNameConstraint) {
-					return new ExpressionsAndTypeConstraints(getMethodsAndSetConstraint(name, (MethodNameConstraint)curConstraint, false));
+					return new ExpressionsAndTypeConstraints(getMethodsAndConstraint(name, (MethodNameConstraint)curConstraint, false));
 				} else {
 					IJavaVariable var = stack.findVariable(name.getIdentifier());
 					if (var != null)
@@ -989,9 +981,6 @@ public final class ExpressionSkeleton {
 		/**
 		 * Fills type literal skeleton pieces.
 		 * @param node The type literal part of the skeleton.
-		 * @param curConstraint The constraint for the type of the
-		 * expressions generated from this piece of the skeleton.
-		 * @param parentsOfHoles All nodes that are parents of some hole.
 		 * @return The synthesized expressions corresponding to this
 		 * skeleton piece and the type constraint representing their types.
 		 */
@@ -1008,7 +997,17 @@ public final class ExpressionSkeleton {
 		
 		/* Helper functions. */
 
-		private TypeConstraint getFieldsAndSetConstraint(SimpleName name, FieldNameConstraint fieldNameConstraint, boolean isHole) {
+		/**
+		 * Gets the type constraint for the given field name and gets the
+		 * possible fields if it represents a hole.
+		 * @param name The name of the field, which is either a real
+		 * name or a fake name for a hole.
+		 * @param fieldNameConstraint The constraint on the name of
+		 * the field.
+		 * @param isHole Whether or not this is a hole.
+		 * @return The type constraint for the given field name.
+		 */
+		private TypeConstraint getFieldsAndConstraint(SimpleName name, FieldNameConstraint fieldNameConstraint, boolean isHole) {
 			Map<String, ArrayList<Field>> fieldsByType = fieldNameConstraint.getFields(stack, target, subtypeChecker, typeCache);
 			List<IJavaType> types = new ArrayList<IJavaType>();
 			for (ArrayList<Field> fields: fieldsByType.values())
@@ -1019,7 +1018,17 @@ public final class ExpressionSkeleton {
 			return getSupertypeConstraintForTypes(types);
 		}
 
-		private TypeConstraint getMethodsAndSetConstraint(SimpleName name, MethodNameConstraint methodNameConstraint, boolean isHole) {
+		/**
+		 * Gets the type constraint for the given method name and gets the
+		 * possible methods if it represents a hole.
+		 * @param name The name of the method, which is either a real
+		 * name or a fake name for a hole.
+		 * @param methodNameConstraint The constraint on the name of
+		 * the method.
+		 * @param isHole Whether or not this is a hole.
+		 * @return The type constraint for the given method name.
+		 */
+		private TypeConstraint getMethodsAndConstraint(SimpleName name, MethodNameConstraint methodNameConstraint, boolean isHole) {
 			Map<String, ArrayList<Method>> methodsByType = methodNameConstraint.getMethods(stack, target, subtypeChecker, typeCache);
 			List<IJavaType> types = new ArrayList<IJavaType>();
 			for (ArrayList<Method> methods: methodsByType.values())
@@ -1030,12 +1039,35 @@ public final class ExpressionSkeleton {
 			return getSupertypeConstraintForTypes(types);
 		}
 
+		/**
+		 * Fills non-super field access skeleton pieces.
+		 * @param qualifier The qualifier of this field access.
+		 * @param name The name of this field access.
+		 * @param parentsOfHoles All nodes that are parents of some hole.
+		 * @param curConstraint The constraint for the type of the
+		 * expressions generated from this piece of the skeleton.
+		 * @return The synthesized expressions corresponding to this
+		 * skeleton piece and the type constraint representing their types.
+		 */
 		private ExpressionsAndTypeConstraints fillNormalField(Expression qualifier, SimpleName name, Set<ASTNode> parentsOfHoles, TypeConstraint curConstraint) {
 			TypeConstraint qualifierConstraint = new FieldConstraint(parentsOfHoles.contains(name) ? null : name.getIdentifier(), curConstraint);
 			ExpressionsAndTypeConstraints receiverResult = fillSkeleton(qualifier, qualifierConstraint, parentsOfHoles);
 			return fillField(name, null, parentsOfHoles, curConstraint, receiverResult);
 		}
 
+		/**
+		 * Fills field access skeleton pieces.
+		 * @param name The name of this field access.
+		 * @param superQualifier The qualifier of the super field access
+		 * (which can be null) or null if it is not a super field access.
+		 * @param parentsOfHoles All nodes that are parents of some hole.
+		 * @param curConstraint The constraint for the type of the
+		 * expressions generated from this piece of the skeleton.
+		 * @param receiverResult The synthesized expressions and the type
+		 * constraint for the receiver of this field access. 
+		 * @return The synthesized expressions corresponding to this
+		 * skeleton piece and the type constraint representing their types.
+		 */
 		private ExpressionsAndTypeConstraints fillField(SimpleName name, Name superQualifier, Set<ASTNode> parentsOfHoles, TypeConstraint curConstraint, ExpressionsAndTypeConstraints receiverResult) {
 			FieldNameConstraint fieldNameConstraint = new FieldNameConstraint(receiverResult.getTypeConstraint(), curConstraint);
 			if (!parentsOfHoles.contains(name))
@@ -1074,6 +1106,21 @@ public final class ExpressionSkeleton {
 			return new ExpressionsAndTypeConstraints(resultExprs, fieldResult.getTypeConstraint());
 		}
 
+		/**
+		 * Fills method call skeleton pieces.
+		 * @param node The method call part of the skeleton.
+		 * @param name The name of this method call.
+		 * @param arguments The expression arguments to this method call.
+		 * @param parentsOfHoles All nodes that are parents of some hole.
+		 * @param curConstraint The constraint for the type of the
+		 * expressions generated from this piece of the skeleton.
+		 * @param argTypes The type constraints on the arguments to this
+		 * method call.
+		 * @param receiverResult The synthesized expressions and the type
+		 * constraint for the receiver of this field access. 
+		 * @return The synthesized expressions corresponding to this
+		 * skeleton piece and the type constraint representing their types.
+		 */
 		private ExpressionsAndTypeConstraints fillMethod(Expression node, SimpleName name, List<?> arguments, Set<ASTNode> parentsOfHoles, TypeConstraint curConstraint, ArrayList<TypeConstraint> argTypes, ExpressionsAndTypeConstraints receiverResult) {
 			MethodNameConstraint methodNameConstraint = new MethodNameConstraint(receiverResult.getTypeConstraint(), curConstraint, argTypes);
 			if (!parentsOfHoles.contains(name))
@@ -1086,8 +1133,8 @@ public final class ExpressionSkeleton {
 				methods = methodNameConstraint.getMethods(stack, target, subtypeChecker, typeCache);
 			boolean isListHole = argTypes == null;
 			ArrayList<ExpressionsAndTypeConstraints> argResults = getAndFillArgs(arguments, parentsOfHoles, methods, isListHole);
+			Map<String, ArrayList<TypedExpression>> resultExprs = new HashMap<String, ArrayList<TypedExpression>>(methodResult.getTypeConstraint().getTypes(target, typeCache).length);
 			if (receiverResult.getExprs() != null) {
-				Map<String, ArrayList<TypedExpression>> resultExprs = new HashMap<String, ArrayList<TypedExpression>>(methodResult.getTypeConstraint().getTypes(target, typeCache).length);
 				for (Map.Entry<String, ArrayList<TypedExpression>> receiverExprs: receiverResult.getExprs().entrySet())
 					if (methods.containsKey(receiverExprs.getKey()))
 						for (TypedExpression receiverExpr: receiverExprs.getValue()) {
@@ -1096,18 +1143,25 @@ public final class ExpressionSkeleton {
 								if (!ExpressionMaker.isStatic(receiverExpr.getExpression()) || method.isStatic())
 									buildCalls(method, receiverExpr, node, argResults, isListHole, resultExprs, overloadChecker);
 						}
-				return new ExpressionsAndTypeConstraints(resultExprs, methodResult.getTypeConstraint());
-			} else {
-				Map<String, ArrayList<TypedExpression>> resultExprs = new HashMap<String, ArrayList<TypedExpression>>(methodResult.getTypeConstraint().getTypes(target, typeCache).length);
+			} else {  // No receiver (implicit this).
 				IJavaType thisType = getThisType();
 				OverloadChecker overloadChecker = new OverloadChecker(thisType);
 				if (!methods.isEmpty())
 					for (Method method: Utils.singleton(methods.values()))
 						buildCalls(method, ExpressionMaker.makeThis(null, thisType), node, argResults, isListHole, resultExprs, overloadChecker);
-				return new ExpressionsAndTypeConstraints(resultExprs, methodResult.getTypeConstraint());
 			}
+			return new ExpressionsAndTypeConstraints(resultExprs, methodResult.getTypeConstraint());
 		}
 		
+		/**
+		 * Gets the type constraints for the given argument nodes.
+		 * @param node This piece of the skeleton.
+		 * @param argNodes The expression nodes representing
+		 * the arguments.
+		 * @param parentsOfHoles All nodes that are parents of
+		 * some hole.
+		 * @return The type constraints for the given argument nods.
+		 */
 		private ArrayList<TypeConstraint> getArgTypes(Expression node, List<?> argNodes, Set<ASTNode> parentsOfHoles) {
 			if (argNodes.size() == 1) {  // Special case to check for a single list hole.
 				Expression arg = (Expression)argNodes.get(0);
@@ -1128,6 +1182,19 @@ public final class ExpressionSkeleton {
 				return null;
 		}
 
+		/**
+		 * Fills argument skeleton pieces.
+		 * @param arguments The expression arguments.
+		 * @param parentsOfHoles All nodes that are parents of some hole.
+		 * @param methodsByType A map containing all potential methods
+		 * indexed by the types of their receivers.
+		 * @param isListHole Whether or not this argument is a list hole
+		 * and can thus take in an arbitrary number of arguments.
+		 * @return The synthesized expressions corresponding to the given
+		 * arguments and the type constraint representing their types.
+		 * If this is a list hole, the result only has one element, which
+		 * contains all the potential expressions.
+		 */
 		private ArrayList<ExpressionsAndTypeConstraints> getAndFillArgs(List<?> arguments, Set<ASTNode> parentsOfHoles, Map<String, ArrayList<Method>> methodsByType, boolean isListHole) {
 			int count = isListHole ? 1 : arguments.size();
 			ArrayList<ExpressionsAndTypeConstraints> argResults = new ArrayList<ExpressionsAndTypeConstraints>(count);
@@ -1148,6 +1215,21 @@ public final class ExpressionSkeleton {
 			return argResults;
 		}
 
+		/**
+		 * 
+		 * @param method The method to call.
+		 * @param receiverExpr The receiver object.
+		 * @param callNode The node representing the call
+		 * piece of the skeleton.
+		 * @param argResults The potential expressions and type
+		 * constraints for the arguments.  If this call uses a
+		 * list hole, it contains only one element.
+		 * @param isListHole Whether or not this call uses a
+		 * list hole.
+		 * @param resultExprs Map that stores the resulting
+		 * expressions.
+		 * @param overloadChecker The overload checker.
+		 */
 		private void buildCalls(Method method, TypedExpression receiverExpr, Expression callNode, ArrayList<ExpressionsAndTypeConstraints> argResults, boolean isListHole, Map<String, ArrayList<TypedExpression>> resultExprs, OverloadChecker overloadChecker) {
 			try {
 				String methodReturnTypeName = method.isConstructor() ? receiverExpr.getType().getName() : method.returnTypeName();  // The method class returns void for the return type of constructors....
@@ -1175,7 +1257,22 @@ public final class ExpressionSkeleton {
 				throw new RuntimeException(e);
 			}
 		}
-		
+
+		/**
+		 * Creates all possible calls using the given actuals.
+		 * @param method The method being called.
+		 * @param name The method name.
+		 * @param constraintName The name of the return type of the method, which
+		 * is used to store the resulting expressions.
+		 * @param receiver The receiving object.
+		 * @param callNode The node representing the call piece of the skeleton.
+		 * @param returnType The return type of the function.
+		 * @param thisType The type of the this object.
+		 * @param possibleActuals A list of all the possible actuals for each argument.
+		 * @param curActuals The current list of actuals, which is built
+		 * up through recursion.
+		 * @param resultExprs The map that stores the resulting expressions.
+		 */
 		private void makeAllCalls(Method method, String name, String constraintName, TypedExpression receiver, Expression callNode, IJavaType returnType, IJavaType thisType, ArrayList<ArrayList<TypedExpression>> possibleActuals, ArrayList<TypedExpression> curActuals, Map<String, ArrayList<TypedExpression>> resultExprs) {
 			if (curActuals.size() == possibleActuals.size()) {
 				TypedExpression callExpr = null;

@@ -620,7 +620,7 @@ public final class ExpressionGenerator {
 	}
 	
 	/**
-	 * Crates all possible calls using the given actuals.
+	 * Creates all possible calls using the given actuals.
 	 * @param method The method being called.
 	 * @param name The method name.
 	 * @param receiver The receiving object.
