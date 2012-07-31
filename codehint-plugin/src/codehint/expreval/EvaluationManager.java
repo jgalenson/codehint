@@ -262,12 +262,12 @@ public final class EvaluationManager {
 		    		String curRHSStr = curExprStr;
 		    		if (arePrimitives && curValue != null)
 		    			curRHSStr = curValue.toString();
-		    		curString.append("{\n ").append(type).append(" _$curValue = ").append(curRHSStr).append(";\n ");
+		    		curString.append(" _$curValue = ").append(curRHSStr).append(";\n ");
 		    		if (!validateStatically) {
 		    			curString.append(IMPL_QUALIFIER).append("valueCount = ").append(numEvaluated + 1).append(";\n ");
 			    		if (hasPropertyPrecondition)
 			    			curString.append("if (" + propertyPreconditions + ") {\n ");
-			    		curString.append("boolean _$curValid = ").append(validVal).append(";\n ");
+			    		curString.append("_$curValid = ").append(validVal).append(";\n ");
 			    		curString.append(IMPL_QUALIFIER).append("valid[").append(numEvaluated).append("] = _$curValid;\n ");
 		    		}
 		    		curString.append(IMPL_QUALIFIER).append(valuesArrayName).append("[").append(numEvaluated).append("] = _$curValue;\n");
@@ -279,9 +279,11 @@ public final class EvaluationManager {
 		    		if (hasPropertyPrecondition && !validateStatically)
 		    			curString.append(" }\n");
 		    		curString.append(" ").append(IMPL_QUALIFIER).append("fullCount = ").append(numEvaluated + 1).append(";\n");
-		    		curString.append("}\n");
-		    		if (preconditions.length() > 0 && curValue == null)  // if the value is non-null, I know the execution won't crash.
-		    			expressionsStr.append("if (" + preconditions + ") ");
+		    		if (preconditions.length() > 0 && curValue == null) {  // if the value is non-null, I know the execution won't crash.
+		    			expressionsStr.append("if (" + preconditions + ") {\n");
+			    		curString.append("}\n");
+		    		} else
+		    			expressionsStr.append("\n");
 					expressionsStr.append(curString.toString());
 					evalExprIndices.add(i);
 					numEvaluated++;
@@ -303,6 +305,9 @@ public final class EvaluationManager {
 	            	prefix.append(IMPL_QUALIFIER).append("toStrings = null;\n");
 	        	prefix.append(IMPL_QUALIFIER).append("valueCount = 0;\n");
 	        	prefix.append(IMPL_QUALIFIER).append("fullCount = 0;\n");
+	        	prefix.append(type).append(" _$curValue;\n");
+	        	if (!validateStatically)
+		        	prefix.append("boolean _$curValid;\n");
 				expressionsStr.insert(0, prefix.toString());
 		    	expressionsStr.append("}");
 		    	
