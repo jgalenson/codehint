@@ -140,7 +140,7 @@ public final class EvaluationManager {
 				String type = EclipseUtils.sanitizeTypename(expressionsOfType.getKey());
 				String valuesArrayName = getValuesArrayName(type);
 				IJavaFieldVariable valuesField = implType.getField(valuesArrayName);
-				evaluatedExprs.addAll(evaluateExpressions(expressionsOfType.getValue(), type, property, valuesField, 0));
+				evaluateExpressions(expressionsOfType.getValue(), evaluatedExprs, type, property, valuesField, 0);
 			}
 			return evaluatedExprs;
 		} catch (DebugException e) {
@@ -230,15 +230,15 @@ public final class EvaluationManager {
 	/**
 	 * Evaluates the given expressions.
 	 * @param exprs The expressions to evaluate
+	 * @param results The results of the evaluations of the given
+	 * expressions that do not crash and satisfy the current pdspec.
 	 * @param type The static type of the desired expression.
 	 * @param property 
 	 * @param valuesField The field of the proper type to store the
 	 * results of the given expressions.
 	 * @param startIndex The index at which to start evaluation.
-     * @return the results of the evaluations of the given expressions
-     * that do not crash and satisfy the current pdspec.
 	 */
-	private ArrayList<EvaluatedExpression> evaluateExpressions(ArrayList<TypedExpression> exprs, String type, Property property, IJavaFieldVariable valuesField, int startIndex) {
+	private void evaluateExpressions(ArrayList<TypedExpression> exprs, ArrayList<EvaluatedExpression> results, String type, Property property, IJavaFieldVariable valuesField, int startIndex) {
 		if (monitor.isCanceled())
 			throw new OperationCanceledException();
 		boolean hasPropertyPrecondition = propertyPreconditions.length() > 0;
@@ -336,16 +336,16 @@ public final class EvaluationManager {
 	    		work = crashingIndex - startIndex;
 	    		numToSkip = skipLikelyCrashes(exprs, error, crashingIndex, crashedExpr);
 	    	}
-	    	final ArrayList<EvaluatedExpression> results = getResultsFromArray(exprs, property, valuesField, startIndex, work);
+	    	ArrayList<EvaluatedExpression> newResults = getResultsFromArray(exprs, property, valuesField, startIndex, work);
+	    	reportResults(newResults);
+	    	results.addAll(newResults);
 	    	/*System.out.println("Evaluated " + count + " expressions.");
 	    	if (hasError)
 	    		System.out.println("Crashed on " + exprs.get(startIndex + count));*/
-	    	reportResults(results);
 	    	monitor.worked(work);
 	    	int nextStartIndex = startIndex + work + numToSkip;
 	    	if (nextStartIndex < exprs.size())
-	    		results.addAll(evaluateExpressions(exprs, type, property, valuesField, nextStartIndex));
-	    	return results;
+	    		evaluateExpressions(exprs, results, type, property, valuesField, nextStartIndex);
 		} catch (DebugException e) {
 			throw new RuntimeException(e);
 		}
@@ -358,17 +358,14 @@ public final class EvaluationManager {
 	 * a string representation.
 	 * @return A String representation of the value of the
 	 * given expression.
+	 * @throws DebugException 
 	 */
-	private static String getToStringGetter(TypedExpression expr) {
-		try {
-			String nullCheck = "_$curValue == null ? \"null\" : ";
-			if (expr.getType() instanceof IJavaArrayType)
-				return nullCheck + "java.util.Arrays.toString((" + EclipseUtils.sanitizeTypename(expr.getType().getName()) + ")_$curValue)";
-			else
-				return nullCheck + "_$curValue.toString()";
-		} catch (DebugException e) {
-			throw new RuntimeException(e);
-		}
+	private static String getToStringGetter(TypedExpression expr) throws DebugException {
+		String nullCheck = "_$curValue == null ? \"null\" : ";
+		if (expr.getType() instanceof IJavaArrayType)
+			return nullCheck + "java.util.Arrays.toString((" + EclipseUtils.sanitizeTypename(expr.getType().getName()) + ")_$curValue)";
+		else
+			return nullCheck + "_$curValue.toString()";
 	}
 	
 	/**
