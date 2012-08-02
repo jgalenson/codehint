@@ -868,12 +868,12 @@ public class EclipseUtils {
 	 * @param exception The exception whose message we want to get.
 	 * @return The message of the given exception.
 	 */
-    private static String getExceptionMessage(Throwable exception) {
+    public static String getExceptionMessage(Throwable exception) {
 		if (exception instanceof CoreException) {
 			CoreException ce = (CoreException)exception;
-			Throwable throwable= ce.getStatus().getException();
+			Throwable throwable = ce.getStatus().getException();
 			if (throwable instanceof InvocationException) {
-				ObjectReference ref = ((InvocationException)exception).exception();
+				ObjectReference ref = ((InvocationException)throwable).exception();
 				return "An exception occurred: " + ref.referenceType().name();
 			} else if (throwable instanceof CoreException)
 				return getExceptionMessage(throwable);
@@ -884,5 +884,21 @@ public class EclipseUtils {
 			message += " - " + exception.getMessage();
 		return message;
 	}
+    
+    /**
+     * Gets the name of the given exception.
+     * @param exception The exception whose name to get.
+     * @return The name of the given exception.
+     */
+    public static String getExceptionName(Throwable exception) {
+    	if (exception instanceof CoreException) {
+			Throwable throwable = ((CoreException)exception).getStatus().getException();
+			if (throwable instanceof InvocationException)
+				return ((InvocationException)throwable).exception().referenceType().name();
+			else if (throwable instanceof CoreException)
+				return getExceptionName(throwable);
+		}
+		return exception.getClass().toString(); 
+    }
 
 }

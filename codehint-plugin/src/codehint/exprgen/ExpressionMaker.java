@@ -513,7 +513,7 @@ public class ExpressionMaker {
 		e.setProperty("value", v);
 	}
 
-	private static IJavaValue getExpressionValue(Expression e) {
+	public static IJavaValue getExpressionValue(Expression e) {
 		return (IJavaValue)e.getProperty("value");
 	}
 

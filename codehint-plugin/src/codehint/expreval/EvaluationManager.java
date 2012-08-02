@@ -12,6 +12,7 @@ import org.eclipse.core.runtime.OperationCanceledException;
 import org.eclipse.debug.core.DebugEvent;
 import org.eclipse.debug.core.DebugException;
 import org.eclipse.jdt.core.dom.AST;
+import org.eclipse.jdt.core.dom.ASTNode;
 import org.eclipse.jdt.core.dom.ASTParser;
 import org.eclipse.jdt.core.dom.ASTVisitor;
 import org.eclipse.jdt.core.dom.ArrayAccess;
@@ -20,6 +21,7 @@ import org.eclipse.jdt.core.dom.Expression;
 import org.eclipse.jdt.core.dom.FieldAccess;
 import org.eclipse.jdt.core.dom.InfixExpression;
 import org.eclipse.jdt.core.dom.MethodInvocation;
+import org.eclipse.jdt.core.dom.NullLiteral;
 import org.eclipse.jdt.core.dom.SimpleName;
 import org.eclipse.jdt.debug.core.IJavaArray;
 import org.eclipse.jdt.debug.core.IJavaArrayType;
@@ -36,7 +38,10 @@ import org.eclipse.jdt.debug.eval.IEvaluationListener;
 import org.eclipse.jdt.debug.eval.IEvaluationResult;
 import org.eclipse.swt.widgets.Display;
 
+import com.sun.jdi.Method;
+
 import codehint.dialogs.InitialSynthesisDialog;
+import codehint.exprgen.ExpressionMaker;
 import codehint.exprgen.SubtypeChecker;
 import codehint.exprgen.TypeCache;
 import codehint.exprgen.TypedExpression;
@@ -289,7 +294,7 @@ public final class EvaluationManager {
 					numEvaluated++;
 	    		}
 	    	}
-	    	boolean hasError = false;
+	    	DebugException error = null;
 	    	if (numEvaluated > 0) {
 		    	String newTypeString = "[" + numEvaluated + "]";
 	            if (type.contains("[]")) {  // If this is an array type, we must specify our new size as the first array dimension, not the last one.
@@ -316,25 +321,28 @@ public final class EvaluationManager {
 		    	if (compiled.hasErrors())  // The user entered a property that does not compile, so notify them.
 		    		throw new EvaluationError("Evaluation error: " + "The following errors were encountered during evaluation.\nDid you enter a valid property?\n\n" + EclipseUtils.getCompileErrors(compiled));
 		    	IEvaluationResult result = Evaluator.evaluateExpression(compiled, engine, stack);
-		    	hasError = result.getException() != null;
+		    	error = result.getException();
 	    	}
 
 	    	int work = i - startIndex;
-	    	if (hasError) {
+	    	int numToSkip = 0;
+	    	if (error != null) {
 				int fullCount = ((IJavaPrimitiveValue)fullCountField.getValue()).getIntValue();
 				int valueCount = ((IJavaPrimitiveValue)valueCountField.getValue()).getIntValue();
 	    		int crashingIndex = evalExprIndices.get(fullCount);
+	    		Expression crashedExpr = exprs.get(crashingIndex).getExpression();
 				if (valueCount == fullCount || validateStatically)
-					crashingExpressions.add(exprs.get(crashingIndex).getExpression().toString());
-	    		work = crashingIndex - startIndex + 1;
+					crashingExpressions.add(crashedExpr.toString());
+	    		work = crashingIndex - startIndex;
+	    		numToSkip = skipLikelyCrashes(exprs, error, crashingIndex, crashedExpr);
 	    	}
-	    	final ArrayList<EvaluatedExpression> results = getResultsFromArray(exprs, property, valuesField, startIndex, hasError ? work - 1 : work);
+	    	final ArrayList<EvaluatedExpression> results = getResultsFromArray(exprs, property, valuesField, startIndex, work);
 	    	/*System.out.println("Evaluated " + count + " expressions.");
 	    	if (hasError)
 	    		System.out.println("Crashed on " + exprs.get(startIndex + count));*/
 	    	reportResults(results);
 	    	monitor.worked(work);
-	    	int nextStartIndex = startIndex + work;
+	    	int nextStartIndex = startIndex + work + numToSkip;
 	    	if (nextStartIndex < exprs.size())
 	    		results.addAll(evaluateExpressions(exprs, type, property, valuesField, nextStartIndex));
 	    	return results;
@@ -434,6 +442,66 @@ public final class EvaluationManager {
 			});
 		}
 	}
+
+	/**
+	 * Heuristically skips expressions that are similar to an
+	 * expression that just crashed and thus are likely to
+	 * crash themselves.
+	 * @param exprs All of the expressions being evaluated.
+	 * @param error The exception thrown by the execution of
+	 * the current expression.
+	 * @param crashingIndex The index of the crashing expression.
+	 * @param crashedExpr The expression whose execution crashed,
+	 * @return The number of expressions starting from crashingIndex
+	 * that should be skipped.  This includes the expression that
+	 * crashed and so will always be at least one.
+	 */
+	private static int skipLikelyCrashes(ArrayList<TypedExpression> exprs, DebugException error, int crashingIndex, Expression crashedExpr) {
+		//System.out.println("Evaluation of " + crashedExpr.toString() + " crashed with message: " + EclipseUtils.getExceptionMessage(error) + ".");
+		int numToSkip = 1;
+		Method crashedMethod = ExpressionMaker.getMethod(crashedExpr);
+		String errorName = EclipseUtils.getExceptionName(error);
+		int numNulls = getNumNulls(crashedExpr);
+		// Only skip method calls that we think will throw a NPE and that have at least one subexpression we know is null.
+		if (crashedMethod != null && "java.lang.NullPointerException".equals(errorName) && numNulls > 0) {
+			while (crashingIndex + numToSkip < exprs.size()) {
+				Expression newExpr = exprs.get(crashingIndex + numToSkip).getExpression();
+				// Skip calls to the same method with at least as much known nulls.
+				if (crashedMethod.equals(ExpressionMaker.getMethod(newExpr)) && getNumNulls(newExpr) >= numNulls) {
+					//System.out.println("Skipping " + newExpr.toString() + ".");
+					numToSkip++;
+				} else
+					break;
+			}
+		}
+		return numToSkip;
+	}
+    
+    /**
+     * Finds the number of subexpressions of the
+     * given expression that are known to be null.
+     * @param expr The expression to search.
+     * @return The number of subexpressions of the
+     * given expression known to be null.
+     */
+    private static int getNumNulls(Expression expr) {
+    	final int[] numNulls = new int[] { 0 };
+    	expr.accept(new ASTVisitor() {
+    		@Override
+    		public void postVisit(ASTNode node) {
+    			if (node instanceof Expression) {
+    				if (node instanceof NullLiteral)
+    					numNulls[0]++;
+    				else {
+    					IJavaValue value = ExpressionMaker.getExpressionValue((Expression)node);
+    					if (value != null && value.isNull())
+        					numNulls[0]++;
+    				}
+    			}
+    		}
+    	});
+    	return numNulls[0];
+    }
 	
 	/**
 	 * Nulls out the CodeHintImpl fields used during evaluation
