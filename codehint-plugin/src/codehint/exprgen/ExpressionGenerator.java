@@ -118,8 +118,8 @@ public final class ExpressionGenerator {
 		} catch (DebugException e) {
 			throw new RuntimeException(e);
 		}
-		this.intType = EclipseUtils.getFullyQualifiedType("int", target, typeCache);
-		this.booleanType = EclipseUtils.getFullyQualifiedType("boolean", target, typeCache);
+		this.intType = EclipseUtils.getFullyQualifiedType("int", stack, target, typeCache);
+		this.booleanType = EclipseUtils.getFullyQualifiedType("boolean", stack, target, typeCache);
 		this.zero = ExpressionMaker.makeIntValue(target, 0);
 		this.one = ExpressionMaker.makeIntValue(target, 1);
 		this.two = ExpressionMaker.makeIntValue(target, 2);
@@ -204,7 +204,7 @@ public final class ExpressionGenerator {
     		List<TypedExpression> nextLevel = genAllExprs(demonstration, depth + 1, maxDepth, monitor);
     		List<TypedExpression> curLevel = new ArrayList<TypedExpression>();
 			Set<IJavaType> objectInterfaceTypes = new HashSet<IJavaType>();
-			IJavaType[] constraintTypes = typeConstraint.getTypes(target, typeCache);
+			IJavaType[] constraintTypes = typeConstraint.getTypes(stack, target, typeCache);
     		
     		// Get constants (but only at the top-level).
     		if (depth == 0 && demonstration != null && ExpressionMaker.isInt(demonstration.getJavaType()) && !"0".equals(demonstration.toString()))

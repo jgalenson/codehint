@@ -11,6 +11,6 @@ public abstract class TypeConstraint {
 	
 	public abstract boolean isFulfilledBy(IJavaType type, SubtypeChecker subtypeChecker, TypeCache typeCache, IJavaStackFrame stack, IJavaDebugTarget target);
 	
-	public abstract IJavaType[] getTypes(IJavaDebugTarget target, TypeCache typeCache);
+	public abstract IJavaType[] getTypes(IJavaStackFrame stack, IJavaDebugTarget target, TypeCache typeCache);
 
 }

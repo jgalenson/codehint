@@ -31,7 +31,7 @@ public class MethodNameConstraint extends NameConstraint {
 	
 	public Map<String, ArrayList<Method>> getMethods(IJavaStackFrame stack, IJavaDebugTarget target, SubtypeChecker subtypeChecker, TypeCache typeCache) {
 		try {
-			IJavaType[] receiverTypes = expressionConstraint.getTypes(target, typeCache);
+			IJavaType[] receiverTypes = expressionConstraint.getTypes(stack, target, typeCache);
 			Map<String, ArrayList<Method>> methodsByType = new HashMap<String, ArrayList<Method>>(receiverTypes.length);
     		for (IJavaType receiverType: receiverTypes) {
     			String typeName = receiverType.getName();
@@ -58,7 +58,7 @@ public class MethodNameConstraint extends NameConstraint {
 	private boolean methodFulfills(SubtypeChecker subtypeChecker, TypeCache typeCache, IJavaStackFrame stack, IJavaDebugTarget target, Method method) {
 		return (legalNames == null || legalNames.contains(method.name())) && 
 				(argConstraints == null || fulfillsArgConstraints(method, argConstraints, subtypeChecker, typeCache, stack, target))
-				&& (!"void".equals(method.returnTypeName()) && methodConstraint.isFulfilledBy(EclipseUtils.getFullyQualifiedTypeIfExists(method.returnTypeName(), target, typeCache), subtypeChecker, typeCache, stack, target));
+				&& (!"void".equals(method.returnTypeName()) && methodConstraint.isFulfilledBy(EclipseUtils.getFullyQualifiedTypeIfExists(method.returnTypeName(), stack, target, typeCache), subtypeChecker, typeCache, stack, target));
 	}
 
 	public static boolean fulfillsArgConstraints(Method method, ArrayList<TypeConstraint> argConstraints, SubtypeChecker subtypeChecker, TypeCache typeCache, IJavaStackFrame stack, IJavaDebugTarget target) {

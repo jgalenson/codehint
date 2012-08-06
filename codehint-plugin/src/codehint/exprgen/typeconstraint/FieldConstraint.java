@@ -25,14 +25,14 @@ public class FieldConstraint extends TypeConstraint {
 	public boolean isFulfilledBy(IJavaType type, SubtypeChecker subtypeChecker, TypeCache typeCache, IJavaStackFrame stack, IJavaDebugTarget target) {
 		for (Field field: ExpressionGenerator.getFields(type)) {
 			if (fieldName == null || field.name().equals(fieldName))
-				return fieldConstraint.isFulfilledBy(EclipseUtils.getFullyQualifiedType(field.typeName(), target, typeCache), subtypeChecker, typeCache, stack, target);
+				return fieldConstraint.isFulfilledBy(EclipseUtils.getFullyQualifiedType(field.typeName(), stack, target, typeCache), subtypeChecker, typeCache, stack, target);
 		}
 		return false;
 	}
 
 	@Override
-	public IJavaType[] getTypes(IJavaDebugTarget target, TypeCache typeCache) {
-		return new IJavaType[] { EclipseUtils.getFullyQualifiedType("java.lang.Object", target, typeCache) };
+	public IJavaType[] getTypes(IJavaStackFrame stack, IJavaDebugTarget target, TypeCache typeCache) {
+		return new IJavaType[] { EclipseUtils.getFullyQualifiedType("java.lang.Object", stack, target, typeCache) };
 	}
 
 	@Override

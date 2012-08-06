@@ -29,7 +29,7 @@ public class DesiredType extends SingleTypeConstraint {
 	}
 
 	@Override
-	public IJavaType[] getTypes(IJavaDebugTarget target, TypeCache typeCache) {
+	public IJavaType[] getTypes(IJavaStackFrame stack, IJavaDebugTarget target, TypeCache typeCache) {
 		return new IJavaType[] { typeConstraint };
 	}
 

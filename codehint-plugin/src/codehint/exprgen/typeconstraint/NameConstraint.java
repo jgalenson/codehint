@@ -3,6 +3,7 @@ package codehint.exprgen.typeconstraint;
 import java.util.Set;
 
 import org.eclipse.jdt.debug.core.IJavaDebugTarget;
+import org.eclipse.jdt.debug.core.IJavaStackFrame;
 import org.eclipse.jdt.debug.core.IJavaType;
 
 import codehint.exprgen.TypeCache;
@@ -20,7 +21,7 @@ public abstract class NameConstraint extends TypeConstraint {
 	}
 
 	@Override
-	public IJavaType[] getTypes(IJavaDebugTarget target, TypeCache typeCache) {
+	public IJavaType[] getTypes(IJavaStackFrame stack, IJavaDebugTarget target, TypeCache typeCache) {
 		throw new RuntimeException("Cannot get the types of a name constraint.");
 	}
 

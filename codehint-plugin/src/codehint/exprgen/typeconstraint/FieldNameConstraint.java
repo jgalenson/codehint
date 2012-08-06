@@ -29,7 +29,7 @@ public class FieldNameConstraint extends NameConstraint {
 	
 	public Map<String, ArrayList<Field>> getFields(IJavaStackFrame stack, IJavaDebugTarget target, SubtypeChecker subtypeChecker, TypeCache typeCache) {
 		try {
-			IJavaType[] receiverTypes = expressionConstraint.getTypes(target, typeCache);
+			IJavaType[] receiverTypes = expressionConstraint.getTypes(stack, target, typeCache);
 			Map<String, ArrayList<Field>> fieldsByType = new HashMap<String, ArrayList<Field>>(receiverTypes.length);
 			for (IJavaType receiverType: receiverTypes) {
 				String typeName = receiverType.getName();
@@ -54,7 +54,7 @@ public class FieldNameConstraint extends NameConstraint {
 	}
 
 	private boolean fieldFulfills(SubtypeChecker subtypeChecker, TypeCache typeCache, IJavaStackFrame stack, IJavaDebugTarget target, Field field) {
-		return (legalNames == null || legalNames.contains(field.name())) && fieldConstraint.isFulfilledBy(EclipseUtils.getFullyQualifiedType(field.typeName(), target, typeCache), subtypeChecker, typeCache, stack, target);
+		return (legalNames == null || legalNames.contains(field.name())) && fieldConstraint.isFulfilledBy(EclipseUtils.getFullyQualifiedType(field.typeName(), stack, target, typeCache), subtypeChecker, typeCache, stack, target);
 	}
 
 	@Override

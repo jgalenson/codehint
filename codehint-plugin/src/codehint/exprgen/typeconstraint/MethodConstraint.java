@@ -29,13 +29,13 @@ public class MethodConstraint extends TypeConstraint {
 	public boolean isFulfilledBy(IJavaType type, SubtypeChecker subtypeChecker, TypeCache typeCache, IJavaStackFrame stack, IJavaDebugTarget target) {
 		for (Method method: ExpressionGenerator.getMethods(type)) {
 			if ((methodName == null || method.name().equals(methodName)) && (argConstraints == null || method.argumentTypeNames().size() == argConstraints.size())
-					&& methodConstraint.isFulfilledBy(EclipseUtils.getFullyQualifiedTypeIfExists(method.returnTypeName(), target, typeCache), subtypeChecker, typeCache, stack, target)) {  // We use the ifExists version because it might be void.
+					&& methodConstraint.isFulfilledBy(EclipseUtils.getFullyQualifiedTypeIfExists(method.returnTypeName(), stack, target, typeCache), subtypeChecker, typeCache, stack, target)) {  // We use the ifExists version because it might be void.
 				int i = 0;
 				if (argConstraints == null)
 					return true;
 				for (; i < argConstraints.size(); i++) {
 					TypeConstraint argConstraint = argConstraints.get(i);
-					if (argConstraint != null && !argConstraint.isFulfilledBy(EclipseUtils.getFullyQualifiedType((String)method.argumentTypeNames().get(i), target, typeCache), subtypeChecker, typeCache, stack, target))
+					if (argConstraint != null && !argConstraint.isFulfilledBy(EclipseUtils.getFullyQualifiedType((String)method.argumentTypeNames().get(i), stack, target, typeCache), subtypeChecker, typeCache, stack, target))
 						break;
 				}
 				if (i == argConstraints.size())
@@ -46,8 +46,8 @@ public class MethodConstraint extends TypeConstraint {
 	}
 
 	@Override
-	public IJavaType[] getTypes(IJavaDebugTarget target, TypeCache typeCache) {
-		return new IJavaType[] { EclipseUtils.getFullyQualifiedType("java.lang.Object", target, typeCache) };
+	public IJavaType[] getTypes(IJavaStackFrame stack, IJavaDebugTarget target, TypeCache typeCache) {
+		return new IJavaType[] { EclipseUtils.getFullyQualifiedType("java.lang.Object", stack, target, typeCache) };
 	}
 
 	@Override
