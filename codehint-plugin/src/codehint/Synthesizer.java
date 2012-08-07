@@ -335,8 +335,9 @@ public class Synthesizer {
    			while (it.hasNext())
    				initialExprs.add(new TypedExpression((Expression)it.next(), varStaticType, null));
         	assert initialExprs.size() > 0;  // We must have at least one expression.
+        	TypeCache typeCache = new TypeCache();
         	// TODO: Run the following off the UI thread like above when we do the first synthesis.
-        	EvaluationManager evalManager = new EvaluationManager(frame, new SubtypeChecker(), new TypeCache());
+        	EvaluationManager evalManager = new EvaluationManager(frame, new SubtypeChecker(), typeCache);
    			ArrayList<EvaluatedExpression> exprs = evalManager.evaluateExpressions(initialExprs, null, null, new NullProgressMonitor());
    			if (exprs.isEmpty()) {
    				EclipseUtils.showError("No valid expressions", "No valid expressions were found.", null);
@@ -367,7 +368,7 @@ public class Synthesizer {
    	   				}
    	   			});
        			// Get the new concrete value from the user.
-   				final SynthesisDialog synthesisDialog = getRefinementDialog(exprs, varname, varStaticType, varStaticTypeName, "\nPotential values are: " + getLegalValues(exprs), frame, initialProperty, evalManager);
+   				final SynthesisDialog synthesisDialog = getRefinementDialog(exprs, varname, varStaticType, varStaticTypeName, "\nPotential values are: " + getLegalValues(exprs), frame, initialProperty, evalManager, typeCache);
    				Display.getDefault().syncExec(new Runnable() {
    	   				@Override
 					public void run() {
@@ -550,11 +551,12 @@ public class Synthesizer {
 	     * @param oldProperty The property the user gave the last time
 	     * at this line.
 	     * @param evalManager The evaluation manager.
+	     * @param typeCache 
 	     * @return A dialog that defaults to asking for the type of
 	     * pdspec the user gave the last time at this line.
 	     * @throws DebugException
 	     */
-	    private static RefinementSynthesisDialog getRefinementDialog(ArrayList<EvaluatedExpression> exprs, String varName, IJavaType varStaticType, String varStaticTypeName, String extraMessage, IJavaStackFrame stackFrame, Property oldProperty, EvaluationManager evalManager) throws DebugException {
+	    private static RefinementSynthesisDialog getRefinementDialog(ArrayList<EvaluatedExpression> exprs, String varName, IJavaType varStaticType, String varStaticTypeName, String extraMessage, IJavaStackFrame stackFrame, Property oldProperty, EvaluationManager evalManager, TypeCache typeCache) throws DebugException {
 			Shell shell = getShell();
 			PropertyDialog propertyDialog = null;
 			if (oldProperty == null || oldProperty instanceof StateProperty)
@@ -569,7 +571,7 @@ public class Synthesizer {
 				propertyDialog = new LambdaPropertyDialog(varName, varStaticType.getName(), varStaticType, stackFrame, oldProperty.toString(), extraMessage);
 			else
 				throw new IllegalArgumentException(oldProperty.toString());
-			return new RefinementSynthesisDialog(shell, varStaticTypeName, varStaticType, stackFrame, propertyDialog, new RefinementWorker(exprs, evalManager));
+			return new RefinementSynthesisDialog(shell, varStaticTypeName, varStaticType, stackFrame, propertyDialog, new RefinementWorker(exprs, evalManager), typeCache);
 	    }
 	    
 	    /**

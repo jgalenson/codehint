@@ -4,21 +4,25 @@ import org.eclipse.debug.core.DebugException;
 import org.eclipse.jdt.core.IJavaProject;
 import org.eclipse.jdt.core.IType;
 import org.eclipse.jdt.core.JavaModelException;
+import org.eclipse.jdt.debug.core.IJavaDebugTarget;
 import org.eclipse.jdt.debug.core.IJavaStackFrame;
 import org.eclipse.jface.dialogs.IInputValidator;
 
+import codehint.exprgen.TypeCache;
 import codehint.property.Property;
 import codehint.property.TypeProperty;
 import codehint.utils.EclipseUtils;
 
 public class TypePropertyDialog extends PropertyDialog {
 
+	private final IJavaStackFrame stack;
 	private final String pdspecMessage;
 	private final String initialPdspecText;
 	private final IInputValidator pdspecValidator;
 	
     public TypePropertyDialog(String varName, String varTypeName, IJavaStackFrame stack, String initialValue, String extraMessage) {
     	super(varName, extraMessage);
+    	this.stack = stack;
     	String pdspecMessage = "Demonstrate a type for " + varName + ".  We will find expressions return that type when evaluated.";
     	this.pdspecMessage = getFullMessage(pdspecMessage, extraMessage);
     	try {
@@ -73,11 +77,11 @@ public class TypePropertyDialog extends PropertyDialog {
     }
 
 	@Override
-	public Property computeProperty(String propertyText) {
+	public Property computeProperty(String propertyText, TypeCache typeCache) {
 		if (propertyText == null)
 			return null;
 		else
-			return TypeProperty.fromType(propertyText);
+			return TypeProperty.fromType(propertyText, EclipseUtils.getTypeAndLoadIfNeeded(propertyText, stack, (IJavaDebugTarget)stack.getDebugTarget(), typeCache));
 	}
 
 	@Override

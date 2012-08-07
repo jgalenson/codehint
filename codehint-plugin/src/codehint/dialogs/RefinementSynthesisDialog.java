@@ -10,15 +10,17 @@ import org.eclipse.swt.widgets.Composite;
 import org.eclipse.swt.widgets.Shell;
 import codehint.Synthesizer.RefinementWorker;
 import codehint.expreval.EvaluatedExpression;
+import codehint.exprgen.TypeCache;
 
 public class RefinementSynthesisDialog extends SynthesisDialog {
 	
-
 	private final RefinementWorker worker;
+	private final TypeCache typeCache;
 
-	public RefinementSynthesisDialog(Shell parentShell, String varTypeName, IJavaType varType, IJavaStackFrame stack, PropertyDialog propertyDialog, RefinementWorker worker) {
+	public RefinementSynthesisDialog(Shell parentShell, String varTypeName, IJavaType varType, IJavaStackFrame stack, PropertyDialog propertyDialog, RefinementWorker worker, TypeCache typeCache) {
 		super(parentShell, varTypeName, varType, stack, propertyDialog);
 		this.worker = worker;
+		this.typeCache = typeCache;
 	}
 	
 	private class RefinementPropertyModifyListener extends PropertyModifyHandler {
@@ -48,7 +50,7 @@ public class RefinementSynthesisDialog extends SynthesisDialog {
     @Override
 	protected void buttonPressed(int buttonId) {
         if (buttonId == IDialogConstants.OK_ID) {
-            property = propertyDialog.computeProperty(pdspecInput.getText());
+            property = propertyDialog.computeProperty(pdspecInput.getText(), typeCache);
 	    	worker.refine(this);
     	}
         super.buttonPressed(buttonId);

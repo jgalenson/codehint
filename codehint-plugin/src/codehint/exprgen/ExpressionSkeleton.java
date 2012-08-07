@@ -423,7 +423,7 @@ public final class ExpressionSkeleton {
 		if (property instanceof ValueProperty)  // We want exactly the type of the value.
 			return new DesiredType(((ValueProperty)property).getValue().getJavaType());
 		else if (property instanceof TypeProperty)  // We want the type specified by the type property.
-			return new SupertypeBound(EclipseUtils.getType(((TypeProperty)property).getTypeName(), stack, target, typeCache));
+			return new SupertypeBound(((TypeProperty)property).getType());
 		else if (property instanceof LambdaProperty) {
 			String typeName = ((LambdaProperty)property).getTypeName();
 			if (typeName != null)  // We want the type specified in the lambda expression.

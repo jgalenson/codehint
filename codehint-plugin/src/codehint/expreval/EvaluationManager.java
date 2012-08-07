@@ -406,8 +406,7 @@ public final class EvaluationManager {
 				valid = curValue.toString().equals(((PrimitiveValueProperty)property).getValue().toString());
 				resultString = EclipseUtils.javaStringOfValue(curValue, stack);
     		} else if (property instanceof TypeProperty) {
-    			IJavaType targetType = EclipseUtils.getTypeAndLoadIfNeeded(((TypeProperty)property).getTypeName(), stack, target, typeCache);
-				valid = !curValue.isNull() && subtypeChecker.isSubtypeOf(curValue.getJavaType(), targetType);  // null is not instanceof Object
+				valid = !curValue.isNull() && subtypeChecker.isSubtypeOf(curValue.getJavaType(), ((TypeProperty)property).getType());  // null is not instanceof Object
 				resultString = EclipseUtils.javaStringOfValue(curValue, stack);
     		} else {
     			valid = "true".equals(valids[evalIndex].toString());

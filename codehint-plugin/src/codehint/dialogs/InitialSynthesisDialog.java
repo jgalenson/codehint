@@ -249,7 +249,7 @@ public class InitialSynthesisDialog extends SynthesisDialog {
 	protected void buttonPressed(int buttonId) {
         if (buttonId == searchButtonID) {
         	skeletonResult = skeletonInput.getText();
-            property = propertyDialog.computeProperty(pdspecInput.getText());
+            property = propertyDialog.computeProperty(pdspecInput.getText(), typeCache);
             skeleton = ExpressionSkeleton.fromString(skeletonResult, target, stack, evaluationEngine, subtypeChecker, typeCache, evalManager, expressionGenerator);
             startEndSynthesis(true);
             expressions = new ArrayList<EvaluatedExpression>();

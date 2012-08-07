@@ -2,6 +2,7 @@ package codehint.dialogs;
 
 import org.eclipse.jface.dialogs.IInputValidator;
 
+import codehint.exprgen.TypeCache;
 import codehint.property.Property;
 
 public abstract class PropertyDialog {
@@ -22,7 +23,7 @@ public abstract class PropertyDialog {
     
 	public abstract String getHelpID();
     
-	public abstract Property computeProperty(String propertyText);
+	public abstract Property computeProperty(String propertyText, TypeCache typeCache);
     
     protected static String getFullMessage(String message, String extraMessage) {
     	if (extraMessage == null)

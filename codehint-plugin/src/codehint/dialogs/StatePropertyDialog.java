@@ -4,6 +4,7 @@ import org.eclipse.jdt.debug.core.IJavaStackFrame;
 import org.eclipse.jdt.debug.eval.IAstEvaluationEngine;
 import org.eclipse.jface.dialogs.IInputValidator;
 
+import codehint.exprgen.TypeCache;
 import codehint.property.Property;
 import codehint.property.StateProperty;
 import codehint.utils.EclipseUtils;
@@ -54,7 +55,7 @@ public class StatePropertyDialog extends PropertyDialog {
 	}
 
 	@Override
-	public Property computeProperty(String propertyText) {
+	public Property computeProperty(String propertyText, TypeCache typeCache) {
 		if (propertyText == null)
 			return null;
 		else
