@@ -266,7 +266,7 @@ public final class EvaluationManager {
 		    		// TODO: If the user has variables with the same names as the ones I introduce, this will crash....
 		    		String curRHSStr = curExprStr;
 		    		if (arePrimitives && curValue != null)
-		    			curRHSStr = curValue.toString();
+		    			curRHSStr = EclipseUtils.javaStringOfValue(curValue, stack);
 		    		curString.append(" _$curValue = ").append(curRHSStr).append(";\n ");
 		    		if (!validateStatically) {
 		    			curString.append(IMPL_QUALIFIER).append("valueCount = ").append(numEvaluated + 1).append(";\n ");
@@ -279,11 +279,11 @@ public final class EvaluationManager {
 		    		if (!arePrimitives) {
 		    			if (!validateStatically)
 		    				curString.append("if (_$curValid)\n  ");
-		    			curString.append(IMPL_QUALIFIER).append("toStrings[").append(numEvaluated).append("] = ").append(getToStringGetter(curTypedExpr)).append(";\n");
+		    			curString.append(IMPL_QUALIFIER).append("toStrings[").append(numEvaluated).append("] = ").append(getToStringGetter(curTypedExpr)).append(";\n ");
 		    		}
 		    		if (hasPropertyPrecondition && !validateStatically)
-		    			curString.append(" }\n");
-		    		curString.append(" ").append(IMPL_QUALIFIER).append("fullCount = ").append(numEvaluated + 1).append(";\n");
+		    			curString.append(" }\n ");
+		    		curString.append(IMPL_QUALIFIER).append("fullCount = ").append(numEvaluated + 1).append(";\n");
 		    		if (preconditions.length() > 0 && curValue == null) {  // if the value is non-null, I know the execution won't crash.
 		    			expressionsStr.append("if (" + preconditions + ") {\n");
 			    		curString.append("}\n");
