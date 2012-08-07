@@ -450,8 +450,13 @@ public final class EclipseUtils {
      */
     public static IJavaType getType(String typeName, IJavaStackFrame stackFrame, IJavaDebugTarget target, TypeCache typeCache) {
 		try {
+    		IJavaType cachedType = typeCache.get(typeName);
+    		if (cachedType != null)
+    			return cachedType;
 			IJavaProject project = getProject(stackFrame);
-			return getType(project, getThisType(project, stackFrame), typeName, stackFrame, target, typeCache);
+			IJavaType type = getType(project, getThisType(project, stackFrame), typeName, stackFrame, target, typeCache);
+			typeCache.add(typeName, type);
+			return type;
 		} catch (JavaModelException e) {
 			throw new RuntimeException(e);
 		} catch (DebugException e) {
@@ -796,9 +801,10 @@ public final class EclipseUtils {
     		return null;
     	}
 		IJavaType type = getFullyQualifiedTypeIfExists(typeName, stack, target, typeCache);
-		if (type != null)  // getType will fail for inner types but getFullyQualified will work if they use $, so we try it first.
+		if (type != null) {  // getType will fail for inner types but getFullyQualified will work if they use $, so we try it first.
+			typeCache.add(typeName, type);
 			return type;
-		else
+		} else
 			return getType(typeName, stack, target, typeCache);
     }
     

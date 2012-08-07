@@ -275,10 +275,10 @@ public final class EvaluationManager {
 			    		curString.append("_$curValid = ").append(validVal).append(";\n ");
 			    		curString.append(IMPL_QUALIFIER).append("valid[").append(numEvaluated).append("] = _$curValid;\n ");
 		    		}
-		    		curString.append(IMPL_QUALIFIER).append(valuesArrayName).append("[").append(numEvaluated).append("] = _$curValue;\n");
+		    		curString.append(IMPL_QUALIFIER).append(valuesArrayName).append("[").append(numEvaluated).append("] = _$curValue;\n ");
 		    		if (!arePrimitives) {
 		    			if (!validateStatically)
-		    				curString.append(" if (_$curValid)\n  ");
+		    				curString.append("if (_$curValid)\n  ");
 		    			curString.append(IMPL_QUALIFIER).append("toStrings[").append(numEvaluated).append("] = ").append(getToStringGetter(curTypedExpr)).append(";\n");
 		    		}
 		    		if (hasPropertyPrecondition && !validateStatically)
