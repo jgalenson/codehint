@@ -379,7 +379,8 @@ public class ExpressionMaker {
 		setExpressionValue(e, value);
 		return new TypedExpression(e, returnType, value);
 	}
-	/*private static MethodInvocation makeCall(String name, Expression receiver, ArrayList<Expression> args) {
+	/*@SuppressWarnings("unchecked")
+	private static MethodInvocation makeCall(String name, Expression receiver, ArrayList<Expression> args) {
     	MethodInvocation e = ast.newMethodInvocation();
     	e.setName(ast.newSimpleName(name));
     	e.setExpression(copyExpr(receiver));
