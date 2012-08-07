@@ -71,6 +71,7 @@ public abstract class SynthesisDialog extends ModelessDialog {
 		pdspecComposite = makeChildComposite(composite, GridData.HORIZONTAL_ALIGN_FILL, 1);
 		pdspecInput = createInput(pdspecComposite, propertyDialog.getPdspecMessage(), propertyDialog.getInitialPdspecText(), propertyDialog.getPdspecValidator(), getPropertyModifyHandler(), propertyDialog.getHelpID());
 		pdspecInput.setFocus();
+		pdspecInput.selectAll();
 		
 		return composite;
 	}
@@ -113,6 +114,8 @@ public abstract class SynthesisDialog extends ModelessDialog {
 				for (Control c: pdspecComposite.getChildren())
 					c.dispose();
 				pdspecInput = createInput(pdspecComposite, propertyDialog.getPdspecMessage(), propertyDialog.getInitialPdspecText(), propertyDialog.getPdspecValidator(), getPropertyModifyHandler(), propertyDialog.getHelpID());
+				pdspecInput.setFocus();
+				pdspecInput.selectAll();
 				pdspecComposite.layout(true);
 				pdspecComposite.getParent().layout(true);
 			}
