@@ -25,7 +25,7 @@ public class FieldConstraint extends TypeConstraint {
 	public boolean isFulfilledBy(IJavaType type, SubtypeChecker subtypeChecker, TypeCache typeCache, IJavaStackFrame stack, IJavaDebugTarget target) {
 		for (Field field: ExpressionGenerator.getFields(type)) {
 			if (fieldName == null || field.name().equals(fieldName))
-				return fieldConstraint.isFulfilledBy(EclipseUtils.getFullyQualifiedType(field.typeName(), stack, target, typeCache), subtypeChecker, typeCache, stack, target);
+				return fieldConstraint.isFulfilledBy(EclipseUtils.getTypeAndLoadIfNeeded(field.typeName(), stack, target, typeCache), subtypeChecker, typeCache, stack, target);
 		}
 		return false;
 	}

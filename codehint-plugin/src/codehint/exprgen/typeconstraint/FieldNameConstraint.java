@@ -54,7 +54,7 @@ public class FieldNameConstraint extends NameConstraint {
 	}
 
 	private boolean fieldFulfills(SubtypeChecker subtypeChecker, TypeCache typeCache, IJavaStackFrame stack, IJavaDebugTarget target, Field field) {
-		return (legalNames == null || legalNames.contains(field.name())) && fieldConstraint.isFulfilledBy(EclipseUtils.getFullyQualifiedType(field.typeName(), stack, target, typeCache), subtypeChecker, typeCache, stack, target);
+		return (legalNames == null || legalNames.contains(field.name())) && fieldConstraint.isFulfilledBy(EclipseUtils.getTypeAndLoadIfNeeded(field.typeName(), stack, target, typeCache), subtypeChecker, typeCache, stack, target);
 	}
 
 	@Override

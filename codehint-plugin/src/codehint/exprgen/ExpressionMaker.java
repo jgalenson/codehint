@@ -89,7 +89,7 @@ public class ExpressionMaker {
 		else if (type instanceof IJavaReferenceType)
 			return computeRefInfixOp(target, left, op, right);
 		else
-			throw new RuntimeException("Unexpected type: " + type.toString());
+			throw new RuntimeException("Unexpected type: " + type);
 	}
 
 	private static IJavaValue computeIntInfixOp(IJavaDebugTarget target, IJavaValue left, InfixExpression.Operator op, IJavaValue right) throws NumberFormatException, DebugException {
@@ -269,7 +269,7 @@ public class ExpressionMaker {
 
 	public static TypedExpression makeInfix(IJavaDebugTarget target, TypedExpression left, InfixExpression.Operator op, TypedExpression right, IJavaType type) throws NumberFormatException, DebugException {
 		InfixExpression e = makeInfix(left.getExpression(), op, right.getExpression());
-		IJavaValue value = computeInfixOp(target, left.getValue(), op, right.getValue(), left.getType());
+		IJavaValue value = computeInfixOp(target, left.getValue(), op, right.getValue(), left.getType() != null ? left.getType() : right.getType());
 		setExpressionValue(e, value);
 		return EvaluatedExpression.makeTypedOrEvaluatedExpression(e, type, value);
 	}

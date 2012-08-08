@@ -58,7 +58,7 @@ public class MethodNameConstraint extends NameConstraint {
 	private boolean methodFulfills(SubtypeChecker subtypeChecker, TypeCache typeCache, IJavaStackFrame stack, IJavaDebugTarget target, Method method) {
 		return (legalNames == null || legalNames.contains(method.name())) && 
 				(argConstraints == null || fulfillsArgConstraints(method, argConstraints, subtypeChecker, typeCache, stack, target))
-				&& (!"void".equals(method.returnTypeName()) && methodConstraint.isFulfilledBy(EclipseUtils.getFullyQualifiedTypeIfExists(method.returnTypeName(), stack, target, typeCache), subtypeChecker, typeCache, stack, target));
+				&& (!"void".equals(method.returnTypeName()) && methodConstraint.isFulfilledBy(EclipseUtils.getTypeAndLoadIfNeededAndExists(method.returnTypeName(), stack, target, typeCache), subtypeChecker, typeCache, stack, target));
 	}
 
 	public static boolean fulfillsArgConstraints(Method method, ArrayList<TypeConstraint> argConstraints, SubtypeChecker subtypeChecker, TypeCache typeCache, IJavaStackFrame stack, IJavaDebugTarget target) {
