@@ -55,9 +55,9 @@ import codehint.dialogs.RefinementSynthesisDialog;
 import codehint.dialogs.StatePropertyDialog;
 import codehint.dialogs.SynthesisDialog;
 import codehint.dialogs.TypePropertyDialog;
-import codehint.expreval.EvaluatedExpression;
 import codehint.expreval.EvaluationManager;
 import codehint.expreval.EvaluationManager.EvaluationError;
+import codehint.expreval.FullyEvaluatedExpression;
 import codehint.exprgen.ExpressionGenerator;
 import codehint.exprgen.ExpressionSkeleton;
 import codehint.exprgen.ExpressionSkeleton.TypeError;
@@ -102,7 +102,7 @@ public class Synthesizer {
 			synthesisDialog.open();
 			Property property = synthesisDialog.getProperty();
 			ExpressionSkeleton skeleton = synthesisDialog.getSkeleton();
-			List<EvaluatedExpression> finalExpressions = synthesisDialog.getExpressions();
+			List<FullyEvaluatedExpression> finalExpressions = synthesisDialog.getExpressions();
 	        if (finalExpressions == null) {
 		    	if (property != null && skeleton != null)
 		    		EclipseUtils.log("Cancelling synthesis for " + variable.toString() + " with property " + property.toString() + " and skeleton " + skeleton.toString() + ".");
@@ -110,7 +110,7 @@ public class Synthesizer {
 	        } else if (finalExpressions.isEmpty())
 				return;
 			
-			List<String> validExpressionStrings = EvaluatedExpression.snippetsOfEvaluatedExpressions(finalExpressions);
+			List<String> validExpressionStrings = FullyEvaluatedExpression.snippetsOfEvaluatedExpressions(finalExpressions);
 			
 			//Construct the textual line to insert.  Working in text seems easier than
 			// using the AST manipulators for now, but this may need revisited later.  
@@ -151,7 +151,7 @@ public class Synthesizer {
 			if (finalExpressions.size() > 1)
 				initialDemonstrations.put(statement, property);
 
-			IJavaValue value = property instanceof ValueProperty ? ((ValueProperty)property).getValue() : finalExpressions.get(0).getResult();
+			IJavaValue value = property instanceof ValueProperty ? ((ValueProperty)property).getValue() : finalExpressions.get(0).getValue();
 			if (value != null)
 				variable.setValue(value);
 			
@@ -229,7 +229,7 @@ public class Synthesizer {
 	 */
 	public static class RefinementWorker {
 		
-		private final ArrayList<EvaluatedExpression> exprs;
+		private final ArrayList<FullyEvaluatedExpression> exprs;
 		private final EvaluationManager evalManager;
 		
 		/**
@@ -238,7 +238,7 @@ public class Synthesizer {
 		 * @param exprs The candidate expressions to filter.
 		 * @param evalManager The evaluation manager.
 		 */
-		public RefinementWorker(ArrayList<EvaluatedExpression> exprs, EvaluationManager evalManager) {
+		public RefinementWorker(ArrayList<FullyEvaluatedExpression> exprs, EvaluationManager evalManager) {
 			this.exprs = exprs;
 			this.evalManager = evalManager;
 		}
@@ -251,7 +251,7 @@ public class Synthesizer {
 		public void refine(RefinementSynthesisDialog synthesisDialog) {
 			Property property = synthesisDialog.getProperty();
    			try {
-   				ArrayList<EvaluatedExpression> validExpressions = evalManager.filterExpressions(exprs, property, null, new NullProgressMonitor());
+   				ArrayList<FullyEvaluatedExpression> validExpressions = evalManager.evaluateExpressions(exprs, property, null, new NullProgressMonitor());
             	synthesisDialog.setExpressions(validExpressions);
    			} catch (EvaluationError e) {
    		    	EclipseUtils.showError("Error", e.getMessage(), e);
@@ -333,12 +333,12 @@ public class Synthesizer {
    			Iterator<?> it = ((MethodInvocation)node).arguments().iterator();
    			ArrayList<TypedExpression> initialExprs = new ArrayList<TypedExpression>();
    			while (it.hasNext())
-   				initialExprs.add(new TypedExpression((Expression)it.next(), varStaticType, null));
+   				initialExprs.add(new TypedExpression((Expression)it.next(), varStaticType));
         	assert initialExprs.size() > 0;  // We must have at least one expression.
         	TypeCache typeCache = new TypeCache();
         	// TODO: Run the following off the UI thread like above when we do the first synthesis.
         	EvaluationManager evalManager = new EvaluationManager(frame, new SubtypeChecker(), typeCache);
-   			ArrayList<EvaluatedExpression> exprs = evalManager.evaluateExpressions(initialExprs, null, null, new NullProgressMonitor());
+   			ArrayList<FullyEvaluatedExpression> exprs = evalManager.evaluateExpressions(initialExprs, null, null, new NullProgressMonitor());
    			if (exprs.isEmpty()) {
    				EclipseUtils.showError("No valid expressions", "No valid expressions were found.", null);
    				throw new RuntimeException("No valid expressions");
@@ -349,13 +349,13 @@ public class Synthesizer {
    			IJavaValue value = null;
    			String newLine = null;
    			boolean automatic;
-   			List<EvaluatedExpression> finalExprs = exprs;
+   			List<FullyEvaluatedExpression> finalExprs = exprs;
    			            			
    			// If all expressions evaluate to the same value, use that and move on.
    			if (allHaveSameResult(exprs)) {
    				if (exprs.size() < initialExprs.size())  // Some expressions crashed, so remove them from the code.
            			newLine = rewriteLine(matcher, varname, curLine, initialProperty, exprs, lineNumber);
-   				value = exprs.get(0).getResult();
+   				value = exprs.get(0).getValue();
    				automatic = true;
    			} else {
        			// TODO: Default the box to something useful (like most common answer) when disagreement occurs
@@ -376,7 +376,7 @@ public class Synthesizer {
    	   				}
    	   			});
    				evalManager.resetFields();
-   				ArrayList<EvaluatedExpression> validExprs = synthesisDialog.getExpressions();
+   				ArrayList<FullyEvaluatedExpression> validExprs = synthesisDialog.getExpressions();
        			if (validExprs == null) {
        				//The user cancelled, just drop back into the debugger and let the 
        				//use do what they want.  Attempting to execute the line will result
@@ -389,7 +389,7 @@ public class Synthesizer {
        				EclipseUtils.showError("Error", "No legal expressions remain after refinement.", null);
        				throw new RuntimeException("No legal expressions remain after refinement");
        			}
-   				value = validExprs.get(0).getResult();  // The returned values could be different, so we arbitrarily use the first one.  This might not be the best thing to do.
+   				value = validExprs.get(0).getValue();  // The returned values could be different, so we arbitrarily use the first one.  This might not be the best thing to do.
        			
        			newLine = rewriteLine(matcher, varname, curLine, synthesisDialog.getProperty(), validExprs, lineNumber);
 
@@ -473,8 +473,8 @@ public class Synthesizer {
 	     * @param lineNumber
 	     * @return
 	     */
-		private static String rewriteLine(Matcher matcher, String varname, String curLine, Property property, ArrayList<EvaluatedExpression> validExprs, final int lineNumber) {
-			List<String> newExprsStrs = EvaluatedExpression.snippetsOfEvaluatedExpressions(validExprs);
+		private static String rewriteLine(Matcher matcher, String varname, String curLine, Property property, ArrayList<FullyEvaluatedExpression> validExprs, final int lineNumber) {
+			List<String> newExprsStrs = FullyEvaluatedExpression.snippetsOfEvaluatedExpressions(validExprs);
 			String varDeclaration = matcher.group(1) != null ? matcher.group(1) + " " : "";
 			final String newLine = varDeclaration + generateChooseOrChosenStmt(varname, newExprsStrs);
 			// If we don't execute this on the UI thread we get an exception, although it still works.
@@ -499,10 +499,10 @@ public class Synthesizer {
 	     * @return Whether or not all the given evaluated expressions
 	     * have the same result.
 	     */
-	    private static boolean allHaveSameResult(ArrayList<EvaluatedExpression> exprs) { 
-	    	IJavaValue first = exprs.get(0).getResult();  // For efficiency, let's only do one cast.
+	    private static boolean allHaveSameResult(ArrayList<FullyEvaluatedExpression> exprs) { 
+	    	IJavaValue first = exprs.get(0).getValue();  // For efficiency, let's only do one cast.
 	    	for (int i = 1; i < exprs.size(); i++)
-	    		if (!first.equals(exprs.get(i).getResult()))
+	    		if (!first.equals(exprs.get(i).getValue()))
 	    			return false;
 	    	return true;
 	    }
@@ -556,7 +556,7 @@ public class Synthesizer {
 	     * pdspec the user gave the last time at this line.
 	     * @throws DebugException
 	     */
-	    private static RefinementSynthesisDialog getRefinementDialog(ArrayList<EvaluatedExpression> exprs, String varName, IJavaType varStaticType, String varStaticTypeName, String extraMessage, IJavaStackFrame stackFrame, Property oldProperty, EvaluationManager evalManager, TypeCache typeCache) throws DebugException {
+	    private static RefinementSynthesisDialog getRefinementDialog(ArrayList<FullyEvaluatedExpression> exprs, String varName, IJavaType varStaticType, String varStaticTypeName, String extraMessage, IJavaStackFrame stackFrame, Property oldProperty, EvaluationManager evalManager, TypeCache typeCache) throws DebugException {
 			Shell shell = getShell();
 			PropertyDialog propertyDialog = null;
 			if (oldProperty == null || oldProperty instanceof StateProperty)
@@ -612,9 +612,9 @@ public class Synthesizer {
 	     * @param exprs The legal strings.
 	     * @return A nice string representation of the legal values.
 	     */
-	    private static String getLegalValues(List<EvaluatedExpression> exprs) {
+	    private static String getLegalValues(List<FullyEvaluatedExpression> exprs) {
 	    	StringBuilder sb = new StringBuilder();
-	    	for (EvaluatedExpression e: exprs) {
+	    	for (FullyEvaluatedExpression e: exprs) {
 	    		if (sb.length() > 0)
 	    			sb.append(", ");
 	    		sb.append(Utils.truncate(e.getResultString(), 50));

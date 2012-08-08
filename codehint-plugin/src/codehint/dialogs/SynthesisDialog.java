@@ -23,7 +23,7 @@ import org.eclipse.swt.widgets.Text;
 import org.eclipse.ui.PlatformUI;
 
 import codehint.Activator;
-import codehint.expreval.EvaluatedExpression;
+import codehint.expreval.FullyEvaluatedExpression;
 import codehint.property.Property;
 import codehint.utils.EclipseUtils;
 
@@ -44,7 +44,7 @@ public abstract class SynthesisDialog extends ModelessDialog {
 
     protected final IJavaStackFrame stack;
 
-    protected ArrayList<EvaluatedExpression> results;
+    protected ArrayList<FullyEvaluatedExpression> results;
     protected Property property;
 
     protected SynthesisDialog(Shell parentShell, String varTypeName, IJavaType varType, IJavaStackFrame stack, PropertyDialog propertyDialog) {
@@ -218,7 +218,7 @@ public abstract class SynthesisDialog extends ModelessDialog {
     
     // Logic code
     
-    public ArrayList<EvaluatedExpression> getExpressions() {
+    public ArrayList<FullyEvaluatedExpression> getExpressions() {
      	return results;
     }
     

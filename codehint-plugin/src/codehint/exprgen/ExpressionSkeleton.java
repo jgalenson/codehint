@@ -61,6 +61,7 @@ import com.sun.jdi.Method;
 import codehint.dialogs.InitialSynthesisDialog;
 import codehint.expreval.EvaluatedExpression;
 import codehint.expreval.EvaluationManager;
+import codehint.expreval.FullyEvaluatedExpression;
 import codehint.exprgen.typeconstraint.DesiredType;
 import codehint.exprgen.typeconstraint.FieldConstraint;
 import codehint.exprgen.typeconstraint.FieldNameConstraint;
@@ -389,12 +390,12 @@ public final class ExpressionSkeleton {
 	 * @param monitor The progress monitor.
 	 * @return Expressions that satisfy this skeletonn and the pdspec.
 	 */
-	public ArrayList<EvaluatedExpression> synthesize(Property property, IJavaType varStaticType, InitialSynthesisDialog synthesisDialog, IProgressMonitor monitor) {
+	public ArrayList<FullyEvaluatedExpression> synthesize(Property property, IJavaType varStaticType, InitialSynthesisDialog synthesisDialog, IProgressMonitor monitor) {
 		try {
 			long startTime = System.currentTimeMillis();
 			// TODO: Improve progress monitor so it shows you which evaluation it is.
 			TypeConstraint typeConstraint = getInitialTypeConstraint(varStaticType, property);
-			ArrayList<EvaluatedExpression> results;
+			ArrayList<FullyEvaluatedExpression> results;
 			if (HOLE_SYNTAX.equals(sugaredString))  // Optimization: Optimize special case of "??" skeleton by simply calling old ExprGen code directly.
 				results = expressionGenerator.generateExpression(property, typeConstraint, synthesisDialog, monitor, 1);
 			else {
@@ -574,12 +575,12 @@ public final class ExpressionSkeleton {
 			if (node instanceof ArrayAccess) {
 				return fillArrayAccess((ArrayAccess)node, curConstraint, parentsOfHoles);
 			} else if (node instanceof BooleanLiteral) {
-	    		return new ExpressionsAndTypeConstraints(new TypedExpression(node, booleanType, ExpressionMaker.makeBooleanValue(target, ((BooleanLiteral)node).booleanValue())), new SupertypeBound(booleanType));
+	    		return new ExpressionsAndTypeConstraints(new EvaluatedExpression(node, booleanType, target.newValue(((BooleanLiteral)node).booleanValue())), new SupertypeBound(booleanType));
 			} else if (node instanceof CastExpression) {
 				return fillCast((CastExpression)node, curConstraint, parentsOfHoles);
 			} else if (node instanceof CharacterLiteral) {
 				IJavaType type = EclipseUtils.getFullyQualifiedType("char", stack, target, typeCache);
-	    		return new ExpressionsAndTypeConstraints(new TypedExpression(node, type, null), new SupertypeBound(type));
+	    		return new ExpressionsAndTypeConstraints(new EvaluatedExpression(node, type, target.newValue(((CharacterLiteral)node).charValue())), new SupertypeBound(type));
 			} else if (node instanceof ClassInstanceCreation) {
 				return fillClassInstanceCreation(node, parentsOfHoles);
 			} else if (node instanceof ConditionalExpression) {
@@ -614,7 +615,7 @@ public final class ExpressionSkeleton {
 			} else if (node instanceof QualifiedName) {
 				IJavaType type = EclipseUtils.getTypeAndLoadIfNeededAndExists(node.toString(), stack, target, typeCache);
 				if (type != null)
-					return new ExpressionsAndTypeConstraints(new TypedExpression(node, type, null), new SupertypeBound(type));
+					return new ExpressionsAndTypeConstraints(new TypedExpression(node, type), new SupertypeBound(type));
 				else {
 					QualifiedName name = (QualifiedName)node;
 					return fillNormalField(name.getQualifier(), name.getName(), parentsOfHoles, curConstraint);
@@ -623,19 +624,19 @@ public final class ExpressionSkeleton {
 				return fillSimpleName(node, curConstraint);
 			} else if (node instanceof StringLiteral) {
 				IJavaType type = EclipseUtils.getFullyQualifiedType("java.lang.String", stack, target, typeCache);
-				return new ExpressionsAndTypeConstraints(new TypedExpression(node, type, null), new SupertypeBound(type));
+				return new ExpressionsAndTypeConstraints(new EvaluatedExpression(node, type, target.newValue(((StringLiteral)node).getEscapedValue())), new SupertypeBound(type));
 			} else if (node instanceof SuperFieldAccess) {
 				SuperFieldAccess superAccess = (SuperFieldAccess)node;
 				IJavaType superType = getSuperType(superAccess.getQualifier());
-				return fillField(superAccess.getName(), superAccess.getQualifier(), parentsOfHoles, curConstraint, new ExpressionsAndTypeConstraints(new TypedExpression(null, superType, null), new SupertypeBound(superType)));
+				return fillField(superAccess.getName(), superAccess.getQualifier(), parentsOfHoles, curConstraint, new ExpressionsAndTypeConstraints(new TypedExpression(null, superType), new SupertypeBound(superType)));
 			} else if (node instanceof SuperMethodInvocation) {
 				SuperMethodInvocation superAccess = (SuperMethodInvocation)node;
 				IJavaType superType = getSuperType(superAccess.getQualifier());
 				ArrayList<TypeConstraint> argTypes = getArgTypes(node, superAccess.arguments(), parentsOfHoles);
-				return fillMethod(superAccess, superAccess.getName(), superAccess.arguments(), parentsOfHoles, curConstraint, argTypes, new ExpressionsAndTypeConstraints(new TypedExpression(null, superType, null), new SupertypeBound(superType)));
+				return fillMethod(superAccess, superAccess.getName(), superAccess.arguments(), parentsOfHoles, curConstraint, argTypes, new ExpressionsAndTypeConstraints(new TypedExpression(null, superType), new SupertypeBound(superType)));
 			} else if (node instanceof ThisExpression) {
 				IJavaType type = getThisType();
-				return new ExpressionsAndTypeConstraints(new TypedExpression(node, type, getThis()), new SupertypeBound(type)); 
+				return new ExpressionsAndTypeConstraints(new EvaluatedExpression(node, type, getThis()), new SupertypeBound(type)); 
 			} else if (node instanceof TypeLiteral) {
 				return fillTypeLiteral(node);
 			} else
@@ -718,7 +719,7 @@ public final class ExpressionSkeleton {
 			OverloadChecker overloadChecker = new OverloadChecker(consType);
 			Map<String, ArrayList<TypedExpression>> resultExprs = new HashMap<String, ArrayList<TypedExpression>>();
 			for (Method method: Utils.singleton(constructors.values()))
-				buildCalls(method, new TypedExpression(null, consType, null), cons, argResults, isListHole, resultExprs, overloadChecker);
+				buildCalls(method, new TypedExpression(null, consType), cons, argResults, isListHole, resultExprs, overloadChecker);
 			return new ExpressionsAndTypeConstraints(resultExprs, new DesiredType(consType));
 		}
 
@@ -828,7 +829,7 @@ public final class ExpressionSkeleton {
 				resultType = EclipseUtils.getFullyQualifiedType("double", stack, target, typeCache);
 			else
 				resultType = intType;
-			return new ExpressionsAndTypeConstraints(new TypedExpression(node, resultType, null), new SupertypeBound(resultType));
+			return new ExpressionsAndTypeConstraints(new TypedExpression(node, resultType), new SupertypeBound(resultType));
 		}
 
 		/**
@@ -916,7 +917,7 @@ public final class ExpressionSkeleton {
 							methodNameConstraint.setLegalNames(new HashSet<String>(holeInfo.getArgs()));
 						return new ExpressionsAndTypeConstraints(getMethodsAndConstraint(name, methodNameConstraint, true));
 					} else {  // Expression hole
-						ArrayList<EvaluatedExpression> values;
+						ArrayList<FullyEvaluatedExpression> values;
 						if (holeInfo.getArgs() != null) {  // If the user supplied potential expressions, use them.
 							// Get the correct type of each expression.
 							ArrayList<TypedExpression> fakeTypedHoleInfos = new ArrayList<TypedExpression>(holeInfo.getArgs().size());
@@ -924,7 +925,7 @@ public final class ExpressionSkeleton {
 								Expression e = (Expression)ExpressionMaker.resetAST(EclipseUtils.parseExpr(parser, s));
 								// The current evaluation manager needs to know the type of the expression, so we figure it out.
 								IJavaType type = curConstraint instanceof DesiredType ? ((DesiredType)curConstraint).getDesiredType() : ((SingleTypeConstraint)fillSkeleton(e, curConstraint, null).getTypeConstraint()).getTypeConstraint();
-								fakeTypedHoleInfos.add(new TypedExpression(e, type, null));
+								fakeTypedHoleInfos.add(new TypedExpression(e, type));
 							}
 							// Evaluate all the expressions.
 							values = evalManager.evaluateExpressions(fakeTypedHoleInfos, null, null, childMonitor);
@@ -956,7 +957,7 @@ public final class ExpressionSkeleton {
 								// Add the results.
 								String typeName = exprs.getKey();
 								for (EvaluatedExpression e: exprs.getValue())
-									Utils.addToMap(typedValuesForType, typeName, new TypedExpression(e.getExpression(), e.getType(), e.getResult()));
+									Utils.addToMap(typedValuesForType, typeName, e);
 							}
 						}
 						return new ExpressionsAndTypeConstraints(typedValuesForType, resultConstraint);
@@ -968,7 +969,7 @@ public final class ExpressionSkeleton {
 				} else {
 					IJavaVariable var = stack.findVariable(name.getIdentifier());
 					if (var != null)
-						return new ExpressionsAndTypeConstraints(new TypedExpression(name, var.getJavaType(), (IJavaValue)var.getValue()), new SupertypeBound(var.getJavaType()));
+						return new ExpressionsAndTypeConstraints(new EvaluatedExpression(name, var.getJavaType(), (IJavaValue)var.getValue()), new SupertypeBound(var.getJavaType()));
 					IJavaType type = EclipseUtils.getTypeAndLoadIfNeeded(name.getIdentifier(), stack, target, typeCache);
 					assert type != null : name.getIdentifier();
 					return new ExpressionsAndTypeConstraints(ExpressionMaker.makeStaticName(name.getIdentifier(), type), new SupertypeBound(type));
@@ -989,7 +990,7 @@ public final class ExpressionSkeleton {
 				IJavaType type = EclipseUtils.getType(((TypeLiteral)node).getType().toString(), stack, target, typeCache);
 				IJavaClassObject classObj = ((IJavaReferenceType)type).getClassObject();
 				IJavaType classObjType = classObj.getJavaType();
-				return new ExpressionsAndTypeConstraints(new TypedExpression(node, classObjType, classObj), new SupertypeBound(classObjType));
+				return new ExpressionsAndTypeConstraints(new EvaluatedExpression(node, classObjType, classObj), new SupertypeBound(classObjType));
 			} catch (DebugException e) {
 				throw new RuntimeException(e);
 			}
@@ -1150,7 +1151,7 @@ public final class ExpressionSkeleton {
 				OverloadChecker overloadChecker = new OverloadChecker(thisType);
 				if (!methods.isEmpty())
 					for (Method method: Utils.singleton(methods.values()))
-						buildCalls(method, ExpressionMaker.makeThis(null, thisType), node, argResults, isListHole, resultExprs, overloadChecker);
+						buildCalls(method, ExpressionMaker.makeThis(getThis(), thisType), node, argResults, isListHole, resultExprs, overloadChecker);
 			}
 			return new ExpressionsAndTypeConstraints(resultExprs, methodResult.getTypeConstraint());
 		}

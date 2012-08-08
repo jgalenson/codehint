@@ -49,6 +49,7 @@ import org.eclipse.jdt.internal.debug.core.model.JDIType;
 import codehint.dialogs.InitialSynthesisDialog;
 import codehint.expreval.EvaluatedExpression;
 import codehint.expreval.EvaluationManager;
+import codehint.expreval.FullyEvaluatedExpression;
 import codehint.exprgen.typeconstraint.SupertypeBound;
 import codehint.exprgen.typeconstraint.TypeConstraint;
 import codehint.property.Property;
@@ -103,7 +104,7 @@ public final class ExpressionGenerator {
 	private final IJavaValue two;
 	// Cache the generated expressions
 	private final Map<Pair<TypeConstraint, Integer>, List<TypedExpression>> cachedExprs;
-	//private final Map<IJavaValue, Set<TypedExpression>> equivalences;
+	//private final Map<IJavaValue, Set<EvaluatedExpression>> equivalences;
 
 	private TypeConstraint typeConstraint;
 	
@@ -120,11 +121,11 @@ public final class ExpressionGenerator {
 		}
 		this.intType = EclipseUtils.getFullyQualifiedType("int", stack, target, typeCache);
 		this.booleanType = EclipseUtils.getFullyQualifiedType("boolean", stack, target, typeCache);
-		this.zero = ExpressionMaker.makeIntValue(target, 0);
-		this.one = ExpressionMaker.makeIntValue(target, 1);
-		this.two = ExpressionMaker.makeIntValue(target, 2);
+		this.zero = target.newValue(0);
+		this.one = target.newValue(1);
+		this.two = target.newValue(2);
 		this.cachedExprs = new HashMap<Pair<TypeConstraint, Integer>, List<TypedExpression>>();
-		//this.equivalences = new HashMap<IJavaValue, Set<TypedExpression>>();
+		//this.equivalences = new HashMap<IJavaValue, Set<EvaluatedExpression>>();
 	}
 	
 	/**
@@ -141,7 +142,7 @@ public final class ExpressionGenerator {
 	 * to the given depth) whose result in the current stack frame satisfies
 	 * the given pdspec.
 	 */
-	public ArrayList<EvaluatedExpression> generateExpression(Property property, TypeConstraint typeConstraint, InitialSynthesisDialog synthesisDialog, IProgressMonitor monitor, int maxExprDepth) {
+	public ArrayList<FullyEvaluatedExpression> generateExpression(Property property, TypeConstraint typeConstraint, InitialSynthesisDialog synthesisDialog, IProgressMonitor monitor, int maxExprDepth) {
 		monitor.beginTask("Expression generation and evaluation", IProgressMonitor.UNKNOWN);
 		
 		try {
@@ -166,23 +167,23 @@ public final class ExpressionGenerator {
 	    		if (e.getValue() == null)
 	    			unevaluatedExprs.add(e);
 	    		else if (!"V".equals(e.getValue().getSignature()))
-	    			evaluatedExprs.add(new EvaluatedExpression(e.getExpression(), e.getValue(), e.getType(), null));
+	    			evaluatedExprs.add(new EvaluatedExpression(e.getExpression(), e.getType(), e.getValue()));
 	    	
 	    	EclipseUtils.log("Generated " + allTypedExprs.size() + " potential expressions, of which " + evaluatedExprs.size() + " already have values and " + unevaluatedExprs.size() + " still need to be evaluated.");
 
     		SubMonitor evalMonitor = SubMonitor.convert(monitor, "Expression evaluation", allTypedExprs.size());
-	    	ArrayList<EvaluatedExpression> results = evalManager.filterExpressions(evaluatedExprs, property, synthesisDialog, evalMonitor);
+	    	ArrayList<FullyEvaluatedExpression> results = evalManager.evaluateExpressions(evaluatedExprs, property, synthesisDialog, evalMonitor);
 	    	if (unevaluatedExprs.size() > 0) {
-	    		ArrayList<EvaluatedExpression> evaled = evalManager.evaluateExpressions(unevaluatedExprs, property, synthesisDialog, evalMonitor);
-	    		/*for (EvaluatedExpression e: evaled) {
-	    			if (!equivalences.containsKey(e.getResult()))
-	    				equivalences.put(e.getResult(), new HashSet<TypedExpression>());
-	    			equivalences.get(e.getResult()).add(new TypedExpression(e.getExpression(), e.getType(), e.getResult()));
+	    		ArrayList<FullyEvaluatedExpression> evaled = evalManager.evaluateExpressions(unevaluatedExprs, property, synthesisDialog, evalMonitor);
+	    		/*for (FullyEvaluatedExpression e: evaled) {
+	    			if (!equivalences.containsKey(e.getValue()))
+	    				equivalences.put(e.getValue(), new HashSet<EvaluatedExpression>());
+	    			equivalences.get(e.getValue()).add(e);
 	    		}*/
 	    		results.addAll(evaled);
 	    	}
 			for (EvaluatedExpression e : results)
-				ExpressionMaker.setExpressionValue(e.getExpression(), e.getResult());
+				ExpressionMaker.setExpressionValue(e.getExpression(), e.getValue());
 	    	//List<TypedExpression> extraResults = expandEquivalences(results);
 			
 			EclipseUtils.log("Expression generation found " + results.size() + " valid expressions and took " + (System.currentTimeMillis() - startTime) + " milliseconds.");
@@ -215,14 +216,14 @@ public final class ExpressionGenerator {
     		
     		// Get constants (but only at the top-level).
     		if (depth == 0 && demonstration != null && ExpressionMaker.isInt(demonstration.getJavaType()) && !"0".equals(demonstration.toString()))
-    			addUniqueExpressionToList(curLevel, ExpressionMaker.makeNumber(demonstration.toString(), ExpressionMaker.makeIntValue(target, Integer.parseInt(demonstration.toString())), intType), depth, maxDepth);
+    			addUniqueExpressionToList(curLevel, ExpressionMaker.makeNumber(demonstration.toString(), target.newValue(Integer.parseInt(demonstration.toString())), intType), depth, maxDepth);
     		if (depth == 0 && demonstration != null && ExpressionMaker.isBoolean(demonstration.getJavaType()))
-    			addUniqueExpressionToList(curLevel, ExpressionMaker.makeBoolean(Boolean.parseBoolean(demonstration.toString()), ExpressionMaker.makeBooleanValue(target, Boolean.parseBoolean(demonstration.toString())), booleanType), depth, maxDepth);
+    			addUniqueExpressionToList(curLevel, ExpressionMaker.makeBoolean(Boolean.parseBoolean(demonstration.toString()), target.newValue(Boolean.parseBoolean(demonstration.toString())), booleanType), depth, maxDepth);
     		// Add calls to the desired type's constructors (but only at the top-level).
     		if (depth == 0)
     			for (IJavaType type: constraintTypes)
     				if (type instanceof IJavaClassType)
-    					addMethodCalls(new TypedExpression(null, type, null), nextLevel, curLevel, depth, maxDepth);
+    					addMethodCalls(new TypedExpression(null, type), nextLevel, curLevel, depth, maxDepth);
     		// Add zero and null (but only at the bottom level)
     		if (depth == maxDepth) {
     			boolean hasInt = false;
@@ -361,7 +362,7 @@ public final class ExpressionGenerator {
 	    			// Array length (which uses the field access AST).
 	    			if (e.getType() instanceof IJavaArrayType && isHelpfulType(intType, depth)
 	    					&& (e.getValue() == null || !e.getValue().isNull()))  // Skip things we know are null dereferences.
-	    				addUniqueExpressionToList(curLevel, ExpressionMaker.makeFieldAccess(e, "length", intType, e.getValue() != null ? ExpressionMaker.makeIntValue(target, ((IJavaArray)e.getValue()).getLength()) : null), depth, maxDepth);
+	    				addUniqueExpressionToList(curLevel, ExpressionMaker.makeFieldAccess(e, "length", intType, e.getValue() != null ? target.newValue(((IJavaArray)e.getValue()).getLength()) : null), depth, maxDepth);
 	    			// Method calls to non-static methods from non-static scope.
 	    			if (ExpressionMaker.isObjectOrInterface(e.getType())
 	    					&& (e.getValue() == null || !e.getValue().isNull()))  // Skip things we know are null dereferences.
@@ -595,11 +596,11 @@ public final class ExpressionGenerator {
 	private static void addUniqueExpressionToList(List<TypedExpression> list, TypedExpression e, int depth, int maxDepth) {
 		/*if (e != null && isUnique(e)) {
 			if (equivalences.containsKey(e.getValue()) && e.getExpression().getProperty("isConstant") == null)
-				equivalences.get(e.getValue()).add(e);
+				equivalences.get(e.getValue()).add((EvaluatedExpression)e);
 			else {
 				if (e.getValue() != null && e.getExpression().getProperty("isConstant") == null) {
-					Set<TypedExpression> set = new HashSet<TypedExpression>();
-					set.add(e);
+					Set<EvaluatedExpression> set = new HashSet<EvaluatedExpression>();
+					set.add((EvaluatedExpression)e);
 					equivalences.put(e.getValue(), set);
 				}
 				if (getDepth(e) == (maxDepth - depth))
@@ -677,40 +678,37 @@ public final class ExpressionGenerator {
 	private List<TypedExpression> expandEquivalences(ArrayList<EvaluatedExpression> evaluatedExprs) throws DebugException {
 		Set<TypedExpression> results = new HashSet<TypedExpression>();
 		Set<IJavaValue> values = new HashSet<IJavaValue>();
-		Set<TypedExpression> typedEvaluatedExpressions = new HashSet<TypedExpression>();
-		Set<TypedExpression> newlyExpanded = new HashSet<TypedExpression>();
+		Set<EvaluatedExpression> newlyExpanded = new HashSet<EvaluatedExpression>();
 		for (EvaluatedExpression result: evaluatedExprs) {
-			IJavaValue value = result.getResult();
-			Set<TypedExpression> curEquivalences = equivalences.get(value);
-			TypedExpression typedExpr = new TypedExpression(result.getExpression(), result.getType(), value);
-			typedEvaluatedExpressions.add(typedExpr);
-			curEquivalences.add(typedExpr);
+			IJavaValue value = result.getValue();
+			Set<EvaluatedExpression> curEquivalences = equivalences.get(value);
+			curEquivalences.add(result);
 			for (TypedExpression expr : new ArrayList<TypedExpression>(curEquivalences))
 				expandEquivalencesRec(expr.getExpression(), newlyExpanded);
 			values.add(value);
 		}
 		for (IJavaValue value: values)
 			results.addAll(getEquivalentExpressions(value));
-		results.removeAll(typedEvaluatedExpressions);
+		results.removeAll(evaluatedExprs);
 		return new ArrayList<TypedExpression>(results);
 	}
 	
-	private void expandEquivalencesRec(Expression expr, Set<TypedExpression> newlyExpanded) throws DebugException {
+	private void expandEquivalencesRec(Expression expr, Set<EvaluatedExpression> newlyExpanded) throws DebugException {
 		if (expr == null)
 			return;
 		IJavaValue value = ExpressionMaker.getExpressionValue(expr);
 		if (value == null)
 			return;
 		IJavaType type = value.getJavaType();
-		TypedExpression typed = new TypedExpression(expr, type, value);
-		if (newlyExpanded.contains(typed))
+		EvaluatedExpression valued = new EvaluatedExpression(expr, type, value);
+		if (newlyExpanded.contains(valued))
 			return;
 		int curDepth = getDepth(expr);
 		if (!equivalences.containsKey(value))
-			equivalences.put(value, new HashSet<TypedExpression>());
-		Set<TypedExpression> curEquivalences = equivalences.get(value);
+			equivalences.put(value, new HashSet<EvaluatedExpression>());
+		Set<EvaluatedExpression> curEquivalences = equivalences.get(value);
 		if (expr instanceof NumberLiteral || expr instanceof BooleanLiteral || expr instanceof Name || expr instanceof ParenthesizedExpression || expr instanceof ThisExpression || expr instanceof NullLiteral)
-			curEquivalences.add(typed);
+			curEquivalences.add(valued);
 		else if (expr instanceof InfixExpression) {
 			InfixExpression infix = (InfixExpression)expr;
 			expandEquivalencesRec(infix.getLeftOperand(), newlyExpanded);
@@ -718,7 +716,7 @@ public final class ExpressionGenerator {
 			for (TypedExpression l : getEquivalentExpressions(infix.getLeftOperand()))
 				for (TypedExpression r : getEquivalentExpressions(infix.getRightOperand()))
 					if (getDepth(l.getExpression()) < curDepth && getDepth(r.getExpression()) < curDepth && isUsefulInfix(l, infix.getOperator(), r))
-						curEquivalences.add(new TypedExpression(ExpressionMaker.makeInfix(l.getExpression(), infix.getOperator(), r.getExpression()), type, value));
+						curEquivalences.add(new EvaluatedExpression(ExpressionMaker.makeInfix(l.getExpression(), infix.getOperator(), r.getExpression()), type, value));
 		} else if (expr instanceof ArrayAccess) {
 			ArrayAccess array = (ArrayAccess)expr;
 			expandEquivalencesRec(array.getArray(), newlyExpanded);
@@ -726,19 +724,19 @@ public final class ExpressionGenerator {
 			for (TypedExpression a : getEquivalentExpressions(array.getArray()))
 				for (TypedExpression i : getEquivalentExpressions(array.getIndex()))
 					if (getDepth(a.getExpression()) < curDepth && getDepth(i.getExpression()) < curDepth)
-						curEquivalences.add(new TypedExpression(ExpressionMaker.makeArrayAccess(a.getExpression(), i.getExpression()), type, value));
+						curEquivalences.add(new EvaluatedExpression(ExpressionMaker.makeArrayAccess(a.getExpression(), i.getExpression()), type, value));
 		} else if (expr instanceof FieldAccess) {
 			FieldAccess field = (FieldAccess)expr;
 			expandEquivalencesRec(field.getExpression(), newlyExpanded);
 			for (TypedExpression e : getEquivalentExpressions(field.getExpression()))
 				if (getDepth(e.getExpression()) < curDepth)
-					curEquivalences.add(new TypedExpression(ExpressionMaker.makeFieldAccess(e.getExpression(), field.getName().getIdentifier()), type, value));
+					curEquivalences.add(new EvaluatedExpression(ExpressionMaker.makeFieldAccess(e.getExpression(), field.getName().getIdentifier()), type, value));
 		} else if (expr instanceof PrefixExpression) {
 			PrefixExpression prefix = (PrefixExpression)expr;
 			expandEquivalencesRec(prefix.getOperand(), newlyExpanded);
 			for (TypedExpression o : getEquivalentExpressions(prefix.getOperand()))
 				if (getDepth(o.getExpression()) < curDepth)
-					curEquivalences.add(new TypedExpression(ExpressionMaker.makePrefix(o.getExpression(), prefix.getOperator()), type, value));
+					curEquivalences.add(new EvaluatedExpression(ExpressionMaker.makePrefix(o.getExpression(), prefix.getOperator()), type, value));
 		} else if (expr instanceof MethodInvocation) {
 			MethodInvocation call = (MethodInvocation)expr;
 			expandEquivalencesRec(call.getExpression(), newlyExpanded);
@@ -755,24 +753,24 @@ public final class ExpressionGenerator {
 			List<Expression> newCalls = new ArrayList<Expression>();
 			List<TypedExpression> allPossibleExpressions = null;
 			if (call.getExpression() == null || ExpressionMaker.getExpressionValue(call.getExpression()) == null)
-				allPossibleExpressions = Collections.singletonList(new TypedExpression(call.getExpression(), type, value));
+				allPossibleExpressions = Collections.singletonList(new EvaluatedExpression(call.getExpression(), type, value));
 			else
 				allPossibleExpressions = getEquivalentExpressions(call.getExpression());
 			for (TypedExpression e : allPossibleExpressions)
 				if (getDepth(e.getExpression()) < curDepth)
 					makeAllCalls(call.getName().getIdentifier(), e.getExpression(), newCalls, arguments, new ArrayList<Expression>(arguments.size()));
 			for (Expression newCall : newCalls)
-				curEquivalences.add(new TypedExpression(newCall, type, value));
+				curEquivalences.add(new EvaluatedExpression(newCall, type, value));
 		} else
 			throw new RuntimeException("Unexpected Expression " + expr.toString());
-		newlyExpanded.add(typed);
+		newlyExpanded.add(valued);
 	}
 	
 	private ArrayList<TypedExpression> getEquivalentExpressions(Expression expr) throws DebugException {
 		IJavaValue value = ExpressionMaker.getExpressionValue(expr);
 		if (value == null) {
 			ArrayList<TypedExpression> result = new ArrayList<TypedExpression>(1);
-			result.add(new TypedExpression(expr, null, null));
+			result.add(new TypedExpression(expr, null));
 			return result;
 		} else
 			return getEquivalentExpressions(value);

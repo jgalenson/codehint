@@ -9,7 +9,7 @@ import org.eclipse.swt.widgets.Button;
 import org.eclipse.swt.widgets.Composite;
 import org.eclipse.swt.widgets.Shell;
 import codehint.Synthesizer.RefinementWorker;
-import codehint.expreval.EvaluatedExpression;
+import codehint.expreval.FullyEvaluatedExpression;
 import codehint.exprgen.TypeCache;
 
 public class RefinementSynthesisDialog extends SynthesisDialog {
@@ -56,7 +56,7 @@ public class RefinementSynthesisDialog extends SynthesisDialog {
         super.buttonPressed(buttonId);
     }
 
-    public void setExpressions(ArrayList<EvaluatedExpression> exprs) {
+    public void setExpressions(ArrayList<FullyEvaluatedExpression> exprs) {
 		results = exprs;
     }
 

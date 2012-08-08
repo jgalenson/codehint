@@ -35,8 +35,8 @@ import org.eclipse.ui.PlatformUI;
 
 import codehint.Activator;
 import codehint.Synthesizer.SynthesisWorker;
-import codehint.expreval.EvaluatedExpression;
 import codehint.expreval.EvaluationManager;
+import codehint.expreval.FullyEvaluatedExpression;
 import codehint.exprgen.ExpressionGenerator;
 import codehint.exprgen.ExpressionSkeleton;
 import codehint.exprgen.SubtypeChecker;
@@ -64,7 +64,7 @@ public class InitialSynthesisDialog extends SynthesisDialog {
     private TableViewer tableViewer;
     private Table table;
     private SynthesisResultComparator synthesisResultComparator;
-    private ArrayList<EvaluatedExpression> expressions;
+    private ArrayList<FullyEvaluatedExpression> expressions;
     private Button checkAllButton;
     private Button uncheckAllButton;
     private static final int checkSelectedButtonID = IDialogConstants.CLIENT_ID + 2;
@@ -146,7 +146,7 @@ public class InitialSynthesisDialog extends SynthesisDialog {
     	column1.setLabelProvider(new ColumnLabelProvider() {
 			@Override
 			public String getText(Object element) {
-				return getExpressionLabel((EvaluatedExpression)element);
+				return getExpressionLabel((FullyEvaluatedExpression)element);
 			}
 			
 			/*@Override
@@ -163,7 +163,7 @@ public class InitialSynthesisDialog extends SynthesisDialog {
     	column2.setLabelProvider(new ColumnLabelProvider() {
 			@Override
 			public String getText(Object element) {
-				return getValueLabel((EvaluatedExpression)element);
+				return getValueLabel((FullyEvaluatedExpression)element);
 			}
 		});
     	tableViewer.setContentProvider(ArrayContentProvider.getInstance());
@@ -252,7 +252,7 @@ public class InitialSynthesisDialog extends SynthesisDialog {
             property = propertyDialog.computeProperty(pdspecInput.getText(), typeCache);
             skeleton = ExpressionSkeleton.fromString(skeletonResult, target, stack, evaluationEngine, subtypeChecker, typeCache, evalManager, expressionGenerator);
             startEndSynthesis(true);
-            expressions = new ArrayList<EvaluatedExpression>();
+            expressions = new ArrayList<FullyEvaluatedExpression>();
             showResults();  // Clears any existing results.
         	// Reset column sort indicators.
         	tableViewer.setComparator(null);  // We want to use the order in which we add elements as the initial sort.
@@ -268,7 +268,7 @@ public class InitialSynthesisDialog extends SynthesisDialog {
     		// Start the synthesis
 	    	worker.synthesize(this, evalManager);
         } else if (buttonId == IDialogConstants.OK_ID) {
-         	results = new ArrayList<EvaluatedExpression>();
+         	results = new ArrayList<FullyEvaluatedExpression>();
          	for (int i = 0; i < table.getItemCount(); i++)
          		if (table.getItem(i).getChecked())
          			results.add(expressions.get(i));
@@ -338,7 +338,7 @@ public class InitialSynthesisDialog extends SynthesisDialog {
     	
     }
     
-    public void addExpressions(ArrayList<EvaluatedExpression> foundExprs) {
+    public void addExpressions(ArrayList<FullyEvaluatedExpression> foundExprs) {
     	expressions.addAll(foundExprs);
 		showResults();
     }
@@ -381,11 +381,11 @@ public class InitialSynthesisDialog extends SynthesisDialog {
     	return columnViewer;
     }
     
-    private static String getExpressionLabel(EvaluatedExpression e) {
+    private static String getExpressionLabel(FullyEvaluatedExpression e) {
     	return e.getSnippet();
     }
     
-    private static String getValueLabel(EvaluatedExpression e) {
+    private static String getValueLabel(FullyEvaluatedExpression e) {
     	return e.getResultString();
     }
     
@@ -414,14 +414,14 @@ public class InitialSynthesisDialog extends SynthesisDialog {
 
     	@Override
     	public int compare(Viewer viewer, Object o1, Object o2) {
-    		EvaluatedExpression e1 = (EvaluatedExpression)o1;
-    		EvaluatedExpression e2 = (EvaluatedExpression)o2;
+    		FullyEvaluatedExpression e1 = (FullyEvaluatedExpression)o1;
+    		FullyEvaluatedExpression e2 = (FullyEvaluatedExpression)o2;
     		int result;
     		if (column == 0)
     			result = getExpressionLabel(e1).compareTo(getExpressionLabel(e2));
     		else if (column == 1) {
-    			if (e1.getResult() instanceof IJavaPrimitiveValue && e2.getResult() instanceof IJavaPrimitiveValue)
-    				result = (int)(((IJavaPrimitiveValue)e1.getResult()).getDoubleValue() - ((IJavaPrimitiveValue)e2.getResult()).getDoubleValue());
+    			if (e1.getValue() instanceof IJavaPrimitiveValue && e2.getValue() instanceof IJavaPrimitiveValue)
+    				result = (int)(((IJavaPrimitiveValue)e1.getValue()).getDoubleValue() - ((IJavaPrimitiveValue)e2.getValue()).getDoubleValue());
     			else
     				result = getValueLabel(e1).compareTo(getValueLabel(e2));
     		} else

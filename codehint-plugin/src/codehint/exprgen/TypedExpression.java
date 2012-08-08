@@ -10,14 +10,12 @@ import org.eclipse.jdt.debug.core.IJavaValue;
  */
 public class TypedExpression {
 	
-	private final Expression expression;
-	private final IJavaType type;
-	private final IJavaValue value;
+	protected final Expression expression;
+	protected final IJavaType type;
 	
-	public TypedExpression(Expression expression, IJavaType type, IJavaValue value) {
+	public TypedExpression(Expression expression, IJavaType type) {
 		this.expression = expression;
 		this.type = type;
-		this.value = value;
 	}
 	
 	public Expression getExpression() {
@@ -29,14 +27,14 @@ public class TypedExpression {
 	}
 	
 	public IJavaValue getValue() {
-		return value;
+		return null;
 	}
 	
 	@Override
 	public int hashCode() {
 		final int prime = 31;
 		int result = 1;
-		result = prime * result + ((expression == null) ? 0 : expression.toString().hashCode());
+		result = prime * result + ((expression == null) ? 0 : expression.toString().hashCode());  // Hash the toString not the expression (which uses the address)....
 		return result;
 	}
 
@@ -64,10 +62,8 @@ public class TypedExpression {
 	public String toString() {
 		if (expression == null)
 			return "";
-		else if (value == null)
-			return expression.toString();
 		else
-			return expression.toString() + " (= " + value.toString() + ")";
+			return expression.toString();
 	}
 	
 }

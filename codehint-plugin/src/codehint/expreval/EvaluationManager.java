@@ -79,7 +79,6 @@ public final class EvaluationManager {
 	private final IAstEvaluationEngine engine;
 	private final IJavaDebugTarget target;
 	private final SubtypeChecker subtypeChecker;
-	private final TypeCache typeCache;
 	private final IJavaClassType implType;
 	private final IJavaFieldVariable validField;
 	private final IJavaFieldVariable toStringsField;
@@ -99,7 +98,6 @@ public final class EvaluationManager {
 		this.engine = EclipseUtils.getASTEvaluationEngine(stack);
 		this.target = (IJavaDebugTarget)stack.getDebugTarget();
 		this.subtypeChecker = subtypeChecker;
-		this.typeCache = typeCache;
 		this.implType = (IJavaClassType)EclipseUtils.getTypeAndLoadIfNeeded(IMPL_NAME, stack, target, typeCache);
 		try {
 			this.validField = implType.getField("valid");
@@ -124,7 +122,7 @@ public final class EvaluationManager {
      * @return the results of the evaluations of the given expressions
      * that satisfy the given property, if it is non-null.
 	 */
-	public ArrayList<EvaluatedExpression> evaluateExpressions(ArrayList<TypedExpression> exprs, Property property, InitialSynthesisDialog synthesisDialog, IProgressMonitor monitor) {
+	public ArrayList<FullyEvaluatedExpression> evaluateExpressions(ArrayList<? extends TypedExpression> exprs, Property property, InitialSynthesisDialog synthesisDialog, IProgressMonitor monitor) {
 		try {
 			this.synthesisDialog = synthesisDialog;
 			this.monitor = monitor;
@@ -135,7 +133,7 @@ public final class EvaluationManager {
     		EclipseUtils.parseExpr(parser, validVal).accept(pf);
     		propertyPreconditions = property instanceof ValueProperty ? "" : pf.getPreconditions();  // TODO: This will presumably fail if the user does their own null check.
 			Map<String, ArrayList<TypedExpression>> expressionsByType = getNonKnownCrashingExpressionByType(exprs);
-			ArrayList<EvaluatedExpression> evaluatedExprs = new ArrayList<EvaluatedExpression>(exprs.size());
+			ArrayList<FullyEvaluatedExpression> evaluatedExprs = new ArrayList<FullyEvaluatedExpression>(exprs.size());
 			for (Map.Entry<String, ArrayList<TypedExpression>> expressionsOfType: expressionsByType.entrySet()) {
 				String type = EclipseUtils.sanitizeTypename(expressionsOfType.getKey());
 				String valuesArrayName = getValuesArrayName(type);
@@ -156,7 +154,7 @@ public final class EvaluationManager {
 	 * in an array of objects and primitives in arrays of their own.
 	 * It also filters out expressions that we know will crash.
 	 */
-	private Map<String, ArrayList<TypedExpression>> getNonKnownCrashingExpressionByType(ArrayList<TypedExpression> exprs) throws DebugException {
+	private Map<String, ArrayList<TypedExpression>> getNonKnownCrashingExpressionByType(ArrayList<? extends TypedExpression> exprs) throws DebugException {
 		Map<String, ArrayList<TypedExpression>> expressionsByType = new HashMap<String, ArrayList<TypedExpression>>();
 		for (TypedExpression expr: exprs) {
     		if (!crashingExpressions.contains(expr.getExpression().toString())) {
@@ -208,24 +206,6 @@ public final class EvaluationManager {
 		else
 			return type + 's';
 	}
-
-	/**
-	 * Filters the given evaluated expressions and keeps only
-	 * those that satisfy the given property.
-	 * @param evaledExprs The expressions to filter
-	 * @param property The desired property.
-	 * @param synthesisDialog The synthesis dialog to pass the valid expressions,
-	 * or null if we should not pass anything.
-	 * @param monitor a progress monitor, or null if progress reporting and cancellation are not desired.
-     * @return the evaluated expressions that satisfy
-     * the given property.
-	 */
-	public ArrayList<EvaluatedExpression> filterExpressions(ArrayList<EvaluatedExpression> evaledExprs, Property property, InitialSynthesisDialog synthesisDialog, IProgressMonitor monitor) {
-		ArrayList<TypedExpression> exprs = new ArrayList<TypedExpression>(evaledExprs.size());
-		for (EvaluatedExpression expr : evaledExprs)
-			exprs.add(new TypedExpression(expr.getExpression(), expr.getType(), expr.getResult()));
-		return evaluateExpressions(exprs, property, synthesisDialog, monitor);
-	}
 	
 	/**
 	 * Evaluates the given expressions.
@@ -238,7 +218,7 @@ public final class EvaluationManager {
 	 * results of the given expressions.
 	 * @param startIndex The index at which to start evaluation.
 	 */
-	private void evaluateExpressions(ArrayList<TypedExpression> exprs, ArrayList<EvaluatedExpression> results, String type, Property property, IJavaFieldVariable valuesField, int startIndex) {
+	private void evaluateExpressions(ArrayList<TypedExpression> exprs, ArrayList<FullyEvaluatedExpression> results, String type, Property property, IJavaFieldVariable valuesField, int startIndex) {
 		if (monitor.isCanceled())
 			throw new OperationCanceledException();
 		boolean hasPropertyPrecondition = propertyPreconditions.length() > 0;
@@ -336,7 +316,7 @@ public final class EvaluationManager {
 	    		work = crashingIndex - startIndex;
 	    		numToSkip = skipLikelyCrashes(exprs, error, crashingIndex, crashedExpr);
 	    	}
-	    	ArrayList<EvaluatedExpression> newResults = getResultsFromArray(exprs, property, valuesField, startIndex, work);
+	    	ArrayList<FullyEvaluatedExpression> newResults = getResultsFromArray(exprs, property, valuesField, startIndex, work);
 	    	reportResults(newResults);
 	    	results.addAll(newResults);
 	    	/*System.out.println("Evaluated " + count + " expressions.");
@@ -383,8 +363,8 @@ public final class EvaluationManager {
 	 * pdspec.
 	 * @throws DebugException
 	 */
-	private ArrayList<EvaluatedExpression> getResultsFromArray(ArrayList<TypedExpression> exprs, Property property, IJavaFieldVariable valuesField, int startIndex, int count) throws DebugException {
-		ArrayList<EvaluatedExpression> results = new ArrayList<EvaluatedExpression>();
+	private ArrayList<FullyEvaluatedExpression> getResultsFromArray(ArrayList<TypedExpression> exprs, Property property, IJavaFieldVariable valuesField, int startIndex, int count) throws DebugException {
+		ArrayList<FullyEvaluatedExpression> results = new ArrayList<FullyEvaluatedExpression>();
 		if (count == 0)
 			return results;
 		IJavaValue valuesFieldValue = (IJavaValue)valuesField.getValue();
@@ -415,7 +395,7 @@ public final class EvaluationManager {
 			if (valid) {
 				if (!curValue.isNull() && "java.lang.String".equals(curValue.getJavaType().getName()))
 					resultString = "\"" + resultString + "\"";
-				results.add(new EvaluatedExpression(typedExpr.getExpression(), curValue, typedExpr.getType(), resultString));
+				results.add(new FullyEvaluatedExpression(typedExpr.getExpression(), typedExpr.getType(), curValue, resultString));
 			}
 			if (typedExpr.getValue() == null || !(property instanceof PrimitiveValueProperty || property instanceof TypeProperty))
 				evalIndex++;
@@ -428,7 +408,7 @@ public final class EvaluationManager {
 	 * or does nothing if there is no dialog.
 	 * @param results The expressions to record.
 	 */
-	private void reportResults(final ArrayList<EvaluatedExpression> results) {
+	private void reportResults(final ArrayList<FullyEvaluatedExpression> results) {
 		if (synthesisDialog != null && !results.isEmpty()) {
 			Display.getDefault().asyncExec(new Runnable(){
 				@Override
