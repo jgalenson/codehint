@@ -860,7 +860,7 @@ public final class ExpressionSkeleton {
 			for (Map.Entry<String, ArrayList<TypedExpression>> res: exprResult.getExprs().entrySet())
 				for (TypedExpression expr: res.getValue())
 					Utils.addToMap(resultExprs, res.getKey(), ExpressionMaker.makeParenthesized(expr));
-			return new ExpressionsAndTypeConstraints(resultExprs, curConstraint);
+			return new ExpressionsAndTypeConstraints(resultExprs, exprResult.getTypeConstraint());
 		}
 
 		/**

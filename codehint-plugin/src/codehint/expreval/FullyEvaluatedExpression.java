@@ -35,13 +35,5 @@ public class FullyEvaluatedExpression extends EvaluatedExpression {
 			resultStrs.add(result.getSnippet());
 		return resultStrs;
 	}
-
-	@Override
-	public String toString() {
-		if (value == null)
-			return getSnippet();
-		else
-			return getSnippet() + " (= " + value.toString() + ")";
-	}
 	
 }
