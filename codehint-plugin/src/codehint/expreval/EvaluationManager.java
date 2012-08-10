@@ -316,7 +316,7 @@ public final class EvaluationManager {
 	    		work = crashingIndex - startIndex;
 	    		numToSkip = skipLikelyCrashes(exprs, error, crashingIndex, crashedExpr);
 	    	}
-	    	ArrayList<FullyEvaluatedExpression> newResults = getResultsFromArray(exprs, property, valuesField, startIndex, work);
+	    	ArrayList<FullyEvaluatedExpression> newResults = getResultsFromArray(exprs, property, valuesField, startIndex, work, numEvaluated);
 	    	reportResults(newResults);
 	    	results.addAll(newResults);
 	    	/*System.out.println("Evaluated " + count + " expressions.");
@@ -363,16 +363,16 @@ public final class EvaluationManager {
 	 * pdspec.
 	 * @throws DebugException
 	 */
-	private ArrayList<FullyEvaluatedExpression> getResultsFromArray(ArrayList<TypedExpression> exprs, Property property, IJavaFieldVariable valuesField, int startIndex, int count) throws DebugException {
+	private ArrayList<FullyEvaluatedExpression> getResultsFromArray(ArrayList<TypedExpression> exprs, Property property, IJavaFieldVariable valuesField, int startIndex, int count, int numEvaluated) throws DebugException {
 		ArrayList<FullyEvaluatedExpression> results = new ArrayList<FullyEvaluatedExpression>();
 		if (count == 0)
 			return results;
 		IJavaValue valuesFieldValue = (IJavaValue)valuesField.getValue();
-		IJavaValue[] values = valuesFieldValue.isNull() ? null : ((IJavaArray)valuesFieldValue).getValues();
+		IJavaValue[] values = numEvaluated == 0 || valuesFieldValue.isNull() ? null : ((IJavaArray)valuesFieldValue).getValues();
 		IJavaValue validFieldValue = (IJavaValue)validField.getValue();
-		IJavaValue[] valids = validFieldValue.isNull() ? null : ((IJavaArray)validFieldValue).getValues();
+		IJavaValue[] valids = numEvaluated == 0 || validFieldValue.isNull() ? null : ((IJavaArray)validFieldValue).getValues();
 		IJavaValue toStringsFieldValue = (IJavaValue)toStringsField.getValue();
-		IJavaValue[] toStrings = toStringsFieldValue.isNull() ? null : ((IJavaArray)toStringsFieldValue).getValues();
+		IJavaValue[] toStrings = numEvaluated == 0 || toStringsFieldValue.isNull() ? null : ((IJavaArray)toStringsFieldValue).getValues();
 		int evalIndex = 0;
 		for (int i = 0; i < count; i++) {
 			TypedExpression typedExpr = exprs.get(startIndex + i);
@@ -393,7 +393,7 @@ public final class EvaluationManager {
 				resultString = toStrings == null ? EclipseUtils.javaStringOfValue(curValue, stack) : toStrings[evalIndex].getValueString();
     		}
 			if (valid) {
-				if (!curValue.isNull() && "java.lang.String".equals(curValue.getJavaType().getName()))
+				if (!curValue.isNull() && toStrings != null && "java.lang.String".equals(curValue.getJavaType().getName()))
 					resultString = "\"" + resultString + "\"";
 				results.add(new FullyEvaluatedExpression(typedExpr.getExpression(), typedExpr.getType(), curValue, resultString));
 			}

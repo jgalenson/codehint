@@ -985,7 +985,7 @@ public final class ExpressionSkeleton {
 						return new ExpressionsAndTypeConstraints(new EvaluatedExpression(name, var.getJavaType(), (IJavaValue)var.getValue()), new SupertypeBound(var.getJavaType()));
 					IJavaType type = EclipseUtils.getTypeAndLoadIfNeeded(name.getIdentifier(), stack, target, typeCache);
 					assert type != null : name.getIdentifier();
-					return new ExpressionsAndTypeConstraints(ExpressionMaker.makeStaticName(name.getIdentifier(), type), new SupertypeBound(type));
+					return new ExpressionsAndTypeConstraints(ExpressionMaker.makeStaticName(name.getIdentifier(), (IJavaReferenceType)type), new SupertypeBound(type));
 				}
 			} catch (DebugException e) {
 				throw new RuntimeException(e);
@@ -1102,10 +1102,10 @@ public final class ExpressionSkeleton {
 									String fieldTypeName = field.typeName();
 									IJavaValue fieldValue = null;
 									try {
-										if (receiverExpr.getValue() != null)
-											fieldValue = (IJavaValue)((IJavaObject)receiverExpr.getValue()).getField(field.name(), !field.declaringType().name().equals(receiverExpr.getType().getName())).getValue();
-										else if (field.isStatic())
+										if (field.isStatic())
 											fieldValue = (IJavaValue)((IJavaReferenceType)receiverExpr.getType()).getField(field.name()).getValue();
+										else if (receiverExpr.getValue() != null)
+											fieldValue = (IJavaValue)((IJavaObject)receiverExpr.getValue()).getField(field.name(), !field.declaringType().name().equals(receiverExpr.getType().getName())).getValue();
 									} catch (DebugException e) {
 										e.printStackTrace();
 									}

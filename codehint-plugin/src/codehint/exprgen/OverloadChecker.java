@@ -51,7 +51,7 @@ public class OverloadChecker {
 	 * needsCast will check.
 	 */
 	public void setMethod(Method method) {
-		// TODO: Improve overloading detection.
+		// TODO: Improve overloading detection.  One obvious way is to store, for each index, all the types possible at that index (instead of just a boolean indicating if they're all the same).  Then if a given type is only a subtype of one of them, we don't need a cast.
 		List<?> argumentTypeNames = method.argumentTypeNames();
 		allHaveSameType = new boolean[argumentTypeNames.size()];
 		Arrays.fill(allHaveSameType, true);

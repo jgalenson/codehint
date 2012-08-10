@@ -24,6 +24,8 @@ import org.eclipse.jdt.core.dom.PrimitiveType;
 import org.eclipse.jdt.core.dom.SuperFieldAccess;
 import org.eclipse.jdt.core.dom.SuperMethodInvocation;
 import org.eclipse.jdt.core.dom.ThisExpression;
+import org.eclipse.jdt.core.dom.Type;
+import org.eclipse.jdt.core.dom.TypeLiteral;
 import org.eclipse.jdt.debug.core.IJavaArrayType;
 import org.eclipse.jdt.debug.core.IJavaClassType;
 import org.eclipse.jdt.debug.core.IJavaDebugTarget;
@@ -250,15 +252,20 @@ public class ExpressionMaker {
 		return new EvaluatedExpression(e, type, value);
 	}
 
-	private static Expression newStaticName(String name) {
+	private static Expression newStaticName(String name, IJavaValue value) {
 		Expression e = ast.newName(name);
 		setStatic(e);
-		setExpressionValue(e, null);
+		setExpressionValue(e, value);
 		return e;
 	}
 
-	public static TypedExpression makeStaticName(String name, IJavaType type) {
-		return new TypedExpression(newStaticName(name), type);
+	public static TypedExpression makeStaticName(String name, IJavaReferenceType type) {
+		try {
+			IJavaValue value = type.getClassObject();
+			return new EvaluatedExpression(newStaticName(name, value), type, value);
+		} catch (DebugException e) {
+			throw new RuntimeException(e);
+		}
 	}
 
 	public static TypedExpression makeThis(IJavaValue value, IJavaType type) {
@@ -274,7 +281,7 @@ public class ExpressionMaker {
 		return EvaluatedExpression.makeTypedOrEvaluatedExpression(e, type, value);
 	}
 
-	private static InfixExpression makeInfix(Expression l, InfixExpression.Operator op, Expression r) {
+	public static InfixExpression makeInfix(Expression l, InfixExpression.Operator op, Expression r) {
 		InfixExpression e = ast.newInfixExpression();
 		e.setLeftOperand(parenIfNeeded(copyExpr(l)));
 		e.setOperator(op);
@@ -288,7 +295,7 @@ public class ExpressionMaker {
 		return EvaluatedExpression.makeTypedOrEvaluatedExpression(e, getArrayElementType(array), value);
 	}
 
-	private static ArrayAccess makeArrayAccess(Expression array, Expression index) {
+	public static ArrayAccess makeArrayAccess(Expression array, Expression index) {
 		ArrayAccess e = ast.newArrayAccess();
 		e.setArray(copyExpr(array));
 		e.setIndex(copyExpr(index));
@@ -301,7 +308,7 @@ public class ExpressionMaker {
 		return EvaluatedExpression.makeTypedOrEvaluatedExpression(e, fieldType, value);
 	}
 
-	private static FieldAccess makeFieldAccess(Expression obj, String name) {
+	public static FieldAccess makeFieldAccess(Expression obj, String name) {
 		FieldAccess e = ast.newFieldAccess();
 		e.setExpression(copyExpr(obj));
 		e.setName(ast.newSimpleName(name));
@@ -319,7 +326,7 @@ public class ExpressionMaker {
 		}
 	}
 
-	private static PrefixExpression makePrefix(Expression operand, PrefixExpression.Operator op) {
+	public static PrefixExpression makePrefix(Expression operand, PrefixExpression.Operator op) {
 		PrefixExpression e = ast.newPrefixExpression();
 		e.setOperand(parenIfNeeded(copyExpr(operand)));
 		e.setOperator(op);
@@ -348,7 +355,7 @@ public class ExpressionMaker {
 		if (receiver.getExpression() == null) {
 			assert "<init>".equals(name);
 			try {
-				result = makeNewObject(receiver.getType(), args, value);
+				result = makeClassInstanceCreation(receiver.getType(), args, value);
 			} catch (DebugException e) {
 				throw new RuntimeException(e);
 			}
@@ -373,15 +380,16 @@ public class ExpressionMaker {
 		setExpressionValue(e, value);
 		return EvaluatedExpression.makeTypedOrEvaluatedExpression(e, returnType, value);
 	}
-	/*@SuppressWarnings("unchecked")
-	private static MethodInvocation makeCall(String name, Expression receiver, ArrayList<Expression> args) {
+	@SuppressWarnings("unchecked")
+	public static Expression makeCall(String name, Expression receiver, ArrayList<Expression> args, Method method) {
     	MethodInvocation e = ast.newMethodInvocation();
     	e.setName(ast.newSimpleName(name));
     	e.setExpression(copyExpr(receiver));
     	for (Expression ex: args)
     		e.arguments().add(copyExpr(ex));
+		setMethod(e, method);
     	return e;
-    }*/
+    }
 
 	public static TypedExpression makeCast(TypedExpression obj, IJavaType targetType, IJavaValue value) {
 		CastExpression e = makeCast(obj.getExpression(), targetType);
@@ -389,20 +397,20 @@ public class ExpressionMaker {
 		return EvaluatedExpression.makeTypedOrEvaluatedExpression(e, targetType, value);
 	}
 
-	private static CastExpression makeCast(Expression obj, IJavaType targetType) {
+	public static CastExpression makeCast(Expression obj, IJavaType targetType) {
 		CastExpression e = ast.newCastExpression();
 		e.setExpression(copyExpr(obj));
 		e.setType(makeType(targetType));
 		return e;
 	}
 
-	public static TypedExpression makeInstanceOf(TypedExpression obj, org.eclipse.jdt.core.dom.Type targetDomType, IJavaType targetType, IJavaValue value) {
+	public static TypedExpression makeInstanceOf(TypedExpression obj, Type targetDomType, IJavaType targetType, IJavaValue value) {
 		InstanceofExpression e = makeInstanceOf(obj.getExpression(), targetDomType);
 		setExpressionValue(e, value);
 		return EvaluatedExpression.makeTypedOrEvaluatedExpression(e, targetType, value);
 	}
 
-	private static InstanceofExpression makeInstanceOf(Expression expr, org.eclipse.jdt.core.dom.Type targetDomType) {
+	private static InstanceofExpression makeInstanceOf(Expression expr, Type targetDomType) {
 		InstanceofExpression e = ast.newInstanceofExpression();
 		e.setLeftOperand(copyExpr(expr));
 		e.setRightOperand(targetDomType);
@@ -429,13 +437,23 @@ public class ExpressionMaker {
 	}
 
 	@SuppressWarnings("unchecked")
-	private static TypedExpression makeNewObject(IJavaType type, ArrayList<TypedExpression> args, IJavaValue value) throws DebugException {
+	private static TypedExpression makeClassInstanceCreation(IJavaType type, ArrayList<TypedExpression> args, IJavaValue value) throws DebugException {
 		ClassInstanceCreation e = ast.newClassInstanceCreation();
 		e.setType(ast.newSimpleType(ast.newName(EclipseUtils.sanitizeTypename(type.getName()))));
 		for (TypedExpression ex: args)
 			e.arguments().add(copyExpr(ex.getExpression()));
 		setExpressionValue(e, value);
 		return EvaluatedExpression.makeTypedOrEvaluatedExpression(e, type, value);
+	}
+
+	@SuppressWarnings("unchecked")
+	public static ClassInstanceCreation makeClassInstanceCreation(Type type,ArrayList<Expression> args, Method method) {
+    	ClassInstanceCreation e = ast.newClassInstanceCreation();
+    	e.setType(copyType(type));
+    	for (Expression ex: args)
+    		e.arguments().add(copyExpr(ex));
+		setMethod(e, method);
+    	return e;
 	}
 
 	public static TypedExpression makeParenthesized(TypedExpression obj) {
@@ -474,8 +492,14 @@ public class ExpressionMaker {
 		setMethod(e, method);
 		return EvaluatedExpression.makeTypedOrEvaluatedExpression(e, returnType, value);
 	}
+	
+	public static TypeLiteral makeTypeLiteral(Type type) {
+		TypeLiteral e = ast.newTypeLiteral();
+		e.setType(copyType(type));
+		return e;
+	}
 
-	private static org.eclipse.jdt.core.dom.Type makeType(IJavaType type) {
+	private static Type makeType(IJavaType type) {
 		try {
 			if (type instanceof IJavaArrayType)
 				return ast.newArrayType(makeType(((IJavaArrayType)type).getComponentType()));
@@ -570,6 +594,25 @@ public class ExpressionMaker {
 		Expression copy = (Expression)ASTNode.copySubtree(e.getAST(), e);
 		// Thanks for not copying properties...
 		Iterator<?> it = e.properties().entrySet().iterator();
+		while (it.hasNext()) {
+			Map.Entry<?,?> property = (Map.Entry<?,?>)it.next();
+			copy.setProperty((String)property.getKey(), property.getValue());
+		}
+		return copy;
+	}
+
+	/**
+	 * Makes a copy of a type so that the DOM methods
+	 * don't give us errors about bad parents.
+	 * @param e The expression to copy.
+	 * @return A copy of the given expression.
+	 */
+	private static Type copyType(Type t) {
+		if (t == null)
+			return null;
+		Type copy = (Type)ASTNode.copySubtree(t.getAST(), t);
+		// Thanks for not copying properties...
+		Iterator<?> it = t.properties().entrySet().iterator();
 		while (it.hasNext()) {
 			Map.Entry<?,?> property = (Map.Entry<?,?>)it.next();
 			copy.setProperty((String)property.getKey(), property.getValue());

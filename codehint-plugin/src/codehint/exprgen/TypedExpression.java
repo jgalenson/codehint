@@ -44,7 +44,8 @@ public class TypedExpression {
 			return true;
 		if (obj == null)
 			return false;
-		if (getClass() != obj.getClass())
+		//if (getClass() != obj.getClass())
+		if (!(obj instanceof TypedExpression))
 			return false;
 		TypedExpression other = (TypedExpression) obj;
 		if (expression == null) {

@@ -11,15 +11,15 @@ public class Utils {
 		return xs.iterator().next();
 	}
 	
-	public static <T> void addToMap(Map<String, ArrayList<T>> map, String key, T value) {
+	public static <K, V> void addToMap(Map<K, ArrayList<V>> map, K key, V value) {
 		if (!map.containsKey(key))
-			map.put(key,  new ArrayList<T>());
+			map.put(key, new ArrayList<V>());
 		map.get(key).add(value);
 	}
 	
-	public static <T> void addAllToMap(Map<String, ArrayList<T>> map, String key, ArrayList<T> values) {
+	public static <K, V> void addAllToMap(Map<K, ArrayList<V>> map, K key, ArrayList<V> values) {
 		if (!map.containsKey(key))
-			map.put(key,  new ArrayList<T>());
+			map.put(key, new ArrayList<V>());
 		map.get(key).addAll(values);
 	}
 	
@@ -35,6 +35,13 @@ public class Utils {
 			return str;
 		else
 			return str.substring(0, length) + "...";
+	}
+	
+	public static <T> ArrayList<T> makeList(T... ts) {
+		ArrayList<T> list = new ArrayList<T>(ts.length);
+		for (T t: ts)
+			list.add(t);
+		return list;
 	}
 
 }
