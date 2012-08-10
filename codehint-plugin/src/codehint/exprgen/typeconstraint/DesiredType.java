@@ -22,7 +22,7 @@ public class DesiredType extends SingleTypeConstraint {
 	@Override
 	public boolean isFulfilledBy(IJavaType type, SubtypeChecker subtypeChecker, TypeCache typeCache, IJavaStackFrame stack, IJavaDebugTarget target) {
 		if (type == null)
-			return typeConstraint instanceof IJavaReferenceType;
+			return typeConstraint == null || typeConstraint instanceof IJavaReferenceType;
 		if (typeConstraint == null)
 			return type instanceof IJavaReferenceType;
 		return typeConstraint.equals(type); // subtypeChecker.isSubtypeOf(desiredType, curType);
@@ -36,7 +36,7 @@ public class DesiredType extends SingleTypeConstraint {
 	@Override
 	public String toString() {
 		try {
-			return "=" + typeConstraint.getName();
+			return "=" + typeConstraint == null ? "null" : typeConstraint.getName();
 		} catch (DebugException e) {
 			e.printStackTrace();
 			return "=" + typeConstraint.toString();

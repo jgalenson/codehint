@@ -32,6 +32,7 @@ import org.eclipse.jdt.core.dom.NumberLiteral;
 import org.eclipse.jdt.core.dom.ParenthesizedExpression;
 import org.eclipse.jdt.core.dom.PrefixExpression;
 import org.eclipse.jdt.core.dom.SimpleName;
+import org.eclipse.jdt.core.dom.StringLiteral;
 import org.eclipse.jdt.core.dom.ThisExpression;
 import org.eclipse.jdt.core.dom.TypeLiteral;
 import org.eclipse.jdt.debug.core.IJavaArray;
@@ -104,8 +105,8 @@ public final class ExpressionGenerator {
 	private final IJavaType intType;
 	private final IJavaType booleanType;
 	private final IJavaValue zero;
-	private final IJavaValue one;
-	private final IJavaValue two;
+	private final TypedExpression one;
+	private final TypedExpression two;
 	// Cache the generated expressions
 	//private final Map<Pair<TypeConstraint, Integer>, List<TypedExpression>> cachedExprs;
 	
@@ -126,8 +127,8 @@ public final class ExpressionGenerator {
 		this.intType = EclipseUtils.getFullyQualifiedType("int", stack, target, typeCache);
 		this.booleanType = EclipseUtils.getFullyQualifiedType("boolean", stack, target, typeCache);
 		this.zero = target.newValue(0);
-		this.one = target.newValue(1);
-		this.two = target.newValue(2);
+		this.one = ExpressionMaker.makeNumber("1", target.newValue(1), intType);
+		this.two = ExpressionMaker.makeNumber("2", target.newValue(2), intType);
 		//this.cachedExprs = new HashMap<Pair<TypeConstraint, Integer>, List<TypedExpression>>();
 	}
 	
@@ -186,12 +187,12 @@ public final class ExpressionGenerator {
 			
 			EclipseUtils.log("Expression generation found " + results.size() + " valid expressions and took " + (System.currentTimeMillis() - startTime) + " milliseconds.");
 
-			for (Map.Entry<Value, ArrayList<EvaluatedExpression>> entry : equivalences.entrySet())
+			/*for (Map.Entry<Value, ArrayList<EvaluatedExpression>> entry : equivalences.entrySet())
 				System.out.println(entry.getKey() + " -> " + entry.getValue().toString());
 			int totalNumEquivExprs = 0;
 			for (ArrayList<EvaluatedExpression> es: equivalences.values())
 				totalNumEquivExprs += es.size();
-			System.out.println("Found " + equivalences.size() + " equivalences classes that contain " + totalNumEquivExprs + " expressions.");
+			System.out.println("Found " + equivalences.size() + " equivalences classes that contain " + totalNumEquivExprs + " expressions.");*/
 			
 	    	monitor.done();
 	    	return results;
@@ -348,10 +349,10 @@ public final class ExpressionGenerator {
 	    			// Arithmetic with constants.
 	    			if (ExpressionMaker.isInt(e.getType()) && isHelpfulType(intType, depth)
 	    					&& e.getExpression().getProperty("isConstant") == null) {
-	    				addUniqueExpressionToList(curLevel, ExpressionMaker.makeInfix(target, e, InfixExpression.Operator.PLUS, ExpressionMaker.makeNumber("1", one, intType), intType), depth, maxDepth);
-	    				addUniqueExpressionToList(curLevel, ExpressionMaker.makeInfix(target, e, InfixExpression.Operator.TIMES, ExpressionMaker.makeNumber("2", two, intType), intType), depth, maxDepth);
-	    				addUniqueExpressionToList(curLevel, ExpressionMaker.makeInfix(target, e, InfixExpression.Operator.MINUS, ExpressionMaker.makeNumber("1", one, intType), intType), depth, maxDepth);
-	    				addUniqueExpressionToList(curLevel, ExpressionMaker.makeInfix(target, e, InfixExpression.Operator.DIVIDE, ExpressionMaker.makeNumber("2", two, intType), intType), depth, maxDepth);
+	    				addUniqueExpressionToList(curLevel, ExpressionMaker.makeInfix(target, e, InfixExpression.Operator.PLUS, one, intType), depth, maxDepth);
+	    				addUniqueExpressionToList(curLevel, ExpressionMaker.makeInfix(target, e, InfixExpression.Operator.TIMES, two, intType), depth, maxDepth);
+	    				addUniqueExpressionToList(curLevel, ExpressionMaker.makeInfix(target, e, InfixExpression.Operator.MINUS, one, intType), depth, maxDepth);
+	    				addUniqueExpressionToList(curLevel, ExpressionMaker.makeInfix(target, e, InfixExpression.Operator.DIVIDE, two, intType), depth, maxDepth);
 	    			}
 	    			// Field accesses to non-static fields from non-static scope.
 	    			if (e.getType() instanceof IJavaClassType
@@ -713,7 +714,7 @@ public final class ExpressionGenerator {
 		for (Value value: values) {
 			for (TypedExpression expr : new ArrayList<TypedExpression>(equivalences.get(value)))  // Make a copy since we'll probably add expressions to this.
 				expandEquivalencesRec(expr.getExpression(), newlyExpanded);
-			for (EvaluatedExpression expr: getEquivalentExpressions(value, typeConstraint))
+			for (EvaluatedExpression expr: getEquivalentExpressions(value, null, typeConstraint))
 				if (typeConstraint.isFulfilledBy(expr.getType(), subtypeChecker, typeCache, stack, target))
 					results.add(expr);
 		}
@@ -838,25 +839,31 @@ public final class ExpressionGenerator {
 	 */
 	private ArrayList<EvaluatedExpression> getEquivalentExpressions(Expression expr, TypeConstraint constraint) throws DebugException {
 		IJavaValue value = ExpressionMaker.getExpressionValue(expr);
-		return getEquivalentExpressions(new Value(value), constraint);
+		return getEquivalentExpressions(new Value(value), expr, constraint);
 	}
 
 	/**
 	 * Returns expressions that have the given value
 	 * by looking them up in the equivalences map.
+	 * It also adds the current expression if it is a non-zero constant
+	 * and hence not in the equivalences map.
 	 * @param curValue The value for which we want to find expressions
 	 * with that value.
+	 * @param curExpr The current expression.
 	 * @param constraint The constraint that should hold for the expressions.
 	 * @return Expressions that have the given expression.
 	 * @throws DebugException
 	 */
-	private ArrayList<EvaluatedExpression> getEquivalentExpressions(Value curValue, TypeConstraint constraint) throws DebugException {
+	private ArrayList<EvaluatedExpression> getEquivalentExpressions(Value curValue, Expression curExpr, TypeConstraint constraint) throws DebugException {
 		ArrayList<EvaluatedExpression> results = new ArrayList<EvaluatedExpression>();
 		for (EvaluatedExpression expr: equivalences.get(curValue))
 			// We might get things that are equivalent but with difference static types (e.g., Object and String when we want a String), so we ensure we satisfy the type constraint.
 			// However, we have to special case static accesses/calls (e.g., Foo.bar), as the expression part has type Class not the desired type (Foo).
 			if (constraint.isFulfilledBy(expr.getType(), subtypeChecker, typeCache, stack, target) || (ExpressionMaker.isStatic(expr.getExpression()) && (constraint instanceof FieldConstraint || constraint instanceof MethodConstraint)))
 				results.add(expr);
+		// 0 is already in the equivalences map, but no other int constants are.
+		if ((curExpr instanceof NumberLiteral && !"0".equals(((NumberLiteral)curExpr).getToken())) || curExpr instanceof StringLiteral || curExpr instanceof BooleanLiteral)
+			results.add(new EvaluatedExpression(curExpr, curValue.getValue().getJavaType(), curValue));
 		return results;
 	}
 	
