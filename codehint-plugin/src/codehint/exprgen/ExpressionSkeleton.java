@@ -578,12 +578,12 @@ public final class ExpressionSkeleton {
 			if (node instanceof ArrayAccess) {
 				return fillArrayAccess((ArrayAccess)node, curConstraint, parentsOfHoles);
 			} else if (node instanceof BooleanLiteral) {
-	    		return new ExpressionsAndTypeConstraints(new EvaluatedExpression(node, booleanType, target.newValue(((BooleanLiteral)node).booleanValue())), new SupertypeBound(booleanType));
+	    		return new ExpressionsAndTypeConstraints(new EvaluatedExpression(node, booleanType, new Value(target.newValue(((BooleanLiteral)node).booleanValue()))), new SupertypeBound(booleanType));
 			} else if (node instanceof CastExpression) {
 				return fillCast((CastExpression)node, curConstraint, parentsOfHoles);
 			} else if (node instanceof CharacterLiteral) {
 				IJavaType type = EclipseUtils.getFullyQualifiedType("char", stack, target, typeCache);
-	    		return new ExpressionsAndTypeConstraints(new EvaluatedExpression(node, type, target.newValue(((CharacterLiteral)node).charValue())), new SupertypeBound(type));
+	    		return new ExpressionsAndTypeConstraints(new EvaluatedExpression(node, type, new Value(target.newValue(((CharacterLiteral)node).charValue()))), new SupertypeBound(type));
 			} else if (node instanceof ClassInstanceCreation) {
 				return fillClassInstanceCreation(node, parentsOfHoles);
 			} else if (node instanceof ConditionalExpression) {
@@ -606,7 +606,7 @@ public final class ExpressionSkeleton {
 					receiverResult = new ExpressionsAndTypeConstraints(new SupertypeBound(getThisType()));
 				return fillMethod(call, call.getName(), call.arguments(), parentsOfHoles, curConstraint, argTypes, receiverResult);
 			} else if (node instanceof NullLiteral) {
-	    		return new ExpressionsAndTypeConstraints(new EvaluatedExpression(node, null, target.nullValue()), new SupertypeBound(EclipseUtils.getFullyQualifiedType("java.lang.Object", stack, target, typeCache)));
+	    		return new ExpressionsAndTypeConstraints(new EvaluatedExpression(node, null, new Value(target.nullValue())), new SupertypeBound(EclipseUtils.getFullyQualifiedType("java.lang.Object", stack, target, typeCache)));
 			} else if (node instanceof NumberLiteral) {
 	    		return fillNumberLiteral(node);
 			} else if (node instanceof ParenthesizedExpression) {
@@ -627,7 +627,7 @@ public final class ExpressionSkeleton {
 				return fillSimpleName(node, curConstraint);
 			} else if (node instanceof StringLiteral) {
 				IJavaType type = EclipseUtils.getFullyQualifiedType("java.lang.String", stack, target, typeCache);
-				return new ExpressionsAndTypeConstraints(new EvaluatedExpression(node, type, target.newValue(((StringLiteral)node).getEscapedValue())), new SupertypeBound(type));
+				return new ExpressionsAndTypeConstraints(new EvaluatedExpression(node, type, new Value(target.newValue(((StringLiteral)node).getEscapedValue()))), new SupertypeBound(type));
 			} else if (node instanceof SuperFieldAccess) {
 				SuperFieldAccess superAccess = (SuperFieldAccess)node;
 				IJavaType superType = getSuperType(superAccess.getQualifier());
@@ -639,7 +639,7 @@ public final class ExpressionSkeleton {
 				return fillMethod(superAccess, superAccess.getName(), superAccess.arguments(), parentsOfHoles, curConstraint, argTypes, new ExpressionsAndTypeConstraints(new TypedExpression(null, superType), new SupertypeBound(superType)));
 			} else if (node instanceof ThisExpression) {
 				IJavaType type = getThisType();
-				return new ExpressionsAndTypeConstraints(new EvaluatedExpression(node, type, getThis()), new SupertypeBound(type)); 
+				return new ExpressionsAndTypeConstraints(new EvaluatedExpression(node, type, new Value(getThis())), new SupertypeBound(type)); 
 			} else if (node instanceof TypeLiteral) {
 				return fillTypeLiteral(node);
 			} else
@@ -982,7 +982,7 @@ public final class ExpressionSkeleton {
 				} else {
 					IJavaVariable var = stack.findVariable(name.getIdentifier());
 					if (var != null)
-						return new ExpressionsAndTypeConstraints(new EvaluatedExpression(name, var.getJavaType(), (IJavaValue)var.getValue()), new SupertypeBound(var.getJavaType()));
+						return new ExpressionsAndTypeConstraints(new EvaluatedExpression(name, var.getJavaType(), new Value((IJavaValue)var.getValue())), new SupertypeBound(var.getJavaType()));
 					IJavaType type = EclipseUtils.getTypeAndLoadIfNeeded(name.getIdentifier(), stack, target, typeCache);
 					assert type != null : name.getIdentifier();
 					return new ExpressionsAndTypeConstraints(ExpressionMaker.makeStaticName(name.getIdentifier(), (IJavaReferenceType)type), new SupertypeBound(type));
@@ -1003,7 +1003,7 @@ public final class ExpressionSkeleton {
 				IJavaType type = EclipseUtils.getType(((TypeLiteral)node).getType().toString(), stack, target, typeCache);
 				IJavaClassObject classObj = ((IJavaReferenceType)type).getClassObject();
 				IJavaType classObjType = classObj.getJavaType();
-				return new ExpressionsAndTypeConstraints(new EvaluatedExpression(node, classObjType, classObj), new SupertypeBound(classObjType));
+				return new ExpressionsAndTypeConstraints(new EvaluatedExpression(node, classObjType, new Value(classObj)), new SupertypeBound(classObjType));
 			} catch (DebugException e) {
 				throw new RuntimeException(e);
 			}

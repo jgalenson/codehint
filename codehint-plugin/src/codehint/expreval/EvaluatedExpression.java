@@ -5,6 +5,7 @@ import org.eclipse.jdt.debug.core.IJavaType;
 import org.eclipse.jdt.debug.core.IJavaValue;
 
 import codehint.exprgen.TypedExpression;
+import codehint.exprgen.Value;
 
 /**
  * A class that stores an expression, its type,
@@ -12,9 +13,9 @@ import codehint.exprgen.TypedExpression;
  */
 public class EvaluatedExpression extends TypedExpression {
 	
-	protected final IJavaValue value;
+	protected final Value value;
 	
-	public EvaluatedExpression(Expression expression, IJavaType type, IJavaValue value) {
+	public EvaluatedExpression(Expression expression, IJavaType type, Value value) {
 		super(expression, type);
 		assert value != null;
 		this.value = value;
@@ -26,10 +27,15 @@ public class EvaluatedExpression extends TypedExpression {
 	
 	@Override
 	public IJavaValue getValue() {
+		return value.getValue();
+	}
+	
+	@Override
+	public Value getWrapperValue() {
 		return value;
 	}
 	
-	public static TypedExpression makeTypedOrEvaluatedExpression(Expression expression, IJavaType type, IJavaValue value) {
+	public static TypedExpression makeTypedOrEvaluatedExpression(Expression expression, IJavaType type, Value value) {
 		if (value == null)
 			return new TypedExpression(expression, type);
 		else

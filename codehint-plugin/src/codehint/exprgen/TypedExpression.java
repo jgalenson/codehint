@@ -30,6 +30,10 @@ public class TypedExpression {
 		return null;
 	}
 	
+	public Value getWrapperValue() {
+		return null;
+	}
+	
 	@Override
 	public int hashCode() {
 		final int prime = 31;

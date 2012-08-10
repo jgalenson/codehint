@@ -225,7 +225,7 @@ public class ExpressionMaker {
 		Expression e = ast.newNumberLiteral(val);
 		e.setProperty("isConstant", true);
 		setExpressionValue(e, value);
-		return new EvaluatedExpression(e, type, value);
+		return new EvaluatedExpression(e, type, new Value(value));
 	}
 
 	// Pass in cached boolean type for efficiency.
@@ -233,7 +233,7 @@ public class ExpressionMaker {
 		Expression e = ast.newBooleanLiteral(val);
 		e.setProperty("isConstant", true);
 		setExpressionValue(e, value);
-		return new EvaluatedExpression(e, type, value);
+		return new EvaluatedExpression(e, type, new Value(value));
 	}
 
 	public static TypedExpression makeNull(IJavaDebugTarget target) {
@@ -241,7 +241,7 @@ public class ExpressionMaker {
 		e.setProperty("isConstant", true);
 		IJavaValue value = target.nullValue();
 		setExpressionValue(e, value);
-		return new EvaluatedExpression(e, null, value);
+		return new EvaluatedExpression(e, null, new Value(value));
 	}
 
 	public static TypedExpression makeVar(String name, IJavaValue value, IJavaType type, boolean isFieldAccess) {
@@ -249,7 +249,7 @@ public class ExpressionMaker {
 		setExpressionValue(e, value);
 		if (isFieldAccess)
 			e.setProperty("depth", 1);
-		return new EvaluatedExpression(e, type, value);
+		return new EvaluatedExpression(e, type, new Value(value));
 	}
 
 	private static Expression newStaticName(String name, IJavaValue value) {
@@ -262,7 +262,7 @@ public class ExpressionMaker {
 	public static TypedExpression makeStaticName(String name, IJavaReferenceType type) {
 		try {
 			IJavaValue value = type.getClassObject();
-			return new EvaluatedExpression(newStaticName(name, value), type, value);
+			return new EvaluatedExpression(newStaticName(name, value), type, new Value(value));
 		} catch (DebugException e) {
 			throw new RuntimeException(e);
 		}
@@ -271,14 +271,14 @@ public class ExpressionMaker {
 	public static TypedExpression makeThis(IJavaValue value, IJavaType type) {
 		ThisExpression e = ast.newThisExpression();
 		setExpressionValue(e, value);
-		return new EvaluatedExpression(e, type, value);
+		return new EvaluatedExpression(e, type, new Value(value));
 	}
 
 	public static TypedExpression makeInfix(IJavaDebugTarget target, TypedExpression left, InfixExpression.Operator op, TypedExpression right, IJavaType type) throws NumberFormatException, DebugException {
 		InfixExpression e = makeInfix(left.getExpression(), op, right.getExpression());
 		IJavaValue value = computeInfixOp(target, left.getValue(), op, right.getValue(), left.getType() != null ? left.getType() : right.getType());
 		setExpressionValue(e, value);
-		return EvaluatedExpression.makeTypedOrEvaluatedExpression(e, type, value);
+		return EvaluatedExpression.makeTypedOrEvaluatedExpression(e, type, new Value(value));
 	}
 
 	public static InfixExpression makeInfix(Expression l, InfixExpression.Operator op, Expression r) {
@@ -292,7 +292,7 @@ public class ExpressionMaker {
 	public static TypedExpression makeArrayAccess(TypedExpression array, TypedExpression index, IJavaValue value) {
 		ArrayAccess e = makeArrayAccess(array.getExpression(), index.getExpression());
 		setExpressionValue(e, value);
-		return EvaluatedExpression.makeTypedOrEvaluatedExpression(e, getArrayElementType(array), value);
+		return EvaluatedExpression.makeTypedOrEvaluatedExpression(e, getArrayElementType(array), new Value(value));
 	}
 
 	public static ArrayAccess makeArrayAccess(Expression array, Expression index) {
@@ -305,7 +305,7 @@ public class ExpressionMaker {
 	public static TypedExpression makeFieldAccess(TypedExpression obj, String name, IJavaType fieldType, IJavaValue value) {
 		FieldAccess e = makeFieldAccess(obj.getExpression(), name);
 		setExpressionValue(e, value);
-		return EvaluatedExpression.makeTypedOrEvaluatedExpression(e, fieldType, value);
+		return EvaluatedExpression.makeTypedOrEvaluatedExpression(e, fieldType, new Value(value));
 	}
 
 	public static FieldAccess makeFieldAccess(Expression obj, String name) {
@@ -320,7 +320,7 @@ public class ExpressionMaker {
 			PrefixExpression e = makePrefix(operand.getExpression(), op);
 			IJavaValue value = computePrefixOp(target, operand.getValue(), op);
 			setExpressionValue(e, value);
-			return EvaluatedExpression.makeTypedOrEvaluatedExpression(e, type, value);
+			return EvaluatedExpression.makeTypedOrEvaluatedExpression(e, type, new Value(value));
 		} catch (DebugException ex) {
 			throw new RuntimeException(ex);
 		}
@@ -337,7 +337,7 @@ public class ExpressionMaker {
 		PostfixExpression e = makePostfix(operand.getExpression(), op);
 		IJavaValue value = computePostfixOp(target, operand.getValue(), op);
 		setExpressionValue(e, value);
-		return EvaluatedExpression.makeTypedOrEvaluatedExpression(e, type, value);
+		return EvaluatedExpression.makeTypedOrEvaluatedExpression(e, type, new Value(value));
 	}
 
 	private static PostfixExpression makePostfix(Expression operand, PostfixExpression.Operator op) {
@@ -378,7 +378,7 @@ public class ExpressionMaker {
 		for (TypedExpression ex: args)
 			e.arguments().add(copyExpr(ex.getExpression()));
 		setExpressionValue(e, value);
-		return EvaluatedExpression.makeTypedOrEvaluatedExpression(e, returnType, value);
+		return EvaluatedExpression.makeTypedOrEvaluatedExpression(e, returnType, new Value(value));
 	}
 	@SuppressWarnings("unchecked")
 	public static Expression makeCall(String name, Expression receiver, ArrayList<Expression> args, Method method) {
@@ -394,7 +394,7 @@ public class ExpressionMaker {
 	public static TypedExpression makeCast(TypedExpression obj, IJavaType targetType, IJavaValue value) {
 		CastExpression e = makeCast(obj.getExpression(), targetType);
 		setExpressionValue(e, value);
-		return EvaluatedExpression.makeTypedOrEvaluatedExpression(e, targetType, value);
+		return EvaluatedExpression.makeTypedOrEvaluatedExpression(e, targetType, new Value(value));
 	}
 
 	public static CastExpression makeCast(Expression obj, IJavaType targetType) {
@@ -407,7 +407,7 @@ public class ExpressionMaker {
 	public static TypedExpression makeInstanceOf(TypedExpression obj, Type targetDomType, IJavaType targetType, IJavaValue value) {
 		InstanceofExpression e = makeInstanceOf(obj.getExpression(), targetDomType);
 		setExpressionValue(e, value);
-		return EvaluatedExpression.makeTypedOrEvaluatedExpression(e, targetType, value);
+		return EvaluatedExpression.makeTypedOrEvaluatedExpression(e, targetType, new Value(value));
 	}
 
 	private static InstanceofExpression makeInstanceOf(Expression expr, Type targetDomType) {
@@ -422,7 +422,7 @@ public class ExpressionMaker {
 			ConditionalExpression ex = makeConditional(cond.getExpression(), t.getExpression(), e.getExpression());
 			IJavaValue value = computeConditionalOp(cond.getValue(), t.getValue(), e.getValue());
 			setExpressionValue(ex, value);
-			return EvaluatedExpression.makeTypedOrEvaluatedExpression(ex, type, value);
+			return EvaluatedExpression.makeTypedOrEvaluatedExpression(ex, type, new Value(value));
 		} catch (DebugException ex) {
 			throw new RuntimeException(ex);
 		}
@@ -443,7 +443,7 @@ public class ExpressionMaker {
 		for (TypedExpression ex: args)
 			e.arguments().add(copyExpr(ex.getExpression()));
 		setExpressionValue(e, value);
-		return EvaluatedExpression.makeTypedOrEvaluatedExpression(e, type, value);
+		return EvaluatedExpression.makeTypedOrEvaluatedExpression(e, type, new Value(value));
 	}
 
 	@SuppressWarnings("unchecked")
@@ -458,7 +458,7 @@ public class ExpressionMaker {
 
 	public static TypedExpression makeParenthesized(TypedExpression obj) {
 		ParenthesizedExpression e = makeParenthesized(obj.getExpression());
-		return EvaluatedExpression.makeTypedOrEvaluatedExpression(e, obj.getType(), getExpressionValue(e));
+		return EvaluatedExpression.makeTypedOrEvaluatedExpression(e, obj.getType(), new Value(getExpressionValue(e)));
 	}
 
 	private static ParenthesizedExpression makeParenthesized(Expression e) {
@@ -471,7 +471,7 @@ public class ExpressionMaker {
 	public static TypedExpression makeSuperFieldAccess(Name qualifier, String name, IJavaType fieldType, IJavaValue value) {
 		SuperFieldAccess e = makeSuperFieldAccess(qualifier, name);
 		setExpressionValue(e, value);
-		return EvaluatedExpression.makeTypedOrEvaluatedExpression(e, fieldType, value);
+		return EvaluatedExpression.makeTypedOrEvaluatedExpression(e, fieldType, new Value(value));
 	}
 
 	private static SuperFieldAccess makeSuperFieldAccess(Name qualifier, String name) {
@@ -490,7 +490,7 @@ public class ExpressionMaker {
 			e.arguments().add(copyExpr(ex.getExpression()));
 		setExpressionValue(e, value);
 		setMethod(e, method);
-		return EvaluatedExpression.makeTypedOrEvaluatedExpression(e, returnType, value);
+		return EvaluatedExpression.makeTypedOrEvaluatedExpression(e, returnType, new Value(value));
 	}
 	
 	public static TypeLiteral makeTypeLiteral(Type type) {

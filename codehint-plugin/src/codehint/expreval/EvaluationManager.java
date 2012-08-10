@@ -45,6 +45,7 @@ import codehint.exprgen.ExpressionMaker;
 import codehint.exprgen.SubtypeChecker;
 import codehint.exprgen.TypeCache;
 import codehint.exprgen.TypedExpression;
+import codehint.exprgen.Value;
 import codehint.property.PrimitiveValueProperty;
 import codehint.property.StateProperty;
 import codehint.property.Property;
@@ -395,7 +396,7 @@ public final class EvaluationManager {
 			if (valid) {
 				if (!curValue.isNull() && toStrings != null && "java.lang.String".equals(curValue.getJavaType().getName()))
 					resultString = "\"" + resultString + "\"";
-				results.add(new FullyEvaluatedExpression(typedExpr.getExpression(), typedExpr.getType(), curValue, resultString));
+				results.add(new FullyEvaluatedExpression(typedExpr.getExpression(), typedExpr.getType(), new Value(curValue), resultString));
 			}
 			if (typedExpr.getValue() == null || !(property instanceof PrimitiveValueProperty || property instanceof TypeProperty))
 				evalIndex++;
