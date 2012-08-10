@@ -46,6 +46,7 @@ import codehint.exprgen.SubtypeChecker;
 import codehint.exprgen.TypeCache;
 import codehint.exprgen.TypedExpression;
 import codehint.exprgen.Value;
+import codehint.property.ObjectValueProperty;
 import codehint.property.PrimitiveValueProperty;
 import codehint.property.StateProperty;
 import codehint.property.Property;
@@ -133,13 +134,14 @@ public final class EvaluationManager {
 			PropertyPreconditionFinder pf = new PropertyPreconditionFinder();
     		EclipseUtils.parseExpr(parser, validVal).accept(pf);
     		propertyPreconditions = property instanceof ValueProperty ? "" : pf.getPreconditions();  // TODO: This will presumably fail if the user does their own null check.
+    		boolean validateStatically = property == null || property instanceof PrimitiveValueProperty || property instanceof TypeProperty || (property instanceof ValueProperty && ((ValueProperty)property).getValue().isNull()) || (property instanceof ObjectValueProperty && "java.lang.String".equals(((ObjectValueProperty)property).getValue().getJavaType().getName()));
 			Map<String, ArrayList<TypedExpression>> expressionsByType = getNonKnownCrashingExpressionByType(exprs);
 			ArrayList<FullyEvaluatedExpression> evaluatedExprs = new ArrayList<FullyEvaluatedExpression>(exprs.size());
 			for (Map.Entry<String, ArrayList<TypedExpression>> expressionsOfType: expressionsByType.entrySet()) {
 				String type = EclipseUtils.sanitizeTypename(expressionsOfType.getKey());
 				String valuesArrayName = getValuesArrayName(type);
 				IJavaFieldVariable valuesField = implType.getField(valuesArrayName);
-				evaluateExpressions(expressionsOfType.getValue(), evaluatedExprs, type, property, valuesField, 0);
+				evaluateExpressions(expressionsOfType.getValue(), evaluatedExprs, type, property, validateStatically, valuesField, 0);
 			}
 			return evaluatedExprs;
 		} catch (DebugException e) {
@@ -214,19 +216,20 @@ public final class EvaluationManager {
 	 * @param results The results of the evaluations of the given
 	 * expressions that do not crash and satisfy the current pdspec.
 	 * @param type The static type of the desired expression.
-	 * @param property 
+	 * @param property The pdspec.
+	 * @param validateStatically Whether we can evaluate the pdspec
+	 * ourselves our must have the child evaluation do it.
 	 * @param valuesField The field of the proper type to store the
 	 * results of the given expressions.
 	 * @param startIndex The index at which to start evaluation.
 	 */
-	private void evaluateExpressions(ArrayList<TypedExpression> exprs, ArrayList<FullyEvaluatedExpression> results, String type, Property property, IJavaFieldVariable valuesField, int startIndex) {
+	private void evaluateExpressions(ArrayList<TypedExpression> exprs, ArrayList<FullyEvaluatedExpression> results, String type, Property property, boolean validateStatically, IJavaFieldVariable valuesField, int startIndex) {
 		if (monitor.isCanceled())
 			throw new OperationCanceledException();
 		boolean hasPropertyPrecondition = propertyPreconditions.length() > 0;
 		boolean arePrimitives = !"Object".equals(type);
 		ArrayList<Integer> evalExprIndices = new ArrayList<Integer>();
 		int numEvaluated = 0;
-		boolean validateStatically = property == null || property instanceof PrimitiveValueProperty || property instanceof TypeProperty;
 		StringBuilder expressionsStr = new StringBuilder();
 		
 		try {
@@ -326,7 +329,7 @@ public final class EvaluationManager {
 	    	monitor.worked(work);
 	    	int nextStartIndex = startIndex + work + numToSkip;
 	    	if (nextStartIndex < exprs.size())
-	    		evaluateExpressions(exprs, results, type, property, valuesField, nextStartIndex);
+	    		evaluateExpressions(exprs, results, type, property, validateStatically, valuesField, nextStartIndex);
 		} catch (DebugException e) {
 			throw new RuntimeException(e);
 		}
@@ -389,6 +392,12 @@ public final class EvaluationManager {
     		} else if (property instanceof TypeProperty) {
 				valid = !curValue.isNull() && subtypeChecker.isSubtypeOf(curValue.getJavaType(), ((TypeProperty)property).getType());  // null is not instanceof Object
 				resultString = EclipseUtils.javaStringOfValue(curValue, stack);
+    		} else if (property instanceof ValueProperty && ((ValueProperty)property).getValue().isNull()) {
+    			valid = curValue.isNull();
+    			resultString = "null";
+    		} else if (property instanceof ObjectValueProperty && "java.lang.String".equals(((ObjectValueProperty)property).getValue().getJavaType().getName())) {  // The property's value cannot be null because of the previous special case.
+    			valid = ((ObjectValueProperty)property).getValue().toString().equals(curValue.toString());
+    			resultString = EclipseUtils.javaStringOfValue(curValue, stack);
     		} else {
     			valid = "true".equals(valids[evalIndex].toString());
 				resultString = toStrings == null ? EclipseUtils.javaStringOfValue(curValue, stack) : toStrings[evalIndex].getValueString();
