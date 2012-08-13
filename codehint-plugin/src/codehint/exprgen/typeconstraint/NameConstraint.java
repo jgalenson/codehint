@@ -8,14 +8,24 @@ import org.eclipse.jdt.debug.core.IJavaType;
 
 import codehint.exprgen.TypeCache;
 
+/**
+ * A constraint on the receivers of methods calls or field accesses.
+ */
 public abstract class NameConstraint extends TypeConstraint {
 	
 	protected Set<String> legalNames;
 	
+	/**
+	 * Creates a constraint on receiving objects.
+	 */
 	protected NameConstraint() {
 		this.legalNames = null;
 	}
 
+	/**
+	 * Sets the legal names of the desired methods or fields.
+	 * @param legalNames the legal names of the desired methods or fields.
+	 */
 	public void setLegalNames(Set<String> legalNames) {
 		this.legalNames = legalNames;
 	}

@@ -17,18 +17,41 @@ import codehint.exprgen.SubtypeChecker;
 import codehint.exprgen.TypeCache;
 import codehint.utils.Utils;
 
+/**
+ * A constraint on the receiver of a method call.
+ */
 public class MethodNameConstraint extends NameConstraint {
 
 	private final TypeConstraint expressionConstraint;
 	private final TypeConstraint methodConstraint;
 	private final ArrayList<TypeConstraint> argConstraints;
-	
+
+	/**
+	 * Creates a constraint that ensures that the given type fulfills
+	 * the given expression constraint and has a method of a legal
+	 * name whose return type meets the given method constraint
+	 * and whose arguments meet the given arg constraints.
+	 * @param expressionConstraint The constraint on the receiver.
+	 * @param methodConstraint The constraint on the method's type.
+	 * @param argConstraints The constraints on the method's arguments.
+	 * This can be null, in which case the constraint accepts methods
+	 * with any number and type of arguments.
+	 */
 	public MethodNameConstraint(TypeConstraint expressionConstraint, TypeConstraint methodConstraint, ArrayList<TypeConstraint> argConstraints) {
 		this.expressionConstraint = expressionConstraint;
 		this.methodConstraint = methodConstraint;
 		this.argConstraints = argConstraints;
 	}
-	
+
+	/**
+	 * Gets the methods that can satisfy the given constraint.
+	 * @param stack The stack frame.
+	 * @param target The debug target.
+	 * @param subtypeChecker the subtype checker.
+	 * @param typeCache The type cache.
+	 * @return A mapping from the type of the receiving object to
+	 * a list of those of its methods that satisfy this constraint.
+	 */
 	public Map<String, ArrayList<Method>> getMethods(IJavaStackFrame stack, IJavaDebugTarget target, SubtypeChecker subtypeChecker, TypeCache typeCache) {
 		try {
 			IJavaType[] receiverTypes = expressionConstraint.getTypes(stack, target, typeCache);
@@ -36,7 +59,7 @@ public class MethodNameConstraint extends NameConstraint {
     		for (IJavaType receiverType: receiverTypes) {
     			String typeName = receiverType.getName();
 	    		for (Method method: ExpressionGenerator.getMethods(receiverType))
-					if (ExpressionGenerator.isLegalMethod(method, stack.getReferenceType(), false) && methodFulfills(subtypeChecker, typeCache, stack, target, method))
+					if (ExpressionGenerator.isLegalMethod(method, stack.getReferenceType(), false) && methodFulfills(method, stack, target, subtypeChecker, typeCache))
 						Utils.addToMap(methodsByType, typeName, method);
     		}
     		return methodsByType;
@@ -50,18 +73,37 @@ public class MethodNameConstraint extends NameConstraint {
 		if (!expressionConstraint.isFulfilledBy(type, subtypeChecker, typeCache, stack, target))
 			return false;
 		for (Method method: ExpressionGenerator.getMethods(type))
-			if (methodFulfills(subtypeChecker, typeCache, stack, target, method))
+			if (methodFulfills(method, stack, target, subtypeChecker, typeCache))
 				return true;
 		return false;
 	}
 
-	private boolean methodFulfills(SubtypeChecker subtypeChecker, TypeCache typeCache, IJavaStackFrame stack, IJavaDebugTarget target, Method method) {
+	/**
+	 * Ensures that the given method satisfies this constraint.
+	 * @param method The method to check.
+	 * @param stack The stack frame.
+	 * @param target The debug target.
+	 * @param subtypeChecker the subtype checker.
+	 * @param typeCache The type cache.
+	 * @return Whether the given method satisfies this constraint.
+	 */
+	private boolean methodFulfills(Method method, IJavaStackFrame stack, IJavaDebugTarget target, SubtypeChecker subtypeChecker, TypeCache typeCache) {
 		return (legalNames == null || legalNames.contains(method.name())) && 
-				(argConstraints == null || fulfillsArgConstraints(method, argConstraints, subtypeChecker, typeCache, stack, target))
+				(argConstraints == null || fulfillsArgConstraints(method, argConstraints, stack, target, subtypeChecker, typeCache))
 				&& (!"void".equals(method.returnTypeName()) && methodConstraint.isFulfilledBy(EclipseUtils.getTypeAndLoadIfNeededAndExists(method.returnTypeName(), stack, target, typeCache), subtypeChecker, typeCache, stack, target));
 	}
 
-	public static boolean fulfillsArgConstraints(Method method, ArrayList<TypeConstraint> argConstraints, SubtypeChecker subtypeChecker, TypeCache typeCache, IJavaStackFrame stack, IJavaDebugTarget target) {
+	/**
+	 * Ensures that the given method satisfies the given arg constraints.
+	 * @param method The method to check.
+	 * @param argConstraints The arg constraints.
+	 * @param stack The stack frame.
+	 * @param target The debug target.
+	 * @param subtypeChecker the subtype checker.
+	 * @param typeCache The type cache.
+	 * @return Whether the given method satisfies the given arg constraints.
+	 */
+	public static boolean fulfillsArgConstraints(Method method, ArrayList<TypeConstraint> argConstraints, IJavaStackFrame stack, IJavaDebugTarget target, SubtypeChecker subtypeChecker, TypeCache typeCache) {
 		if (method.argumentTypeNames().size() != argConstraints.size())
 			return false;
 		int i = 0;

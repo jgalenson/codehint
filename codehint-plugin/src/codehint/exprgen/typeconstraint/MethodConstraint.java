@@ -13,12 +13,27 @@ import codehint.exprgen.ExpressionGenerator;
 import codehint.exprgen.SubtypeChecker;
 import codehint.exprgen.TypeCache;
 
+/**
+ * A constraint that ensures that a type has a method with
+ * the given name (or any names if the given name is null)
+ * and whose return type and arguments meet the given constraints.
+ */
 public class MethodConstraint extends TypeConstraint {
 	
 	private final String methodName;
 	private final TypeConstraint methodConstraint;
 	private final ArrayList<TypeConstraint> argConstraints;
-	
+
+	/**
+	 * Creates a constraint that matches types that have methods
+	 * of the given name, return type, and argument types.
+	 * @param methodName The name of the method.  This can be null, in
+	 * which case the constraint accepts methods with any name.
+	 * @param methodConstraint The type constraint of the method's return.
+	 * @param argConstraints The type constraints of the method's arguments.
+	 * This can be null, in which case the constraint accepts methods
+	 * with any number and type of arguments.
+	 */
 	public MethodConstraint(String methodName, TypeConstraint methodConstraint, ArrayList<TypeConstraint> argConstraints) {
 		this.methodName = methodName;
 		this.methodConstraint = methodConstraint;
@@ -27,6 +42,7 @@ public class MethodConstraint extends TypeConstraint {
 
 	@Override
 	public boolean isFulfilledBy(IJavaType type, SubtypeChecker subtypeChecker, TypeCache typeCache, IJavaStackFrame stack, IJavaDebugTarget target) {
+		// Check each method of the given type to see if it has the desired name and meets the desired constraints.
 		for (Method method: ExpressionGenerator.getMethods(type)) {
 			if ((methodName == null || method.name().equals(methodName)) && (argConstraints == null || method.argumentTypeNames().size() == argConstraints.size())
 					&& (!"void".equals(method.returnTypeName()) && methodConstraint.isFulfilledBy(EclipseUtils.getTypeAndLoadIfNeededAndExists(method.returnTypeName(), stack, target, typeCache), subtypeChecker, typeCache, stack, target))) {

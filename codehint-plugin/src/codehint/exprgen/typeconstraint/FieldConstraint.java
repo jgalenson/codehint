@@ -11,11 +11,21 @@ import codehint.exprgen.ExpressionGenerator;
 import codehint.exprgen.SubtypeChecker;
 import codehint.exprgen.TypeCache;
 
+/**
+ * A constraint that ensures that a type has a field with
+ * the given name and a type that meets the given constraint.
+ */
 public class FieldConstraint extends TypeConstraint {
 	
 	private final String fieldName;
 	private final TypeConstraint fieldConstraint;
 	
+	/**
+	 * Creates a constraint that matches types that have fields
+	 * of the given name and type.
+	 * @param fieldName The name of the field.
+	 * @param fieldConstraint The type constraint of the field's type.
+	 */
 	public FieldConstraint(String fieldName, TypeConstraint fieldConstraint) {
 		this.fieldName = fieldName;
 		this.fieldConstraint = fieldConstraint;
@@ -23,6 +33,7 @@ public class FieldConstraint extends TypeConstraint {
 
 	@Override
 	public boolean isFulfilledBy(IJavaType type, SubtypeChecker subtypeChecker, TypeCache typeCache, IJavaStackFrame stack, IJavaDebugTarget target) {
+		// Check each field of the given type to see if it has the desired name and meets the desired constraint.
 		for (Field field: ExpressionGenerator.getFields(type)) {
 			if (fieldName == null || field.name().equals(fieldName))
 				return fieldConstraint.isFulfilledBy(EclipseUtils.getTypeAndLoadIfNeeded(field.typeName(), stack, target, typeCache), subtypeChecker, typeCache, stack, target);

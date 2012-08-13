@@ -9,8 +9,15 @@ import org.eclipse.jdt.debug.core.IJavaType;
 import codehint.exprgen.SubtypeChecker;
 import codehint.exprgen.TypeCache;
 
+/**
+ * A type constraint that matches supertypes of any of the given types.
+ */
 public class SubtypeSet extends SetTypeConstraint {
-	
+
+	/**
+	 * Creates a constraint that matches supertypes of any of the given types.
+	 * @param subtypes The constraint's types.
+	 */
 	public SubtypeSet(Set<IJavaType> subtypes) {
 		super(subtypes);
 	}

@@ -7,12 +7,23 @@ import org.eclipse.jdt.debug.core.IJavaType;
 import codehint.exprgen.SubtypeChecker;
 import codehint.exprgen.TypeCache;
 
+/**
+ * A type constraint that matches subtypes of the given type.
+ */
 public class SupertypeBound extends SingleTypeConstraint {
 	
+	/**
+	 * Creates a constraint that matches subtypes of the given type.
+	 * @param supertypeBound The constraint's type.
+	 */
 	public SupertypeBound(IJavaType supertypeBound) {
 		super(supertypeBound);
 	}
 	
+	/**
+	 * Gets the type for which this constraint matches all subtypes.
+	 * @return The type for which this constraint matches all subtypes.
+	 */
 	public IJavaType getSupertypeBound() {
 		return typeConstraint;
 	}
@@ -20,11 +31,6 @@ public class SupertypeBound extends SingleTypeConstraint {
 	@Override
 	public boolean isFulfilledBy(IJavaType type, SubtypeChecker subtypeChecker, TypeCache typeCache, IJavaStackFrame stack, IJavaDebugTarget target) {
 		return subtypeChecker.isSubtypeOf(type, typeConstraint);// || subtypeChecker.isSubtypeOf(supertypeBound, type);
-	}
-
-	@Override
-	public IJavaType[] getTypes(IJavaStackFrame stack, IJavaDebugTarget target, TypeCache typeCache) {
-		return new IJavaType[] { typeConstraint };
 	}
 
 	@Override

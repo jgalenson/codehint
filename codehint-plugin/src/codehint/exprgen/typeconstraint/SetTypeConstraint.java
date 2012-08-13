@@ -8,14 +8,26 @@ import org.eclipse.jdt.debug.core.IJavaType;
 
 import codehint.exprgen.TypeCache;
 
+/**
+ * An abstract type constraint for constraints that
+ * represent some relationship with a set of types. 
+ */
 public abstract class SetTypeConstraint extends TypeConstraint {
 	
 	protected final Set<IJavaType> typeSet;
-	
+
+	/**
+	 * Creates a type constraint with the given types.
+	 * @param typeSet The types of this constraint.
+	 */
 	public SetTypeConstraint(Set<IJavaType> typeSet) {
 		this.typeSet = typeSet;
 	}
-	
+
+	/**
+	 * Gets this constraint's types.
+	 * @return The types of this constraint.
+	 */
 	public Set<IJavaType> getTypeSet() {
 		return typeSet;
 	}

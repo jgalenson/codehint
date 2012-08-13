@@ -9,12 +9,23 @@ import org.eclipse.jdt.debug.core.IJavaType;
 import codehint.exprgen.SubtypeChecker;
 import codehint.exprgen.TypeCache;
 
+/**
+ * A type constraint that matches exactly the given type.
+ */
 public class DesiredType extends SingleTypeConstraint {
 	
+	/**
+	 * Creates a type constraint that matches exactly the given type.
+	 * @param desiredType The desired type.
+	 */
 	public DesiredType(IJavaType desiredType) {
 		super(desiredType);
 	}
 	
+	/**
+	 * Gets the desired type.
+	 * @return The type that fulfills this constraint.
+	 */
 	public IJavaType getDesiredType() {
 		return typeConstraint;
 	}
@@ -26,11 +37,6 @@ public class DesiredType extends SingleTypeConstraint {
 		if (typeConstraint == null)
 			return type instanceof IJavaReferenceType;
 		return typeConstraint.equals(type); // subtypeChecker.isSubtypeOf(desiredType, curType);
-	}
-
-	@Override
-	public IJavaType[] getTypes(IJavaStackFrame stack, IJavaDebugTarget target, TypeCache typeCache) {
-		return new IJavaType[] { typeConstraint };
 	}
 
 	@Override

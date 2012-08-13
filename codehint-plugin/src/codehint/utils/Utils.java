@@ -6,21 +6,28 @@ import java.util.Map;
 
 public class Utils {
 	
+	/**
+	 * Gets the element out of a singleton collection.
+	 * Fails an assertion if the collection does
+	 * not contain exacly one element.
+	 * @param xs The singleton collection.
+	 * @return The single element in the collection.
+	 */
 	public static <T> T singleton(Collection<T> xs) {
 		assert xs.size() == 1;
 		return xs.iterator().next();
 	}
 	
+	/**
+	 * Adds the given key-value mapping to the given map.
+	 * @param map The map.
+	 * @param key The key.
+	 * @param value The value.
+	 */
 	public static <K, V> void addToMap(Map<K, ArrayList<V>> map, K key, V value) {
 		if (!map.containsKey(key))
 			map.put(key, new ArrayList<V>());
 		map.get(key).add(value);
-	}
-	
-	public static <K, V> void addAllToMap(Map<K, ArrayList<V>> map, K key, ArrayList<V> values) {
-		if (!map.containsKey(key))
-			map.put(key, new ArrayList<V>());
-		map.get(key).addAll(values);
 	}
 	
 	public static String plural(String str, String suffix, int count) {
@@ -30,18 +37,47 @@ public class Utils {
 			return str + suffix;
 	}
 	
+	/**
+	 * Truncates the given string so it is no longer
+	 * than the given length, which must be at least
+	 * three.
+	 * @param str The string to truncate.
+	 * @param length The maximum length of the desired
+	 * string, which must be at least three.
+	 * @return The given string, truncated to at most
+	 * length characters, with "..." at its end if
+	 * it is truncated.
+	 */
 	public static String truncate(String str, int length) {
+		assert length >= 3 : length;
+		length = length - 3;
 		if (str.length() <= length)
 			return str;
 		else
 			return str.substring(0, length) + "...";
 	}
 	
+	/**
+	 * Converts the given array or varargs into an ArrayList.
+	 * @param ts The elements to put in the list.
+	 * @return An ArrayList containing the given elements.
+	 */
 	public static <T> ArrayList<T> makeList(T... ts) {
 		ArrayList<T> list = new ArrayList<T>(ts.length);
 		for (T t: ts)
 			list.add(t);
 		return list;
+	}
+	
+	public static <K, V> ArrayList<V> getOrElseCreateEmpty(Map<K, ArrayList<V>> map, K key) {
+		ArrayList<V> result = map.get(key);
+		if (result != null)
+			return result;
+		else {
+			result = new ArrayList<V>();
+			map.put(key, result);
+			return result;
+		}
 	}
 
 }

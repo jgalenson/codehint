@@ -7,14 +7,19 @@ import org.eclipse.jdt.debug.core.IJavaType;
 import codehint.exprgen.SubtypeChecker;
 import codehint.exprgen.TypeCache;
 
+/**
+ * The trivial type constraint that accepts anything.
+ */
 public class UnknownConstraint extends TypeConstraint {
 	
 	private static UnknownConstraint unknownConstraint;
 	
-	private UnknownConstraint() {
-		
-	}
+	private UnknownConstraint() { }
 	
+	/**
+	 * Creates a type constraint that accepts anything.
+	 * @return a type constraint that accepts anything.
+	 */
 	public static UnknownConstraint getUnknownConstraint() {
 		if (unknownConstraint == null)
 			unknownConstraint = new UnknownConstraint();

@@ -17,16 +17,35 @@ import codehint.exprgen.SubtypeChecker;
 import codehint.exprgen.TypeCache;
 import codehint.utils.Utils;
 
+/**
+ * A constraint on the receiver of a field access.
+ */
 public class FieldNameConstraint extends NameConstraint {
 	
 	private final TypeConstraint expressionConstraint;
 	private final TypeConstraint fieldConstraint;
 	
+	/**
+	 * Creates a constraint that ensures that the given type fulfills
+	 * the given expression constraint and has a field of a legal
+	 * name whose type meets the given field constraint.
+	 * @param expressionConstraint The constraint on the receiver.
+	 * @param fieldConstraint The constraint on the field's type.
+	 */
 	public FieldNameConstraint(TypeConstraint expressionConstraint, TypeConstraint fieldConstraint) {
 		this.expressionConstraint = expressionConstraint;
 		this.fieldConstraint = fieldConstraint;
 	}
 	
+	/**
+	 * Gets the fields that can satisfy the given constraint.
+	 * @param stack The stack frame.
+	 * @param target The debug target.
+	 * @param subtypeChecker the subtype checker.
+	 * @param typeCache The type cache.
+	 * @return A mapping from the type of the receiving object to
+	 * a list of those of its fields that satisfy this constraint.
+	 */
 	public Map<String, ArrayList<Field>> getFields(IJavaStackFrame stack, IJavaDebugTarget target, SubtypeChecker subtypeChecker, TypeCache typeCache) {
 		try {
 			IJavaType[] receiverTypes = expressionConstraint.getTypes(stack, target, typeCache);
@@ -34,7 +53,7 @@ public class FieldNameConstraint extends NameConstraint {
 			for (IJavaType receiverType: receiverTypes) {
 				String typeName = receiverType.getName();
 				for (Field field: ExpressionGenerator.getFields(receiverType))
-					if (fieldFulfills(subtypeChecker, typeCache, stack, target, field))
+					if (fieldFulfills(field, stack, target, subtypeChecker, typeCache))
 						Utils.addToMap(fieldsByType, typeName, field);
 			}
 			return fieldsByType;
@@ -48,12 +67,21 @@ public class FieldNameConstraint extends NameConstraint {
 		if (!expressionConstraint.isFulfilledBy(type, subtypeChecker, typeCache, stack, target))
 			return false;
 		for (Field field: ExpressionGenerator.getFields(type))
-			if (fieldFulfills(subtypeChecker, typeCache, stack, target, field))
+			if (fieldFulfills(field, stack, target, subtypeChecker, typeCache))
 				return true;
 		return false;
 	}
 
-	private boolean fieldFulfills(SubtypeChecker subtypeChecker, TypeCache typeCache, IJavaStackFrame stack, IJavaDebugTarget target, Field field) {
+	/**
+	 * Ensures that the given field satisfies this constraint.
+	 * @param field The field to check.
+	 * @param stack The stack frame.
+	 * @param target The debug target.
+	 * @param subtypeChecker the subtype checker.
+	 * @param typeCache The type cache.
+	 * @return Whether the given field satisfies this constraint.
+	 */
+	private boolean fieldFulfills(Field field, IJavaStackFrame stack, IJavaDebugTarget target, SubtypeChecker subtypeChecker, TypeCache typeCache) {
 		return (legalNames == null || legalNames.contains(field.name())) && fieldConstraint.isFulfilledBy(EclipseUtils.getTypeAndLoadIfNeeded(field.typeName(), stack, target, typeCache), subtypeChecker, typeCache, stack, target);
 	}
 
