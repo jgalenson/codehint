@@ -1,8 +1,6 @@
 package codehint.exprgen;
 
 import java.util.ArrayList;
-import java.util.Iterator;
-import java.util.Map;
 
 import org.eclipse.debug.core.DebugException;
 import org.eclipse.jdt.core.dom.AST;
@@ -283,9 +281,9 @@ public class ExpressionMaker {
 
 	public static InfixExpression makeInfix(Expression l, InfixExpression.Operator op, Expression r) {
 		InfixExpression e = ast.newInfixExpression();
-		e.setLeftOperand(parenIfNeeded(copyExpr(l)));
+		e.setLeftOperand(parenIfNeeded(ASTCopyer.copy(l)));
 		e.setOperator(op);
-		e.setRightOperand(parenIfNeeded(copyExpr(r)));
+		e.setRightOperand(parenIfNeeded(ASTCopyer.copy(r)));
 		return e;
 	}
 
@@ -297,8 +295,8 @@ public class ExpressionMaker {
 
 	public static ArrayAccess makeArrayAccess(Expression array, Expression index) {
 		ArrayAccess e = ast.newArrayAccess();
-		e.setArray(copyExpr(array));
-		e.setIndex(copyExpr(index));
+		e.setArray(ASTCopyer.copy(array));
+		e.setIndex(ASTCopyer.copy(index));
 		return e;
 	}
 
@@ -310,7 +308,7 @@ public class ExpressionMaker {
 
 	public static FieldAccess makeFieldAccess(Expression obj, String name) {
 		FieldAccess e = ast.newFieldAccess();
-		e.setExpression(copyExpr(obj));
+		e.setExpression(ASTCopyer.copy(obj));
 		e.setName(ast.newSimpleName(name));
 		return e;
 	}
@@ -328,7 +326,7 @@ public class ExpressionMaker {
 
 	public static PrefixExpression makePrefix(Expression operand, PrefixExpression.Operator op) {
 		PrefixExpression e = ast.newPrefixExpression();
-		e.setOperand(parenIfNeeded(copyExpr(operand)));
+		e.setOperand(parenIfNeeded(ASTCopyer.copy(operand)));
 		e.setOperator(op);
 		return e;
 	}
@@ -342,7 +340,7 @@ public class ExpressionMaker {
 
 	private static PostfixExpression makePostfix(Expression operand, PostfixExpression.Operator op) {
 		PostfixExpression e = ast.newPostfixExpression();
-		e.setOperand(parenIfNeeded(copyExpr(operand)));
+		e.setOperand(parenIfNeeded(ASTCopyer.copy(operand)));
 		e.setOperator(op);
 		return e;
 	}
@@ -362,7 +360,7 @@ public class ExpressionMaker {
 		} else {
 			if (receiver.getExpression() instanceof ThisExpression || receiver.getType().equals(thisType))
 				receiver = null;  // Don't use a receiver if it is null or the this type.
-			result = makeCall(name, receiver == null ? null : copyExpr(receiver.getExpression()), args, returnType, value);
+			result = makeCall(name, receiver == null ? null : ASTCopyer.copy(receiver.getExpression()), args, returnType, value);
 		}
 		setMethod(result.getExpression(), method);
 		return result;
@@ -376,7 +374,7 @@ public class ExpressionMaker {
 		e.setName(ast.newSimpleName(name));
 		e.setExpression(receiver);
 		for (TypedExpression ex: args)
-			e.arguments().add(copyExpr(ex.getExpression()));
+			e.arguments().add(ASTCopyer.copy(ex.getExpression()));
 		setExpressionValue(e, value);
 		return EvaluatedExpression.makeTypedOrEvaluatedExpression(e, returnType, new Value(value));
 	}
@@ -384,9 +382,9 @@ public class ExpressionMaker {
 	public static Expression makeCall(String name, Expression receiver, ArrayList<Expression> args, Method method) {
     	MethodInvocation e = ast.newMethodInvocation();
     	e.setName(ast.newSimpleName(name));
-    	e.setExpression(copyExpr(receiver));
+    	e.setExpression(ASTCopyer.copy(receiver));
     	for (Expression ex: args)
-    		e.arguments().add(copyExpr(ex));
+    		e.arguments().add(ASTCopyer.copy(ex));
 		setMethod(e, method);
     	return e;
     }
@@ -399,7 +397,7 @@ public class ExpressionMaker {
 
 	public static CastExpression makeCast(Expression obj, IJavaType targetType) {
 		CastExpression e = ast.newCastExpression();
-		e.setExpression(copyExpr(obj));
+		e.setExpression(ASTCopyer.copy(obj));
 		e.setType(makeType(targetType));
 		return e;
 	}
@@ -412,7 +410,7 @@ public class ExpressionMaker {
 
 	private static InstanceofExpression makeInstanceOf(Expression expr, Type targetDomType) {
 		InstanceofExpression e = ast.newInstanceofExpression();
-		e.setLeftOperand(copyExpr(expr));
+		e.setLeftOperand(ASTCopyer.copy(expr));
 		e.setRightOperand(targetDomType);
 		return e;
 	}
@@ -430,9 +428,9 @@ public class ExpressionMaker {
 
 	private static ConditionalExpression makeConditional(Expression cond, Expression t, Expression e) {
 		ConditionalExpression ex = ast.newConditionalExpression();
-		ex.setExpression(copyExpr(cond));
-		ex.setThenExpression(copyExpr(t));
-		ex.setElseExpression(copyExpr(e));
+		ex.setExpression(ASTCopyer.copy(cond));
+		ex.setThenExpression(ASTCopyer.copy(t));
+		ex.setElseExpression(ASTCopyer.copy(e));
 		return ex;
 	}
 
@@ -441,7 +439,7 @@ public class ExpressionMaker {
 		ClassInstanceCreation e = ast.newClassInstanceCreation();
 		e.setType(ast.newSimpleType(ast.newName(EclipseUtils.sanitizeTypename(type.getName()))));
 		for (TypedExpression ex: args)
-			e.arguments().add(copyExpr(ex.getExpression()));
+			e.arguments().add(ASTCopyer.copy(ex.getExpression()));
 		setExpressionValue(e, value);
 		return EvaluatedExpression.makeTypedOrEvaluatedExpression(e, type, new Value(value));
 	}
@@ -449,9 +447,9 @@ public class ExpressionMaker {
 	@SuppressWarnings("unchecked")
 	public static ClassInstanceCreation makeClassInstanceCreation(Type type,ArrayList<Expression> args, Method method) {
     	ClassInstanceCreation e = ast.newClassInstanceCreation();
-    	e.setType(copyType(type));
+    	e.setType(ASTCopyer.copy(type));
     	for (Expression ex: args)
-    		e.arguments().add(copyExpr(ex));
+    		e.arguments().add(ASTCopyer.copy(ex));
 		setMethod(e, method);
     	return e;
 	}
@@ -476,7 +474,7 @@ public class ExpressionMaker {
 
 	private static SuperFieldAccess makeSuperFieldAccess(Name qualifier, String name) {
 		SuperFieldAccess e = ast.newSuperFieldAccess();
-		e.setQualifier((Name)copyExpr(qualifier));
+		e.setQualifier((Name)ASTCopyer.copy(qualifier));
 		e.setName(ast.newSimpleName(name));
 		return e;
 	}
@@ -487,7 +485,7 @@ public class ExpressionMaker {
 		e.setName(ast.newSimpleName(name));
 		e.setQualifier(qualifier);
 		for (TypedExpression ex: args)
-			e.arguments().add(copyExpr(ex.getExpression()));
+			e.arguments().add(ASTCopyer.copy(ex.getExpression()));
 		setExpressionValue(e, value);
 		setMethod(e, method);
 		return EvaluatedExpression.makeTypedOrEvaluatedExpression(e, returnType, new Value(value));
@@ -495,7 +493,7 @@ public class ExpressionMaker {
 	
 	public static TypeLiteral makeTypeLiteral(Type type) {
 		TypeLiteral e = ast.newTypeLiteral();
-		e.setType(copyType(type));
+		e.setType(ASTCopyer.copy(type));
 		return e;
 	}
 
@@ -582,44 +580,6 @@ public class ExpressionMaker {
 		}
 	}
 
-	/**
-	 * Makes a copy of an expression so that the DOM methods
-	 * don't give us errors about bad parents.
-	 * @param e The expression to copy.
-	 * @return A copy of the given expression.
-	 */
-	private static Expression copyExpr(Expression e) {
-		if (e == null)
-			return null;
-		Expression copy = (Expression)ASTNode.copySubtree(e.getAST(), e);
-		// Thanks for not copying properties...
-		Iterator<?> it = e.properties().entrySet().iterator();
-		while (it.hasNext()) {
-			Map.Entry<?,?> property = (Map.Entry<?,?>)it.next();
-			copy.setProperty((String)property.getKey(), property.getValue());
-		}
-		return copy;
-	}
-
-	/**
-	 * Makes a copy of a type so that the DOM methods
-	 * don't give us errors about bad parents.
-	 * @param e The expression to copy.
-	 * @return A copy of the given expression.
-	 */
-	private static Type copyType(Type t) {
-		if (t == null)
-			return null;
-		Type copy = (Type)ASTNode.copySubtree(t.getAST(), t);
-		// Thanks for not copying properties...
-		Iterator<?> it = t.properties().entrySet().iterator();
-		while (it.hasNext()) {
-			Map.Entry<?,?> property = (Map.Entry<?,?>)it.next();
-			copy.setProperty((String)property.getKey(), property.getValue());
-		}
-		return copy;
-	}
-	
 	/**
 	 * Make a copy of the given node so that it uses
 	 * the AST object of this class.  We need to do

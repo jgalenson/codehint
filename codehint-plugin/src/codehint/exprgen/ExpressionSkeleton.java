@@ -1408,7 +1408,7 @@ public final class ExpressionSkeleton {
 				Map<String, ArrayList<Method>> methodsByType = new HashMap<String, ArrayList<Method>>(1);
 				String typeName = type.getName();
 	    		for (Method method: ExpressionGenerator.getMethods(type))
-					if (ExpressionGenerator.isLegalMethod(method, stack.getReferenceType(), true) && MethodNameConstraint.fulfillsArgConstraints(method, argConstraints, subtypeChecker, typeCache, stack, target))
+					if (ExpressionGenerator.isLegalMethod(method, stack.getReferenceType(), true) && MethodNameConstraint.fulfillsArgConstraints(method, argConstraints, stack, target, subtypeChecker, typeCache))
 						Utils.addToMap(methodsByType, typeName, method);
 	    		return methodsByType;
 			} catch (DebugException e) {

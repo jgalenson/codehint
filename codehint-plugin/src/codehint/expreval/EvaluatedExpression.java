@@ -36,7 +36,7 @@ public class EvaluatedExpression extends TypedExpression {
 	}
 	
 	public static TypedExpression makeTypedOrEvaluatedExpression(Expression expression, IJavaType type, Value value) {
-		if (value == null)
+		if (value.getValue() == null)
 			return new TypedExpression(expression, type);
 		else
 			return new EvaluatedExpression(expression, type, value);

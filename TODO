@@ -50,15 +50,19 @@ Optimizations
 Begin expression generation when the user clicks demonstration, i.e., when we open the text box.  This way we can do the work while they're typing.
 Investigate using IClassFileEvaluationEngine instead of ASTEvaluation.  See JavaSnippetEditor.evaluate().
 Optimize evaluation string: when given a property with a type (x: Foo => ...) don't insert the casts if the variable has static type Foo.
+I could cache expression string -> result.  This would help when re-evaluating expressions, or when iteratively increasing depth (e.g., try 1, see no results, then try 2). 
 
 Research questions
 ------------------
 How do we generate expressions?
 What do we do when we don't generate the right expression to start with?  or when we get to zero possibilities remaining?
 How do we synthesize control flow?
+What can we do with a trace view of the current debug session?
 Parallel schedules.
 Automatically explore schedules "near" what the user is showing.
 How can we support users who do not know the algorithm?  Can we integrate with angelic programming?
 How can we integrate visual demonstrations?
 How can we use automatic testing to prune bad candidates?
 Does this approach work well for dynamic languages?  They don't even have autocomplete.
+What language can we use for skeletons?
+How can we make the synthesis process more interactive?
