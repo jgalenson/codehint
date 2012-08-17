@@ -303,8 +303,21 @@ public final class EvaluationManager {
 		    	
 		    	String finalStr = expressionsStr.toString();
 		    	ICompiledExpression compiled = engine.getCompiledExpression(finalStr, stack);
-		    	if (compiled.hasErrors())  // The user entered a property that does not compile, so notify them.
-		    		throw new EvaluationError("Evaluation error: " + "The following errors were encountered during evaluation.\nDid you enter a valid property?\n\n" + EclipseUtils.getCompileErrors(compiled));
+		    	if (compiled.hasErrors()) {
+		    		// Check the expressions one-by-one and remove those that crash.
+		    		// We can crash thanks to generics and erasure (e.g., by passing an Object to List<String>.set).
+		    		boolean deleted = false;
+		    		for (int j = i - 1; j >= startIndex; j--) {
+		    			if (engine.getCompiledExpression(exprs.get(j).getExpression().toString(), stack).hasErrors()) {
+		    				exprs.remove(j);
+		    				deleted = true;
+		    			}
+		    		}
+		    		if (!deleted)  // In this case, the error is probably our fault and not due to erasure.
+		    			throw new EvaluationError("Evaluation error: " + "The following errors were encountered during evaluation.\n\n" + EclipseUtils.getCompileErrors(compiled));
+		    		evaluateExpressions(exprs, validExprs, type, property, validateStatically, valuesField, startIndex);
+		    		return;
+		    	}
 		    	IEvaluationResult result = Evaluator.evaluateExpression(compiled, engine, stack);
 		    	error = result.getException();
 	    	}

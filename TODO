@@ -31,7 +31,7 @@ Bugs
 Actually insert the choose statement into the document.  Currently, the chosen statements don't get executed!  We could execute them with the breakpoint handler if necessary
 When the user demonstrates a value, we set the value of the variable (in the debug session) to that of the first valid expression.  The expressions might generate different values, so this might not be the best thing to do.
 If the user saves a document with a choose statement and then executes it, the debug event will rewrite the call to remove the expressions with the wrong values, but the debugger will immediately step into the choose implementation with the old/bad arguments, where the assertion will fail.
-We don't handle generics well due to erasure.  See Parse and RandomWriter examples.
+We don't handle generics well due to erasure (although we no longer crash).  See Parse and RandomWriter examples.
 We need to timeout execution of methods when we're testing candidate expressions.  We disallow explicit recursion, but a method could infinite loop or recurse.
 When demonstrating values, we do not allow implicit conversions like int->double (e.g., must type 5.0 and not 5 for Intro.hypotenuse).
 I think our evaluations do change memory.  We could re-launch a new debugger, I think with ILaunchConfiguration.launch().
