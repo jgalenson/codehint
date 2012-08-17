@@ -532,7 +532,7 @@ public final class EclipseUtils {
     			return cachedType;
     		if (typeCache.isIllegal(fullTypeName))
     			return null;
-			if (isIllegalType(fullTypeName, stack)) {
+			if (isIllegalType(fullTypeName, stack, typeCache)) {
     			typeCache.markIllegal(fullTypeName);
     			return null;
 			}
@@ -562,7 +562,9 @@ public final class EclipseUtils {
      * @return Whether the given type can legally be used.
      * @throws DebugException
      */
-	private static boolean isIllegalType(String typeName, IJavaStackFrame stack) throws DebugException {
+	private static boolean isIllegalType(String typeName, IJavaStackFrame stack, TypeCache typeCache) throws DebugException {
+		if (typeCache.isCheckedLegal(typeName))
+			return false;
 		return getASTEvaluationEngine(stack).getCompiledExpression(getClassLoadExpression(typeName), stack).hasErrors();
 	}
     
@@ -750,7 +752,7 @@ public final class EclipseUtils {
     		IJavaType type = getFullyQualifiedTypeIfExists(typeName, stack, target, typeCache);
     		if (type != null)
     			return type;
-	    	if (isIllegalType(typeName, stack))
+	    	if (isIllegalType(typeName, stack, typeCache))
 	    		return null;
 	    	else if (typeCache.isIllegal(typeName))
 				return null;
@@ -832,6 +834,31 @@ public final class EclipseUtils {
      */
     private static String getClassLoadExpression(String typeName) {
     	return sanitizeTypename(typeName) + ".class";
+    }
+    
+    /**
+     * Tries to load the given types and returns whether or not
+     * all were successfully loaded.
+     * @param types The types to load.
+     * @param stack The stack frame.
+     * @return Whether all of the given types were loaded.
+     * @throws DebugException
+     */
+    public static boolean tryToLoadTypes(Set<String> types, IJavaStackFrame stack) throws DebugException {
+    	StringBuilder sb = new StringBuilder();
+    	sb.append("{\nObject _$o;\n");
+    	for (String typeName: types)
+    		sb.append("_$o = ").append(getClassLoadExpression(typeName)).append(";\n");
+    	sb.append("}");
+    	String evalStr = sb.toString();
+    	if (getASTEvaluationEngine(stack).getCompiledExpression(evalStr, stack).hasErrors())
+    		return false;
+    	try {
+			evaluate(evalStr, stack);
+			return true;
+		} catch (DebugException e) {
+			return false;
+		}
     }
     
     /**

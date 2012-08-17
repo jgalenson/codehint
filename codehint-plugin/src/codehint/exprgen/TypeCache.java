@@ -20,10 +20,14 @@ public class TypeCache {
 	
 	private final Map<String, IJavaType> typeCache;
 	private final Set<String> illegalTypes;
+	private final Set<String> checkedLegalTypes;
 	
 	public TypeCache() {
 		typeCache = new HashMap<String, IJavaType>();
 		illegalTypes = new HashSet<String>();
+		checkedLegalTypes = new HashSet<String>();
+		checkedLegalTypes.add("int");
+		checkedLegalTypes.add("boolean");
 	}
 	
 	/**
@@ -56,12 +60,31 @@ public class TypeCache {
 	
 	/**
 	 * Checks whether the given type name is illegal.
-	 * @param typeName The name of the illegal type.
+	 * @param typeName The name of the type.
 	 * @return Whether the given type name is known
 	 * to be illegal.
 	 */
 	public boolean isIllegal(String typeName) {
 		return illegalTypes.contains(typeName);
+	}
+
+	/**
+	 * Checks whether the given type name is known
+	 * to be legal.
+	 * @param typeName The name of the type.
+	 * @return Whether the given type name is known
+	 * to be legal.
+	 */
+	public boolean isCheckedLegal(String typeName) {
+		return checkedLegalTypes.contains(typeName);
+	}
+
+	/**
+	 * Mark the given type name as legal.
+	 * @param typeName The name of the legal type.
+	 */
+	public void markCheckedLegal(String typeName) {
+		checkedLegalTypes.add(typeName);
 	}
 
 }

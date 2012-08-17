@@ -346,6 +346,8 @@ public final class ExpressionGenerator {
 					addUniqueExpressionToList(curLevel, ExpressionMaker.makeThis(stack.getThis(), thisType), depth);
     		} else {
     			Set<IJavaReferenceType> objectInterfaceTypes = new HashSet<IJavaReferenceType>();
+				IImportDeclaration[] imports = ((ICompilationUnit)EclipseUtils.getProject(stack).findElement(new Path(stack.getSourcePath()))).getImports();
+    			loadTypesFromMethods(nextLevel, imports);
     			// Get binary ops.
     			// We use string comparisons to avoid duplicates, e.g., x+y and y+x.
     			for (TypedExpression l : nextLevel) {
@@ -463,7 +465,6 @@ public final class ExpressionGenerator {
     			}
     			// Extra things
     			{
-    				IImportDeclaration[] imports = ((ICompilationUnit)EclipseUtils.getProject(stack).findElement(new Path(stack.getSourcePath()))).getImports();
     				Set<String> importsSet = new HashSet<String>(imports.length);
     				for (IImportDeclaration imp : imports)
     					importsSet.add(imp.getElementName());
@@ -667,6 +668,81 @@ public final class ExpressionGenerator {
 				}
 			}
 		}
+	}
+	
+	/**
+	 * Loads the types from imports and method returns
+	 * and args in batches.  This is an optimization,
+	 * as doing all of the loads in a batch is faster
+	 * than doing them one-by-one.
+	 * @param nextLevel The next level of expressions
+	 * that we will use to build the current level.
+	 * @param imports The imports.
+	 * @throws DebugException
+	 */
+	private void loadTypesFromMethods(List<FullyEvaluatedExpression> nextLevel, IImportDeclaration[] imports) throws DebugException {
+		Set<String> importNames = new HashSet<String>();
+		for (IImportDeclaration imp : imports)
+			if (!imp.isOnDemand())
+				importNames.add(imp.getElementName());
+		tryToLoad(importNames);
+		Set<String> typeNames = new HashSet<String>();
+		for (FullyEvaluatedExpression e: nextLevel)
+			if (ExpressionMaker.isObjectOrInterface(e.getType()) && (e.getValue() == null || !e.getValue().isNull()))
+				checkMethods(e.getType(), typeNames);
+		for (IImportDeclaration imp : imports)
+			if (!imp.isOnDemand())
+				checkMethods(EclipseUtils.getTypeAndLoadIfNeeded(imp.getElementName(), stack, target, typeCache), typeNames);
+		tryToLoad(typeNames);
+	}
+
+	/**
+	 * Gets the types used as returns or arguments in
+	 * methods of the given receiver type.
+	 * Note that this is an overapproximation, as we
+	 * do not require that the return type is helpful.
+	 * @param receiverType The type of the receiver of
+	 * the desired methods.
+	 * @param typeNames The set into which to store
+	 * the type names.
+	 */
+	private void checkMethods(IJavaType receiverType, Set<String> typeNames) {
+		for (Method method : getMethods(receiverType)) {
+			if (isLegalMethod(method, thisType, false) && !method.returnTypeName().equals("void")) {
+				addTypeName(method.returnTypeName(), typeNames);
+				for (Object argType: method.argumentTypeNames())
+					addTypeName((String)argType, typeNames);
+			}
+		}
+	}
+	
+	/**
+	 * Adds the given type name to the given set.
+	 * It additionally adds the component type
+	 * if the given type is an array type.
+	 * @param typeName The name of the type to add.
+	 * @param typeNames The set of type names.
+	 */
+	private static void addTypeName(String typeName, Set<String> typeNames) {
+		typeNames.add(typeName);
+		if (typeName.endsWith("[]"))  // If an array's component type is not loaded, we can crash during evaluation of expressions involving it.
+			addTypeName(typeName.substring(0, typeName.length() - 2), typeNames);
+	}
+
+	/**
+	 * Tries to load the given type names in a batch.
+	 * @param typeNames The type names
+	 * @throws DebugException
+	 */
+	private void tryToLoad(Set<String> typeNames) throws DebugException {
+		// Filter out types we've already loaded.
+		Set<String> unloadedTypeNames = new HashSet<String>();
+		for (String typeName: typeNames)
+			if (typeCache.get(typeName) == null && !typeCache.isIllegal(typeName) && !typeCache.isCheckedLegal(typeName))
+				unloadedTypeNames.add(typeName);
+		if (!unloadedTypeNames.isEmpty() && EclipseUtils.tryToLoadTypes(unloadedTypeNames, stack))
+			for (String typeName: unloadedTypeNames)  // Mark all the type names as legal so we will not have to check if they are illegal one-by-one, which is slow.
+				typeCache.markCheckedLegal(typeName);
 	}
 	
 	/**
