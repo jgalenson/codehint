@@ -152,11 +152,10 @@ public final class ExpressionGenerator {
 		try {
 			this.typeConstraint = typeConstraint;
 			this.equivalences = new HashMap<Value, ArrayList<EvaluatedExpression>>();
-			IJavaValue demonstration = property instanceof ValueProperty ? ((ValueProperty)property).getValue() : null;
 	
 			long startTime = System.currentTimeMillis();
 			
-			ArrayList<FullyEvaluatedExpression> results = genAllExprs(demonstration, maxExprDepth, property, synthesisDialog, monitor);
+			ArrayList<FullyEvaluatedExpression> results = genAllExprs(maxExprDepth, property, synthesisDialog, monitor);
 			
 			EclipseUtils.log("Expression generation found " + results.size() + " valid expressions and took " + (System.currentTimeMillis() - startTime) + " milliseconds.");
 
@@ -177,7 +176,6 @@ public final class ExpressionGenerator {
 	/**
 	 * Recursively generates all expressions whose value in the
 	 * current stack frame is that of the demonstration.
-	 * @param demonstration The value entered by the user.
 	 * @param maxDepth The maximum depth to search (inclusive).
 	 * @param property The property entered by the user.
 	 * @param synthesisDialog The synthesis dialog to pass the valid expressions,
@@ -187,12 +185,12 @@ public final class ExpressionGenerator {
 	 * current stack frame satisfies the current pdspec.
 	 * @throws DebugException 
 	 */
-	private ArrayList<FullyEvaluatedExpression> genAllExprs(IJavaValue demonstration, int maxDepth, Property property, InitialSynthesisDialog synthesisDialog, IProgressMonitor monitor) throws DebugException {
+	private ArrayList<FullyEvaluatedExpression> genAllExprs(int maxDepth, Property property, InitialSynthesisDialog synthesisDialog, IProgressMonitor monitor) throws DebugException {
 		ArrayList<TypedExpression> curLevel = null;
 		ArrayList<FullyEvaluatedExpression> nextLevel = new ArrayList<FullyEvaluatedExpression>(0);
 		for (int depth = 0; depth <= maxDepth; depth++) {
 			filterDuplicates(nextLevel);
-			curLevel = genOneLevel(nextLevel, demonstration, depth, maxDepth, monitor);
+			curLevel = genOneLevel(nextLevel, depth, maxDepth, property, monitor);
 			if (depth < maxDepth)
 				nextLevel = evaluateExpressions(curLevel, null, null, monitor, depth);
 		}
@@ -291,23 +289,26 @@ public final class ExpressionGenerator {
 	/**
 	 * Generates one level of expressions at the given depth.
 	 * @param nextLevel The expressions of the previous depth.
-	 * @param demonstration The value entered by the user.
 	 * @param depth The current depth we are generating.
 	 * @param maxDepth The maximum depth we are generating.
+	 * @param property The property entered by the user.
 	 * @param monitor The progress monitor.
 	 * @return The expressions of the given depth.
 	 */
-	private ArrayList<TypedExpression> genOneLevel(List<FullyEvaluatedExpression> nextLevel, IJavaValue demonstration, int depth, int maxDepth, IProgressMonitor monitor) {
+	private ArrayList<TypedExpression> genOneLevel(List<FullyEvaluatedExpression> nextLevel, int depth, int maxDepth, Property property, IProgressMonitor monitor) {
 		try {
 			ArrayList<TypedExpression> curLevel = new ArrayList<TypedExpression>();
 			IJavaType[] constraintTypes = typeConstraint.getTypes(stack, target, typeCache);
     		
     		// Get constants (but only at the top-level).
 			// We add these directly to curLevel and not equivalences because we don't want to substitute them anywhere else.
-    		if (depth == maxDepth && demonstration != null && ExpressionMaker.isInt(demonstration.getJavaType()) && !"0".equals(demonstration.toString()))
-    			curLevel.add(ExpressionMaker.makeNumber(demonstration.toString(), target.newValue(Integer.parseInt(demonstration.toString())), intType));
-    		if (depth == maxDepth && demonstration != null && ExpressionMaker.isBoolean(demonstration.getJavaType()))
-    			curLevel.add(ExpressionMaker.makeBoolean(Boolean.parseBoolean(demonstration.toString()), target.newValue(Boolean.parseBoolean(demonstration.toString())), booleanType));
+			if (depth == maxDepth && property instanceof ValueProperty) {
+				IJavaValue demonstration = ((ValueProperty)property).getValue();
+	    		if (ExpressionMaker.isInt(demonstration.getJavaType()) && !"0".equals(demonstration.toString()))
+	    			curLevel.add(ExpressionMaker.makeNumber(demonstration.toString(), target.newValue(Integer.parseInt(demonstration.toString())), intType));
+	    		if (ExpressionMaker.isBoolean(demonstration.getJavaType()))
+	    			curLevel.add(ExpressionMaker.makeBoolean(Boolean.parseBoolean(demonstration.toString()), target.newValue(Boolean.parseBoolean(demonstration.toString())), booleanType));
+			}
     		// Add calls to the desired type's constructors (but only at the top-level).
     		if (depth == maxDepth)
     			for (IJavaType type: constraintTypes)
