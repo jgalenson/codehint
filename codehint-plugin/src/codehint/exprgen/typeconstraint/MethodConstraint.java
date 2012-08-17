@@ -43,21 +43,11 @@ public class MethodConstraint extends TypeConstraint {
 	@Override
 	public boolean isFulfilledBy(IJavaType type, SubtypeChecker subtypeChecker, TypeCache typeCache, IJavaStackFrame stack, IJavaDebugTarget target) {
 		// Check each method of the given type to see if it has the desired name and meets the desired constraints.
-		for (Method method: ExpressionGenerator.getMethods(type)) {
-			if ((methodName == null || method.name().equals(methodName)) && (argConstraints == null || method.argumentTypeNames().size() == argConstraints.size())
-					&& (!"void".equals(method.returnTypeName()) && methodConstraint.isFulfilledBy(EclipseUtils.getTypeAndLoadIfNeededAndExists(method.returnTypeName(), stack, target, typeCache), subtypeChecker, typeCache, stack, target))) {
-				int i = 0;
-				if (argConstraints == null)
+		for (Method method: ExpressionGenerator.getMethods(type))
+			if ((methodName == null || method.name().equals(methodName))
+					&& MethodNameConstraint.fulfillsArgConstraints(method, argConstraints, stack, target, subtypeChecker, typeCache)
+					&& (!"void".equals(method.returnTypeName()) && methodConstraint.isFulfilledBy(EclipseUtils.getTypeAndLoadIfNeededAndExists(method.returnTypeName(), stack, target, typeCache), subtypeChecker, typeCache, stack, target)))
 					return true;
-				for (; i < argConstraints.size(); i++) {
-					TypeConstraint argConstraint = argConstraints.get(i);
-					if (argConstraint != null && !argConstraint.isFulfilledBy(EclipseUtils.getTypeAndLoadIfNeeded((String)method.argumentTypeNames().get(i), stack, target, typeCache), subtypeChecker, typeCache, stack, target))
-						break;
-				}
-				if (i == argConstraints.size())
-					return true;
-			}
-		}
 		return false;
 	}
 

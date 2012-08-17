@@ -75,8 +75,8 @@ public class SubtypeChecker {
 					supertypesMap.put(cur, supertypes);
 				}
 				return supertypesMap.get(cur).contains(expected);
-			} else  // Primitive types.
-				return cur.equals(expected);
+			} else
+				return false;  // We already checked if the two types were .equal.
 		} catch (DebugException e) {
 			if (e.getCause() instanceof ClassNotLoadedException) {
 				//System.err.println("I cannot get the class of one of the types " + cur.getName() + " and " + expected.getName());
