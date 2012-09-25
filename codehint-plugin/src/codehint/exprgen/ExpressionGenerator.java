@@ -85,7 +85,7 @@ public final class ExpressionGenerator {
 	 */
 	public static void initBlacklist() {
 		classBlacklist.add("codehint.CodeHint");
-		methodBlacklist.put("java.io.File", new HashSet<String>(Arrays.asList("createNewFile", "delete", "mkdir", "mkdirs", "renameTo", "setLastModified", "setReadOnly")));
+		methodBlacklist.put("java.io.File", new HashSet<String>(Arrays.asList("createNewFile", "delete", "mkdir", "mkdirs", "renameTo", "setLastModified", "setReadOnly", "setExecutable", "setLastModified", "setReadable", "setWritable")));
 	}
 	
 	/**
@@ -577,14 +577,21 @@ public final class ExpressionGenerator {
 	 * @return All of the visible methods of the given type.
 	 */
 	public static List<Method> getMethods(IJavaType type) {
-		if (type != null && EclipseUtils.isObject(type)) {
-			List<?> untypedMethods = ((ReferenceType)((JDIType)type).getUnderlyingType()).visibleMethods();
-			ArrayList<Method> methods = new ArrayList<Method>(untypedMethods.size());
-			for (Object o: untypedMethods)
-				methods.add((Method)o);
-			return methods;
-		} else
-			return new ArrayList<Method>(0);
+		try {
+			if (type != null && EclipseUtils.isObject(type)) {
+				List<?> untypedMethods = ((ReferenceType)((JDIType)type).getUnderlyingType()).visibleMethods();
+				ArrayList<Method> methods = new ArrayList<Method>(untypedMethods.size());
+				for (Object o: untypedMethods) {
+					Method method = (Method)o;
+					if (!methodBlacklist.containsKey(type.getName()) || !methodBlacklist.get(type.getName()).contains(method.name()))
+						methods.add(method);
+				}
+				return methods;
+			} else
+				return new ArrayList<Method>(0);
+		} catch (DebugException e) {
+			throw new RuntimeException();
+		}
 	}
 	
 	/**
@@ -619,14 +626,7 @@ public final class ExpressionGenerator {
 		boolean isStatic = !isConstructor && ExpressionMaker.isStatic(e.getExpression());
 		String objTypeName = isStatic ? e.getExpression().toString() : objTypeImpl.name();
 		Method stackMethod = ((JDIStackFrame)stack).getUnderlyingMethod();
-		// This code is so much nicer in a functional language.</complain>
-		List<Method> visibleMethods = getMethods(e.getType());
-		List<Method> legalMethods = new ArrayList<Method>(visibleMethods.size());
-		for (Method method: visibleMethods) {
-			if (methodBlacklist.containsKey(objTypeName) && methodBlacklist.get(objTypeName).contains(method.name()))
-				continue;
-			legalMethods.add(method);
-		}
+		List<Method> legalMethods = getMethods(e.getType());
 		OverloadChecker overloadChecker = new OverloadChecker(e.getType());
 		for (Method method : legalMethods) {
 			// Filter out java.lang.Object methods and fake methods like "<init>".  Note that if we don't filter out Object's methods we do getClass() and then call reflective methods, which is bad times.

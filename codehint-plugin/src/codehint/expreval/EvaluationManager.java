@@ -17,6 +17,7 @@ import org.eclipse.jdt.core.dom.ASTParser;
 import org.eclipse.jdt.core.dom.ASTVisitor;
 import org.eclipse.jdt.core.dom.ArrayAccess;
 import org.eclipse.jdt.core.dom.ClassInstanceCreation;
+import org.eclipse.jdt.core.dom.ConditionalExpression;
 import org.eclipse.jdt.core.dom.Expression;
 import org.eclipse.jdt.core.dom.FieldAccess;
 import org.eclipse.jdt.core.dom.InfixExpression;
@@ -683,6 +684,13 @@ public final class EvaluationManager {
 		public boolean visit(ClassInstanceCreation node) {
     		//canThrowException = true;
     		return true;
+    	}
+
+    	// We don't want to visit the body of the conditional expression, since one will not be taken.
+    	// TODO: We would visit the condition, though.
+    	@Override
+    	public boolean visit(ConditionalExpression node) {
+    		return false;
     	}
     	
     	/**

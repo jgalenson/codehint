@@ -675,9 +675,11 @@ public final class ExpressionSkeleton {
 				Map<String, ArrayList<TypedExpression>> resultExprs = new HashMap<String, ArrayList<TypedExpression>>(arrayResult.getExprs().size());
 				for (Map.Entry<String, ArrayList<TypedExpression>> a: arrayResult.getExprs().entrySet())
 					for (TypedExpression arrExpr: a.getValue())
-						if (arrExpr.getType() != null)  // TODO: This should really be part of my constraint when I search for this in the first place above.
+						if (arrExpr.getType() != null) {  // TODO: This should really be part of my constraint when I search for this in the first place above.
+							String componentType = a.getKey().substring(0, a.getKey().length() - 2);  // Get the component type of the array.
 							for (TypedExpression indexExpr: Utils.singleton(indexResult.getExprs().values()))
-								Utils.addToMap(resultExprs, a.getKey(), ExpressionMaker.makeArrayAccess(arrExpr, indexExpr, null));
+								Utils.addToMap(resultExprs, componentType, ExpressionMaker.makeArrayAccess(arrExpr, indexExpr, null));
+						}
 				return new ExpressionsAndTypeConstraints(resultExprs, getSupertypeConstraintForTypes(resultTypes));
 			} catch (DebugException e) {
 				throw new RuntimeException(e);
@@ -770,20 +772,21 @@ public final class ExpressionSkeleton {
 				InfixExpression infix = (InfixExpression)node;
 				boolean isBooleanResult = infix.getOperator() == InfixExpression.Operator.CONDITIONAL_AND || infix.getOperator() == InfixExpression.Operator.CONDITIONAL_OR || infix.getOperator() == InfixExpression.Operator.EQUALS || infix.getOperator() == InfixExpression.Operator.NOT_EQUALS || infix.getOperator() == InfixExpression.Operator.LESS || infix.getOperator() == InfixExpression.Operator.LESS_EQUALS || infix.getOperator() == InfixExpression.Operator.GREATER || infix.getOperator() == InfixExpression.Operator.GREATER_EQUALS;
 				if (isBooleanResult && !curConstraint.isFulfilledBy(booleanType, subtypeChecker, typeCache, stack, target))
-					throw new TypeError("Incorrectly-typed operator " + infix.getOperator());
-				TypeConstraint leftConstraint = curConstraint;
-				TypeConstraint rightConstraint = curConstraint;
+					throw new TypeError("Incorrectly-typed operator " + infix.getOperator() + " returns a boolean");
+				TypeConstraint childConstraint = curConstraint;
 				if (infix.getOperator() == InfixExpression.Operator.CONDITIONAL_AND || infix.getOperator() == InfixExpression.Operator.CONDITIONAL_OR) {
-					leftConstraint = new SupertypeBound(booleanType);
-					rightConstraint = new SupertypeBound(booleanType);
+					childConstraint = new SupertypeBound(booleanType);
 				} else if (infix.getOperator() == InfixExpression.Operator.MINUS || infix.getOperator() == InfixExpression.Operator.TIMES || infix.getOperator() == InfixExpression.Operator.DIVIDE || infix.getOperator() == InfixExpression.Operator.LESS || infix.getOperator() == InfixExpression.Operator.LESS_EQUALS || infix.getOperator() == InfixExpression.Operator.GREATER || infix.getOperator() == InfixExpression.Operator.GREATER_EQUALS) {
-					leftConstraint = makeSupertypeSet(intType);  // TODO: These should be all numeric types.
-					rightConstraint = makeSupertypeSet(intType);
+					childConstraint = makeSupertypeSet(intType);  // TODO: These should be all numeric types.
 					if (!isBooleanResult && !curConstraint.isFulfilledBy(intType, subtypeChecker, typeCache, stack, target))
-						throw new TypeError("Incorrectly-typed operator " + infix.getOperator());
+						throw new TypeError("Incorrectly-typed operator " + infix.getOperator() + " returns an int");
 				}
-				ExpressionsAndTypeConstraints leftResult = fillSkeleton(infix.getLeftOperand(), leftConstraint, parentsOfHoles);
-				ExpressionsAndTypeConstraints rightResult = fillSkeleton(infix.getRightOperand(), rightConstraint, parentsOfHoles);
+				ExpressionsAndTypeConstraints leftResult = fillSkeleton(infix.getLeftOperand(), childConstraint, parentsOfHoles);
+				ExpressionsAndTypeConstraints rightResult = fillSkeleton(infix.getRightOperand(), childConstraint, parentsOfHoles);
+				// TODO: Include extendedResults.
+				/*List<ExpressionsAndTypeConstraints> extendedResults = new ArrayList<ExpressionsAndTypeConstraints>(infix.extendedOperands().size());
+				for (Object o: infix.extendedOperands())
+					extendedResults.add(fillSkeleton((Expression)o, childConstraint, parentsOfHoles));*/
 				Map<String, ArrayList<TypedExpression>> resultExprs = new HashMap<String, ArrayList<TypedExpression>>(leftResult.getExprs().size());
 				for (Map.Entry<String, ArrayList<TypedExpression>> leftExprs: leftResult.getExprs().entrySet()) {
 					IJavaType leftType = "null".equals(leftExprs.getKey()) ? null : EclipseUtils.getFullyQualifiedType(leftExprs.getKey(), stack, target, typeCache);
@@ -799,7 +802,7 @@ public final class ExpressionSkeleton {
 										}
 					}
 				}
-				TypeConstraint resultConstraint = isBooleanResult ? new SupertypeBound(booleanType) : leftConstraint;
+				TypeConstraint resultConstraint = isBooleanResult ? new SupertypeBound(booleanType) : childConstraint;
 				return new ExpressionsAndTypeConstraints(resultExprs, resultConstraint);
 			} catch (DebugException ex) {
 				throw new RuntimeException(ex);
