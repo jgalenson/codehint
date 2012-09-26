@@ -330,7 +330,7 @@ public final class EvaluationManager {
 				int valueCount = ((IJavaPrimitiveValue)valueCountField.getValue()).getIntValue();
 	    		int crashingIndex = evalExprIndices.get(fullCount);
 	    		Expression crashedExpr = exprs.get(crashingIndex).getExpression();
-				if (valueCount == fullCount || validateStatically)
+				if (valueCount == fullCount || validateStatically)  // Ensure we crashed on the expression and not the pdspec.
 					crashingExpressions.add(crashedExpr.toString());
 	    		work = crashingIndex - startIndex;
 	    		numToSkip = skipLikelyCrashes(exprs, error, crashingIndex, crashedExpr);
@@ -478,7 +478,6 @@ public final class EvaluationManager {
 	 * crashed and so will always be at least one.
 	 */
 	private static int skipLikelyCrashes(ArrayList<TypedExpression> exprs, DebugException error, int crashingIndex, Expression crashedExpr) {
-		//System.out.println("Evaluation of " + crashedExpr.toString() + " crashed with message: " + EclipseUtils.getExceptionMessage(error) + ".");
 		int numToSkip = 1;
 		Method crashedMethod = ExpressionMaker.getMethod(crashedExpr);
 		String errorName = EclipseUtils.getExceptionName(error);
@@ -495,6 +494,7 @@ public final class EvaluationManager {
 					break;
 			}
 		}
+		//System.out.println("Evaluation of " + crashedExpr.toString() + " crashed with message: " + EclipseUtils.getExceptionMessage(error) + ".  Skipping " + numToSkip + ".");
 		return numToSkip;
 	}
     

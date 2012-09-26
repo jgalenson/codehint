@@ -35,7 +35,7 @@ We don't handle generics well due to erasure (although we no longer crash).  See
 We need to timeout execution of methods when we're testing candidate expressions.  We disallow explicit recursion, but a method could infinite loop or recurse.
 When demonstrating values, we do not allow implicit conversions like int->double (e.g., must type 5.0 and not 5 for Intro.hypotenuse).
 I think our evaluations do change memory.  We could re-launch a new debugger, I think with ILaunchConfiguration.launch().
-Improve method blacklist.
+Improve method blacklist.  Also, it should work for subclasses of the given type, not just that exact type.
 We currently use the string of the inserted text as the key to store information about a choose statement.  We should at least also use the filename and line number, if not just use a tag like before.
 Show a better popup during refinement (instead of just displaying a list of values).
 Disable right-click menus when not applicable (more than one element is selected or trying to demonstrate the type of a primitive).
@@ -47,6 +47,7 @@ Don't allow assigning to the this variable.
 
 Optimizations
 -------------
+Run a static/dataflow analysis to get some method preconditions.  Note that given an IMethod we can get an ICompilationUnit either directly or by getting an IClassFile and then using the ASTParser on it.  We can then get the desired MethodDeclaration.
 Begin expression generation when the user clicks demonstration, i.e., when we open the text box.  This way we can do the work while they're typing.
 Investigate using IClassFileEvaluationEngine instead of ASTEvaluation.  See JavaSnippetEditor.evaluate().
 Optimize evaluation string: when given a property with a type (x: Foo => ...) don't insert the casts if the variable has static type Foo.

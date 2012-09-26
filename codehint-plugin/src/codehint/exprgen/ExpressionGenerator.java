@@ -77,6 +77,8 @@ public final class ExpressionGenerator {
 	private final static InfixExpression.Operator[] BOOLEAN_COMPARE_OPS = new InfixExpression.Operator[] { InfixExpression.Operator.CONDITIONAL_AND, InfixExpression.Operator.CONDITIONAL_OR  };
 	private final static InfixExpression.Operator[] REF_COMPARE_OPS = new InfixExpression.Operator[] { InfixExpression.Operator.EQUALS, InfixExpression.Operator.NOT_EQUALS };
 
+	private final static int MAX_NUM_METHOD_CALLS = 600;
+	
 	private final static Set<String> classBlacklist = new HashSet<String>();
 	private final static Map<String, Set<String>> methodBlacklist = new HashMap<String, Set<String>>();
 	
@@ -86,6 +88,7 @@ public final class ExpressionGenerator {
 	public static void initBlacklist() {
 		classBlacklist.add("codehint.CodeHint");
 		methodBlacklist.put("java.io.File", new HashSet<String>(Arrays.asList("createNewFile", "delete", "mkdir", "mkdirs", "renameTo", "setLastModified", "setReadOnly", "setExecutable", "setLastModified", "setReadable", "setWritable")));
+		methodBlacklist.put("java.util.Arrays", new HashSet<String>(Arrays.asList("deepHashCode")));
 	}
 	
 	/**
@@ -603,7 +606,8 @@ public final class ExpressionGenerator {
 	 */
 	public static boolean isLegalMethod(Method method, IJavaType thisType, boolean isConstructor) {
 		return ((method.isPublic() || method.declaringType().equals(((JDIType)thisType).getUnderlyingType())) && (!method.isConstructor() || !method.isPackagePrivate()))  // Constructors are not marked as public.
-				&& isConstructor == method.isConstructor() && !method.isSynthetic() && !method.isStaticInitializer() && !method.declaringType().name().equals("java.lang.Object");
+				&& isConstructor == method.isConstructor() && !method.isSynthetic() && !method.isStaticInitializer() && !method.declaringType().name().equals("java.lang.Object")
+				&& !"hashCode".equals(method.name());  // TODO: This should really be part of the blacklist.
 	}
 
 	/**
@@ -664,10 +668,48 @@ public final class ExpressionGenerator {
 					TypedExpression receiver = e;
 					if (method.isStatic())
 						receiver = ExpressionMaker.makeStaticName(EclipseUtils.sanitizeTypename(objTypeName), (IJavaReferenceType)e.getType());
+					pruneManyArgCalls(allPossibleActuals, depth - 1, receiver.getType() + "." + method.name());
 					makeAllCalls(method, method.name(), receiver, returnType, ops, allPossibleActuals, new ArrayList<TypedExpression>(allPossibleActuals.size()), depth);
 				}
 			}
 		}
+	}
+	
+	/**
+	 * Prunes the given list of possible actuals to ensure that
+	 * there are not far too many actual calls.  We do this by
+	 * incrementally removing arguments of the greatest depth.
+	 * This is of course an incomplete heuristic.
+	 * @param possibleActuals A list of all the possible
+	 * actuals for each argument.
+	 * @param curMaxArgDepth The current maximum depth of the args.
+	 * @param methodToString A toString representation of the
+	 * method being called.
+	 */
+	private static void pruneManyArgCalls(ArrayList<ArrayList<TypedExpression>> allPossibleActuals, int curMaxArgDepth, String methodToString) {
+		int numCombinations = getNumCalls(allPossibleActuals);
+		if (numCombinations > MAX_NUM_METHOD_CALLS) {
+			for (ArrayList<TypedExpression> possibleActuals: allPossibleActuals)
+				for (Iterator<TypedExpression> it = possibleActuals.iterator(); it.hasNext(); )
+					if (getDepth(it.next()) == curMaxArgDepth)
+						it.remove();
+			System.out.println("Pruned call to " + methodToString + " from " + numCombinations + " to " + getNumCalls(allPossibleActuals));
+			pruneManyArgCalls(allPossibleActuals, curMaxArgDepth - 1, methodToString);
+		}
+	}
+	
+	/**
+	 * Gets the number of calls that will be created from
+	 * the given list of possible actuals.
+	 * @param possibleActuals A list of all the possible
+	 * actuals for each argument.
+	 * @return The number of calls with the given possible actuals.
+	 */
+	private static int getNumCalls(ArrayList<ArrayList<TypedExpression>> allPossibleActuals) {
+		int total = 1;
+		for (ArrayList<TypedExpression> possibleActuals: allPossibleActuals)
+			total *= possibleActuals.size();
+		return total;
 	}
 	
 	/**
