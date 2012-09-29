@@ -417,7 +417,7 @@ public final class ExpressionSkeleton {
 	
 	/**
 	 * Gets the initial type constraint for the whole skeleton based on the
-	 * static type of the varible being assigned and the pdspec.
+	 * static type of the variable being assigned and the pdspec.
 	 * @param varStaticType The static type of the variable being assigned.
 	 * @param property The pdspec.
 	 * @return The initial type constraint for the whole skeleton.

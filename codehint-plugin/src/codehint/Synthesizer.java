@@ -654,7 +654,7 @@ public class Synthesizer {
     		listener = new ChoiceBreakpointListener();
     	initialDemonstrations = new HashMap<String, Property>();
     	DebugPlugin.getDefault().addDebugEventListener(listener);
-    	ExpressionGenerator.initBlacklist();
+    	ExpressionGenerator.init();
     }
 
     //Called externally (from the plugin shutdown) to unregister our breakpoint listener
@@ -667,7 +667,7 @@ public class Synthesizer {
     	DebugPlugin.getDefault().removeDebugEventListener(listener);
     	listener = null;
     	initialDemonstrations = null;
-    	ExpressionGenerator.clearBlacklist();
+    	ExpressionGenerator.clear();
     }
 
 }

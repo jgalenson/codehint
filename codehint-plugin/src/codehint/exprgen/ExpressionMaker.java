@@ -276,7 +276,7 @@ public class ExpressionMaker {
 		InfixExpression e = makeInfix(left.getExpression(), op, right.getExpression());
 		IJavaValue value = computeInfixOp(target, left.getValue(), op, right.getValue(), left.getType() != null ? left.getType() : right.getType());
 		setExpressionValue(e, value);
-		return EvaluatedExpression.makeTypedOrEvaluatedExpression(e, type, new Value(value));
+		return EvaluatedExpression.makeTypedOrEvaluatedExpression(e, type, value);
 	}
 
 	public static InfixExpression makeInfix(Expression l, InfixExpression.Operator op, Expression r) {
@@ -290,7 +290,7 @@ public class ExpressionMaker {
 	public static TypedExpression makeArrayAccess(TypedExpression array, TypedExpression index, IJavaValue value) {
 		ArrayAccess e = makeArrayAccess(array.getExpression(), index.getExpression());
 		setExpressionValue(e, value);
-		return EvaluatedExpression.makeTypedOrEvaluatedExpression(e, getArrayElementType(array), new Value(value));
+		return EvaluatedExpression.makeTypedOrEvaluatedExpression(e, getArrayElementType(array), value);
 	}
 
 	public static ArrayAccess makeArrayAccess(Expression array, Expression index) {
@@ -303,7 +303,7 @@ public class ExpressionMaker {
 	public static TypedExpression makeFieldAccess(TypedExpression obj, String name, IJavaType fieldType, IJavaValue value) {
 		FieldAccess e = makeFieldAccess(obj.getExpression(), name);
 		setExpressionValue(e, value);
-		return EvaluatedExpression.makeTypedOrEvaluatedExpression(e, fieldType, new Value(value));
+		return EvaluatedExpression.makeTypedOrEvaluatedExpression(e, fieldType, value);
 	}
 
 	public static FieldAccess makeFieldAccess(Expression obj, String name) {
@@ -318,7 +318,7 @@ public class ExpressionMaker {
 			PrefixExpression e = makePrefix(operand.getExpression(), op);
 			IJavaValue value = computePrefixOp(target, operand.getValue(), op);
 			setExpressionValue(e, value);
-			return EvaluatedExpression.makeTypedOrEvaluatedExpression(e, type, new Value(value));
+			return EvaluatedExpression.makeTypedOrEvaluatedExpression(e, type, value);
 		} catch (DebugException ex) {
 			throw new RuntimeException(ex);
 		}
@@ -335,7 +335,7 @@ public class ExpressionMaker {
 		PostfixExpression e = makePostfix(operand.getExpression(), op);
 		IJavaValue value = computePostfixOp(target, operand.getValue(), op);
 		setExpressionValue(e, value);
-		return EvaluatedExpression.makeTypedOrEvaluatedExpression(e, type, new Value(value));
+		return EvaluatedExpression.makeTypedOrEvaluatedExpression(e, type, value);
 	}
 
 	private static PostfixExpression makePostfix(Expression operand, PostfixExpression.Operator op) {
@@ -346,7 +346,7 @@ public class ExpressionMaker {
 	}
 
 	@SuppressWarnings("unused")
-	public static TypedExpression makeCall(String name, TypedExpression receiver, ArrayList<TypedExpression> args, IJavaType returnType, IJavaType thisType, Method method, IJavaDebugTarget target) {
+	public static TypedExpression makeCall(String name, TypedExpression receiver, ArrayList<? extends TypedExpression> args, IJavaType returnType, IJavaType thisType, Method method, IJavaDebugTarget target) {
 		//IJavaValue value = computeCall(method, receiver.getValue(), args, thread, target, ((JDIType)receiver.getType()));
 		IJavaValue value = null;
 		TypedExpression result = null;
@@ -369,14 +369,14 @@ public class ExpressionMaker {
     	return makeCall(name, newStaticName(classname), args, returnType, null);
     }*/
 	@SuppressWarnings("unchecked")
-	private static TypedExpression makeCall(String name, Expression receiver, ArrayList<TypedExpression> args, IJavaType returnType, IJavaValue value) {
+	private static TypedExpression makeCall(String name, Expression receiver, ArrayList<? extends TypedExpression> args, IJavaType returnType, IJavaValue value) {
 		MethodInvocation e = ast.newMethodInvocation();
 		e.setName(ast.newSimpleName(name));
 		e.setExpression(receiver);
 		for (TypedExpression ex: args)
 			e.arguments().add(ASTCopyer.copy(ex.getExpression()));
 		setExpressionValue(e, value);
-		return EvaluatedExpression.makeTypedOrEvaluatedExpression(e, returnType, new Value(value));
+		return EvaluatedExpression.makeTypedOrEvaluatedExpression(e, returnType, value);
 	}
 	@SuppressWarnings("unchecked")
 	public static Expression makeCall(String name, Expression receiver, ArrayList<Expression> args, Method method) {
@@ -392,7 +392,7 @@ public class ExpressionMaker {
 	public static TypedExpression makeCast(TypedExpression obj, IJavaType targetType, IJavaValue value) {
 		CastExpression e = makeCast(obj.getExpression(), targetType);
 		setExpressionValue(e, value);
-		return EvaluatedExpression.makeTypedOrEvaluatedExpression(e, targetType, new Value(value));
+		return EvaluatedExpression.makeTypedOrEvaluatedExpression(e, targetType, value);
 	}
 
 	public static CastExpression makeCast(Expression obj, IJavaType targetType) {
@@ -405,7 +405,7 @@ public class ExpressionMaker {
 	public static TypedExpression makeInstanceOf(TypedExpression obj, Type targetDomType, IJavaType targetType, IJavaValue value) {
 		InstanceofExpression e = makeInstanceOf(obj.getExpression(), targetDomType);
 		setExpressionValue(e, value);
-		return EvaluatedExpression.makeTypedOrEvaluatedExpression(e, targetType, new Value(value));
+		return EvaluatedExpression.makeTypedOrEvaluatedExpression(e, targetType, value);
 	}
 
 	private static InstanceofExpression makeInstanceOf(Expression expr, Type targetDomType) {
@@ -420,7 +420,7 @@ public class ExpressionMaker {
 			ConditionalExpression ex = makeConditional(cond.getExpression(), t.getExpression(), e.getExpression());
 			IJavaValue value = computeConditionalOp(cond.getValue(), t.getValue(), e.getValue());
 			setExpressionValue(ex, value);
-			return EvaluatedExpression.makeTypedOrEvaluatedExpression(ex, type, new Value(value));
+			return EvaluatedExpression.makeTypedOrEvaluatedExpression(ex, type, value);
 		} catch (DebugException ex) {
 			throw new RuntimeException(ex);
 		}
@@ -435,13 +435,13 @@ public class ExpressionMaker {
 	}
 
 	@SuppressWarnings("unchecked")
-	private static TypedExpression makeClassInstanceCreation(IJavaType type, ArrayList<TypedExpression> args, IJavaValue value) throws DebugException {
+	private static TypedExpression makeClassInstanceCreation(IJavaType type, ArrayList<? extends TypedExpression> args, IJavaValue value) throws DebugException {
 		ClassInstanceCreation e = ast.newClassInstanceCreation();
 		e.setType(ast.newSimpleType(ast.newName(EclipseUtils.sanitizeTypename(type.getName()))));
 		for (TypedExpression ex: args)
 			e.arguments().add(ASTCopyer.copy(ex.getExpression()));
 		setExpressionValue(e, value);
-		return EvaluatedExpression.makeTypedOrEvaluatedExpression(e, type, new Value(value));
+		return EvaluatedExpression.makeTypedOrEvaluatedExpression(e, type, value);
 	}
 
 	@SuppressWarnings("unchecked")
@@ -456,7 +456,7 @@ public class ExpressionMaker {
 
 	public static TypedExpression makeParenthesized(TypedExpression obj) {
 		ParenthesizedExpression e = makeParenthesized(obj.getExpression());
-		return EvaluatedExpression.makeTypedOrEvaluatedExpression(e, obj.getType(), new Value(getExpressionValue(e)));
+		return EvaluatedExpression.makeTypedOrEvaluatedExpression(e, obj.getType(), getExpressionValue(e));
 	}
 
 	private static ParenthesizedExpression makeParenthesized(Expression e) {
@@ -469,7 +469,7 @@ public class ExpressionMaker {
 	public static TypedExpression makeSuperFieldAccess(Name qualifier, String name, IJavaType fieldType, IJavaValue value) {
 		SuperFieldAccess e = makeSuperFieldAccess(qualifier, name);
 		setExpressionValue(e, value);
-		return EvaluatedExpression.makeTypedOrEvaluatedExpression(e, fieldType, new Value(value));
+		return EvaluatedExpression.makeTypedOrEvaluatedExpression(e, fieldType, value);
 	}
 
 	private static SuperFieldAccess makeSuperFieldAccess(Name qualifier, String name) {
@@ -488,7 +488,7 @@ public class ExpressionMaker {
 			e.arguments().add(ASTCopyer.copy(ex.getExpression()));
 		setExpressionValue(e, value);
 		setMethod(e, method);
-		return EvaluatedExpression.makeTypedOrEvaluatedExpression(e, returnType, new Value(value));
+		return EvaluatedExpression.makeTypedOrEvaluatedExpression(e, returnType, value);
 	}
 	
 	public static TypeLiteral makeTypeLiteral(Type type) {

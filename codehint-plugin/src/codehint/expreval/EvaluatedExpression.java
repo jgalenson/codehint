@@ -35,11 +35,11 @@ public class EvaluatedExpression extends TypedExpression {
 		return value;
 	}
 	
-	public static TypedExpression makeTypedOrEvaluatedExpression(Expression expression, IJavaType type, Value value) {
-		if (value.getValue() == null)
+	public static TypedExpression makeTypedOrEvaluatedExpression(Expression expression, IJavaType type, IJavaValue value) {
+		if (value == null)
 			return new TypedExpression(expression, type);
 		else
-			return new EvaluatedExpression(expression, type, value);
+			return new EvaluatedExpression(expression, type, new Value(value));
 	}
 
 	@Override

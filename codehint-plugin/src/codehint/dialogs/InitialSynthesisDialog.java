@@ -64,7 +64,7 @@ public class InitialSynthesisDialog extends SynthesisDialog {
     private TableViewer tableViewer;
     private Table table;
     private SynthesisResultComparator synthesisResultComparator;
-    private ArrayList<FullyEvaluatedExpression> expressions;
+    private ArrayList<FullyEvaluatedExpression> expressions;  // This does not reflect the sort order of the expressions in the table, so get items from the table directly.
     private Button checkAllButton;
     private Button uncheckAllButton;
     private static final int checkSelectedButtonID = IDialogConstants.CLIENT_ID + 2;
@@ -271,7 +271,7 @@ public class InitialSynthesisDialog extends SynthesisDialog {
          	results = new ArrayList<FullyEvaluatedExpression>();
          	for (int i = 0; i < table.getItemCount(); i++)
          		if (table.getItem(i).getChecked())
-         			results.add(expressions.get(i));
+         			results.add((FullyEvaluatedExpression)table.getItem(i).getData());
     	}
         super.buttonPressed(buttonId);
     }

@@ -52,6 +52,15 @@ import codehint.dialogs.InitialSynthesisDialog;
 import codehint.expreval.EvaluatedExpression;
 import codehint.expreval.EvaluationManager;
 import codehint.expreval.FullyEvaluatedExpression;
+import codehint.exprgen.precondition.Arg;
+import codehint.exprgen.precondition.Const;
+import codehint.exprgen.precondition.GE;
+import codehint.exprgen.precondition.In;
+import codehint.exprgen.precondition.Len;
+import codehint.exprgen.precondition.Minus;
+import codehint.exprgen.precondition.NonNull;
+import codehint.exprgen.precondition.Plus;
+import codehint.exprgen.precondition.Predicate;
 import codehint.exprgen.typeconstraint.FieldConstraint;
 import codehint.exprgen.typeconstraint.MethodConstraint;
 import codehint.exprgen.typeconstraint.SupertypeBound;
@@ -81,22 +90,129 @@ public final class ExpressionGenerator {
 	
 	private final static Set<String> classBlacklist = new HashSet<String>();
 	private final static Map<String, Set<String>> methodBlacklist = new HashMap<String, Set<String>>();
-	
+	private final static Map<String, Predicate[]> methodPreconditions = new HashMap<String, Predicate[]>();
+
+	public static void init() {
+		initBlacklist();
+		initMethodPreconditions();
+	}
+
+	public static void clear() {
+		classBlacklist.clear();
+		methodBlacklist.clear();
+		methodPreconditions.clear();
+	}
+
 	/**
 	 * Initializes the blacklist.
 	 */
-	public static void initBlacklist() {
+	private static void initBlacklist() {
 		classBlacklist.add("codehint.CodeHint");
 		methodBlacklist.put("java.io.File", new HashSet<String>(Arrays.asList("createNewFile", "delete", "mkdir", "mkdirs", "renameTo", "setLastModified", "setReadOnly", "setExecutable", "setLastModified", "setReadable", "setWritable")));
 		methodBlacklist.put("java.util.Arrays", new HashSet<String>(Arrays.asList("deepHashCode")));
 	}
 	
-	/**
-	 * Clears the blacklist.
-	 */
-	public static void clearBlacklist() {
-		classBlacklist.clear();
-		methodBlacklist.clear();
+	private static void initMethodPreconditions() {
+		methodPreconditions.put("java.lang.String <init> (Ljava/lang/String;)V", new Predicate[] { new NonNull(1) });
+		methodPreconditions.put("java.lang.String <init> ([C)V", new Predicate[] { new NonNull(1) });
+		methodPreconditions.put("java.lang.String <init> ([CII)V", new Predicate[] { new NonNull(1), new GE(new Arg(2), new Const(0)), new GE(new Arg(3), new Const(0)), new GE(new Len(1), new Plus(new Arg(2), new Arg(3))) });
+		methodPreconditions.put("java.lang.String <init> ([III)V", new Predicate[] { new NonNull(1), new GE(new Arg(2), new Const(0)), new GE(new Arg(3), new Const(0)), new GE(new Len(1), new Plus(new Arg(2), new Arg(3))) });
+		methodPreconditions.put("java.lang.String <init> ([BIII)V", new Predicate[] { new NonNull(1), new GE(new Arg(3), new Const(0)), new GE(new Arg(4), new Const(0)), new GE(new Len(1), new Plus(new Arg(3), new Arg(4))) });
+		methodPreconditions.put("java.lang.String <init> ([BI)V", new Predicate[] { new NonNull(1) });
+		methodPreconditions.put("java.lang.String <init> ([BIILjava/lang/String;)V", new Predicate[] { new NonNull(1), new NonNull(4), new GE(new Arg(2), new Const(0)), new GE(new Arg(3), new Const(0)), new GE(new Len(1), new Plus(new Arg(2), new Arg(3))) });
+		methodPreconditions.put("java.lang.String <init> ([BIILjava/nio/charset/Charset;)V", new Predicate[] { new NonNull(1), new NonNull(4), new GE(new Arg(2), new Const(0)), new GE(new Arg(3), new Const(0)), new GE(new Len(1), new Plus(new Arg(2), new Arg(3))) });
+		methodPreconditions.put("java.lang.String <init> ([BLjava/lang/String;)V", new Predicate[] { new NonNull(1), new NonNull(2) });
+		methodPreconditions.put("java.lang.String <init> ([BLjava/nio/charset/Charset;)V", new Predicate[] { new NonNull(1), new NonNull(2) });
+		methodPreconditions.put("java.lang.String <init> ([BII)V", new Predicate[] { new NonNull(1), new GE(new Arg(2), new Const(0)), new GE(new Arg(3), new Const(0)), new GE(new Len(1), new Plus(new Arg(2), new Arg(3))) });
+		methodPreconditions.put("java.lang.String <init> ([B)V", new Predicate[] { new NonNull(1) });
+		methodPreconditions.put("java.lang.String <init> (Ljava/lang/StringBuffer;)V", new Predicate[] { new NonNull(1) });
+		methodPreconditions.put("java.lang.String <init> (Ljava/lang/StringBuilder;)V", new Predicate[] { new NonNull(1) });
+		methodPreconditions.put("java.lang.String charAt (I)C", new Predicate[] { new In(new Arg(1), 0) });
+		methodPreconditions.put("java.lang.String codePointAt (I)I", new Predicate[] { new In(new Arg(1), 0) });
+		methodPreconditions.put("java.lang.String codePointBefore (I)I", new Predicate[] { new In(new Minus(new Arg(1), new Const(1)), 0) });
+		methodPreconditions.put("java.lang.String codePointCount (II)I", new Predicate[] { new GE(new Arg(1), new Const(0)), new GE(new Len(0), new Arg(2)), new GE(new Arg(2), new Arg(1)) });
+		methodPreconditions.put("java.lang.String offsetByCodePoints (II)I", new Predicate[] { new In(new Arg(1), 0) });  // TODO: Missing a constraint
+		methodPreconditions.put("java.lang.String getBytes (Ljava/lang/String;)[B", new Predicate[] { new NonNull(1) });
+		methodPreconditions.put("java.lang.String getBytes (Ljava/nio/charset/Charset;)[B", new Predicate[] { new NonNull(1) });
+		methodPreconditions.put("java.lang.String contentEquals (Ljava/lang/StringBuffer;)Z", new Predicate[] { new NonNull(1) });
+		methodPreconditions.put("java.lang.String contentEquals (Ljava/lang/CharSequence;)Z", new Predicate[] { new NonNull(1) });
+		methodPreconditions.put("java.lang.String compareTo (Ljava/lang/String;)I", new Predicate[] { new NonNull(1) });
+		methodPreconditions.put("java.lang.String compareToIgnoreCase (Ljava/lang/String;)I", new Predicate[] { new NonNull(1) });
+		methodPreconditions.put("java.lang.String regionMatches (ILjava/lang/String;II)Z", new Predicate[] { new NonNull(2) });
+		methodPreconditions.put("java.lang.String regionMatches (ZILjava/lang/String;II)Z", new Predicate[] { new NonNull(3) });
+		methodPreconditions.put("java.lang.String startsWith (Ljava/lang/String;I)Z", new Predicate[] { new NonNull(1) });
+		methodPreconditions.put("java.lang.String startsWith (Ljava/lang/String;)Z", new Predicate[] { new NonNull(1) });
+		methodPreconditions.put("java.lang.String endsWith (Ljava/lang/String;)Z", new Predicate[] { new NonNull(1) });
+		methodPreconditions.put("java.lang.String indexOf (I)I", new Predicate[] { });
+		methodPreconditions.put("java.lang.String indexOf (II)I", new Predicate[] { });
+		methodPreconditions.put("java.lang.String lastIndexOf (I)I", new Predicate[] { });
+		methodPreconditions.put("java.lang.String lastIndexOf (II)I", new Predicate[] { });
+		methodPreconditions.put("java.lang.String indexOf (Ljava/lang/String;)I", new Predicate[] { new NonNull(1) });
+		methodPreconditions.put("java.lang.String indexOf (Ljava/lang/String;I)I", new Predicate[] { new NonNull(1) });
+		methodPreconditions.put("java.lang.String indexOf ([CII[CIII)I", new Predicate[] { new NonNull(1), new NonNull(4) });
+		methodPreconditions.put("java.lang.String lastIndexOf (Ljava/lang/String;)I", new Predicate[] { new NonNull(1) });
+		methodPreconditions.put("java.lang.String lastIndexOf (Ljava/lang/String;I)I", new Predicate[] { new NonNull(1) });
+		methodPreconditions.put("java.lang.String lastIndexOf ([CII[CIII)I", new Predicate[] { new NonNull(1), new NonNull(4) });
+		methodPreconditions.put("java.lang.String substring (I)Ljava/lang/String;", new Predicate[] { new In(new Arg(1), 0) });
+		methodPreconditions.put("java.lang.String substring (II)Ljava/lang/String;", new Predicate[] { new GE(new Arg(1), new Const(0)), new GE(new Len(0), new Arg(2)), new GE(new Arg(2), new Arg(1)) });
+		methodPreconditions.put("java.lang.String subSequence (II)Ljava/lang/CharSequence;", new Predicate[] { new GE(new Arg(1), new Const(0)), new GE(new Len(0), new Arg(2)), new GE(new Arg(2), new Arg(1)) });
+		methodPreconditions.put("java.lang.String concat (Ljava/lang/String;)Ljava/lang/String;", new Predicate[] { new NonNull(1) });
+		methodPreconditions.put("java.lang.String matches (Ljava/lang/String;)Z", new Predicate[] { new NonNull(1) });
+		methodPreconditions.put("java.lang.String contains (Ljava/lang/CharSequence;)Z", new Predicate[] { new NonNull(1) });
+		methodPreconditions.put("java.lang.String replaceFirst (Ljava/lang/String;Ljava/lang/String;)Ljava/lang/String;", new Predicate[] { new NonNull(1), new NonNull(2) });
+		methodPreconditions.put("java.lang.String replaceAll (Ljava/lang/String;Ljava/lang/String;)Ljava/lang/String;", new Predicate[] { new NonNull(1), new NonNull(2) });
+		methodPreconditions.put("java.lang.String replace (Ljava/lang/CharSequence;Ljava/lang/CharSequence;)Ljava/lang/String;", new Predicate[] { new NonNull(1), new NonNull(2) });
+		methodPreconditions.put("java.lang.String split (Ljava/lang/String;I)[Ljava/lang/String;", new Predicate[] { new NonNull(1) });
+		methodPreconditions.put("java.lang.String split (Ljava/lang/String;)[Ljava/lang/String;", new Predicate[] { new NonNull(1) });
+		methodPreconditions.put("java.lang.String toLowerCase (Ljava/util/Locale;)Ljava/lang/String;", new Predicate[] { new NonNull(1) });
+		methodPreconditions.put("java.lang.String toUpperCase (Ljava/util/Locale;)Ljava/lang/String;", new Predicate[] { new NonNull(1) });
+		methodPreconditions.put("java.lang.String format (Ljava/lang/String;[Ljava/lang/Object;)Ljava/lang/String;", new Predicate[] { new NonNull(1), new NonNull(2) });
+		methodPreconditions.put("java.lang.String format (Ljava/util/Locale;Ljava/lang/String;[Ljava/lang/Object;)Ljava/lang/String;", new Predicate[] { new NonNull(2), new NonNull(3) });
+		methodPreconditions.put("java.lang.String format (Ljava/lang/Object;)Ljava/lang/String;", new Predicate[] { new NonNull(1) });
+		methodPreconditions.put("java.lang.String valueOf ([C)Ljava/lang/String;", new Predicate[] { new NonNull(1) });
+		methodPreconditions.put("java.lang.String valueOf ([CII)Ljava/lang/String;", new Predicate[] { new NonNull(1), new GE(new Arg(2), new Const(0)), new GE(new Arg(3), new Const(0)), new GE(new Len(1), new Plus(new Arg(2), new Arg(3))) });
+		methodPreconditions.put("java.lang.String copyValueOf ([CII)Ljava/lang/String;", new Predicate[] { new NonNull(1), new GE(new Arg(2), new Const(0)), new GE(new Arg(3), new Const(0)), new GE(new Len(1), new Plus(new Arg(2), new Arg(3))) });
+		methodPreconditions.put("java.lang.String copyValueOf ([C)Ljava/lang/String;", new Predicate[] { new NonNull(1) });
+		methodPreconditions.put("java.lang.String compareTo (Ljava/lang/Object;)I", new Predicate[] { new NonNull(1) });
+
+		methodPreconditions.put("java.util.Arrays binarySearch ([JJ)I", new Predicate[] { new NonNull(1) });
+		methodPreconditions.put("java.util.Arrays binarySearch ([JIIJ)I", new Predicate[] { new NonNull(1), new GE(new Arg(2), new Const(0)), new GE(new Len(1), new Arg(3)), new GE(new Arg(3), new Arg(2)) });
+		methodPreconditions.put("java.util.Arrays binarySearch ([II)I", new Predicate[] { new NonNull(1) });
+		methodPreconditions.put("java.util.Arrays binarySearch ([IIII)I", new Predicate[] { new NonNull(1), new GE(new Arg(2), new Const(0)), new GE(new Len(1), new Arg(3)), new GE(new Arg(3), new Arg(2)) });
+		methodPreconditions.put("java.util.Arrays binarySearch ([SS)I", new Predicate[] { new NonNull(1) });
+		methodPreconditions.put("java.util.Arrays binarySearch ([SIIS)I", new Predicate[] { new NonNull(1), new GE(new Arg(2), new Const(0)), new GE(new Len(1), new Arg(3)), new GE(new Arg(3), new Arg(2)) });
+		methodPreconditions.put("java.util.Arrays binarySearch ([CC)I", new Predicate[] { new NonNull(1) });
+		methodPreconditions.put("java.util.Arrays binarySearch ([CIIC)I", new Predicate[] { new NonNull(1), new GE(new Arg(2), new Const(0)), new GE(new Len(1), new Arg(3)), new GE(new Arg(3), new Arg(2)) });
+		methodPreconditions.put("java.util.Arrays binarySearch ([BB)I", new Predicate[] { new NonNull(1) });
+		methodPreconditions.put("java.util.Arrays binarySearch ([BIIB)I", new Predicate[] { new NonNull(1), new GE(new Arg(2), new Const(0)), new GE(new Len(1), new Arg(3)), new GE(new Arg(3), new Arg(2)) });
+		methodPreconditions.put("java.util.Arrays binarySearch ([DD)I", new Predicate[] { new NonNull(1) });
+		methodPreconditions.put("java.util.Arrays binarySearch ([DIID)I", new Predicate[] { new NonNull(1), new GE(new Arg(2), new Const(0)), new GE(new Len(1), new Arg(3)), new GE(new Arg(3), new Arg(2)) });
+		methodPreconditions.put("java.util.Arrays binarySearch ([FF)I", new Predicate[] { new NonNull(1) });
+		methodPreconditions.put("java.util.Arrays binarySearch ([FIIF)I", new Predicate[] { new NonNull(1), new GE(new Arg(2), new Const(0)), new GE(new Len(1), new Arg(3)), new GE(new Arg(3), new Arg(2)) });
+		methodPreconditions.put("java.util.Arrays binarySearch ([Ljava/lang/Object;Ljava/lang/Object;)I", new Predicate[] { new NonNull(1) });
+		methodPreconditions.put("java.util.Arrays binarySearch ([Ljava/lang/Object;IILjava/lang/Object;)I", new Predicate[] { new NonNull(1), new GE(new Arg(2), new Const(0)), new GE(new Len(1), new Arg(3)), new GE(new Arg(3), new Arg(2)) });
+		methodPreconditions.put("java.util.Arrays binarySearch ([Ljava/lang/Object;Ljava/lang/Object;Ljava/util/Comparator;)I", new Predicate[] { new NonNull(1) });
+		methodPreconditions.put("java.util.Arrays binarySearch ([Ljava/lang/Object;IILjava/lang/Object;Ljava/util/Comparator;)I", new Predicate[] { new NonNull(1), new GE(new Arg(2), new Const(0)), new GE(new Len(1), new Arg(3)), new GE(new Arg(3), new Arg(2)) });
+		methodPreconditions.put("java.util.Arrays copyOf ([Ljava/lang/Object;I)[Ljava/lang/Object;", new Predicate[] { new NonNull(1), new GE(new Arg(2), new Const(0)) });
+		methodPreconditions.put("java.util.Arrays copyOf ([Ljava/lang/Object;ILjava/lang/Class;)[Ljava/lang/Object;", new Predicate[] { new NonNull(1), new NonNull(3), new GE(new Arg(2), new Const(0)) });
+		methodPreconditions.put("java.util.Arrays copyOf ([BI)[B", new Predicate[] { new NonNull(1), new GE(new Arg(2), new Const(0)) });
+		methodPreconditions.put("java.util.Arrays copyOf ([SI)[S", new Predicate[] { new NonNull(1), new GE(new Arg(2), new Const(0)) });
+		methodPreconditions.put("java.util.Arrays copyOf ([II)[I", new Predicate[] { new NonNull(1), new GE(new Arg(2), new Const(0)) });
+		methodPreconditions.put("java.util.Arrays copyOf ([JI)[J", new Predicate[] { new NonNull(1), new GE(new Arg(2), new Const(0)) });
+		methodPreconditions.put("java.util.Arrays copyOf ([CI)[C", new Predicate[] { new NonNull(1), new GE(new Arg(2), new Const(0)) });
+		methodPreconditions.put("java.util.Arrays copyOf ([FI)[F", new Predicate[] { new NonNull(1), new GE(new Arg(2), new Const(0)) });
+		methodPreconditions.put("java.util.Arrays copyOf ([DI)[D", new Predicate[] { new NonNull(1), new GE(new Arg(2), new Const(0)) });
+		methodPreconditions.put("java.util.Arrays copyOf ([ZI)[Z", new Predicate[] { new NonNull(1), new GE(new Arg(2), new Const(0)) });
+		methodPreconditions.put("java.util.Arrays copyOfRange ([Ljava/lang/Object;II)[Ljava/lang/Object;", new Predicate[] { new NonNull(1), new In(new Arg(2), 1), new GE(new Arg(3), new Arg(2)) });
+		methodPreconditions.put("java.util.Arrays copyOfRange ([Ljava/lang/Object;IILjava/lang/Class;)[Ljava/lang/Object;", new Predicate[] { new NonNull(1), new NonNull(4), new In(new Arg(2), 1), new GE(new Arg(3), new Arg(2)) });
+		methodPreconditions.put("java.util.Arrays copyOfRange ([BII)[B", new Predicate[] { new NonNull(1), new In(new Arg(2), 1), new GE(new Arg(3), new Arg(2)) });
+		methodPreconditions.put("java.util.Arrays copyOfRange ([SII)[S", new Predicate[] { new NonNull(1), new In(new Arg(2), 1), new GE(new Arg(3), new Arg(2)) });
+		methodPreconditions.put("java.util.Arrays copyOfRange ([III)[I", new Predicate[] { new NonNull(1), new In(new Arg(2), 1), new GE(new Arg(3), new Arg(2)) });
+		methodPreconditions.put("java.util.Arrays copyOfRange ([JII)[J", new Predicate[] { new NonNull(1), new In(new Arg(2), 1), new GE(new Arg(3), new Arg(2)) });
+		methodPreconditions.put("java.util.Arrays copyOfRange ([CII)[C", new Predicate[] { new NonNull(1), new In(new Arg(2), 1), new GE(new Arg(3), new Arg(2)) });
+		methodPreconditions.put("java.util.Arrays copyOfRange ([FII)[F", new Predicate[] { new NonNull(1), new In(new Arg(2), 1), new GE(new Arg(3), new Arg(2)) });
+		methodPreconditions.put("java.util.Arrays copyOfRange ([DII)[D", new Predicate[] { new NonNull(1), new In(new Arg(2), 1), new GE(new Arg(3), new Arg(2)) });
+		methodPreconditions.put("java.util.Arrays copyOfRange ([ZII)[Z", new Predicate[] { new NonNull(1), new In(new Arg(2), 1), new GE(new Arg(3), new Arg(2)) });
 	}
 	
 	private final IJavaDebugTarget target;
@@ -199,7 +315,7 @@ public final class ExpressionGenerator {
 		}
 		ArrayList<FullyEvaluatedExpression> results = evaluateExpressions(curLevel, property, synthesisDialog, monitor, maxDepth);
 		
-		// Expand equivalencies.
+		// Expand equivalences.
     	ArrayList<EvaluatedExpression> extraResults = expandEquivalences(results);
     	// Evaluate them.  We use a null pdspec since they are all equivalent to a valid expression, but we might need to get their toString.  This also reports them to the gui.
     	results.addAll(evalManager.evaluateExpressions(extraResults, null, synthesisDialog, SubMonitor.convert(monitor, "Expression evaluation", extraResults.size())));
@@ -210,7 +326,7 @@ public final class ExpressionGenerator {
 	/**
 	 * Evaluates the given expressions and returns those that
 	 * do not crash and satisfy the given pdspec if it is non-null.
-	 * @param exprs The expressions to evalute.
+	 * @param exprs The expressions to evaluate.
 	 * @param property The property entered by the user.
 	 * @param synthesisDialog The synthesis dialog to pass the valid
 	 * expressions, or null if we should not pass anything.
@@ -362,7 +478,7 @@ public final class ExpressionGenerator {
     						ArrayList<EvaluatedExpression> lEquivs = equivalences.get(l.getWrapperValue());
     						if (lEquivs != null) {
     							for (TypedExpression equiv: lEquivs) {
-    								if (equiv != r) {
+    								if (equiv != r && getDepth(equiv) < depth) {  // Ensure we don't replace r with something from the current depth search.
     									r = equiv;
     									break;
     								}
@@ -646,7 +762,7 @@ public final class ExpressionGenerator {
 				List<?> argumentTypeNames = method.argumentTypeNames();
 				// TODO: Improve overloading detection.
 				overloadChecker.setMethod(method);
-				ArrayList<ArrayList<TypedExpression>> allPossibleActuals = new ArrayList<ArrayList<TypedExpression>>(argumentTypeNames.size());
+				ArrayList<ArrayList<EvaluatedExpression>> allPossibleActuals = new ArrayList<ArrayList<EvaluatedExpression>>(argumentTypeNames.size());
 				Iterator<?> aIt = argumentTypeNames.iterator();
 				while (aIt.hasNext()) {
 					IJavaType argType = EclipseUtils.getTypeAndLoadIfNeeded((String)aIt.next(), stack, target, typeCache);
@@ -654,12 +770,14 @@ public final class ExpressionGenerator {
 						//System.err.println("I cannot get the class of the arguments to " + objTypeImpl.name() + "." + method.name() + "()");
 						break;
 					}
-					ArrayList<TypedExpression> curPossibleActuals = new ArrayList<TypedExpression>();
+					int curArgIndex = allPossibleActuals.size();
+					ArrayList<EvaluatedExpression> curPossibleActuals = new ArrayList<EvaluatedExpression>();
 					// TODO (low priority): This can get called multiple times if there are multiple args with the same type (or even different methods with args of the same type), but this has a tiny effect compared to the general state space explosion problem.
-					for (TypedExpression a : nextLevel)
-						if ((new SupertypeBound(argType)).isFulfilledBy(a.getType(), subtypeChecker, typeCache, stack, target)) {  // TODO: This doesn't work for generic methods.
-							if (overloadChecker.needsCast(argType, a.getType(), allPossibleActuals.size()))  // If the method is overloaded, when executing the expression we might get "Ambiguous call" compile errors, so we put in a cast to remove the ambiguity.
-								a = ExpressionMaker.makeCast(a, argType, a.getValue());
+					for (EvaluatedExpression a : nextLevel)
+						if ((new SupertypeBound(argType)).isFulfilledBy(a.getType(), subtypeChecker, typeCache, stack, target)  // TODO: This doesn't work for generic methods.
+								&& meetsNonNullPreconditions(method, curArgIndex + 1, a)) {
+							if (overloadChecker.needsCast(argType, a.getType(), curArgIndex))  // If the method is overloaded, when executing the expression we might get "Ambiguous call" compile errors, so we put in a cast to remove the ambiguity.
+								a = (EvaluatedExpression)ExpressionMaker.makeCast(a, argType, a.getValue());
 							curPossibleActuals.add(a);
 						}
 					allPossibleActuals.add(curPossibleActuals);
@@ -669,7 +787,7 @@ public final class ExpressionGenerator {
 					if (method.isStatic())
 						receiver = ExpressionMaker.makeStaticName(EclipseUtils.sanitizeTypename(objTypeName), (IJavaReferenceType)e.getType());
 					pruneManyArgCalls(allPossibleActuals, depth - 1, receiver.getType() + "." + method.name());
-					makeAllCalls(method, method.name(), receiver, returnType, ops, allPossibleActuals, new ArrayList<TypedExpression>(allPossibleActuals.size()), depth);
+					makeAllCalls(method, method.name(), receiver, returnType, ops, allPossibleActuals, new ArrayList<EvaluatedExpression>(allPossibleActuals.size()), depth);
 				}
 			}
 		}
@@ -686,14 +804,14 @@ public final class ExpressionGenerator {
 	 * @param methodToString A toString representation of the
 	 * method being called.
 	 */
-	private static void pruneManyArgCalls(ArrayList<ArrayList<TypedExpression>> allPossibleActuals, int curMaxArgDepth, String methodToString) {
+	private static void pruneManyArgCalls(ArrayList<ArrayList<EvaluatedExpression>> allPossibleActuals, int curMaxArgDepth, String methodToString) {
 		int numCombinations = getNumCalls(allPossibleActuals);
 		if (numCombinations > MAX_NUM_METHOD_CALLS) {
-			for (ArrayList<TypedExpression> possibleActuals: allPossibleActuals)
-				for (Iterator<TypedExpression> it = possibleActuals.iterator(); it.hasNext(); )
+			for (ArrayList<EvaluatedExpression> possibleActuals: allPossibleActuals)
+				for (Iterator<EvaluatedExpression> it = possibleActuals.iterator(); it.hasNext(); )
 					if (getDepth(it.next()) == curMaxArgDepth)
 						it.remove();
-			System.out.println("Pruned call to " + methodToString + " from " + numCombinations + " to " + getNumCalls(allPossibleActuals));
+			//System.out.println("Pruned call to " + methodToString + " from " + numCombinations + " to " + getNumCalls(allPossibleActuals));
 			pruneManyArgCalls(allPossibleActuals, curMaxArgDepth - 1, methodToString);
 		}
 	}
@@ -705,11 +823,50 @@ public final class ExpressionGenerator {
 	 * actuals for each argument.
 	 * @return The number of calls with the given possible actuals.
 	 */
-	private static int getNumCalls(ArrayList<ArrayList<TypedExpression>> allPossibleActuals) {
+	private static int getNumCalls(ArrayList<ArrayList<EvaluatedExpression>> allPossibleActuals) {
 		int total = 1;
-		for (ArrayList<TypedExpression> possibleActuals: allPossibleActuals)
+		for (ArrayList<EvaluatedExpression> possibleActuals: allPossibleActuals)
 			total *= possibleActuals.size();
 		return total;
+	}
+	
+	/**
+	 * Ensures that the call to the given method with the given
+	 * argument at the given index meets any known non-null
+	 * preconditions.
+	 * Note that this is simply a short-circuit check; the full
+	 * check is done in meetsPreconditions.
+	 * @param method The method being called.
+	 * @param argIndex The index of the current argument, where
+	 * 1 is the first argument, not 0.
+	 * @param arg The given argument.
+	 * @return Ensures that the given arg is non-null if we know
+	 * that it must be.
+	 */
+	private boolean meetsNonNullPreconditions(Method method, int argIndex, EvaluatedExpression arg) {
+		String methodId = method.declaringType().name() + " " + method.name() + " " + method.signature();
+		if (methodPreconditions.containsKey(methodId))
+			for (Predicate precondition: methodPreconditions.get(methodId))
+				if (precondition instanceof NonNull)
+					if (((NonNull)precondition).getArgIndex() == argIndex && arg.getValue().isNull())
+						return false;
+		return true;
+	}
+	
+	/**
+	 * Ensures that the given call meets its known preconditions.
+	 * @param method The method being called.
+	 * @param receiver The receiver.
+	 * @param actuals The actuals.
+	 * @return Whether or not the given call meets its known preconditions.
+	 */
+	private boolean meetsPreconditions(Method method, TypedExpression receiver, ArrayList<EvaluatedExpression> actuals) {
+		String methodId = method.declaringType().name() + " " + method.name() + " " + method.signature();
+		if (methodPreconditions.containsKey(methodId))
+			for (Predicate precondition: methodPreconditions.get(methodId))
+				if (!precondition.satisfies(receiver, actuals))
+					return false;
+		return true;
 	}
 	
 	/**
@@ -801,15 +958,14 @@ public final class ExpressionGenerator {
 	 * @param depth The current search depth.
 	 */
 	private void addUniqueExpressionToList(List<TypedExpression> list, TypedExpression e, int depth) {
-		if (e != null && isUnique(e)) {
+		if (e != null && isUnique(e) && getDepth(e) == depth) {
 			Value value = e.getWrapperValue();
 			if (value != null && equivalences.containsKey(value))
 				addEquivalentExpression(equivalences.get(value), (EvaluatedExpression)e);
 			else {
 				if (e.getValue() != null)
 					addEquivalentExpressionOnlyIfNewValue((EvaluatedExpression)e, value);
-				if (getDepth(e) == depth)
-					list.add(e);
+				list.add(e);
 			}
 		}
 	}
@@ -852,12 +1008,13 @@ public final class ExpressionGenerator {
 	 * @param depth The current search depth.
 	 * @throws DebugException 
 	 */
-	private void makeAllCalls(Method method, String name, TypedExpression receiver, IJavaType returnType, List<TypedExpression> ops, ArrayList<ArrayList<TypedExpression>> possibleActuals, ArrayList<TypedExpression> curActuals, int depth) {
-		if (curActuals.size() == possibleActuals.size())
-			addUniqueExpressionToList(ops, ExpressionMaker.makeCall(name, receiver, curActuals, returnType, thisType, method, target), depth);
-		else {
+	private void makeAllCalls(Method method, String name, TypedExpression receiver, IJavaType returnType, List<TypedExpression> ops, ArrayList<ArrayList<EvaluatedExpression>> possibleActuals, ArrayList<EvaluatedExpression> curActuals, int depth) {
+		if (curActuals.size() == possibleActuals.size()) {
+			if (meetsPreconditions(method, receiver, curActuals))
+				addUniqueExpressionToList(ops, ExpressionMaker.makeCall(name, receiver, curActuals, returnType, thisType, method, target), depth);
+		} else {
 			int argNum = curActuals.size();
-			for (TypedExpression e : possibleActuals.get(argNum)) {
+			for (EvaluatedExpression e : possibleActuals.get(argNum)) {
 				curActuals.add(e);
 				makeAllCalls(method, name, receiver, returnType, ops, possibleActuals, curActuals, depth);
 				curActuals.remove(argNum);
@@ -1207,11 +1364,7 @@ public final class ExpressionGenerator {
      * @return The depth of the given expression.
      */
     private static int getDepth(TypedExpression expr) {
-    	Object depthProp = expr.getExpression().getProperty("depth");
-    	if (depthProp != null)
-    		return ((Integer)depthProp).intValue();
-    	else
-    		return getDepth(expr.getExpression());
+		return getDepth(expr.getExpression());
     }
 
     /**
@@ -1222,6 +1375,9 @@ public final class ExpressionGenerator {
     private static int getDepth(Expression expr) {
     	if (expr == null)
     		return 0;
+    	Object depthProp = expr.getProperty("depth");
+    	if (depthProp != null)
+    		return ((Integer)depthProp).intValue();
     	if (expr instanceof NumberLiteral || expr instanceof BooleanLiteral || expr instanceof Name || expr instanceof ThisExpression || expr instanceof NullLiteral)
 			return 0;
     	if (expr instanceof ParenthesizedExpression)
