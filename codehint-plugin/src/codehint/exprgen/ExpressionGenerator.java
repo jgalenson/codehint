@@ -843,7 +843,7 @@ public final class ExpressionGenerator {
 	 * @return Ensures that the given arg is non-null if we know
 	 * that it must be.
 	 */
-	private boolean meetsNonNullPreconditions(Method method, int argIndex, EvaluatedExpression arg) {
+	private static boolean meetsNonNullPreconditions(Method method, int argIndex, EvaluatedExpression arg) {
 		String methodId = method.declaringType().name() + " " + method.name() + " " + method.signature();
 		if (methodPreconditions.containsKey(methodId))
 			for (Predicate precondition: methodPreconditions.get(methodId))
@@ -860,7 +860,7 @@ public final class ExpressionGenerator {
 	 * @param actuals The actuals.
 	 * @return Whether or not the given call meets its known preconditions.
 	 */
-	private boolean meetsPreconditions(Method method, TypedExpression receiver, ArrayList<EvaluatedExpression> actuals) {
+	private static boolean meetsPreconditions(Method method, TypedExpression receiver, ArrayList<EvaluatedExpression> actuals) {
 		String methodId = method.declaringType().name() + " " + method.name() + " " + method.signature();
 		if (methodPreconditions.containsKey(methodId))
 			for (Predicate precondition: methodPreconditions.get(methodId))

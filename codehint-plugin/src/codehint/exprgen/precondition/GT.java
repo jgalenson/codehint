@@ -20,6 +20,7 @@ public class GT extends Predicate {
 		this.target = target;
 	}
 
+	@Override
 	public boolean satisfies(TypedExpression receiver, ArrayList<EvaluatedExpression> actuals) {
 		return cur.getValue(receiver, actuals) > target.getValue(receiver, actuals);
 	}

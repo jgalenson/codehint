@@ -17,6 +17,7 @@ public class NonNull extends Predicate {
 		this.argIndex = argIndex;
 	}
 
+	@Override
 	public boolean satisfies(TypedExpression receiver, ArrayList<EvaluatedExpression> actuals) {
 		return !Arg.getJavaValue(argIndex, receiver, actuals).getValue().isNull();
 	}

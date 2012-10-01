@@ -11,7 +11,7 @@ public class Const extends Value {
 
 	/**
 	 * Creates a constant value.
-	 * @param index The constant.
+	 * @param val The constant.
 	 */
 	public Const(int val) {
 		this.val = val;
