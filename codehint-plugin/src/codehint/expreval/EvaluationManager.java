@@ -119,6 +119,8 @@ public final class EvaluationManager {
 	 * property (or all that do not crash if it is null).
 	 * @param exprs The expressions to evaluate.
 	 * @param property The desired property, or null if there is none.
+	 * @param varType The type of the variable being assigned, or null
+	 * if there is none.
 	 * @param synthesisDialog The synthesis dialog to pass the valid expressions,
 	 * or null if we should not pass anything.
 	 * @param monitor a progress monitor, or null if progress reporting and
@@ -126,7 +128,7 @@ public final class EvaluationManager {
      * @return a list of non-crashing expressions that satisfy
      * the given property (or all that do not crash if it is null).
 	 */
-	public ArrayList<FullyEvaluatedExpression> evaluateExpressions(ArrayList<? extends TypedExpression> exprs, Property property, InitialSynthesisDialog synthesisDialog, IProgressMonitor monitor) {
+	public ArrayList<FullyEvaluatedExpression> evaluateExpressions(ArrayList<? extends TypedExpression> exprs, Property property, IJavaType varType, InitialSynthesisDialog synthesisDialog, IProgressMonitor monitor) {
 		try {
 			this.synthesisDialog = synthesisDialog;
 			this.monitor = monitor;
@@ -141,9 +143,12 @@ public final class EvaluationManager {
 			ArrayList<FullyEvaluatedExpression> validExprs = new ArrayList<FullyEvaluatedExpression>(exprs.size());
 			for (Map.Entry<String, ArrayList<TypedExpression>> expressionsOfType: expressionsByType.entrySet()) {
 				String type = EclipseUtils.sanitizeTypename(expressionsOfType.getKey());
+				boolean arePrimitives = !"Object".equals(type);
 				String valuesArrayName = getValuesArrayName(type);
 				IJavaFieldVariable valuesField = implType.getField(valuesArrayName);
-				evaluateExpressions(expressionsOfType.getValue(), validExprs, type, property, validateStatically, valuesField, 0);
+				if (property != null && varType != null && "Object".equals(type))  // The pdspec might call methods on the objects, so we need their actual types.
+					type = varType.getName();
+				evaluateExpressions(expressionsOfType.getValue(), validExprs, type, arePrimitives, property, validateStatically, valuesField, 0);
 			}
 			return validExprs;
 		} catch (DebugException e) {
@@ -218,6 +223,7 @@ public final class EvaluationManager {
 	 * @param validExprs The results of the evaluations of the given
 	 * expressions that do not crash and satisfy the current pdspec.
 	 * @param type The static type of the desired expression.
+	 * @param arePrimitives Whether the expressions are primitives.
 	 * @param property The pdspec.
 	 * @param validateStatically Whether we can evaluate the pdspec
 	 * ourselves our must have the child evaluation do it.
@@ -225,11 +231,10 @@ public final class EvaluationManager {
 	 * results of the given expressions.
 	 * @param startIndex The index at which to start evaluation.
 	 */
-	private void evaluateExpressions(ArrayList<TypedExpression> exprs, ArrayList<FullyEvaluatedExpression> validExprs, String type, Property property, boolean validateStatically, IJavaFieldVariable valuesField, int startIndex) {
+	private void evaluateExpressions(ArrayList<TypedExpression> exprs, ArrayList<FullyEvaluatedExpression> validExprs, String type, boolean arePrimitives, Property property, boolean validateStatically, IJavaFieldVariable valuesField, int startIndex) {
 		if (monitor.isCanceled())
 			throw new OperationCanceledException();
 		boolean hasPropertyPrecondition = propertyPreconditions.length() > 0;
-		boolean arePrimitives = !"Object".equals(type);
 		ArrayList<Integer> evalExprIndices = new ArrayList<Integer>();
 		int numEvaluated = 0;
 		StringBuilder expressionsStr = new StringBuilder();
@@ -316,7 +321,7 @@ public final class EvaluationManager {
 		    		}
 		    		if (!deleted)  // In this case, the error is probably our fault and not due to erasure.
 		    			throw new EvaluationError("Evaluation error: " + "The following errors were encountered during evaluation.\n\n" + EclipseUtils.getCompileErrors(compiled));
-		    		evaluateExpressions(exprs, validExprs, type, property, validateStatically, valuesField, startIndex);
+		    		evaluateExpressions(exprs, validExprs, type, arePrimitives, property, validateStatically, valuesField, startIndex);
 		    		return;
 		    	}
 		    	IEvaluationResult result = Evaluator.evaluateExpression(compiled, engine, stack);
@@ -346,7 +351,7 @@ public final class EvaluationManager {
 	    	monitor.worked(work);
 	    	int nextStartIndex = startIndex + work + numToSkip;
 	    	if (nextStartIndex < exprs.size())
-	    		evaluateExpressions(exprs, validExprs, type, property, validateStatically, valuesField, nextStartIndex);
+	    		evaluateExpressions(exprs, validExprs, type, arePrimitives, property, validateStatically, valuesField, nextStartIndex);
 		} catch (DebugException e) {
 			throw new RuntimeException(e);
 		}

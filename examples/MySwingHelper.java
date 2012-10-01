@@ -10,7 +10,7 @@ public class MySwingHelper {
 
 	public static JFrame makeFrame(String title) {
 		JFrame frame = new JFrame(title);
-		frame.setPreferredSize(new Dimension(200, 400));
+		frame.setPreferredSize(new Dimension(200, 420));
 		return frame;
 	}
 

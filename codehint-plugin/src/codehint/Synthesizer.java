@@ -230,16 +230,20 @@ public class Synthesizer {
 	public static class RefinementWorker {
 		
 		private final ArrayList<FullyEvaluatedExpression> exprs;
+		private IJavaType varType;
 		private final EvaluationManager evalManager;
 		
 		/**
 		 * Creates a new RefinementWorker that will filter
 		 * the given expressions.
 		 * @param exprs The candidate expressions to filter.
+		 * @param varType The type of the variable being
+		 * assigned.
 		 * @param evalManager The evaluation manager.
 		 */
-		public RefinementWorker(ArrayList<FullyEvaluatedExpression> exprs, EvaluationManager evalManager) {
+		public RefinementWorker(ArrayList<FullyEvaluatedExpression> exprs, IJavaType varType, EvaluationManager evalManager) {
 			this.exprs = exprs;
+			this.varType = varType;
 			this.evalManager = evalManager;
 		}
 
@@ -251,7 +255,7 @@ public class Synthesizer {
 		public void refine(RefinementSynthesisDialog synthesisDialog) {
 			Property property = synthesisDialog.getProperty();
    			try {
-   				ArrayList<FullyEvaluatedExpression> validExpressions = evalManager.evaluateExpressions(exprs, property, null, new NullProgressMonitor());
+   				ArrayList<FullyEvaluatedExpression> validExpressions = evalManager.evaluateExpressions(exprs, property, varType, null, new NullProgressMonitor());
             	synthesisDialog.setExpressions(validExpressions);
    			} catch (EvaluationError e) {
    		    	EclipseUtils.showError("Error", e.getMessage(), e);
@@ -338,7 +342,7 @@ public class Synthesizer {
         	TypeCache typeCache = new TypeCache();
         	// TODO: Run the following off the UI thread like above when we do the first synthesis.
         	EvaluationManager evalManager = new EvaluationManager(frame, new SubtypeChecker(), typeCache);
-   			ArrayList<FullyEvaluatedExpression> exprs = evalManager.evaluateExpressions(initialExprs, null, null, new NullProgressMonitor());
+   			ArrayList<FullyEvaluatedExpression> exprs = evalManager.evaluateExpressions(initialExprs, null, null, null, new NullProgressMonitor());
    			if (exprs.isEmpty()) {
    				EclipseUtils.showError("No valid expressions", "No valid expressions were found.", null);
    				throw new RuntimeException("No valid expressions");
@@ -571,7 +575,7 @@ public class Synthesizer {
 				propertyDialog = new LambdaPropertyDialog(varName, varStaticType.getName(), varStaticType, stackFrame, oldProperty.toString(), extraMessage);
 			else
 				throw new IllegalArgumentException(oldProperty.toString());
-			return new RefinementSynthesisDialog(shell, varStaticTypeName, varStaticType, stackFrame, propertyDialog, new RefinementWorker(exprs, evalManager), typeCache);
+			return new RefinementSynthesisDialog(shell, varStaticTypeName, varStaticType, stackFrame, propertyDialog, new RefinementWorker(exprs, varStaticType, evalManager), typeCache);
 	    }
 	    
 	    /**

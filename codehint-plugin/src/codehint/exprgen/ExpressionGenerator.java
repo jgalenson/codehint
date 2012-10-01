@@ -61,6 +61,7 @@ import codehint.exprgen.precondition.Minus;
 import codehint.exprgen.precondition.NonNull;
 import codehint.exprgen.precondition.Plus;
 import codehint.exprgen.precondition.Predicate;
+import codehint.exprgen.typeconstraint.DesiredType;
 import codehint.exprgen.typeconstraint.FieldConstraint;
 import codehint.exprgen.typeconstraint.MethodConstraint;
 import codehint.exprgen.typeconstraint.SupertypeBound;
@@ -110,6 +111,8 @@ public final class ExpressionGenerator {
 		classBlacklist.add("codehint.CodeHint");
 		methodBlacklist.put("java.io.File", new HashSet<String>(Arrays.asList("createNewFile", "delete", "mkdir", "mkdirs", "renameTo", "setLastModified", "setReadOnly", "setExecutable", "setLastModified", "setReadable", "setWritable")));
 		methodBlacklist.put("java.util.Arrays", new HashSet<String>(Arrays.asList("deepHashCode")));
+		methodBlacklist.put("java.util.List", new HashSet<String>(Arrays.asList("add", "addAll", "remove", "removeAll", "removeRange", "retainAll", "set")));
+		methodBlacklist.put("java.util.ArrayList", new HashSet<String>(Arrays.asList("add", "addAll", "remove", "removeAll", "removeRange", "retainAll", "set")));
 	}
 	
 	private static void initMethodPreconditions() {
@@ -318,7 +321,7 @@ public final class ExpressionGenerator {
 		// Expand equivalences.
     	ArrayList<EvaluatedExpression> extraResults = expandEquivalences(results);
     	// Evaluate them.  We use a null pdspec since they are all equivalent to a valid expression, but we might need to get their toString.  This also reports them to the gui.
-    	results.addAll(evalManager.evaluateExpressions(extraResults, null, synthesisDialog, SubMonitor.convert(monitor, "Expression evaluation", extraResults.size())));
+    	results.addAll(evalManager.evaluateExpressions(extraResults, null, null, synthesisDialog, SubMonitor.convert(monitor, "Expression evaluation", extraResults.size())));
 		
     	return results;
 	}
@@ -349,7 +352,7 @@ public final class ExpressionGenerator {
     	EclipseUtils.log("Generated " + exprs.size() + " potential expressions at depth " + depth + ", of which " + evaluatedExprs.size() + " already have values and " + unevaluatedExprs.size() + " still need to be evaluated.");
     	
 		SubMonitor evalMonitor = SubMonitor.convert(monitor, "Expression evaluation", exprs.size());
-		ArrayList<FullyEvaluatedExpression> results = evalManager.evaluateExpressions(evaluatedExprs, property, synthesisDialog, evalMonitor);
+		ArrayList<FullyEvaluatedExpression> results = evalManager.evaluateExpressions(evaluatedExprs, property, getVarType(), synthesisDialog, evalMonitor);
     	if (unevaluatedExprs.size() > 0) {
 
 	    	/*for (TypedExpression call: unevaluatedExprs) {
@@ -377,7 +380,7 @@ public final class ExpressionGenerator {
 	    	}*/
     		
     		// We evaluate these separately because we need to set their value and add them to our equivalent expressions map; we have already done this for those whose value we already knew.
-    		ArrayList<FullyEvaluatedExpression> result = evalManager.evaluateExpressions(unevaluatedExprs, property, synthesisDialog, evalMonitor);
+    		ArrayList<FullyEvaluatedExpression> result = evalManager.evaluateExpressions(unevaluatedExprs, property, getVarType(), synthesisDialog, evalMonitor);
     		for (FullyEvaluatedExpression e: result) {
     			ExpressionMaker.setExpressionValue(e.getExpression(), e.getValue());
     			addEquivalentExpression(e);
@@ -403,6 +406,20 @@ public final class ExpressionGenerator {
 			} else
 				values.add(expr.getWrapperValue());
 		}
+	}
+	
+	/**
+	 * Gets a supertype of the expressions being generated if possible.
+	 * @return A supertype of the expressions being generated, or null
+	 * if we cannot uniquely determine one from the type constraint.
+	 */
+	private IJavaType getVarType() {
+		if (typeConstraint instanceof DesiredType)
+			return ((DesiredType)typeConstraint).getDesiredType();
+		else if (typeConstraint instanceof SupertypeBound)
+			return ((SupertypeBound)typeConstraint).getSupertypeBound();
+		else
+			return null;
 	}
 
 	/**
@@ -478,7 +495,7 @@ public final class ExpressionGenerator {
     						ArrayList<EvaluatedExpression> lEquivs = equivalences.get(l.getWrapperValue());
     						if (lEquivs != null) {
     							for (TypedExpression equiv: lEquivs) {
-    								if (equiv != r && getDepth(equiv) < depth) {  // Ensure we don't replace r with something from the current depth search.
+    								if (equiv.getExpression() != r.getExpression() && getDepth(equiv) < depth) {  // Ensure we don't replace r with something from the current depth search.
     									r = equiv;
     									break;
     								}
@@ -958,7 +975,8 @@ public final class ExpressionGenerator {
 	 * @param depth The current search depth.
 	 */
 	private void addUniqueExpressionToList(List<TypedExpression> list, TypedExpression e, int depth) {
-		if (e != null && isUnique(e) && getDepth(e) == depth) {
+		// We only add constructors at max depth, but they might actually be lower depth.
+		if (e != null && isUnique(e) && (getDepth(e) == depth || (ExpressionMaker.getMethod(e.getExpression()) != null && ExpressionMaker.getMethod(e.getExpression()).isConstructor()))) {
 			Value value = e.getWrapperValue();
 			if (value != null && equivalences.containsKey(value))
 				addEquivalentExpression(equivalences.get(value), (EvaluatedExpression)e);

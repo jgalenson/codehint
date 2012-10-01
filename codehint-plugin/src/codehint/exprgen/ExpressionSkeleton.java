@@ -405,7 +405,7 @@ public final class ExpressionSkeleton {
 				monitor.beginTask("Skeleton generation", holeInfos.size() + 2);
 				ArrayList<TypedExpression> exprs = SkeletonFiller.fillSkeleton(expression, typeConstraint, holeInfos, stack, target, evalManager, expressionGenerator, subtypeChecker, typeCache, monitor);
 				SubMonitor evalMonitor = SubMonitor.convert(monitor, "Expression evaluation", exprs.size());
-				results = evalManager.evaluateExpressions(exprs, property, synthesisDialog, evalMonitor);
+				results = evalManager.evaluateExpressions(exprs, property, varStaticType, synthesisDialog, evalMonitor);
 				EclipseUtils.log("Synthesis found " + exprs.size() + " expressions of which " + results.size() + " were valid and took " + (System.currentTimeMillis() - startTime) + " milliseconds.");
 		    	monitor.done();
 			}
@@ -944,7 +944,7 @@ public final class ExpressionSkeleton {
 								fakeTypedHoleInfos.add(new TypedExpression(e, type));
 							}
 							// Evaluate all the expressions.
-							values = evalManager.evaluateExpressions(fakeTypedHoleInfos, null, null, childMonitor);
+							values = evalManager.evaluateExpressions(fakeTypedHoleInfos, null, null, null, childMonitor);
 						} else  // If the user did not provide potential expressions, synthesize some.
 							values = expressionGenerator.generateExpression(null, curConstraint, null, childMonitor, holeInfos.size() == 1 ? 1 : 0);
 						// Group the expressions by their type.
