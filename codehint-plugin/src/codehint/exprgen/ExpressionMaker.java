@@ -51,27 +51,27 @@ public class ExpressionMaker {
 		return type != null && "Z".equals(type.getSignature());
 	}
 
-	private static boolean isLong(IJavaType type) throws DebugException {
+	public static boolean isLong(IJavaType type) throws DebugException {
 		return type != null && "J".equals(type.getSignature());
 	}
 
-	private static boolean isByte(IJavaType type) throws DebugException {
+	public static boolean isByte(IJavaType type) throws DebugException {
 		return type != null && "B".equals(type.getSignature());
 	}
 
-	private static boolean isChar(IJavaType type) throws DebugException {
+	public static boolean isChar(IJavaType type) throws DebugException {
 		return type != null && "C".equals(type.getSignature());
 	}
 
-	private static boolean isShort(IJavaType type) throws DebugException {
+	public static boolean isShort(IJavaType type) throws DebugException {
 		return type != null && "S".equals(type.getSignature());
 	}
 
-	private static boolean isFloat(IJavaType type) throws DebugException {
+	public static boolean isFloat(IJavaType type) throws DebugException {
 		return type != null && "F".equals(type.getSignature());
 	}
 
-	private static boolean isDouble(IJavaType type) throws DebugException {
+	public static boolean isDouble(IJavaType type) throws DebugException {
 		return type != null && "D".equals(type.getSignature());
 	}
 

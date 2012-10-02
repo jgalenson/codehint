@@ -53,6 +53,7 @@ public class InitialSynthesisDialog extends SynthesisDialog {
 
     private static final int searchButtonID = IDialogConstants.CLIENT_ID;
     private Button searchButton;
+    private int numSearches;
     private static final int searchCancelButtonID = IDialogConstants.CLIENT_ID + 1;
     private Button searchCancelButton;
     private Composite monitorComposite;
@@ -89,6 +90,7 @@ public class InitialSynthesisDialog extends SynthesisDialog {
 		this.skeletonValidator = new ExpressionSkeletonValidator(stack, varTypeName, engine);
 		this.skeletonResult = null;
 		this.searchButton = null;
+		this.numSearches = 0;
 		this.monitor = null;
 		this.tableViewer = null;
 		this.table = null;
@@ -215,6 +217,9 @@ public class InitialSynthesisDialog extends SynthesisDialog {
         	skeletonIsValid = !hasError;
         	if (searchButton != null)
         		searchButton.setEnabled(pdspecIsValid && skeletonIsValid && !searchCancelButton.isEnabled());
+        	numSearches = 0;
+        	if (searchButton != null)
+        		setSearchButtonText("Search");
         }
 		
 	}
@@ -226,6 +231,9 @@ public class InitialSynthesisDialog extends SynthesisDialog {
 			super.inputChanged(hasError);
         	if (searchButton != null)
         		searchButton.setEnabled(pdspecIsValid && skeletonIsValid && !searchCancelButton.isEnabled());
+        	numSearches = 0;
+        	if (searchButton != null)
+        		setSearchButtonText("Search");
         }
 		
 	}
@@ -251,7 +259,7 @@ public class InitialSynthesisDialog extends SynthesisDialog {
         	skeletonResult = skeletonInput.getText();
             property = propertyDialog.computeProperty(pdspecInput.getText(), typeCache);
             skeleton = ExpressionSkeleton.fromString(skeletonResult, target, stack, evaluationEngine, subtypeChecker, typeCache, evalManager, expressionGenerator);
-            startEndSynthesis(true);
+            startEndSynthesis(SynthesisState.START);
             expressions = new ArrayList<FullyEvaluatedExpression>();
             showResults();  // Clears any existing results.
         	// Reset column sort indicators.
@@ -266,7 +274,7 @@ public class InitialSynthesisDialog extends SynthesisDialog {
     		monitor.setLayoutData(gridData);
     		monitorComposite.getParent().layout(true);
     		// Start the synthesis
-	    	worker.synthesize(this, evalManager);
+	    	worker.synthesize(this, evalManager, numSearches);
         } else if (buttonId == IDialogConstants.OK_ID) {
          	results = new ArrayList<FullyEvaluatedExpression>();
          	for (int i = 0; i < table.getItemCount(); i++)
@@ -276,15 +284,29 @@ public class InitialSynthesisDialog extends SynthesisDialog {
         super.buttonPressed(buttonId);
     }
 
-	public void startEndSynthesis(boolean isStart) {
-        getButton(IDialogConstants.CANCEL_ID).setEnabled(!isStart);
-    	searchButton.setEnabled(!isStart && pdspecIsValid && skeletonIsValid);
-    	searchCancelButton.setEnabled(isStart);
-    	if (!isStart) {
+	public void startEndSynthesis(SynthesisState state) {
+        getButton(IDialogConstants.CANCEL_ID).setEnabled(state != SynthesisState.START);
+    	searchButton.setEnabled(state != SynthesisState.START && pdspecIsValid && skeletonIsValid);
+    	searchCancelButton.setEnabled(state == SynthesisState.START);
+    	if (state != SynthesisState.START) {
     		monitor.dispose();
     		monitorComposite.getParent().layout(true);
+    		if (state == SynthesisState.END) {
+    			numSearches++;
+    			setSearchButtonText("Continue search");
+    		}
     	}
     }
+	
+	public enum SynthesisState { START, END, CANCEL };
+	
+	private void setSearchButtonText(String text) {
+		if (!text.equals(searchButton.getText())) {
+			searchButton.setText(text);
+			setButtonLayoutData(searchButton);
+			searchButton.getParent().getParent().layout(true);
+		}
+	}
     
     public IProgressMonitor getProgressMonitor() {
     	return monitor;

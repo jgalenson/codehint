@@ -186,30 +186,34 @@ public class Synthesizer {
 		 * back to the synthesis dialog on the UI thread.
 		 * @param synthesisDialog The dialog controlling the synthesis.
 		 * @param evalManager The evaluation manager.
+		 * @param extraDepth Extra depth to search.
 		 */
-		public void synthesize(final InitialSynthesisDialog synthesisDialog, final EvaluationManager evalManager) {
+		public void synthesize(final InitialSynthesisDialog synthesisDialog, final EvaluationManager evalManager, final int extraDepth) {
 			final Property property = synthesisDialog.getProperty();
 			final ExpressionSkeleton skeleton = synthesisDialog.getSkeleton();
 			Job job = new Job("Expression generation") {
 				@Override
 				protected IStatus run(IProgressMonitor monitor) {
-					EclipseUtils.log("Beginning synthesis for " + varName + " with property " + property.toString() + " and skeleton " + skeleton.toString() + ".");
+					EclipseUtils.log("Beginning synthesis for " + varName + " with property " + property.toString() + " and skeleton " + skeleton.toString() + " with extra depth " + extraDepth + ".");
+					boolean canceled = false;
 					try {
-						skeleton.synthesize(property, varStaticType, synthesisDialog, synthesisDialog.getProgressMonitor());
+						skeleton.synthesize(property, varStaticType, extraDepth, synthesisDialog, synthesisDialog.getProgressMonitor());
 			        	return Status.OK_STATUS;
 					} catch (EvaluationError e) {
 						return new Status(IStatus.ERROR, Activator.PLUGIN_ID, e.getMessage());
 					} catch (OperationCanceledException e) {
 						EclipseUtils.log("Cancelling synthesis for " + varName + " with property " + property.toString() + " and skeleton " + skeleton.toString() + ".");
+						canceled = true;
 						return Status.CANCEL_STATUS;
 					} catch (TypeError e) {
 						EclipseUtils.showError("Error", e.getMessage(), null);
 						return Status.CANCEL_STATUS;
 					} finally {
+						final InitialSynthesisDialog.SynthesisState state = canceled ? InitialSynthesisDialog.SynthesisState.CANCEL : InitialSynthesisDialog.SynthesisState.END;
 						Display.getDefault().asyncExec(new Runnable(){
 							@Override
 							public void run() {
-			                	synthesisDialog.startEndSynthesis(false);
+			                	synthesisDialog.startEndSynthesis(state);
 							}
 			        	});
 						evalManager.resetFields();

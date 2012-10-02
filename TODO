@@ -25,6 +25,7 @@ If you're highlighting a variable in the text area, add a shortcut to pop up the
 Add a default value for textbox when there's disagreement during refinement.
 Use the Eclipse help system to add detailed help.  See e.g., http://help.eclipse.org/indigo/index.jsp?topic=%2Forg.eclipse.platform.doc.isv%2Fguide%2Fua_help.htm and http://rajakannappan.blogspot.com/2009/05/working-with-eclipse-help-system.html.
 When the user writes a pdspec in the code, sets a breakpoint, and runs the code, we only popup the box automatically if our plugin is already loaded, which Eclipse does on demand.  We could force it to load earlier (e.g., when the debugger starts) to ensure we always pop up the box.
+When doing a deep search (directly or as a continuation) it would be nice if we could get intermediate results, e.g., depth 1 things that satisfy the pdspec before starting depth 2.
 
 Bugs
 ----
