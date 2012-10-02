@@ -50,6 +50,8 @@ Optimizations
 -------------
 Run a static/dataflow analysis to get some method preconditions.  Note that given an IMethod we can get an ICompilationUnit either directly or by getting an IClassFile and then using the ASTParser on it.  We can then get the desired MethodDeclaration.
 Begin expression generation when the user clicks demonstration, i.e., when we open the text box.  This way we can do the work while they're typing.
+Improve handling of equivalences and skeletons.  We should toss the equivalences in only at the very end, not after each call into ExprGen.
+Use our own AST rather than Eclipse's.  We could then cache the depth instead of re-computing it (e.g., in expandEquivalences) and avoid the performance bug in Eclipse's copying of NumberLiterals (which uses a Scanner).
 Investigate using IClassFileEvaluationEngine instead of ASTEvaluation.  See JavaSnippetEditor.evaluate().
 Optimize evaluation string: when given a property with a type (x: Foo => ...) don't insert the casts if the variable has static type Foo.
 I could cache expression string -> result.  This would help when re-evaluating expressions, or when iteratively increasing depth (e.g., try 1, see no results, then try 2). 

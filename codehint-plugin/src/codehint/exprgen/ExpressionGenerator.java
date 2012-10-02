@@ -319,9 +319,9 @@ public final class ExpressionGenerator {
 		ArrayList<FullyEvaluatedExpression> results = evaluateExpressions(curLevel, property, synthesisDialog, monitor, maxDepth);
 		
 		// Expand equivalences.
-    	ArrayList<EvaluatedExpression> extraResults = expandEquivalences(results);
+    	ArrayList<EvaluatedExpression> extraResults = expandEquivalences(results, monitor);
     	// Evaluate them.  We use a null pdspec since they are all equivalent to a valid expression, but we might need to get their toString.  This also reports them to the gui.
-    	results.addAll(evalManager.evaluateExpressions(extraResults, null, null, synthesisDialog, SubMonitor.convert(monitor, "Expression evaluation", extraResults.size())));
+    	results.addAll(evalManager.evaluateExpressions(extraResults, null, null, synthesisDialog, monitor));
 		
     	return results;
 	}
@@ -351,8 +351,7 @@ public final class ExpressionGenerator {
     	
     	EclipseUtils.log("Generated " + exprs.size() + " potential expressions at depth " + depth + ", of which " + evaluatedExprs.size() + " already have values and " + unevaluatedExprs.size() + " still need to be evaluated.");
     	
-		SubMonitor evalMonitor = SubMonitor.convert(monitor, "Expression evaluation", exprs.size());
-		ArrayList<FullyEvaluatedExpression> results = evalManager.evaluateExpressions(evaluatedExprs, property, getVarType(), synthesisDialog, evalMonitor);
+		ArrayList<FullyEvaluatedExpression> results = evalManager.evaluateExpressions(evaluatedExprs, property, getVarType(), synthesisDialog, monitor);
     	if (unevaluatedExprs.size() > 0) {
 
 	    	/*for (TypedExpression call: unevaluatedExprs) {
@@ -380,7 +379,7 @@ public final class ExpressionGenerator {
 	    	}*/
     		
     		// We evaluate these separately because we need to set their value and add them to our equivalent expressions map; we have already done this for those whose value we already knew.
-    		ArrayList<FullyEvaluatedExpression> result = evalManager.evaluateExpressions(unevaluatedExprs, property, getVarType(), synthesisDialog, evalMonitor);
+    		ArrayList<FullyEvaluatedExpression> result = evalManager.evaluateExpressions(unevaluatedExprs, property, getVarType(), synthesisDialog, monitor);
     		for (FullyEvaluatedExpression e: result) {
     			ExpressionMaker.setExpressionValue(e.getExpression(), e.getValue());
     			addEquivalentExpression(e);
@@ -428,7 +427,8 @@ public final class ExpressionGenerator {
 	 * @param depth The current depth we are generating.
 	 * @param maxDepth The maximum depth we are generating.
 	 * @param property The property entered by the user.
-	 * @param monitor The progress monitor.
+	 * @param monitor The progress monitor.  The caller should
+	 * not allocate a new progress monitor; this method will.
 	 * @return The expressions of the given depth.
 	 */
 	private ArrayList<TypedExpression> genOneLevel(List<FullyEvaluatedExpression> nextLevel, int depth, int maxDepth, Property property, IProgressMonitor monitor) {
@@ -484,6 +484,7 @@ public final class ExpressionGenerator {
     			Set<IJavaReferenceType> objectInterfaceTypes = new HashSet<IJavaReferenceType>();
 				IImportDeclaration[] imports = ((ICompilationUnit)EclipseUtils.getProject(stack).findElement(new Path(stack.getSourcePath()))).getImports();
     			loadTypesFromMethods(nextLevel, imports);
+    			monitor = SubMonitor.convert(monitor, "Expression generation", nextLevel.size() * nextLevel.size() + nextLevel.size() + imports.length);
     			// Get binary ops.
     			// We use string comparisons to avoid duplicates, e.g., x+y and y+x.
     			for (TypedExpression l : nextLevel) {
@@ -560,11 +561,13 @@ public final class ExpressionGenerator {
     						if (l.getExpression().toString().compareTo(r.getExpression().toString()) < 0)
     							for (InfixExpression.Operator op : REF_COMPARE_OPS)
     								addUniqueExpressionToList(curLevel, ExpressionMaker.makeInfix(target, l, op, r, booleanType), depth);
-    						
+    					monitor.worked(1);
     				}
     			}
     			// Get unary ops
     			for (TypedExpression e : nextLevel) {
+    				if (monitor.isCanceled())
+    					throw new OperationCanceledException();
     				// Arithmetic with constants.
     				if (ExpressionMaker.isInt(e.getType()) && isHelpfulType(intType, depth, maxDepth)
     						&& e.getExpression().getProperty("isConstant") == null) {
@@ -598,6 +601,7 @@ public final class ExpressionGenerator {
     				// Collect the class and interface types we've seen.
     				if (ExpressionMaker.isObjectOrInterface(e.getType()))
     					objectInterfaceTypes.add((IJavaReferenceType)e.getType());
+    				monitor.worked(1);
     			}
     			// Extra things
     			{
@@ -633,6 +637,7 @@ public final class ExpressionGenerator {
     						} else
     							;//System.err.println("I cannot get the class of the import " + fullName);
     					}
+    					monitor.worked(1);
     				}
     			}
     		}
@@ -1084,22 +1089,32 @@ public final class ExpressionGenerator {
 	 * Finds other expressions equivalent to the given ones.
 	 * @param exprs Expressions for which we want to find
 	 * equivalent expressions.
+	 * @param monitor The progress monitor.  The caller should
+	 * not allocate a new progress monitor; this method will.
 	 * @return Expressions that are equivalent to the given
 	 * ones.  Note that the result is disjoint from the input.
 	 * @throws DebugException
 	 */
-	private ArrayList<EvaluatedExpression> expandEquivalences(ArrayList<FullyEvaluatedExpression> exprs) throws DebugException {
+	private ArrayList<EvaluatedExpression> expandEquivalences(ArrayList<FullyEvaluatedExpression> exprs, IProgressMonitor monitor) throws DebugException {
 		Set<Value> values = new HashSet<Value>();
 		Set<EvaluatedExpression> newlyExpanded = new HashSet<EvaluatedExpression>();
+		int totalWork = 0;  // This is just an estimate of the total worked used for the progress monitor; it may miss some elements.
 		for (EvaluatedExpression result: exprs) {
 			Value value = result.getWrapperValue();
 			addEquivalentExpressionOnlyIfNewValue(result, value);  // Demonstrated primitive values are new, since those are used but not put into the equivalences map.
-			values.add(value);
+			boolean added = values.add(value);
+			if (added)
+				totalWork += equivalences.get(value).size();
 		}
+		monitor = SubMonitor.convert(monitor, "Equivalence expansions", totalWork);
 		ArrayList<EvaluatedExpression> results = new ArrayList<EvaluatedExpression>();
 		for (Value value: values) {
-			for (TypedExpression expr : new ArrayList<TypedExpression>(equivalences.get(value)))  // Make a copy since we'll probably add expressions to this.
+			for (TypedExpression expr : new ArrayList<TypedExpression>(equivalences.get(value))) {  // Make a copy since we'll probably add expressions to this.
+				if (monitor.isCanceled())
+					throw new OperationCanceledException();
 				expandEquivalencesRec(expr.getExpression(), newlyExpanded);
+				monitor.worked(1);
+			}
 			for (EvaluatedExpression expr: getEquivalentExpressions(value, null, typeConstraint))
 				if (typeConstraint.isFulfilledBy(expr.getType(), subtypeChecker, typeCache, stack, target))
 					results.add(expr);

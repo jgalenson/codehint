@@ -11,7 +11,6 @@ import java.util.Map.Entry;
 import java.util.Set;
 
 import org.eclipse.core.runtime.IProgressMonitor;
-import org.eclipse.core.runtime.SubMonitor;
 import org.eclipse.debug.core.DebugException;
 import org.eclipse.jdt.core.dom.AST;
 import org.eclipse.jdt.core.dom.ASTNode;
@@ -394,7 +393,7 @@ public final class ExpressionSkeleton {
 	 * @param extraDepth Extra depth to search.
 	 * @param synthesisDialog The synthesis dialog to pass valid expressions.
 	 * @param monitor The progress monitor.
-	 * @return Expressions that satisfy this skeletonn and the pdspec.
+	 * @return Expressions that satisfy this skeleton and the pdspec.
 	 */
 	public ArrayList<FullyEvaluatedExpression> synthesize(Property property, IJavaType varStaticType, int extraDepth, InitialSynthesisDialog synthesisDialog, IProgressMonitor monitor) {
 		try {
@@ -407,8 +406,7 @@ public final class ExpressionSkeleton {
 			else {
 				monitor.beginTask("Skeleton generation", holeInfos.size() + 2);
 				ArrayList<TypedExpression> exprs = SkeletonFiller.fillSkeleton(expression, typeConstraint, extraDepth, holeInfos, stack, target, evalManager, expressionGenerator, subtypeChecker, typeCache, monitor);
-				SubMonitor evalMonitor = SubMonitor.convert(monitor, "Expression evaluation", exprs.size());
-				results = evalManager.evaluateExpressions(exprs, property, varStaticType, synthesisDialog, evalMonitor);
+				results = evalManager.evaluateExpressions(exprs, property, varStaticType, synthesisDialog, monitor);
 				EclipseUtils.log("Synthesis found " + exprs.size() + " expressions of which " + results.size() + " were valid and took " + (System.currentTimeMillis() - startTime) + " milliseconds.");
 		    	monitor.done();
 			}
@@ -925,7 +923,6 @@ public final class ExpressionSkeleton {
 				SimpleName name = (SimpleName)node;
 				if (holeInfos.containsKey(name.getIdentifier())) {  // This is a hole.
 					HoleInfo holeInfo = holeInfos.get(name.getIdentifier());
-					SubMonitor childMonitor = SubMonitor.convert(monitor, "Hole generation and evaluation", 1);
 					assert !holeInfo.isNegative();  // TODO: Use negative arg information.
 					// TODO: Optimization: If this is the only hole, evaluate the skeleton directly?
 					// TODO: Improve heuristics to reduce search space when too many holes.
@@ -951,9 +948,9 @@ public final class ExpressionSkeleton {
 								fakeTypedHoleInfos.add(new TypedExpression(e, type));
 							}
 							// Evaluate all the expressions.
-							values = evalManager.evaluateExpressions(fakeTypedHoleInfos, null, null, null, childMonitor);
+							values = evalManager.evaluateExpressions(fakeTypedHoleInfos, null, null, null, monitor);
 						} else  // If the user did not provide potential expressions, synthesize some.
-							values = expressionGenerator.generateExpression(null, curConstraint, null, childMonitor, (holeInfos.size() == 1 ? SEARCH_DEPTH : SEARCH_DEPTH - 1) + extraDepth);
+							values = expressionGenerator.generateExpression(null, curConstraint, null, monitor, (holeInfos.size() == 1 ? SEARCH_DEPTH : SEARCH_DEPTH - 1) + extraDepth);
 						// Group the expressions by their type.
 						Map<String, ArrayList<EvaluatedExpression>> valuesByType = new HashMap<String, ArrayList<EvaluatedExpression>>();
 						List<IJavaType> resultTypes = new ArrayList<IJavaType>(values.size());

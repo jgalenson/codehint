@@ -9,6 +9,7 @@ import java.util.concurrent.Semaphore;
 
 import org.eclipse.core.runtime.IProgressMonitor;
 import org.eclipse.core.runtime.OperationCanceledException;
+import org.eclipse.core.runtime.SubMonitor;
 import org.eclipse.debug.core.DebugEvent;
 import org.eclipse.debug.core.DebugException;
 import org.eclipse.jdt.core.dom.AST;
@@ -124,14 +125,14 @@ public final class EvaluationManager {
 	 * @param synthesisDialog The synthesis dialog to pass the valid expressions,
 	 * or null if we should not pass anything.
 	 * @param monitor a progress monitor, or null if progress reporting and
-	 * cancellation are not desired.
+	 * cancellation are not desired.  The caller should not allocate a new
+	 * progress monitor; this method will do so.
      * @return a list of non-crashing expressions that satisfy
      * the given property (or all that do not crash if it is null).
 	 */
 	public ArrayList<FullyEvaluatedExpression> evaluateExpressions(ArrayList<? extends TypedExpression> exprs, Property property, IJavaType varType, InitialSynthesisDialog synthesisDialog, IProgressMonitor monitor) {
 		try {
 			this.synthesisDialog = synthesisDialog;
-			this.monitor = monitor;
 			//batchSize = exprs.size() >= 2 * BATCH_SIZE ? BATCH_SIZE : exprs.size() >= MIN_NUM_BATCHES ? exprs.size() / MIN_NUM_BATCHES : 1;
 			validVal = property == null ? "true" : property.getReplacedString("_$curValue", stack);
 			preVarsString = getPreVarsString(stack, property);
@@ -140,7 +141,9 @@ public final class EvaluationManager {
     		propertyPreconditions = property instanceof ValueProperty ? "" : pf.getPreconditions();  // TODO: This will presumably fail if the user does their own null check.
     		boolean validateStatically = property == null || property instanceof PrimitiveValueProperty || property instanceof TypeProperty || (property instanceof ValueProperty && ((ValueProperty)property).getValue().isNull()) || (property instanceof ObjectValueProperty && "java.lang.String".equals(((ObjectValueProperty)property).getValue().getJavaType().getName()));
 			Map<String, ArrayList<TypedExpression>> expressionsByType = getNonKnownCrashingExpressionByType(exprs);
-			ArrayList<FullyEvaluatedExpression> validExprs = new ArrayList<FullyEvaluatedExpression>(exprs.size());
+			int numExpressions = getNumExpressions(expressionsByType);
+			this.monitor = SubMonitor.convert(monitor, "Expression evaluation", numExpressions);
+			ArrayList<FullyEvaluatedExpression> validExprs = new ArrayList<FullyEvaluatedExpression>(numExpressions);
 			for (Map.Entry<String, ArrayList<TypedExpression>> expressionsOfType: expressionsByType.entrySet()) {
 				String type = EclipseUtils.sanitizeTypename(expressionsOfType.getKey());
 				boolean arePrimitives = !"Object".equals(type);
@@ -183,6 +186,19 @@ public final class EvaluationManager {
 			expressionsByType.get("Object").addAll(nulls);
 		}
 		return expressionsByType;
+	}
+	
+	/**
+	 * Gets the total number of expressions in the map.
+	 * @param expressionsByType A map of types to expressions
+	 * of that type.
+	 * @return The total number of expressions.
+	 */
+	private static int getNumExpressions(Map<String, ArrayList<TypedExpression>> expressionsByType) {
+		int numExpressions = 0;
+		for (ArrayList<TypedExpression> exprs: expressionsByType.values())
+			numExpressions += exprs.size();
+		return numExpressions;
 	}
 
 	/**
@@ -312,15 +328,18 @@ public final class EvaluationManager {
 		    	if (compiled.hasErrors()) {
 		    		// Check the expressions one-by-one and remove those that crash.
 		    		// We can crash thanks to generics and erasure (e.g., by passing an Object to List<String>.set).
-		    		boolean deleted = false;
+		    		int numDeleted = 0;
 		    		for (int j = i - 1; j >= startIndex; j--) {
-		    			if (engine.getCompiledExpression(exprs.get(j).getExpression().toString(), stack).hasErrors()) {
+		    			String exprStr = exprs.get(j).getExpression().toString();
+		    			if (engine.getCompiledExpression(exprStr, stack).hasErrors()) {
+		    				crashingExpressions.add(exprStr);
 		    				exprs.remove(j);
-		    				deleted = true;
+		    				numDeleted++;
 		    			}
 		    		}
-		    		if (!deleted)  // In this case, the error is probably our fault and not due to erasure.
+		    		if (numDeleted == 0)  // In this case, the error is probably our fault and not due to erasure.
 		    			throw new EvaluationError("Evaluation error: " + "The following errors were encountered during evaluation.\n\n" + EclipseUtils.getCompileErrors(compiled));
+		    		monitor.worked(numDeleted);
 		    		evaluateExpressions(exprs, validExprs, type, arePrimitives, property, validateStatically, valuesField, startIndex);
 		    		return;
 		    	}
@@ -348,7 +367,7 @@ public final class EvaluationManager {
 	    	/*System.out.println("Evaluated " + count + " expressions.");
 	    	if (hasError)
 	    		System.out.println("Crashed on " + exprs.get(startIndex + count));*/
-	    	monitor.worked(work);
+	    	monitor.worked(work + numToSkip);
 	    	int nextStartIndex = startIndex + work + numToSkip;
 	    	if (nextStartIndex < exprs.size())
 	    		evaluateExpressions(exprs, validExprs, type, arePrimitives, property, validateStatically, valuesField, nextStartIndex);
