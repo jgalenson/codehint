@@ -822,7 +822,7 @@ public final class ExpressionGenerator {
 	 * method being called.
 	 */
 	private static void pruneManyArgCalls(ArrayList<ArrayList<EvaluatedExpression>> allPossibleActuals, int curMaxArgDepth, String methodToString) {
-		int numCombinations = getNumCalls(allPossibleActuals);
+		long numCombinations = getNumCalls(allPossibleActuals);
 		if (numCombinations > MAX_NUM_METHOD_CALLS) {
 			for (ArrayList<EvaluatedExpression> possibleActuals: allPossibleActuals)
 				for (Iterator<EvaluatedExpression> it = possibleActuals.iterator(); it.hasNext(); )
@@ -840,8 +840,8 @@ public final class ExpressionGenerator {
 	 * actuals for each argument.
 	 * @return The number of calls with the given possible actuals.
 	 */
-	private static int getNumCalls(ArrayList<ArrayList<EvaluatedExpression>> allPossibleActuals) {
-		int total = 1;
+	private static long getNumCalls(ArrayList<ArrayList<EvaluatedExpression>> allPossibleActuals) {
+		long total = 1L;
 		for (ArrayList<EvaluatedExpression> possibleActuals: allPossibleActuals)
 			total *= possibleActuals.size();
 		return total;
