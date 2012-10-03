@@ -47,6 +47,7 @@ import org.eclipse.jdt.debug.core.IJavaValue;
 import org.eclipse.jdt.debug.core.IJavaVariable;
 import org.eclipse.jdt.internal.debug.core.model.JDIStackFrame;
 import org.eclipse.jdt.internal.debug.core.model.JDIType;
+import org.eclipse.swt.widgets.Display;
 
 import codehint.dialogs.InitialSynthesisDialog;
 import codehint.expreval.EvaluatedExpression;
@@ -307,7 +308,7 @@ public final class ExpressionGenerator {
 	 * current stack frame satisfies the current pdspec.
 	 * @throws DebugException 
 	 */
-	private ArrayList<FullyEvaluatedExpression> genAllExprs(int maxDepth, Property property, InitialSynthesisDialog synthesisDialog, IProgressMonitor monitor) throws DebugException {
+	private ArrayList<FullyEvaluatedExpression> genAllExprs(int maxDepth, Property property, final InitialSynthesisDialog synthesisDialog, IProgressMonitor monitor) throws DebugException {
 		ArrayList<TypedExpression> curLevel = null;
 		ArrayList<FullyEvaluatedExpression> nextLevel = new ArrayList<FullyEvaluatedExpression>(0);
 		for (int depth = 0; depth <= maxDepth; depth++) {
@@ -319,9 +320,14 @@ public final class ExpressionGenerator {
 		ArrayList<FullyEvaluatedExpression> results = evaluateExpressions(curLevel, property, synthesisDialog, monitor, maxDepth);
 		
 		// Expand equivalences.
-    	ArrayList<EvaluatedExpression> extraResults = expandEquivalences(results, monitor);
-    	// Evaluate them.  We use a null pdspec since they are all equivalent to a valid expression, but we might need to get their toString.  This also reports them to the gui.
-    	results.addAll(evalManager.evaluateExpressions(extraResults, null, null, synthesisDialog, monitor));
+    	final ArrayList<FullyEvaluatedExpression> extraResults = expandEquivalences(results, monitor);
+		Display.getDefault().asyncExec(new Runnable(){
+			@Override
+			public void run() {
+				synthesisDialog.addExpressions(extraResults);
+			}
+		});
+		results.addAll(extraResults);
 		
     	return results;
 	}
@@ -1095,19 +1101,22 @@ public final class ExpressionGenerator {
 	 * ones.  Note that the result is disjoint from the input.
 	 * @throws DebugException
 	 */
-	private ArrayList<EvaluatedExpression> expandEquivalences(ArrayList<FullyEvaluatedExpression> exprs, IProgressMonitor monitor) throws DebugException {
+	private ArrayList<FullyEvaluatedExpression> expandEquivalences(ArrayList<FullyEvaluatedExpression> exprs, IProgressMonitor monitor) throws DebugException {
 		Set<Value> values = new HashSet<Value>();
 		Set<EvaluatedExpression> newlyExpanded = new HashSet<EvaluatedExpression>();
+		Map<Value, String> toStrings = new HashMap<Value, String>();
 		int totalWork = 0;  // This is just an estimate of the total worked used for the progress monitor; it may miss some elements.
-		for (EvaluatedExpression result: exprs) {
+		for (FullyEvaluatedExpression result: exprs) {
 			Value value = result.getWrapperValue();
 			addEquivalentExpressionOnlyIfNewValue(result, value);  // Demonstrated primitive values are new, since those are used but not put into the equivalences map.
 			boolean added = values.add(value);
-			if (added)
+			if (added) {
+				toStrings.put(value, result.getResultString());
 				totalWork += equivalences.get(value).size();
+			}
 		}
 		monitor = SubMonitor.convert(monitor, "Equivalence expansions", totalWork);
-		ArrayList<EvaluatedExpression> results = new ArrayList<EvaluatedExpression>();
+		ArrayList<FullyEvaluatedExpression> results = new ArrayList<FullyEvaluatedExpression>();
 		for (Value value: values) {
 			for (TypedExpression expr : new ArrayList<TypedExpression>(equivalences.get(value))) {  // Make a copy since we'll probably add expressions to this.
 				if (monitor.isCanceled())
@@ -1115,9 +1124,10 @@ public final class ExpressionGenerator {
 				expandEquivalencesRec(expr.getExpression(), newlyExpanded);
 				monitor.worked(1);
 			}
+			String valueString = toStrings.get(value);
 			for (EvaluatedExpression expr: getEquivalentExpressions(value, null, typeConstraint))
 				if (typeConstraint.isFulfilledBy(expr.getType(), subtypeChecker, typeCache, stack, target))
-					results.add(expr);
+					results.add(new FullyEvaluatedExpression(expr.getExpression(), expr.getType(), expr.getWrapperValue(), valueString));
 		}
 		results.removeAll(exprs);
 		return results;
