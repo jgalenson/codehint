@@ -406,6 +406,7 @@ public final class ExpressionSkeleton {
 			else {
 				monitor.beginTask("Skeleton generation", holeInfos.size() + 2);
 				ArrayList<TypedExpression> exprs = SkeletonFiller.fillSkeleton(expression, typeConstraint, extraDepth, holeInfos, stack, target, evalManager, expressionGenerator, subtypeChecker, typeCache, monitor);
+				EclipseUtils.log("Fitting " + exprs.size() + " potential expressions with extra depth " + extraDepth + " into skeleton " + sugaredString + ".");
 				results = evalManager.evaluateExpressions(exprs, property, varStaticType, synthesisDialog, monitor);
 				EclipseUtils.log("Synthesis found " + exprs.size() + " expressions of which " + results.size() + " were valid and took " + (System.currentTimeMillis() - startTime) + " milliseconds.");
 		    	monitor.done();
@@ -1226,7 +1227,7 @@ public final class ExpressionSkeleton {
 			int count = isListHole ? 1 : arguments.size();
 			ArrayList<ExpressionsAndTypeConstraints> argResults = new ArrayList<ExpressionsAndTypeConstraints>(count);
 			for (int i = 0; i < count; i++) {
-				Expression arg = (Expression)arguments.get(0);
+				Expression arg = (Expression)arguments.get(i);
 				List<IJavaType> argConstraints = new ArrayList<IJavaType>();
 				for (ArrayList<Method> methods: methodsByType.values())
 					for (Method method: methods) {

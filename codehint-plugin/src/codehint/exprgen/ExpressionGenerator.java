@@ -321,12 +321,14 @@ public final class ExpressionGenerator {
 		
 		// Expand equivalences.
     	final ArrayList<FullyEvaluatedExpression> extraResults = expandEquivalences(results, monitor);
-		Display.getDefault().asyncExec(new Runnable(){
-			@Override
-			public void run() {
-				synthesisDialog.addExpressions(extraResults);
-			}
-		});
+    	if (synthesisDialog != null) {
+			Display.getDefault().asyncExec(new Runnable(){
+				@Override
+				public void run() {
+					synthesisDialog.addExpressions(extraResults);
+				}
+			});
+    	}
 		results.addAll(extraResults);
 		
     	return results;
