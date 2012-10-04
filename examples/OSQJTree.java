@@ -18,7 +18,7 @@ public class OSQJTree {
 	 * A JTree displays data in a hierarchical form, where child nodes can be hidden or expanded as necessary.
 	 * When run, this code will make a small JTree that will pop up on the screen.
 	 */
-	private static Window configureTree(final JTree jtree) {
+	private static void configureTree(final JTree jtree) {
 		
 		/*
 		 * This adds a mouse handler that triggers whenever the use clicks on the tree.
@@ -31,19 +31,14 @@ public class OSQJTree {
 				
 				int clickedRow = -1;
 				// TO WRITE: Set clickedRow to the index of the clicked element.
-				
-				
-				
 				System.out.println(clickedRow);
+				
+				
+				Object x = null;
+				// TO WRITE: Set x to somehow represent the clicked element.
+				System.out.println(x);
 			}
 		});
-		
-		Window window = null;
-		// TO WRITE: Set window to the window containing this tree.
-		
-		
-		
-		return window;
 	}
 	
 	public static void main(String[] args) {

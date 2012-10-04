@@ -2,9 +2,11 @@ package codehint;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -616,16 +618,22 @@ public class Synthesizer {
 	    }
 	    
 	    /**
-	     * Gets a nice string representing the legal values.
+	     * Gets a nice string representing the legal values
+	     * with duplicates removed.
 	     * @param exprs The legal strings.
 	     * @return A nice string representation of the legal values.
 	     */
 	    private static String getLegalValues(List<FullyEvaluatedExpression> exprs) {
+	    	// Remove duplicates.
+	    	Set<String> values = new HashSet<String>();
+	    	for (FullyEvaluatedExpression e: exprs)
+	    		values.add(e.getResultString());
+	    	// Build a string.
 	    	StringBuilder sb = new StringBuilder();
-	    	for (FullyEvaluatedExpression e: exprs) {
+	    	for (String value: values) {
 	    		if (sb.length() > 0)
 	    			sb.append(", ");
-	    		sb.append(Utils.truncate(e.getResultString(), 50));
+	    		sb.append(Utils.truncate(value, 50));
 	    	}
 	    	return sb.toString();
 	    }
