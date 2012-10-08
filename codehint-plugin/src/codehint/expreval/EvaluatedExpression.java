@@ -1,6 +1,7 @@
 package codehint.expreval;
 
 import org.eclipse.jdt.core.dom.Expression;
+import org.eclipse.jdt.debug.core.IJavaThread;
 import org.eclipse.jdt.debug.core.IJavaType;
 import org.eclipse.jdt.debug.core.IJavaValue;
 
@@ -35,11 +36,11 @@ public class EvaluatedExpression extends TypedExpression {
 		return value;
 	}
 	
-	public static TypedExpression makeTypedOrEvaluatedExpression(Expression expression, IJavaType type, IJavaValue value) {
+	public static TypedExpression makeTypedOrEvaluatedExpression(Expression expression, IJavaType type, IJavaValue value, IJavaThread thread) {
 		if (value == null)
 			return new TypedExpression(expression, type);
 		else
-			return new EvaluatedExpression(expression, type, new Value(value));
+			return new EvaluatedExpression(expression, type, new Value(value, thread));
 	}
 
 	@Override

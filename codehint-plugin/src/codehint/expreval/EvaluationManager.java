@@ -32,6 +32,7 @@ import org.eclipse.jdt.debug.core.IJavaDebugTarget;
 import org.eclipse.jdt.debug.core.IJavaFieldVariable;
 import org.eclipse.jdt.debug.core.IJavaPrimitiveValue;
 import org.eclipse.jdt.debug.core.IJavaStackFrame;
+import org.eclipse.jdt.debug.core.IJavaThread;
 import org.eclipse.jdt.debug.core.IJavaType;
 import org.eclipse.jdt.debug.core.IJavaValue;
 import org.eclipse.jdt.debug.eval.IAstEvaluationEngine;
@@ -82,6 +83,7 @@ public final class EvaluationManager {
 	private final IJavaStackFrame stack;
 	private final IAstEvaluationEngine engine;
 	private final IJavaDebugTarget target;
+	private final IJavaThread thread;
 	private final SubtypeChecker subtypeChecker;
 	private final IJavaClassType implType;
 	private final IJavaFieldVariable validField;
@@ -101,6 +103,7 @@ public final class EvaluationManager {
 		this.stack = stack;
 		this.engine = EclipseUtils.getASTEvaluationEngine(stack);
 		this.target = (IJavaDebugTarget)stack.getDebugTarget();
+		this.thread = (IJavaThread)stack.getThread();
 		this.subtypeChecker = subtypeChecker;
 		this.implType = (IJavaClassType)EclipseUtils.getTypeAndLoadIfNeeded(IMPL_NAME, stack, target, typeCache);
 		try {
@@ -441,7 +444,7 @@ public final class EvaluationManager {
 				resultString = getResultString(curValue, toStrings, evalIndex);
     		}
 			if (valid)
-				validExprs.add(new FullyEvaluatedExpression(typedExpr.getExpression(), typedExpr.getType(), new Value(curValue), resultString));
+				validExprs.add(new FullyEvaluatedExpression(typedExpr.getExpression(), typedExpr.getType(), new Value(curValue, thread), resultString));
 			if (typedExpr.getValue() == null || !(property instanceof PrimitiveValueProperty || property instanceof TypeProperty))
 				evalIndex++;
 		}
