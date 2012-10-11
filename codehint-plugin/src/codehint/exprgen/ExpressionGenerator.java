@@ -982,8 +982,8 @@ public final class ExpressionGenerator {
 	
 	/**
 	 * Adds the given expression to the given list
-	 * if it has the right depth and if it is unique
-	 * wrt UniqueASTChecker.
+	 * if it has the right depth, including checking
+	 * uniqueness wrt UniqueASTChecker.
 	 * We need to check the depth since genAllExprs
 	 * returns is cumulative, so when the max depth is 2,
 	 * at depth 0 nextLevel will be a superset of the
@@ -995,7 +995,7 @@ public final class ExpressionGenerator {
 	 */
 	private void addUniqueExpressionToList(List<TypedExpression> list, TypedExpression e, int depth) {
 		// We only add constructors at max depth, but they might actually be lower depth.
-		if (e != null && isUnique(e) && (getDepth(e) == depth || (ExpressionMaker.getMethod(e.getExpression()) != null && ExpressionMaker.getMethod(e.getExpression()).isConstructor()))) {
+		if (e != null && (getDepth(e) + (isUnique(e) ? 0 : 1) == depth || (ExpressionMaker.getMethod(e.getExpression()) != null && ExpressionMaker.getMethod(e.getExpression()).isConstructor()))) {
 			Value value = e.getWrapperValue();
 			if (value != null && equivalences.containsKey(value))
 				addEquivalentExpression(equivalences.get(value), (EvaluatedExpression)e);
