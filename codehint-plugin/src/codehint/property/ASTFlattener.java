@@ -50,6 +50,15 @@ public abstract class ASTFlattener extends ASTVisitor {
 	}
 	
 	protected StringBuilder flatten(ASTNode node) {
+		if (node instanceof Expression)
+			return flatten((Expression)node);
+		else if (node instanceof Type)
+			return flatten((Type)node);
+		 else
+			throw new RuntimeException("Unexpected expression type " + node.getClass().toString());
+	}
+	
+	protected StringBuilder flatten(Expression node) {
 		if (node instanceof ArrayAccess) {
 			return flatten((ArrayAccess)node);
 		} else if (node instanceof BooleanLiteral) {
@@ -94,8 +103,6 @@ public abstract class ASTFlattener extends ASTVisitor {
 			return flatten((ThisExpression)node);
 		} else if (node instanceof TypeLiteral) {
 			return flatten((TypeLiteral)node);
-		} else if (node instanceof Type) {
-			return sb.append(node.toString());
 		} else if (node instanceof Assignment) {
 			return flatten((Assignment)node);
 		} else if (node instanceof ArrayCreation) {
@@ -104,6 +111,10 @@ public abstract class ASTFlattener extends ASTVisitor {
 			return flatten((ArrayInitializer)node);
 		} else
 			throw new RuntimeException("Unexpected expression type " + node.getClass().toString());
+	}
+	
+	protected StringBuilder flatten(Type node) {
+		return sb.append(node.toString());
 	}
 	
 	protected StringBuilder flatten(ArrayAccess node) {
@@ -161,7 +172,7 @@ public abstract class ASTFlattener extends ASTVisitor {
 	protected StringBuilder flatten(FieldAccess node) {
 		flatten(node.getExpression());
 		sb.append(".");
-		flatten(node.getName());
+		flatten((Expression)node.getName());
 		return sb;
 	}
 
@@ -191,7 +202,7 @@ public abstract class ASTFlattener extends ASTVisitor {
 			doList(node.typeArguments());
 			sb.append(">");
 		}
-		flatten(node.getName());
+		flatten((Expression)node.getName());
 		sb.append("(");
 		doList(node.arguments());
 		sb.append(")");
@@ -231,7 +242,7 @@ public abstract class ASTFlattener extends ASTVisitor {
 	protected StringBuilder flatten(QualifiedName node) {
 		flatten(node.getQualifier());
 		sb.append(".");
-		flatten(node.getName());
+		flatten((Expression)node.getName());
 		return sb;
 	}
 
@@ -251,7 +262,7 @@ public abstract class ASTFlattener extends ASTVisitor {
 			sb.append(".");
 		}
 		sb.append("super.");
-		flatten(node.getName());
+		flatten((Expression)node.getName());
 		return sb;
 	}
 
@@ -266,7 +277,7 @@ public abstract class ASTFlattener extends ASTVisitor {
 			doList(node.typeArguments());
 			sb.append(">");
 		}
-		flatten(node.getName());
+		flatten((Expression)node.getName());
 		sb.append("(");
 		doList(node.arguments());
 		sb.append(")");

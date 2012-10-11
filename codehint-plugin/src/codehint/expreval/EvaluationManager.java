@@ -266,7 +266,7 @@ public final class EvaluationManager {
 	    	for (i = startIndex; i < exprs.size() && numEvaluated < BATCH_SIZE; i++) {
 	    		TypedExpression curTypedExpr = exprs.get(i);
 	    		Expression curExpr = curTypedExpr.getExpression();
-	    		String curExprStr = curExpr.toString();
+	    		String curExprStr = (new ValueFlattener()).getResult(curExpr);
 	    		IJavaValue curValue = curTypedExpr.getValue();
 	    		if (curValue == null || !validateStatically) {
 		    		NormalPreconditionFinder pf = new NormalPreconditionFinder();
