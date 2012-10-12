@@ -197,21 +197,23 @@ public class Synthesizer {
 				@Override
 				protected IStatus run(IProgressMonitor monitor) {
 					EclipseUtils.log("Beginning synthesis for " + varName + " with property " + property.toString() + " and skeleton " + skeleton.toString() + " with extra depth " + extraDepth + ".");
-					boolean canceled = false;
+					boolean unfinished = false;
 					try {
 						skeleton.synthesize(property, varName, varStaticType, extraDepth, synthesisDialog, synthesisDialog.getProgressMonitor());
 			        	return Status.OK_STATUS;
 					} catch (EvaluationError e) {
+						unfinished = true;
 						return new Status(IStatus.ERROR, Activator.PLUGIN_ID, e.getMessage());
 					} catch (OperationCanceledException e) {
 						EclipseUtils.log("Cancelling synthesis for " + varName + " with property " + property.toString() + " and skeleton " + skeleton.toString() + ".");
-						canceled = true;
+						unfinished = true;
 						return Status.CANCEL_STATUS;
 					} catch (TypeError e) {
 						EclipseUtils.showError("Error", e.getMessage(), null);
+						unfinished = true;
 						return Status.CANCEL_STATUS;
 					} finally {
-						final InitialSynthesisDialog.SynthesisState state = canceled ? InitialSynthesisDialog.SynthesisState.CANCEL : InitialSynthesisDialog.SynthesisState.END;
+						final InitialSynthesisDialog.SynthesisState state = unfinished ? InitialSynthesisDialog.SynthesisState.UNFINISHED : InitialSynthesisDialog.SynthesisState.END;
 						Display.getDefault().asyncExec(new Runnable(){
 							@Override
 							public void run() {

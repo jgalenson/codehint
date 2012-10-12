@@ -298,7 +298,7 @@ public class InitialSynthesisDialog extends SynthesisDialog {
     	}
     }
 	
-	public enum SynthesisState { START, END, CANCEL };
+	public enum SynthesisState { START, END, UNFINISHED };
 	
 	private void setSearchButtonText(String text) {
 		if (!text.equals(searchButton.getText())) {

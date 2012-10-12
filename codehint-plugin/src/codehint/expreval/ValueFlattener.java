@@ -23,8 +23,15 @@ public class ValueFlattener extends ASTFlattener {
 			try {
 				if (value instanceof IJavaPrimitiveValue) {
 					String str = value.toString();
-					if ("C".equals(value.getSignature()))  // Wrap characters in single quotes.
-						return sb.append("'").append(str).append("'");
+					String sig = value.getSignature();
+					if ("C".equals(sig))  // Wrap characters in single quotes.
+						return sb.append('\'').append(str).append('\'');
+					else if ("J".equals(sig))  // A long can be larger than an integer, so we must ensure that Java knows this is a long literal.
+						return sb.append(str).append('L');
+					else if ("F".equals(sig))
+						return sb.append(str).append('f');
+					else if ("D".equals(sig))
+						return sb.append(str).append('d');
 					else
 						return sb.append(str);
 				} else if (value.isNull())
