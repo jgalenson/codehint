@@ -239,6 +239,7 @@ public final class ExpressionGenerator {
 	//private final Map<Pair<TypeConstraint, Integer>, Pair<ArrayList<FullyEvaluatedExpression>, ArrayList<TypedExpression>>> cachedExprs;
 
 	private TypeConstraint typeConstraint;
+	private String varName;
 	private Map<Value, ArrayList<EvaluatedExpression>> equivalences;
 	
 	public ExpressionGenerator(IJavaDebugTarget target, IJavaStackFrame stack, SubtypeChecker subtypeChecker, TypeCache typeCache, EvaluationManager evalManager) {
@@ -267,6 +268,7 @@ public final class ExpressionGenerator {
 	 * @param property The property entered by the user.
 	 * @param typeConstraint The constraint on the type of the expressions
 	 * being generated.
+	 * @param varName The name of the variable being assigned.
 	 * @param synthesisDialog The synthesis dialog to pass the valid expressions,
 	 * or null if we should not pass anything.
 	 * @param monitor Progress monitor.
@@ -275,11 +277,12 @@ public final class ExpressionGenerator {
 	 * to the given depth) whose result in the current stack frame satisfies
 	 * the given pdspec.
 	 */
-	public ArrayList<FullyEvaluatedExpression> generateExpression(Property property, TypeConstraint typeConstraint, InitialSynthesisDialog synthesisDialog, IProgressMonitor monitor, int maxExprDepth) {
+	public ArrayList<FullyEvaluatedExpression> generateExpression(Property property, TypeConstraint typeConstraint, String varName, InitialSynthesisDialog synthesisDialog, IProgressMonitor monitor, int maxExprDepth) {
 		monitor.beginTask("Expression generation and evaluation", IProgressMonitor.UNKNOWN);
 		
 		try {
 			this.typeConstraint = typeConstraint;
+			this.varName = varName;
 			this.equivalences = new HashMap<Value, ArrayList<EvaluatedExpression>>();
 			
 			ArrayList<FullyEvaluatedExpression> results = genAllExprs(maxExprDepth, property, synthesisDialog, monitor);
@@ -484,13 +487,7 @@ public final class ExpressionGenerator {
     				addUniqueExpressionToList(curLevel, ExpressionMaker.makeNumber("0", zero, intType, thread), depth);
     			if (depth < maxDepth || (hasObject && !(typeConstraint instanceof MethodConstraint) && !(typeConstraint instanceof FieldConstraint)))  // If we have a method or field constraint, we can't have null.
     				addUniqueExpressionToList(curLevel, ExpressionMaker.makeNull(target, thread), depth);
-	    		// Get variables of helpful types.
-				IJavaVariable[] locals = stack.getLocalVariables();
-				for (IJavaVariable l : locals) {
-					IJavaType lType = EclipseUtils.getTypeOfVariableAndLoadIfNeeded(l, stack);
-					if (isHelpfulType(lType, depth, maxDepth))
-						addUniqueExpressionToList(curLevel, ExpressionMaker.makeVar(l.getName(), (IJavaValue)l.getValue(), lType, false, thread), depth);
-				}
+	    		addLocals(depth, maxDepth, curLevel);
 				// Add "this" if we're not in a static context.
 				if (isHelpfulType(thisType, depth, maxDepth) && !stack.isStatic())
 					addUniqueExpressionToList(curLevel, ExpressionMaker.makeThis(stack.getThis(), thisType, thread), depth);
@@ -499,6 +496,7 @@ public final class ExpressionGenerator {
 				IImportDeclaration[] imports = ((ICompilationUnit)EclipseUtils.getProject(stack).findElement(new Path(stack.getSourcePath()))).getImports();
     			loadTypesFromMethods(nextLevel, imports);
     			monitor = SubMonitor.convert(monitor, "Expression generation", nextLevel.size() * nextLevel.size() + nextLevel.size() + imports.length);
+    			addLocals(depth, maxDepth, curLevel);
     			// Get binary ops.
     			// We use string comparisons to avoid duplicates, e.g., x+y and y+x.
     			for (TypedExpression l : nextLevel) {
@@ -666,6 +664,23 @@ public final class ExpressionGenerator {
 			throw new RuntimeException("I cannot compute all valid expressions.");
 		} catch (JavaModelException e) {
 			throw new RuntimeException(e);
+		}
+	}
+
+	/**
+	 * Adds the local variables of the correct depth to the given list.
+	 * The variable that is being assigned will have depth 1, since
+	 * the line "x = x" is not unique.
+	 * @param depth The current depth.
+	 * @param maxDepth The maximum search depth.
+	 * @param curLevel The current list of expressions being generated.
+	 * @throws DebugException
+	 */
+	private void addLocals(int depth, int maxDepth, ArrayList<TypedExpression> curLevel) throws DebugException {
+		for (IJavaVariable l : stack.getLocalVariables()) {
+			IJavaType lType = EclipseUtils.getTypeOfVariableAndLoadIfNeeded(l, stack);
+			if (isHelpfulType(lType, depth, maxDepth))
+				addUniqueExpressionToList(curLevel, ExpressionMaker.makeVar(l.getName(), (IJavaValue)l.getValue(), lType, false, thread), depth);
 		}
 	}
 	
@@ -1368,8 +1383,10 @@ public final class ExpressionGenerator {
     	private final Set<String> seen;
     	private boolean isUnique;
     	
-    	public UniqueASTChecker() {
+    	public UniqueASTChecker(String lhsVarName) {
     		seen = new HashSet<String>();
+    		if (lhsVarName != null)
+    			seen.add(lhsVarName);
     		isUnique = true;
     	}
     	
@@ -1403,8 +1420,8 @@ public final class ExpressionGenerator {
      * @param e The expression to check.
      * @return Whether or not the expression is unique wrt UniqueASTChecker.
      */
-    private static boolean isUnique(TypedExpression e) {
-    	UniqueASTChecker checker = new UniqueASTChecker();
+    private boolean isUnique(TypedExpression e) {
+    	UniqueASTChecker checker = new UniqueASTChecker(varName);
     	e.getExpression().accept(checker);
     	return checker.isUnique();
     }

@@ -390,20 +390,21 @@ public final class ExpressionSkeleton {
 	/**
 	 * Synthesizes expressions that satisfy this skeleton and the user's pdspec.
 	 * @param property The pdspec entered by the user.
+	 * @param varName The name of the variable being assigned.
 	 * @param varStaticType The static type of the variable being assigned.
 	 * @param extraDepth Extra depth to search.
 	 * @param synthesisDialog The synthesis dialog to pass valid expressions.
 	 * @param monitor The progress monitor.
 	 * @return Expressions that satisfy this skeleton and the pdspec.
 	 */
-	public ArrayList<FullyEvaluatedExpression> synthesize(Property property, IJavaType varStaticType, int extraDepth, InitialSynthesisDialog synthesisDialog, IProgressMonitor monitor) {
+	public ArrayList<FullyEvaluatedExpression> synthesize(Property property, String varName, IJavaType varStaticType, int extraDepth, InitialSynthesisDialog synthesisDialog, IProgressMonitor monitor) {
 		try {
 			long startTime = System.currentTimeMillis();
 			// TODO: Improve progress monitor so it shows you which evaluation it is.
 			TypeConstraint typeConstraint = getInitialTypeConstraint(varStaticType, property);
 			ArrayList<FullyEvaluatedExpression> results;
 			if (HOLE_SYNTAX.equals(sugaredString))  // Optimization: Optimize special case of "??" skeleton by simply calling old ExprGen code directly.
-				results = expressionGenerator.generateExpression(property, typeConstraint, synthesisDialog, monitor, SEARCH_DEPTH + extraDepth);
+				results = expressionGenerator.generateExpression(property, typeConstraint, varName, synthesisDialog, monitor, SEARCH_DEPTH + extraDepth);
 			else {
 				monitor.beginTask("Skeleton generation", holeInfos.size() + 2);
 				ArrayList<TypedExpression> exprs = SkeletonFiller.fillSkeleton(expression, typeConstraint, extraDepth, holeInfos, stack, target, evalManager, expressionGenerator, subtypeChecker, typeCache, monitor);
@@ -954,7 +955,7 @@ public final class ExpressionSkeleton {
 							// Evaluate all the expressions.
 							values = evalManager.evaluateExpressions(fakeTypedHoleInfos, null, null, null, monitor);
 						} else  // If the user did not provide potential expressions, synthesize some.
-							values = expressionGenerator.generateExpression(null, curConstraint, null, monitor, (holeInfos.size() == 1 ? SEARCH_DEPTH : SEARCH_DEPTH - 1) + extraDepth);
+							values = expressionGenerator.generateExpression(null, curConstraint, null, null, monitor, (holeInfos.size() == 1 ? SEARCH_DEPTH : SEARCH_DEPTH - 1) + extraDepth);
 						// Group the expressions by their type.
 						Map<String, ArrayList<EvaluatedExpression>> valuesByType = new HashMap<String, ArrayList<EvaluatedExpression>>();
 						List<IJavaType> resultTypes = new ArrayList<IJavaType>(values.size());

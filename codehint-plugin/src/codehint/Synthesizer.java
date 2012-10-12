@@ -199,7 +199,7 @@ public class Synthesizer {
 					EclipseUtils.log("Beginning synthesis for " + varName + " with property " + property.toString() + " and skeleton " + skeleton.toString() + " with extra depth " + extraDepth + ".");
 					boolean canceled = false;
 					try {
-						skeleton.synthesize(property, varStaticType, extraDepth, synthesisDialog, synthesisDialog.getProgressMonitor());
+						skeleton.synthesize(property, varName, varStaticType, extraDepth, synthesisDialog, synthesisDialog.getProgressMonitor());
 			        	return Status.OK_STATUS;
 					} catch (EvaluationError e) {
 						return new Status(IStatus.ERROR, Activator.PLUGIN_ID, e.getMessage());
