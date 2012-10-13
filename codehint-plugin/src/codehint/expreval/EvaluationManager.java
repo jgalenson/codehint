@@ -16,12 +16,8 @@ import org.eclipse.jdt.core.dom.AST;
 import org.eclipse.jdt.core.dom.ASTNode;
 import org.eclipse.jdt.core.dom.ASTParser;
 import org.eclipse.jdt.core.dom.ASTVisitor;
-import org.eclipse.jdt.core.dom.ArrayAccess;
-import org.eclipse.jdt.core.dom.ClassInstanceCreation;
-import org.eclipse.jdt.core.dom.ConditionalExpression;
 import org.eclipse.jdt.core.dom.Expression;
 import org.eclipse.jdt.core.dom.FieldAccess;
-import org.eclipse.jdt.core.dom.InfixExpression;
 import org.eclipse.jdt.core.dom.MethodInvocation;
 import org.eclipse.jdt.core.dom.NullLiteral;
 import org.eclipse.jdt.core.dom.SimpleName;
@@ -269,9 +265,6 @@ public final class EvaluationManager {
 	    		String curExprStr = (new ValueFlattener()).getResult(curExpr);
 	    		IJavaValue curValue = curTypedExpr.getValue();
 	    		if (curValue == null || !validateStatically) {
-		    		NormalPreconditionFinder pf = new NormalPreconditionFinder();
-		    		curExpr.accept(pf);
-		    		String preconditions = pf.getPreconditions();
 		    		StringBuilder curString = new StringBuilder();
 		    		// TODO: If the user has variables with the same names as the ones I introduce, this will crash....
 		    		String curRHSStr = curExprStr;
@@ -294,11 +287,7 @@ public final class EvaluationManager {
 		    		if (hasPropertyPrecondition && !validateStatically)
 		    			curString.append(" }\n ");
 		    		curString.append(IMPL_QUALIFIER).append("fullCount = ").append(numEvaluated + 1).append(";\n");
-		    		if (preconditions.length() > 0 && curValue == null) {  // if the value is non-null, I know the execution won't crash.
-		    			expressionsStr.append("if (" + preconditions + ") {\n");
-			    		curString.append("}\n");
-		    		} else
-		    			expressionsStr.append("\n");
+	    			expressionsStr.append("\n");
 					expressionsStr.append(curString.toString());
 					evalExprIndices.add(i);
 					numEvaluated++;
@@ -644,91 +633,6 @@ public final class EvaluationManager {
     	public String getPreconditions() {
     		return preconditions;
     	}
-    	
-    }
-    
-    /**
-     * Finds the preconditions under which we can evaluate the
-     * given expression without it crashing, or notes that we
-     * can never be sure of this.
-     */
-    private static class NormalPreconditionFinder extends PreconditionFinder {
-    	
-    	//private boolean canThrowException;
-    	
-    	public NormalPreconditionFinder() {
-    		//canThrowException = false;
-    	}
-    	
-    	// a[i] -> a != null && i >= 0 && i < a.length 
-    	@Override
-    	public boolean visit(ArrayAccess node) {
-    		String arrStr = node.getArray().toString();
-    		String indexStr = node.getIndex().toString();
-    		add("(" + arrStr + " != null && " + indexStr + " >= 0 && " + indexStr + " < " + arrStr + ".length)");
-    		return true;
-    	}
-    	
-    	// p.q -> p != null
-    	@Override
-    	public boolean visit(FieldAccess node) {
-    		/*if (node.getExpression().getProperty("isStatic") == null)  // Ignore static field accesses like Test.foo.  But this won't work since at refinement time we don't have this information.
-    			add(node.getExpression() + " != null");*/
-    		if ((IJavaValue)node.getProperty("value") != null)
-    			return true;  // The node can be evaluated safely because we already computed its value (so it must have one).
-    		//canThrowException = true;
-    		IJavaValue exprValue = (IJavaValue)node.getExpression().getProperty("value");
-    		if (exprValue != null && exprValue.isNull())
-    			add("false");  // We know the expression is null and this will crash.
-    		return true;
-    	}
-    	
-    	// x/y -> y != 0
-    	// x%y -> y != 0
-    	@Override
-    	public boolean visit(InfixExpression node) {
-    		if (node.getOperator() == InfixExpression.Operator.DIVIDE || node.getOperator() == InfixExpression.Operator.REMAINDER)
-    			add(node.getRightOperand() + " != 0");
-    		return true;
-    	}
-    	
-    	// x.foo() -> x != null
-    	@Override
-    	public boolean visit(MethodInvocation node) {
-    		/*if (node.getExpression() != null && node.getExpression().getProperty("isStatic") == null && !(node.getExpression() instanceof QualifiedName))  // If the expression is a Qualified name, it is a package name and not a variable.  But this won't work since at refinement time we don't have this information.
-    			add(node.getExpression() + " != null");*/
-    		if ((IJavaValue)node.getProperty("value") != null)
-    			return true;  // The node can be evaluated safely because we already computed its value (so it must have one).
-    		//canThrowException = true;
-    		IJavaValue exprValue = node.getExpression() == null ? null : (IJavaValue)node.getExpression().getProperty("value");
-    		if (exprValue != null && exprValue.isNull())
-    			add("false");  // We know the expression is null and this will crash.
-    		return true;
-    	}
-    	
-    	// Constructor calls can always throw and we can't (currently) statically evaluate them.
-    	@Override
-		public boolean visit(ClassInstanceCreation node) {
-    		//canThrowException = true;
-    		return true;
-    	}
-
-    	// We don't want to visit the body of the conditional expression, since one will not be taken.
-    	// TODO: We would visit the condition, though.
-    	@Override
-    	public boolean visit(ConditionalExpression node) {
-    		return false;
-    	}
-    	
-    	/**
-    	 * Checks whether this expression can throw an exception
-    	 * even if the precondition is true.
-    	 * @return whether this expression can throw an exception
-    	 * even if the precondition is true.
-    	 */
-    	/*public boolean canThrowException() {
-    		return canThrowException;
-    	}*/
     	
     }
 
