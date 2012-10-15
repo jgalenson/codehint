@@ -111,13 +111,16 @@ public final class ExpressionGenerator {
 	 */
 	private static void initBlacklist() {
 		classBlacklist.add("codehint.CodeHint");
-		methodBlacklist.put("java.io.File", new HashSet<String>(Arrays.asList("createNewFile", "delete", "mkdir", "mkdirs", "renameTo", "setLastModified", "setReadOnly", "setExecutable", "setLastModified", "setReadable", "setWritable")));
-		methodBlacklist.put("java.util.Arrays", new HashSet<String>(Arrays.asList("deepHashCode")));
-		methodBlacklist.put("java.util.List", new HashSet<String>(Arrays.asList("add", "addAll", "remove", "removeAll", "removeRange", "retainAll", "set")));
-		methodBlacklist.put("java.util.ArrayList", new HashSet<String>(Arrays.asList("add", "addAll", "remove", "removeAll", "removeRange", "retainAll", "set")));
-		methodBlacklist.put("java.util.Map", new HashSet<String>(Arrays.asList("put", "putAll", "remove")));
-		methodBlacklist.put("java.util.HashMap", new HashSet<String>(Arrays.asList("put", "putAll", "remove")));
-		methodBlacklist.put("java.util.TreeMap", new HashSet<String>(Arrays.asList("put", "putAll", "remove")));
+		methodBlacklist.put("java.io.File", new HashSet<String>(Arrays.asList("createNewFile ()Z", "delete ()Z", "mkdir ()Z", "mkdirs ()Z", "renameTo (Ljava/io/File;)Z", "setLastModified (J)Z", "setReadOnly ()Z", "setExecutable (ZZ)Z", "setExecutable (Z)Z", "setReadable (ZZ)Z", "setReadable (Z)Z", "setWritable (ZZ)Z", "setWritable (Z)Z")));
+		methodBlacklist.put("java.util.Arrays", new HashSet<String>(Arrays.asList("deepHashCode ([Ljava/lang/Object;)I")));
+		methodBlacklist.put("java.util.List", new HashSet<String>(Arrays.asList("add (Ljava/lang/Object;)Z", "addAll (Ljava/util/Collection;)Z", "addAll (ILjava/util/Collection;)Z", "remove (Ljava/lang/Object;)Z", "remove (I)Ljava/lang/Object;", "removeAll (Ljava/util/Collection;)Z", "retainAll (Ljava/util/Collection;)Z", "set (ILjava/lang/Object;)Ljava/lang/Object;", "toArray ([Ljava/lang/Object;)[Ljava/lang/Object;")));
+		methodBlacklist.put("java.util.ArrayList", new HashSet<String>(Arrays.asList("add (Ljava/lang/Object;)Z", "addAll (Ljava/util/Collection;)Z", "addAll (ILjava/util/Collection;)Z", "remove (Ljava/lang/Object;)Z", "remove (I)Ljava/lang/Object;", "removeAll (Ljava/util/Collection;)Z", "removeRange (II)V", "retainAll (Ljava/util/Collection;)Z", "set (ILjava/lang/Object;)Ljava/lang/Object;", "toArray ([Ljava/lang/Object;)[Ljava/lang/Object;")));
+		methodBlacklist.put("java.util.Map", new HashSet<String>(Arrays.asList("put (Ljava/lang/Object;Ljava/lang/Object;)Ljava/lang/Object;", "remove (Ljava/lang/Object;)Ljava/lang/Object;")));
+		methodBlacklist.put("java.util.HashMap", new HashSet<String>(Arrays.asList("put (Ljava/lang/Object;Ljava/lang/Object;)Ljava/lang/Object;", "remove (Ljava/lang/Object;)Ljava/lang/Object;")));
+		methodBlacklist.put("java.util.TreeMap", new HashSet<String>(Arrays.asList("put (Ljava/lang/Object;Ljava/lang/Object;)Ljava/lang/Object;", "remove (Ljava/lang/Object;)Ljava/lang/Object;")));
+		methodBlacklist.put("java.util.Set", new HashSet<String>(Arrays.asList("add (Ljava/lang/Object;)Z", "addAll (Ljava/util/Collection;)Z", "remove (Ljava/lang/Object;)Z", "removeAll (Ljava/util/Collection;)Z", "retainAll (Ljava/util/Collection;)Z", "toArray ([Ljava/lang/Object;)[Ljava/lang/Object;")));
+		methodBlacklist.put("java.util.HashSet", new HashSet<String>(Arrays.asList("add (Ljava/lang/Object;)Z", "addAll (Ljava/util/Collection;)Z", "remove (Ljava/lang/Object;)Z", "removeAll (Ljava/util/Collection;)Z", "retainAll (Ljava/util/Collection;)Z", "toArray ([Ljava/lang/Object;)[Ljava/lang/Object;")));
+		methodBlacklist.put("java.util.TreeSet", new HashSet<String>(Arrays.asList("add (Ljava/lang/Object;)Z", "addAll (Ljava/util/Collection;)Z", "remove (Ljava/lang/Object;)Z", "removeAll (Ljava/util/Collection;)Z", "retainAll (Ljava/util/Collection;)Z", "toArray ([Ljava/lang/Object;)[Ljava/lang/Object;")));
 	}
 	
 	private static void initMethodPreconditions() {
@@ -753,7 +756,7 @@ public final class ExpressionGenerator {
 				ArrayList<Method> methods = new ArrayList<Method>(untypedMethods.size());
 				for (Object o: untypedMethods) {
 					Method method = (Method)o;
-					if (!methodBlacklist.containsKey(type.getName()) || !methodBlacklist.get(type.getName()).contains(method.name()))
+					if (!methodBlacklist.containsKey(type.getName()) || !methodBlacklist.get(type.getName()).contains(method.name() + " " + method.signature()))
 						methods.add(method);
 				}
 				return methods;
