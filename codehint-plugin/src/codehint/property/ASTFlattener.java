@@ -39,303 +39,274 @@ import org.eclipse.jdt.core.dom.TypeLiteral;
  */
 public abstract class ASTFlattener extends ASTVisitor {
 	
-	protected StringBuilder sb;
-	
-	protected ASTFlattener() {
-		sb = new StringBuilder();
-	}
-	
 	public String getResult(ASTNode node) {
-		return flatten(node).toString();
+		StringBuilder sb = new StringBuilder();
+		flatten(node, sb);
+		return sb.toString();
 	}
 	
-	protected StringBuilder flatten(ASTNode node) {
+	protected void flatten(ASTNode node, StringBuilder sb) {
 		if (node instanceof Expression)
-			return flatten((Expression)node);
+			flatten((Expression)node, sb);
 		else if (node instanceof Type)
-			return flatten((Type)node);
+			flatten((Type)node, sb);
 		 else
 			throw new RuntimeException("Unexpected expression type " + node.getClass().toString());
 	}
 	
-	protected StringBuilder flatten(Expression node) {
+	protected void flatten(Expression node, StringBuilder sb) {
 		if (node instanceof ArrayAccess) {
-			return flatten((ArrayAccess)node);
+			flatten((ArrayAccess)node, sb);
 		} else if (node instanceof BooleanLiteral) {
-			return flatten((BooleanLiteral)node);
+			flatten((BooleanLiteral)node, sb);
 		} else if (node instanceof CastExpression) {
-			return flatten((CastExpression)node);
+			flatten((CastExpression)node, sb);
 		} else if (node instanceof CharacterLiteral) {
-			return flatten((CharacterLiteral)node);
+			flatten((CharacterLiteral)node, sb);
 		} else if (node instanceof ClassInstanceCreation) {
-			return flatten((ClassInstanceCreation)node);
+			flatten((ClassInstanceCreation)node, sb);
 		} else if (node instanceof ConditionalExpression) {
-			return flatten((ConditionalExpression)node);
+			flatten((ConditionalExpression)node, sb);
 		} else if (node instanceof FieldAccess) {
-			return flatten((FieldAccess)node);
+			flatten((FieldAccess)node, sb);
 		} else if (node instanceof InfixExpression) {
-			return flatten((InfixExpression)node);
+			flatten((InfixExpression)node, sb);
 		} else if (node instanceof InstanceofExpression) {
-			return flatten((InstanceofExpression)node);
+			flatten((InstanceofExpression)node, sb);
 		} else if (node instanceof MethodInvocation) {
-			return flatten((MethodInvocation)node);
+			flatten((MethodInvocation)node, sb);
 		} else if (node instanceof NullLiteral) {
-			return flatten((NullLiteral)node);
+			flatten((NullLiteral)node, sb);
 		} else if (node instanceof NumberLiteral) {
-			return flatten((NumberLiteral)node);
+			flatten((NumberLiteral)node, sb);
 		} else if (node instanceof ParenthesizedExpression) {
-			return flatten((ParenthesizedExpression)node);
+			flatten((ParenthesizedExpression)node, sb);
 		} else if (node instanceof PostfixExpression) {
-			return flatten((PostfixExpression)node);
+			flatten((PostfixExpression)node, sb);
 		} else if (node instanceof PrefixExpression) {
-			return flatten((PrefixExpression)node);
+			flatten((PrefixExpression)node, sb);
 		} else if (node instanceof QualifiedName) {
-			return flatten((QualifiedName)node);
+			flatten((QualifiedName)node, sb);
 		} else if (node instanceof SimpleName) {
-			return flatten((SimpleName)node);
+			flatten((SimpleName)node, sb);
 		} else if (node instanceof StringLiteral) {
-			return flatten((StringLiteral)node);
+			flatten((StringLiteral)node, sb);
 		} else if (node instanceof SuperFieldAccess) {
-			return flatten((SuperFieldAccess)node);
+			flatten((SuperFieldAccess)node, sb);
 		} else if (node instanceof SuperMethodInvocation) {
-			return flatten((SuperMethodInvocation)node);
+			flatten((SuperMethodInvocation)node, sb);
 		} else if (node instanceof ThisExpression) {
-			return flatten((ThisExpression)node);
+			flatten((ThisExpression)node, sb);
 		} else if (node instanceof TypeLiteral) {
-			return flatten((TypeLiteral)node);
+			flatten((TypeLiteral)node, sb);
 		} else if (node instanceof Assignment) {
-			return flatten((Assignment)node);
+			flatten((Assignment)node, sb);
 		} else if (node instanceof ArrayCreation) {
-			return flatten((ArrayCreation)node);
+			flatten((ArrayCreation)node, sb);
 		} else if (node instanceof ArrayInitializer) {
-			return flatten((ArrayInitializer)node);
+			flatten((ArrayInitializer)node, sb);
 		} else
 			throw new RuntimeException("Unexpected expression type " + node.getClass().toString());
 	}
 	
-	protected StringBuilder flatten(Type node) {
-		return sb.append(node.toString());
+	protected void flatten(Type node, StringBuilder sb) {
+		sb.append(node.toString());
 	}
 	
-	protected StringBuilder flatten(ArrayAccess node) {
-		flatten(node.getArray());
+	protected void flatten(ArrayAccess node, StringBuilder sb) {
+		flatten(node.getArray(), sb);
 		sb.append("[");
-		flatten(node.getIndex());
+		flatten(node.getIndex(), sb);
 		sb.append("]");
-		return sb;
 	}
 
-	protected StringBuilder flatten(BooleanLiteral node) {
+	protected void flatten(BooleanLiteral node, StringBuilder sb) {
 		if (node.booleanValue() == true)
 			sb.append("true");
 		else
 			sb.append("false");
-		return sb;
 	}
 
-	protected StringBuilder flatten(CastExpression node) {
+	protected void flatten(CastExpression node, StringBuilder sb) {
 		sb.append("(");
-		flatten(node.getType());
+		flatten(node.getType(), sb);
 		sb.append(")");
-		flatten(node.getExpression());
-		return sb;
+		flatten(node.getExpression(), sb);
 	}
 
-	protected StringBuilder flatten(CharacterLiteral node) {
+	protected void flatten(CharacterLiteral node, StringBuilder sb) {
 		sb.append(node.getEscapedValue());
-		return sb;
 	}
 
-	protected StringBuilder flatten(ClassInstanceCreation node) {
+	protected void flatten(ClassInstanceCreation node, StringBuilder sb) {
 		sb.append("new ");
 		if (!node.typeArguments().isEmpty()) {
 			sb.append("<");
-			doList(node.typeArguments());
+			doList(node.typeArguments(), sb);
 			sb.append(">");
 		}
-		flatten(node.getType());
+		flatten(node.getType(), sb);
 		sb.append("(");
-		doList(node.arguments());
+		doList(node.arguments(), sb);
 		sb.append(")");
-		return sb;
 	}
 
-	protected StringBuilder flatten(ConditionalExpression node) {
-		flatten(node.getExpression());
+	protected void flatten(ConditionalExpression node, StringBuilder sb) {
+		flatten(node.getExpression(), sb);
 		sb.append(" ? ");
-		flatten(node.getThenExpression());
+		flatten(node.getThenExpression(), sb);
 		sb.append(" : ");
-		flatten(node.getElseExpression());
-		return sb;
+		flatten(node.getElseExpression(), sb);
 	}
 
-	protected StringBuilder flatten(FieldAccess node) {
-		flatten(node.getExpression());
+	protected void flatten(FieldAccess node, StringBuilder sb) {
+		flatten(node.getExpression(), sb);
 		sb.append(".");
-		flatten((Expression)node.getName());
-		return sb;
+		flatten((Expression)node.getName(), sb);
 	}
 
-	protected StringBuilder flatten(InfixExpression node) {
-		flatten(node.getLeftOperand());
+	protected void flatten(InfixExpression node, StringBuilder sb) {
+		flatten(node.getLeftOperand(), sb);
 		sb.append(' ');
 		sb.append(node.getOperator().toString());
 		sb.append(' ');
-		flatten(node.getRightOperand());
-		return sb;
+		flatten(node.getRightOperand(), sb);
 	}
 
-	protected StringBuilder flatten(InstanceofExpression node) {
-		flatten(node.getLeftOperand());
+	protected void flatten(InstanceofExpression node, StringBuilder sb) {
+		flatten(node.getLeftOperand(), sb);
 		sb.append(" instanceof ");
-		flatten(node.getRightOperand());
-		return sb;
+		flatten(node.getRightOperand(), sb);
 	}
 
-	protected StringBuilder flatten(MethodInvocation node) {
+	protected void flatten(MethodInvocation node, StringBuilder sb) {
 		if (node.getExpression() != null) {
-			flatten(node.getExpression());
+			flatten(node.getExpression(), sb);
 			sb.append(".");
 		}
 		if (!node.typeArguments().isEmpty()) {
 			sb.append("<");
-			doList(node.typeArguments());
+			doList(node.typeArguments(), sb);
 			sb.append(">");
 		}
-		flatten((Expression)node.getName());
+		flatten((Expression)node.getName(), sb);
 		sb.append("(");
-		doList(node.arguments());
+		doList(node.arguments(), sb);
 		sb.append(")");
-		return sb;
 	}
 
 	@SuppressWarnings("unused")
-	protected StringBuilder flatten(NullLiteral node) {
+	protected void flatten(NullLiteral node, StringBuilder sb) {
 		sb.append("null");
-		return sb;
 	}
 
-	protected StringBuilder flatten(NumberLiteral node) {
+	protected void flatten(NumberLiteral node, StringBuilder sb) {
 		sb.append(node.getToken());
-		return sb;
 	}
 
-	protected StringBuilder flatten(ParenthesizedExpression node) {
+	protected void flatten(ParenthesizedExpression node, StringBuilder sb) {
 		sb.append("(");
-		flatten(node.getExpression());
+		flatten(node.getExpression(), sb);
 		sb.append(")");
-		return sb;
 	}
 
-	protected StringBuilder flatten(PostfixExpression node) {
-		flatten(node.getOperand());
+	protected void flatten(PostfixExpression node, StringBuilder sb) {
+		flatten(node.getOperand(), sb);
 		sb.append(node.getOperator().toString());
-		return sb;
 	}
 
-	protected StringBuilder flatten(PrefixExpression node) {
+	protected void flatten(PrefixExpression node, StringBuilder sb) {
 		sb.append(node.getOperator().toString());
-		flatten(node.getOperand());
-		return sb;
+		flatten(node.getOperand(), sb);
 	}
 
-	protected StringBuilder flatten(QualifiedName node) {
-		flatten(node.getQualifier());
+	protected void flatten(QualifiedName node, StringBuilder sb) {
+		flatten(node.getQualifier(), sb);
 		sb.append(".");
-		flatten((Expression)node.getName());
-		return sb;
+		flatten((Expression)node.getName(), sb);
 	}
 
-	protected StringBuilder flatten(SimpleName node) {
+	protected void flatten(SimpleName node, StringBuilder sb) {
 		sb.append(node.getIdentifier());
-		return sb;
 	}
 
-	protected StringBuilder flatten(StringLiteral node) {
+	protected void flatten(StringLiteral node, StringBuilder sb) {
 		sb.append(node.getEscapedValue());
-		return sb;
 	}
 
-	protected StringBuilder flatten(SuperFieldAccess node) {
+	protected void flatten(SuperFieldAccess node, StringBuilder sb) {
 		if (node.getQualifier() != null) {
-			flatten(node.getQualifier());
+			flatten(node.getQualifier(), sb);
 			sb.append(".");
 		}
 		sb.append("super.");
-		flatten((Expression)node.getName());
-		return sb;
+		flatten((Expression)node.getName(), sb);
 	}
 
-	protected StringBuilder flatten(SuperMethodInvocation node) {
+	protected void flatten(SuperMethodInvocation node, StringBuilder sb) {
 		if (node.getQualifier() != null) {
-			flatten(node.getQualifier());
+			flatten(node.getQualifier(), sb);
 			sb.append(".");
 		}
 		sb.append("super.");
 		if (!node.typeArguments().isEmpty()) {
 			sb.append("<");
-			doList(node.typeArguments());
+			doList(node.typeArguments(), sb);
 			sb.append(">");
 		}
-		flatten((Expression)node.getName());
+		flatten((Expression)node.getName(), sb);
 		sb.append("(");
-		doList(node.arguments());
+		doList(node.arguments(), sb);
 		sb.append(")");
-		return sb;
 	}
 
-	protected StringBuilder flatten(ThisExpression node) {
+	protected void flatten(ThisExpression node, StringBuilder sb) {
 		if (node.getQualifier() != null) {
-			flatten(node.getQualifier());
+			flatten(node.getQualifier(), sb);
 			sb.append(".");
 		}
 		sb.append("this");
-		return sb;
 	}
 
-	protected StringBuilder flatten(TypeLiteral node) {
-		flatten(node.getType());
+	protected void flatten(TypeLiteral node, StringBuilder sb) {
+		flatten(node.getType(), sb);
 		sb.append(".class");
-		return sb;
 	}
 
-	protected StringBuilder flatten(Assignment node) {
-		flatten(node.getLeftHandSide());
+	protected void flatten(Assignment node, StringBuilder sb) {
+		flatten(node.getLeftHandSide(), sb);
 		sb.append(' ');
 		sb.append(node.getOperator().toString());
 		sb.append(' ');
-		flatten(node.getRightHandSide());
-		return sb;
+		flatten(node.getRightHandSide(), sb);
 	}
 
-	protected StringBuilder flatten(ArrayCreation node) {
+	protected void flatten(ArrayCreation node, StringBuilder sb) {
 		sb.append("new ");
 		ArrayType at = node.getType();
-		flatten(at.getElementType());
+		flatten(at.getElementType(), sb);
 		int dims = at.getDimensions();
 		for (Iterator<?> it = node.dimensions().iterator(); it.hasNext(); ) {
 			sb.append('[');
-			flatten((Expression)it.next());
+			flatten((Expression)it.next(), sb);
 			sb.append(']');
 			dims--;
 		}
 		for (int i= 0; i < dims; i++)
 			sb.append("[]");
-		flatten(node.getInitializer());
-		return sb;
+		flatten(node.getInitializer(), sb);
 	}
 
-	protected StringBuilder flatten(ArrayInitializer node) {
+	protected void flatten(ArrayInitializer node, StringBuilder sb) {
 		sb.append('{');
-		doList(node.expressions());
+		doList(node.expressions(), sb);
 		sb.append('}');
-		return sb;
 	}
 	
-	protected void doList(List<?> children) {
+	protected void doList(List<?> children, StringBuilder sb) {
 		for (Iterator<?> it = children.iterator(); it.hasNext(); ) {
 			ASTNode e = (ASTNode)it.next();
-			flatten(e);
+			flatten(e, sb);
 			if (it.hasNext())
 				sb.append(",");
 		}

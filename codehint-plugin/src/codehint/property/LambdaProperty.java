@@ -114,9 +114,9 @@ public class LambdaProperty extends Property {
 		}
 		
 		@Override
-		protected StringBuilder flatten(SimpleName node) {
+		protected void flatten(SimpleName node, StringBuilder sb) {
 			String nodeId = node.getIdentifier();
-			return sb.append(nodeId.equals(lhs) ? (type == null ? arg : "((" + type + ")" + arg + ")") : nodeId);
+			sb.append(nodeId.equals(lhs) ? (type == null ? arg : "((" + type + ")" + arg + ")") : nodeId);
 		}
 		
 	}

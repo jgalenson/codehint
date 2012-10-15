@@ -195,23 +195,23 @@ public class StateProperty extends Property {
 		}
 		
 		@Override
-    	protected StringBuilder flatten(MethodInvocation node) {
+    	protected void flatten(MethodInvocation node, StringBuilder sb) {
 			if (isPre(node)) {
-				return sb.append(getRenamedVar(((SimpleName)node.arguments().get(0)).getIdentifier()));
+				sb.append(getRenamedVar(((SimpleName)node.arguments().get(0)).getIdentifier()));
 			} else if (isPost(node)) {
 				String nodeId = ((SimpleName)node.arguments().get(0)).getIdentifier();
-				return sb.append(nodeId.equals(lhs) ? arg : nodeId);
+				sb.append(nodeId.equals(lhs) ? arg : nodeId);
 			} else
-				return super.flatten(node);
+				super.flatten(node, sb);
 		}
 		
 		@Override
-		protected StringBuilder flatten(SimpleName node) {
+		protected void flatten(SimpleName node, StringBuilder sb) {
 			try {
 				if (stack.findVariable(node.getIdentifier()) != null) {
-					return sb.append(getRenamedVar(node.getIdentifier()));
+					sb.append(getRenamedVar(node.getIdentifier()));
 				} else
-					return super.flatten(node);
+					super.flatten(node, sb);
 			} catch (DebugException e) {
 				throw new RuntimeException(e);
 			}

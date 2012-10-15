@@ -52,6 +52,7 @@ import codehint.property.Property;
 import codehint.property.TypeProperty;
 import codehint.property.ValueProperty;
 import codehint.utils.EclipseUtils;
+import codehint.utils.Pair;
 
 /**
  * Class for evaluating expressions.
@@ -252,6 +253,7 @@ public final class EvaluationManager {
 		boolean hasPropertyPrecondition = propertyPreconditions.length() > 0;
 		ArrayList<Integer> evalExprIndices = new ArrayList<Integer>();
 		int numEvaluated = 0;
+		Map<String, Integer> temporaries = new HashMap<String, Integer>();
 		StringBuilder expressionsStr = new StringBuilder();
 		
 		try {
@@ -262,11 +264,16 @@ public final class EvaluationManager {
 	    	for (i = startIndex; i < exprs.size() && numEvaluated < BATCH_SIZE; i++) {
 	    		TypedExpression curTypedExpr = exprs.get(i);
 	    		Expression curExpr = curTypedExpr.getExpression();
-	    		String curExprStr = (new ValueFlattener()).getResult(curExpr);
+	    		ValueFlattener valueFlattener = new ValueFlattener(temporaries);
+	    		String curExprStr = valueFlattener.getResult(curExpr);
 	    		IJavaValue curValue = curTypedExpr.getValue();
 	    		if (curValue == null || !validateStatically) {
 		    		StringBuilder curString = new StringBuilder();
 		    		// TODO: If the user has variables with the same names as the ones I introduce, this will crash....
+		    		for (Pair<String, String> newTemp: valueFlattener.getNewTemporaries()) {
+		    			curString.append(" ").append(newTemp.second).append(" _$tmp").append(temporaries.size()).append(" = ").append(newTemp.first).append(";\n");
+		    			temporaries.put(newTemp.first, temporaries.size());
+		    		}
 		    		String curRHSStr = curExprStr;
 		    		if (arePrimitives && curValue != null)
 		    			curRHSStr = EclipseUtils.javaStringOfValue(curValue, stack);
