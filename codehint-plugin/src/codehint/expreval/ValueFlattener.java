@@ -23,7 +23,7 @@ import codehint.utils.Pair;
  * values for its evaluated children when possible.
  */
 public class ValueFlattener extends ASTFlattener {
-	
+
 	private final Map<String, Integer> temporaries;
 	private final ArrayList<Pair<String, String>> newTemporaries;
 	
@@ -91,10 +91,7 @@ public class ValueFlattener extends ASTFlattener {
 	@Override
 	protected void flatten(MethodInvocation node, StringBuilder sb) {
 		if (node.getParent() != null) {  // Do not replace a top-level call with a temporary.
-			// Recursively replace the children.
-			StringBuilder childSB = new StringBuilder();
-			super.flatten(node, childSB);
-			String toString = childSB.toString();
+			String toString = node.toString();
 			if (temporaries.containsKey(toString)) {
 				sb.append("_$tmp").append(temporaries.get(toString));
 				return;

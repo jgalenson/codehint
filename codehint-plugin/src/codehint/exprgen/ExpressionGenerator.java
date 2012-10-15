@@ -324,6 +324,7 @@ public final class ExpressionGenerator {
 		for (int depth = 0; depth <= maxDepth; depth++) {
 			filterDuplicates(nextLevel);
 			curLevel = genOneLevel(nextLevel, depth, maxDepth, property, monitor);
+			evalManager.cacheMethodResults(nextLevel);
 			if (depth < maxDepth)
 				nextLevel = evaluateExpressions(curLevel, null, null, monitor, depth);
 		}

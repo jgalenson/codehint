@@ -16,16 +16,19 @@ import org.eclipse.jdt.core.dom.AST;
 import org.eclipse.jdt.core.dom.ASTNode;
 import org.eclipse.jdt.core.dom.ASTParser;
 import org.eclipse.jdt.core.dom.ASTVisitor;
+import org.eclipse.jdt.core.dom.ClassInstanceCreation;
 import org.eclipse.jdt.core.dom.Expression;
 import org.eclipse.jdt.core.dom.FieldAccess;
 import org.eclipse.jdt.core.dom.MethodInvocation;
 import org.eclipse.jdt.core.dom.NullLiteral;
 import org.eclipse.jdt.core.dom.SimpleName;
+import org.eclipse.jdt.core.dom.SuperMethodInvocation;
 import org.eclipse.jdt.debug.core.IJavaArray;
 import org.eclipse.jdt.debug.core.IJavaArrayType;
 import org.eclipse.jdt.debug.core.IJavaClassType;
 import org.eclipse.jdt.debug.core.IJavaDebugTarget;
 import org.eclipse.jdt.debug.core.IJavaFieldVariable;
+import org.eclipse.jdt.debug.core.IJavaObject;
 import org.eclipse.jdt.debug.core.IJavaPrimitiveValue;
 import org.eclipse.jdt.debug.core.IJavaStackFrame;
 import org.eclipse.jdt.debug.core.IJavaThread;
@@ -87,6 +90,7 @@ public final class EvaluationManager {
 	private final IJavaFieldVariable toStringsField;
 	private final IJavaFieldVariable valueCountField;
 	private final IJavaFieldVariable fullCountField;
+	private final IJavaFieldVariable methodResultsField;
 	// As an optimization, we cache expressions that crash and do not evaluate them again.
 	private final Set<String> crashingExpressions;
 	
@@ -95,6 +99,7 @@ public final class EvaluationManager {
 	private String validVal;
 	private String preVarsString;
 	private String propertyPreconditions;
+	private Map<String, Integer> methodResultsMap;
 	
 	public EvaluationManager(IJavaStackFrame stack, SubtypeChecker subtypeChecker, TypeCache typeCache) {
 		this.stack = stack;
@@ -108,6 +113,7 @@ public final class EvaluationManager {
 			this.toStringsField = implType.getField("toStrings");
 			this.valueCountField = implType.getField("valueCount");
 			this.fullCountField = implType.getField("fullCount");
+			this.methodResultsField = implType.getField("methodResults");
 		} catch (DebugException e) {
 			throw new RuntimeException(e);
 		}
@@ -271,12 +277,13 @@ public final class EvaluationManager {
 		    		StringBuilder curString = new StringBuilder();
 		    		// TODO: If the user has variables with the same names as the ones I introduce, this will crash....
 		    		for (Pair<String, String> newTemp: valueFlattener.getNewTemporaries()) {
-		    			curString.append(" ").append(newTemp.second).append(" _$tmp").append(temporaries.size()).append(" = ").append(newTemp.first).append(";\n");
+		    			curString.append(" ").append(newTemp.second).append(" _$tmp").append(temporaries.size()).append(" = (").append(newTemp.second).append(")").append(IMPL_QUALIFIER).append("methodResults[").append(methodResultsMap.get(newTemp.first)).append("];\n");
 		    			temporaries.put(newTemp.first, temporaries.size());
 		    		}
 		    		String curRHSStr = curExprStr;
 		    		if (arePrimitives && curValue != null)
 		    			curRHSStr = EclipseUtils.javaStringOfValue(curValue, stack);
+		    		//curString.append(" // ").append(curExpr.toString()).append("\n");
 		    		curString.append(" _$curValue = ").append(curRHSStr).append(";\n ");
 		    		if (!validateStatically) {
 		    			curString.append(IMPL_QUALIFIER).append("valueCount = ").append(numEvaluated + 1).append(";\n ");
@@ -545,6 +552,38 @@ public final class EvaluationManager {
     		}
     	});
     	return numNulls[0];
+    }
+    
+    /**
+     * Caches the results of method calls in the given list.
+     * Any call to evaluateExpressions before another call to
+     * this method will use the cached value instead of
+     * re-evaluating it.
+     * @param exprs The list of expressions, which may contain
+     * non-call expressions.  This is probably the list of
+     * component expressions used to generate the expressions
+     * we currently want to evaluate.
+     * @throws DebugException
+     */
+    public void cacheMethodResults(ArrayList<FullyEvaluatedExpression> exprs) throws DebugException {
+    	// Find the non-inlined method calls.
+    	ArrayList<FullyEvaluatedExpression> calls = new ArrayList<FullyEvaluatedExpression>();
+    	for (FullyEvaluatedExpression expr: exprs) {
+    		Expression e = expr.getExpression();
+    		IJavaValue value = expr.getValue();
+    		if ((e instanceof MethodInvocation || e instanceof ClassInstanceCreation || e instanceof SuperMethodInvocation)
+    				&& !(value instanceof IJavaPrimitiveValue || value.isNull() || (value instanceof IJavaObject && "Ljava/lang/String;".equals(value.getSignature()))))
+    			calls.add(expr);
+    	}
+		methodResultsMap = new HashMap<String, Integer>();
+    	if (!calls.isEmpty()) {  // Cache the method call results so the runtime can use them.
+    		IJavaArray newValue = ((IJavaArrayType)methodResultsField.getJavaType()).newInstance(calls.size());
+    		for (int i = 0; i < calls.size(); i++) {
+    			newValue.setValue(i, calls.get(i).getValue());
+    			methodResultsMap.put(calls.get(i).getExpression().toString(), i);
+    		}
+    		methodResultsField.setValue(newValue);
+    	}
     }
 	
 	/**
