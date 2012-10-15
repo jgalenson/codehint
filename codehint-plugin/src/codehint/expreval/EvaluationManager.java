@@ -157,7 +157,7 @@ public final class EvaluationManager {
 				IJavaFieldVariable valuesField = implType.getField(valuesArrayName);
 				if (property != null && varType != null && "Object".equals(type))  // The pdspec might call methods on the objects, so we need their actual types.
 					type = varType.getName();
-				evaluateExpressions(expressionsOfType.getValue(), validExprs, type, arePrimitives, property, validateStatically, valuesField, 0);
+				evaluateExpressions(expressionsOfType.getValue(), validExprs, type, arePrimitives, property, validateStatically, valuesField);
 			}
 			return validExprs;
 		} catch (DebugException e) {
@@ -248,138 +248,204 @@ public final class EvaluationManager {
 	 * @param arePrimitives Whether the expressions are primitives.
 	 * @param property The pdspec.
 	 * @param validateStatically Whether we can evaluate the pdspec
-	 * ourselves our must have the child evaluation do it.
+	 * ourselves or must have the child evaluation do it.
 	 * @param valuesField The field of the proper type to store the
 	 * results of the given expressions.
-	 * @param startIndex The index at which to start evaluation.
 	 */
-	private void evaluateExpressions(ArrayList<TypedExpression> exprs, ArrayList<FullyEvaluatedExpression> validExprs, String type, boolean arePrimitives, Property property, boolean validateStatically, IJavaFieldVariable valuesField, int startIndex) {
-		if (monitor.isCanceled())
-			throw new OperationCanceledException();
-		boolean hasPropertyPrecondition = propertyPreconditions.length() > 0;
-		ArrayList<Integer> evalExprIndices = new ArrayList<Integer>();
-		int numEvaluated = 0;
-		Map<String, Integer> temporaries = new HashMap<String, Integer>();
-		StringBuilder expressionsStr = new StringBuilder();
-		
+	private void evaluateExpressions(ArrayList<TypedExpression> exprs, ArrayList<FullyEvaluatedExpression> validExprs, String type, boolean arePrimitives, Property property, boolean validateStatically, IJavaFieldVariable valuesField) {
 		try {
+			if (monitor.isCanceled())
+				throw new OperationCanceledException();
+			boolean hasPropertyPrecondition = propertyPreconditions.length() > 0;
 			String valuesArrayName = valuesField.getName();
-			
-			expressionsStr.append(preVarsString);
-			int i;
-	    	for (i = startIndex; i < exprs.size() && numEvaluated < BATCH_SIZE; i++) {
-	    		TypedExpression curTypedExpr = exprs.get(i);
-	    		Expression curExpr = curTypedExpr.getExpression();
-	    		ValueFlattener valueFlattener = new ValueFlattener(temporaries);
-	    		String curExprStr = valueFlattener.getResult(curExpr);
-	    		IJavaValue curValue = curTypedExpr.getValue();
-	    		if (curValue == null || !validateStatically) {
-		    		StringBuilder curString = new StringBuilder();
-		    		// TODO: If the user has variables with the same names as the ones I introduce, this will crash....
-		    		for (Pair<String, String> newTemp: valueFlattener.getNewTemporaries()) {
-		    			curString.append(" ").append(newTemp.second).append(" _$tmp").append(temporaries.size()).append(" = (").append(newTemp.second).append(")").append(IMPL_QUALIFIER).append("methodResults[").append(methodResultsMap.get(newTemp.first)).append("];\n");
-		    			temporaries.put(newTemp.first, temporaries.size());
-		    		}
-		    		String curRHSStr = curExprStr;
-		    		if (arePrimitives && curValue != null)
-		    			curRHSStr = EclipseUtils.javaStringOfValue(curValue, stack);
-		    		//curString.append(" // ").append(curExpr.toString()).append("\n");
-		    		curString.append(" _$curValue = ").append(curRHSStr).append(";\n ");
-		    		if (!validateStatically) {
-		    			curString.append(IMPL_QUALIFIER).append("valueCount = ").append(numEvaluated + 1).append(";\n ");
-			    		if (hasPropertyPrecondition)
-			    			curString.append("if (" + propertyPreconditions + ") {\n ");
-			    		curString.append("_$curValid = ").append(validVal).append(";\n ");
-			    		curString.append(IMPL_QUALIFIER).append("valid[").append(numEvaluated).append("] = _$curValid;\n ");
-		    		}
-		    		curString.append(IMPL_QUALIFIER).append(valuesArrayName).append("[").append(numEvaluated).append("] = _$curValue;\n ");
-		    		if (!arePrimitives) {
-		    			if (!validateStatically)
-		    				curString.append("if (_$curValid)\n  ");
-		    			curString.append(IMPL_QUALIFIER).append("toStrings[").append(numEvaluated).append("] = ").append(getToStringGetter(curTypedExpr)).append(";\n ");
-		    		}
-		    		if (hasPropertyPrecondition && !validateStatically)
-		    			curString.append(" }\n ");
-		    		curString.append(IMPL_QUALIFIER).append("fullCount = ").append(numEvaluated + 1).append(";\n");
-	    			expressionsStr.append("\n");
-					expressionsStr.append(curString.toString());
-					evalExprIndices.add(i);
-					numEvaluated++;
-	    		}
-	    	}
-	    	DebugException error = null;
-	    	if (numEvaluated > 0) {
-		    	String newTypeString = "[" + numEvaluated + "]";
-	            if (type.contains("[]")) {  // If this is an array type, we must specify our new size as the first array dimension, not the last one.
-	                int index = type.indexOf("[]");
-	                newTypeString = type.substring(0, index) + newTypeString + type.substring(index); 
-	            } else
-	                newTypeString = type + newTypeString;
-	            StringBuilder prefix = new StringBuilder();
-	            prefix.append("{\n").append(IMPL_QUALIFIER).append(valuesArrayName).append(" = new ").append(newTypeString).append(";\n").append(IMPL_QUALIFIER).append("valid = new boolean[").append(numEvaluated).append("];\n");
-	            if (!arePrimitives)
-	            	prefix.append(IMPL_QUALIFIER).append("toStrings = new String[").append(numEvaluated).append("];\n");
-	            else
-	            	prefix.append(IMPL_QUALIFIER).append("toStrings = null;\n");
-	        	prefix.append(IMPL_QUALIFIER).append("valueCount = 0;\n");
-	        	prefix.append(IMPL_QUALIFIER).append("fullCount = 0;\n");
-	        	prefix.append(type).append(" _$curValue;\n");
-	        	if (!validateStatically)
-		        	prefix.append("boolean _$curValid;\n");
-				expressionsStr.insert(0, prefix.toString());
-		    	expressionsStr.append("}");
-		    	
-		    	String finalStr = expressionsStr.toString();
-		    	ICompiledExpression compiled = engine.getCompiledExpression(finalStr, stack);
-		    	if (compiled.hasErrors()) {
-		    		// Check the expressions one-by-one and remove those that crash.
-		    		// We can crash thanks to generics and erasure (e.g., by passing an Object to List<String>.set).
-		    		int numDeleted = 0;
-		    		for (int j = i - 1; j >= startIndex; j--) {
-		    			String exprStr = exprs.get(j).getExpression().toString();
-		    			if (engine.getCompiledExpression(exprStr, stack).hasErrors()) {
-		    				crashingExpressions.add(exprStr);
-		    				exprs.remove(j);
-		    				numDeleted++;
-		    			}
-		    		}
-		    		if (numDeleted == 0)  // In this case, the error is probably our fault and not due to erasure.
-		    			throw new EvaluationError("Evaluation error: " + "The following errors were encountered during evaluation.\n\n" + EclipseUtils.getCompileErrors(compiled));
-		    		monitor.worked(numDeleted);
-		    		evaluateExpressions(exprs, validExprs, type, arePrimitives, property, validateStatically, valuesField, startIndex);
-		    		return;
+			for (int startIndex = 0; startIndex < exprs.size(); ) {
+				ArrayList<Integer> evalExprIndices = new ArrayList<Integer>();
+				int numEvaluated = 0;
+				Map<String, Integer> temporaries = new HashMap<String, Integer>();
+				StringBuilder expressionsStr = new StringBuilder();
+				
+				// Build and evaluate the evaluation string.
+				// TODO: If the user has variables with the same names as the ones I introduce, this will crash....
+				expressionsStr.append(preVarsString);
+				int i;
+		    	for (i = startIndex; i < exprs.size() && numEvaluated < BATCH_SIZE; i++)
+		    		numEvaluated = buildStringForExpression(exprs.get(i), i, expressionsStr, arePrimitives, validateStatically, hasPropertyPrecondition, evalExprIndices, numEvaluated, temporaries, valuesArrayName);
+		    	DebugException error = null;
+		    	if (numEvaluated > 0) {
+			    	finishBuildingString(expressionsStr, numEvaluated, type, arePrimitives, validateStatically, valuesArrayName);
+			    	
+			    	String finalStr = expressionsStr.toString();
+			    	ICompiledExpression compiled = engine.getCompiledExpression(finalStr, stack);
+			    	if (compiled.hasErrors()) {
+			    		handleCompileFailure(exprs, startIndex, i, compiled);
+			    		continue;
+			    	}
+			    	IEvaluationResult result = Evaluator.evaluateExpression(compiled, engine, stack);
+			    	error = result.getException();
 		    	}
-		    	IEvaluationResult result = Evaluator.evaluateExpression(compiled, engine, stack);
-		    	error = result.getException();
-	    	}
-
-	    	int work = i - startIndex;
-	    	int numToSkip = 0;
-	    	if (error != null) {
-				int fullCount = ((IJavaPrimitiveValue)fullCountField.getValue()).getIntValue();
-				int valueCount = ((IJavaPrimitiveValue)valueCountField.getValue()).getIntValue();
-	    		int crashingIndex = evalExprIndices.get(fullCount);
-	    		Expression crashedExpr = exprs.get(crashingIndex).getExpression();
-				if (valueCount == fullCount || validateStatically)  // Ensure we crashed on the expression and not the pdspec.
-					crashingExpressions.add(crashedExpr.toString());
-	    		work = crashingIndex - startIndex;
-	    		numToSkip = skipLikelyCrashes(exprs, error, crashingIndex, crashedExpr);
-	    	}
-	    	if (work > 0) {
-	    		ArrayList<FullyEvaluatedExpression> newResults = getResultsFromArray(exprs, property, valuesField, startIndex, work, numEvaluated);
-		    	reportResults(newResults);
-		    	validExprs.addAll(newResults);
-	    	}
-	    	/*System.out.println("Evaluated " + count + " expressions.");
-	    	if (hasError)
-	    		System.out.println("Crashed on " + exprs.get(startIndex + count));*/
-	    	monitor.worked(work + numToSkip);
-	    	int nextStartIndex = startIndex + work + numToSkip;
-	    	if (nextStartIndex < exprs.size())
-	    		evaluateExpressions(exprs, validExprs, type, arePrimitives, property, validateStatically, valuesField, nextStartIndex);
+	
+		    	// Get the results of the evaluation.
+		    	int work = i - startIndex;
+		    	int numToSkip = 0;
+		    	if (error != null) {
+					int fullCount = ((IJavaPrimitiveValue)fullCountField.getValue()).getIntValue();
+					int valueCount = ((IJavaPrimitiveValue)valueCountField.getValue()).getIntValue();
+		    		int crashingIndex = evalExprIndices.get(fullCount);
+		    		Expression crashedExpr = exprs.get(crashingIndex).getExpression();
+					if (valueCount == fullCount || validateStatically)  // Ensure we crashed on the expression and not the pdspec.
+						crashingExpressions.add(crashedExpr.toString());
+		    		work = crashingIndex - startIndex;
+		    		numToSkip = skipLikelyCrashes(exprs, error, crashingIndex, crashedExpr);
+		    	}
+		    	if (work > 0) {
+		    		ArrayList<FullyEvaluatedExpression> newResults = getResultsFromArray(exprs, property, valuesField, startIndex, work, numEvaluated);
+			    	reportResults(newResults);
+			    	validExprs.addAll(newResults);
+		    	}
+		    	/*System.out.println("Evaluated " + count + " expressions.");
+		    	if (hasError)
+		    		System.out.println("Crashed on " + exprs.get(startIndex + count));*/
+		    	monitor.worked(work + numToSkip);
+		    	startIndex += work + numToSkip;
+			}
 		} catch (DebugException e) {
 			throw new RuntimeException(e);
 		}
+	}
+
+	/**
+	 * Builds a string that will evaluate the given expression and pdspec
+	 * and stores it in the given StringBuilder.  Returns the numEvaluated
+	 * variable if the variable will not be evaluated and numEvaluated + 1
+	 * if it will.
+	 * @param curTypedExpr The current expression.
+	 * @param i The index of the current expression in the list of all
+	 * expressions to be evaluated.
+	 * @param expressionsStr The current evaluation string.  The new string
+	 * that evaluates this expression will be appended to this.
+	 * @param isPrimitive Whether the expression is a primitive.
+	 * @param validateStatically Whether we can evaluate the pdspec ourselves
+	 * or must have the child evaluation do it.
+	 * @param hasPropertyPrecondition Whether the current pdspec has a
+	 * precondition.
+	 * @param evalExprIndices A list that maps indices in the evaluation
+	 * string into indices in the list of all expressions.
+	 * @param numEvaluated The number of expressions the current expressionsStr
+	 * will evaluate.
+	 * @param temporaries A map of the temporaries being used in the current
+	 * evaluation string.
+	 * @param valuesArrayName The name of the field that will store the output
+	 * values.
+	 * @return The number of expressions that the potentially-modified
+	 * expressionsStr qill evaluate.
+	 * @throws DebugException
+	 */
+	private int buildStringForExpression(TypedExpression curTypedExpr, int i, StringBuilder expressionsStr, boolean isPrimitive, boolean validateStatically, boolean hasPropertyPrecondition, ArrayList<Integer> evalExprIndices, int numEvaluated, Map<String, Integer> temporaries, String valuesArrayName) throws DebugException {
+		Expression curExpr = curTypedExpr.getExpression();
+		ValueFlattener valueFlattener = new ValueFlattener(temporaries);
+		String curExprStr = valueFlattener.getResult(curExpr);
+		IJavaValue curValue = curTypedExpr.getValue();
+		if (curValue == null || !validateStatically) {
+			StringBuilder curString = new StringBuilder();
+			for (Pair<String, String> newTemp: valueFlattener.getNewTemporaries()) {
+				curString.append(" ").append(newTemp.second).append(" _$tmp").append(temporaries.size()).append(" = (").append(newTemp.second).append(")").append(IMPL_QUALIFIER).append("methodResults[").append(methodResultsMap.get(newTemp.first)).append("];\n");
+				temporaries.put(newTemp.first, temporaries.size());
+			}
+			String curRHSStr = curExprStr;
+			if (isPrimitive && curValue != null)
+				curRHSStr = EclipseUtils.javaStringOfValue(curValue, stack);
+			//curString.append(" // ").append(curExpr.toString()).append("\n");
+			curString.append(" _$curValue = ").append(curRHSStr).append(";\n ");
+			if (!validateStatically) {
+				curString.append(IMPL_QUALIFIER).append("valueCount = ").append(numEvaluated + 1).append(";\n ");
+				if (hasPropertyPrecondition)
+					curString.append("if (" + propertyPreconditions + ") {\n ");
+				curString.append("_$curValid = ").append(validVal).append(";\n ");
+				curString.append(IMPL_QUALIFIER).append("valid[").append(numEvaluated).append("] = _$curValid;\n ");
+			}
+			curString.append(IMPL_QUALIFIER).append(valuesArrayName).append("[").append(numEvaluated).append("] = _$curValue;\n ");
+			if (!isPrimitive) {
+				if (!validateStatically)
+					curString.append("if (_$curValid)\n  ");
+				curString.append(IMPL_QUALIFIER).append("toStrings[").append(numEvaluated).append("] = ").append(getToStringGetter(curTypedExpr)).append(";\n ");
+			}
+			if (hasPropertyPrecondition && !validateStatically)
+				curString.append(" }\n ");
+			curString.append(IMPL_QUALIFIER).append("fullCount = ").append(numEvaluated + 1).append(";\n");
+			expressionsStr.append("\n");
+			expressionsStr.append(curString.toString());
+			evalExprIndices.add(i);
+			numEvaluated++;
+		}
+		return numEvaluated;
+	}
+
+	/**
+	 * Finishes building the evaluation string by prepending
+	 * some initialization information.
+	 * @param expressionsStr The current evaluation string,
+	 * which will be modified.
+	 * @param numEvaluated The number of expressions this
+	 * evaluation string modifies.
+	 * @param type The type of the expressions being evaluated.
+	 * @param arePrimitives Whether the expressions being
+	 * evaluated are primitives.
+	 * @param validateStatically Whether we can evaluate the
+	 * pdspec ourselves or must have the child evaluation do it.
+	 * @param valuesArrayName The name of the field that will
+	 * store the output values.
+	 */
+	private static void finishBuildingString(StringBuilder expressionsStr, int numEvaluated, String type, boolean arePrimitives, boolean validateStatically, String valuesArrayName) {
+		String newTypeString = "[" + numEvaluated + "]";
+		if (type.contains("[]")) {  // If this is an array type, we must specify our new size as the first array dimension, not the last one.
+		    int index = type.indexOf("[]");
+		    newTypeString = type.substring(0, index) + newTypeString + type.substring(index); 
+		} else
+		    newTypeString = type + newTypeString;
+		StringBuilder prefix = new StringBuilder();
+		prefix.append("{\n").append(IMPL_QUALIFIER).append(valuesArrayName).append(" = new ").append(newTypeString).append(";\n").append(IMPL_QUALIFIER).append("valid = new boolean[").append(numEvaluated).append("];\n");
+		if (!arePrimitives)
+			prefix.append(IMPL_QUALIFIER).append("toStrings = new String[").append(numEvaluated).append("];\n");
+		else
+			prefix.append(IMPL_QUALIFIER).append("toStrings = null;\n");
+		prefix.append(IMPL_QUALIFIER).append("valueCount = 0;\n");
+		prefix.append(IMPL_QUALIFIER).append("fullCount = 0;\n");
+		prefix.append(type).append(" _$curValue;\n");
+		if (!validateStatically)
+			prefix.append("boolean _$curValid;\n");
+		expressionsStr.insert(0, prefix.toString());
+		expressionsStr.append("}");
+	}
+
+	/**
+	 * Handles an evaluation string that does not compile
+	 * by testing each string individually and removing
+	 * those that do not compile from the list of expressions,
+	 * as they are presumably the result of generic methods.
+	 * @param exprs The list of all expressions being
+	 * evaluated.  The expressions that do not compile in the
+	 * given range will be removed.
+	 * @param startIndex The starting index of the expressions
+	 * to check.
+	 * @param i The number of expressions to check.
+	 * @param compiled The result of the compilation.
+	 * @throws DebugException
+	 */
+	private void handleCompileFailure(ArrayList<TypedExpression> exprs, int startIndex, int i, ICompiledExpression compiled) throws DebugException {
+		// Check the expressions one-by-one and remove those that crash.
+		// We can crash thanks to generics and erasure (e.g., by passing an Object to List<String>.set).
+		int numDeleted = 0;
+		for (int j = i - 1; j >= startIndex; j--) {
+			String exprStr = exprs.get(j).getExpression().toString();
+			if (engine.getCompiledExpression(exprStr, stack).hasErrors()) {
+				crashingExpressions.add(exprStr);
+				exprs.remove(j);
+				numDeleted++;
+			}
+		}
+		if (numDeleted == 0)  // In this case, the error is probably our fault and not due to erasure.
+			throw new EvaluationError("Evaluation error: " + "The following errors were encountered during evaluation.\n\n" + EclipseUtils.getCompileErrors(compiled));
+		monitor.worked(numDeleted);
 	}
 	
 	/**
