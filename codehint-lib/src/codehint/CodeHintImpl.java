@@ -22,6 +22,8 @@ public final class CodeHintImpl {
 	public static int valueCount;
 	public static int fullCount;
 	
+	public static Object[] methodResults;
+	
 	public static void reset() {
 		objects = null;
 		ints = null;
@@ -34,6 +36,7 @@ public final class CodeHintImpl {
 		doubles = null;
 		valid = null;
 		toStrings = null;
+		methodResults = null;
 	}
 
 }
