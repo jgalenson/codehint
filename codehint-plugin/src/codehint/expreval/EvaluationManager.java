@@ -254,11 +254,11 @@ public final class EvaluationManager {
 	 */
 	private void evaluateExpressions(ArrayList<TypedExpression> exprs, ArrayList<FullyEvaluatedExpression> validExprs, String type, boolean arePrimitives, Property property, boolean validateStatically, IJavaFieldVariable valuesField) {
 		try {
-			if (monitor.isCanceled())
-				throw new OperationCanceledException();
 			boolean hasPropertyPrecondition = propertyPreconditions.length() > 0;
 			String valuesArrayName = valuesField.getName();
 			for (int startIndex = 0; startIndex < exprs.size(); ) {
+				if (monitor.isCanceled())
+					throw new OperationCanceledException();
 				ArrayList<Integer> evalExprIndices = new ArrayList<Integer>();
 				int numEvaluated = 0;
 				Map<String, Integer> temporaries = new HashMap<String, Integer>();
