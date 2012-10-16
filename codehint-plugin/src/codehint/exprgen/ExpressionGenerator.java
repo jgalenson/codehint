@@ -1013,10 +1013,13 @@ public final class ExpressionGenerator {
 	 * @param list List to which to add unique expressions.
 	 * @param e Expression to add if it is unique.
 	 * @param depth The current search depth.
+	 * @throws DebugException 
 	 */
-	private void addUniqueExpressionToList(List<TypedExpression> list, TypedExpression e, int depth) {
+	private void addUniqueExpressionToList(List<TypedExpression> list, TypedExpression e, int depth) throws DebugException {
 		// We only add constructors at max depth, but they might actually be lower depth.
 		if (e != null && (getDepth(e) + (isUnique(e) ? 0 : 1) == depth || (ExpressionMaker.getMethod(e.getExpression()) != null && ExpressionMaker.getMethod(e.getExpression()).isConstructor()))) {
+			if (e.getValue() != null && "V".equals(e.getValue().getSignature()))
+				return;
 			Value value = e.getWrapperValue();
 			if (value != null && equivalences.containsKey(value))
 				addEquivalentExpression(equivalences.get(value), (EvaluatedExpression)e);
@@ -1066,7 +1069,7 @@ public final class ExpressionGenerator {
 	 * @param depth The current search depth.
 	 * @throws DebugException 
 	 */
-	private void makeAllCalls(Method method, String name, TypedExpression receiver, IJavaType returnType, List<TypedExpression> ops, ArrayList<ArrayList<EvaluatedExpression>> possibleActuals, ArrayList<EvaluatedExpression> curActuals, int depth) {
+	private void makeAllCalls(Method method, String name, TypedExpression receiver, IJavaType returnType, List<TypedExpression> ops, ArrayList<ArrayList<EvaluatedExpression>> possibleActuals, ArrayList<EvaluatedExpression> curActuals, int depth) throws DebugException {
 		if (curActuals.size() == possibleActuals.size()) {
 			if (meetsPreconditions(method, receiver, curActuals))
 				addUniqueExpressionToList(ops, ExpressionMaker.makeCall(name, receiver, curActuals, returnType, thisType, method, target, thread), depth);

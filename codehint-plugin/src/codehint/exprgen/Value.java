@@ -44,6 +44,8 @@ public class Value {
 			return hashCode;
 		} else if (value instanceof IJavaClassObject)
 			return ((IJavaClassObject)value).getInstanceType().getName().hashCode() * 11;
+		else if ("V".equals(value.getSignature()))
+			return -137;
 		else {
 			IJavaObject obj = (IJavaObject)value;
 			if ("Ljava/lang/String;".equals(obj.getSignature()))  // Fast-path Strings
@@ -82,6 +84,8 @@ public class Value {
 			String signature = x.getSignature();
 			if (!signature.equals(y.getSignature()))  // Short circuit if the two values are not the same type.
 				return false;
+			if ("V".equals(signature))
+				return true;
 			if (x instanceof IJavaPrimitiveValue || "Ljava/lang/String;".equals(signature))
 				return x.toString().equals(y.toString());
 			else if (x instanceof IJavaArray) {

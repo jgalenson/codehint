@@ -35,6 +35,7 @@ import org.eclipse.jdt.debug.core.IJavaType;
 import org.eclipse.jdt.debug.core.IJavaValue;
 
 import codehint.expreval.EvaluatedExpression;
+import codehint.expreval.StringEvaluator;
 import codehint.utils.EclipseUtils;
 
 import com.sun.jdi.ClassNotLoadedException;
@@ -350,6 +351,8 @@ public class ExpressionMaker {
 	public static TypedExpression makeCall(String name, TypedExpression receiver, ArrayList<? extends TypedExpression> args, IJavaType returnType, IJavaType thisType, Method method, IJavaDebugTarget target, IJavaThread thread) {
 		//IJavaValue value = computeCall(method, receiver.getValue(), args, thread, target, ((JDIType)receiver.getType()));
 		IJavaValue value = null;
+		if ("java.lang.String".equals(method.declaringType().name()))
+			value = StringEvaluator.evaluateCall(receiver, args, method, target);
 		TypedExpression result = null;
 		if (receiver.getExpression() == null) {
 			assert "<init>".equals(name);
