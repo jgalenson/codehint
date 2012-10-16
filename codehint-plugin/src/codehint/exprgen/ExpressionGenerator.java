@@ -802,7 +802,7 @@ public final class ExpressionGenerator {
 		String objTypeName = isStatic ? e.getExpression().toString() : objTypeImpl.name();
 		Method stackMethod = ((JDIStackFrame)stack).getUnderlyingMethod();
 		List<Method> legalMethods = getMethods(e.getType());
-		OverloadChecker overloadChecker = new OverloadChecker(e.getType());
+		OverloadChecker overloadChecker = new OverloadChecker(e.getType(), stack, target, typeCache, subtypeChecker);
 		for (Method method : legalMethods) {
 			// Filter out java.lang.Object methods and fake methods like "<init>".  Note that if we don't filter out Object's methods we do getClass() and then call reflective methods, which is bad times.
 			// TODO: Allow calling protected and package-private things when it's legal.
@@ -831,8 +831,10 @@ public final class ExpressionGenerator {
 					for (EvaluatedExpression a : nextLevel)
 						if ((new SupertypeBound(argType)).isFulfilledBy(a.getType(), subtypeChecker, typeCache, stack, target)  // TODO: This doesn't work for generic methods.
 								&& meetsNonNullPreconditions(method, curArgIndex + 1, a)) {
-							if (overloadChecker.needsCast(argType, a.getType(), curArgIndex))  // If the method is overloaded, when executing the expression we might get "Ambiguous call" compile errors, so we put in a cast to remove the ambiguity.
+							if (overloadChecker.needsCast(argType, a.getType(), curArgIndex)) {  // If the method is overloaded, when executing the expression we might get "Ambiguous call" compile errors, so we put in a cast to remove the ambiguity.
+								//System.out.println("Adding cast to type " + argType.toString() + " to argument " + a.getExpression().toString() + " at index "+ curArgIndex + " of method " + method.declaringType() + "." + method.name() + " with " + method.argumentTypeNames().size() + " arguments.");
 								a = (EvaluatedExpression)ExpressionMaker.makeCast(a, argType, a.getValue(), thread);
+							}
 							curPossibleActuals.add(a);
 						}
 					allPossibleActuals.add(curPossibleActuals);
@@ -1348,7 +1350,7 @@ public final class ExpressionGenerator {
 	private void expandCall(Expression expression, Method method, List<?> arguments, Set<EvaluatedExpression> newlyExpanded, Value value, IJavaType type, EvaluatedExpression valued, int curDepth, ArrayList<EvaluatedExpression> curEquivalences) throws DebugException {
 		String name = method.name();
 		expandEquivalencesRec(expression, newlyExpanded);
-		OverloadChecker overloadChecker = new OverloadChecker(EclipseUtils.getTypeAndLoadIfNeeded(method.declaringType().name(), stack, target, typeCache));
+		OverloadChecker overloadChecker = new OverloadChecker(EclipseUtils.getTypeAndLoadIfNeeded(method.declaringType().name(), stack, target, typeCache), stack, target, typeCache, subtypeChecker);
 		overloadChecker.setMethod(method);
 		ArrayList<Iterable<TypedExpression>> newArguments = new ArrayList<Iterable<TypedExpression>>(arguments.size());
 		ArrayList<TypeConstraint> argConstraints = new ArrayList<TypeConstraint>(arguments.size());

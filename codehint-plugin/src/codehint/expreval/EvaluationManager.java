@@ -441,6 +441,7 @@ public final class EvaluationManager {
 				crashingExpressions.add(exprStr);
 				exprs.remove(j);
 				numDeleted++;
+				//System.out.println(exprStr + " does not compile.");
 			}
 		}
 		if (numDeleted == 0)  // In this case, the error is probably our fault and not due to erasure.

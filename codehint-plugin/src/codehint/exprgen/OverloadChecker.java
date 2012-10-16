@@ -1,12 +1,18 @@
 package codehint.exprgen;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
+import org.eclipse.jdt.debug.core.IJavaDebugTarget;
+import org.eclipse.jdt.debug.core.IJavaReferenceType;
+import org.eclipse.jdt.debug.core.IJavaStackFrame;
 import org.eclipse.jdt.debug.core.IJavaType;
+
+import codehint.utils.EclipseUtils;
 
 import com.sun.jdi.Method;
 
@@ -19,8 +25,12 @@ import com.sun.jdi.Method;
  */
 public class OverloadChecker {
 	
+	private final IJavaStackFrame stack;
+	private final IJavaDebugTarget target;
+	private final TypeCache typeCache;
+	private final SubtypeChecker subtypeChecker;
 	private final Map<String, Map<Integer, List<Method>>> methodsByName;
-	private boolean[] allHaveSameType;
+	private ArrayList<Set<IJavaType>> argTypes;
 	
 	/**
 	 * Creates a new OverloadChecker that will check methods
@@ -28,10 +38,13 @@ public class OverloadChecker {
 	 * @param receiverType The type of the receiver of whose
 	 * methods this object will check.
 	 */
-	public OverloadChecker(IJavaType receiverType) {
-		List<Method> visibleMethods = ExpressionGenerator.getMethods(receiverType);
+	public OverloadChecker(IJavaType receiverType, IJavaStackFrame stack, IJavaDebugTarget target, TypeCache typeCache, SubtypeChecker subtypeChecker) {
+		this.stack = stack;
+		this.target = target;
+		this.typeCache = typeCache;
+		this.subtypeChecker = subtypeChecker;
 		methodsByName = new HashMap<String, Map<Integer, List<Method>>>();
-		for (Method method: visibleMethods) {
+		for (Method method: ExpressionGenerator.getMethods(receiverType)) {
 			String name = method.name();
 			if (!methodsByName.containsKey(name))
 				methodsByName.put(name, new HashMap<Integer, List<Method>>());
@@ -51,14 +64,42 @@ public class OverloadChecker {
 	 * needsCast will check.
 	 */
 	public void setMethod(Method method) {
-		// TODO: Improve overloading detection.  One obvious way is to store, for each index, all the types possible at that index (instead of just a boolean indicating if they're all the same).  Then if a given type is only a subtype of one of them, we don't need a cast.
 		List<?> argumentTypeNames = method.argumentTypeNames();
-		allHaveSameType = new boolean[argumentTypeNames.size()];
-		Arrays.fill(allHaveSameType, true);
-		for (Method m : methodsByName.get(method.name()).get(argumentTypeNames.size()))
-			for (int i = 0; i < argumentTypeNames.size(); i++)
-				if (!m.argumentTypeNames().get(i).equals(argumentTypeNames.get(i)))
-					allHaveSameType[i] = false;
+		ArrayList<Method> potentialOverloads = getPotentialOverloads(method);
+		assert !potentialOverloads.isEmpty();
+		if (potentialOverloads.size() == 1)  // The current method is the only possibility, so there's no potential overloading.
+			argTypes = null;
+		else {
+			argTypes = new ArrayList<Set<IJavaType>>(argumentTypeNames.size());
+			for (int i = 0; i < argumentTypeNames.size(); i++) {
+				Set<IJavaType> curTypes = new HashSet<IJavaType>();
+				for (Method m : potentialOverloads)
+					curTypes.add(EclipseUtils.getTypeAndLoadIfNeededAndExists((String)m.argumentTypeNames().get(i), stack, target, typeCache));
+				argTypes.add(curTypes);
+			}
+		}
+	}
+
+	/**
+	 * Gets methods that the compiler could think a call
+	 * to the given method might also call.
+	 * @param method The method that should be called.
+	 * @return The methods that the compiler might think
+	 * a call to the given method might call, including
+	 * the given method itself.
+	 */
+	private ArrayList<Method> getPotentialOverloads(Method method) {
+		ArrayList<Method> potentialOverloads = new ArrayList<Method>();
+		methods: for (Method other : methodsByName.get(method.name()).get(method.argumentTypeNames().size())) {
+			for (int i = 0; i < method.argumentTypeNames().size(); i++) {
+				IJavaType curType = EclipseUtils.getTypeAndLoadIfNeededAndExists((String)method.argumentTypeNames().get(i), stack, target, typeCache);
+				IJavaType otherType = EclipseUtils.getTypeAndLoadIfNeededAndExists((String)other.argumentTypeNames().get(i), stack, target, typeCache);
+				if (EclipseUtils.isPrimitive(curType) != EclipseUtils.isPrimitive(otherType))
+					continue methods;
+			}
+			potentialOverloads.add(other);
+		}
+		return potentialOverloads;
 	}
 	
 	/**
@@ -72,7 +113,16 @@ public class OverloadChecker {
 	 * ambiguities.
 	 */
 	public boolean needsCast(IJavaType argType, IJavaType curType, int index) {
-		return !allHaveSameType[index] && !argType.equals(curType);
+		if (argTypes == null || argType.equals(curType))
+			return false;
+		int numSubtypes = 0;
+		for (IJavaType potentialType: argTypes.get(index)) {
+			if (subtypeChecker.isSubtypeOf(curType, potentialType))
+				numSubtypes++;
+			if (numSubtypes > 1)
+				return true;
+		}
+		return false;
 	}
 
 }

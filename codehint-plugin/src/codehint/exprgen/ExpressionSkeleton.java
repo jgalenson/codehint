@@ -731,7 +731,7 @@ public final class ExpressionSkeleton {
 			Map<String, ArrayList<Method>> constructors = getConstructors(consType, argTypes);
 			boolean isListHole = argTypes == null;
 			ArrayList<ExpressionsAndTypeConstraints> argResults = getAndFillArgs(cons.arguments(), parentsOfHoles, constructors, isListHole);
-			OverloadChecker overloadChecker = new OverloadChecker(consType);
+			OverloadChecker overloadChecker = new OverloadChecker(consType, stack, target, typeCache, subtypeChecker);
 			Map<String, ArrayList<TypedExpression>> resultExprs = new HashMap<String, ArrayList<TypedExpression>>();
 			for (Method method: Utils.singleton(constructors.values()))
 				buildCalls(method, new TypedExpression(null, consType), cons, argResults, isListHole, resultExprs, overloadChecker);
@@ -1166,14 +1166,14 @@ public final class ExpressionSkeleton {
 					if (methods.containsKey(receiverExprs.getKey()))
 						for (TypedExpression receiverExpr: receiverExprs.getValue())
 							if (receiverExpr.getValue() == null || !receiverExpr.getValue().isNull()) {
-								OverloadChecker overloadChecker = new OverloadChecker(receiverExpr.getType());
+								OverloadChecker overloadChecker = new OverloadChecker(receiverExpr.getType(), stack, target, typeCache, subtypeChecker);
 								for (Method method: methods.get(receiverExprs.getKey()))
 									if (!ExpressionMaker.isStatic(receiverExpr.getExpression()) || method.isStatic())
 										buildCalls(method, receiverExpr, node, argResults, isListHole, resultExprs, overloadChecker);
 							}
 			} else {  // No receiver (implicit this).
 				IJavaType thisType = getThisType();
-				OverloadChecker overloadChecker = new OverloadChecker(thisType);
+				OverloadChecker overloadChecker = new OverloadChecker(thisType, stack, target, typeCache, subtypeChecker);
 				if (!methods.isEmpty())
 					for (Method method: Utils.singleton(methods.values()))
 						buildCalls(method, ExpressionMaker.makeThis(getThis(), thisType, thread), node, argResults, isListHole, resultExprs, overloadChecker);
