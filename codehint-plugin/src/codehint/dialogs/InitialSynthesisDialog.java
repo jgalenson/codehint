@@ -37,6 +37,7 @@ import codehint.Activator;
 import codehint.Synthesizer.SynthesisWorker;
 import codehint.expreval.EvaluationManager;
 import codehint.expreval.FullyEvaluatedExpression;
+import codehint.expreval.StringEvaluator;
 import codehint.exprgen.ExpressionGenerator;
 import codehint.exprgen.ExpressionSkeleton;
 import codehint.exprgen.SubtypeChecker;
@@ -79,6 +80,7 @@ public class InitialSynthesisDialog extends SynthesisDialog {
     private final SubtypeChecker subtypeChecker;
     private final TypeCache typeCache;
     private final EvaluationManager evalManager;
+    private final StringEvaluator stringEvaluator;
     private final ExpressionGenerator expressionGenerator;
     private ExpressionSkeleton skeleton;
 
@@ -102,7 +104,8 @@ public class InitialSynthesisDialog extends SynthesisDialog {
 		this.subtypeChecker = new SubtypeChecker();
 		this.typeCache = new TypeCache();
 		this.evalManager = new EvaluationManager(stack, subtypeChecker, typeCache);
-		this.expressionGenerator = new ExpressionGenerator(target, stack, subtypeChecker, typeCache, evalManager);
+		this.stringEvaluator = new StringEvaluator();
+		this.expressionGenerator = new ExpressionGenerator(target, stack, subtypeChecker, typeCache, evalManager, stringEvaluator);
 		this.skeleton = null;
 	}
 
@@ -258,10 +261,11 @@ public class InitialSynthesisDialog extends SynthesisDialog {
         if (buttonId == searchButtonID) {
         	skeletonResult = skeletonInput.getText();
             property = propertyDialog.computeProperty(pdspecInput.getText(), typeCache);
-            skeleton = ExpressionSkeleton.fromString(skeletonResult, target, stack, evaluationEngine, subtypeChecker, typeCache, evalManager, expressionGenerator);
+            skeleton = ExpressionSkeleton.fromString(skeletonResult, target, stack, evaluationEngine, subtypeChecker, typeCache, evalManager, stringEvaluator, expressionGenerator);
             startEndSynthesis(SynthesisState.START);
             expressions = new ArrayList<FullyEvaluatedExpression>();
             showResults();  // Clears any existing results.
+            stringEvaluator.allowCollectionOfNewStrings();  // Allow collection of strings from previous search.
         	// Reset column sort indicators.
         	tableViewer.setComparator(null);  // We want to use the order in which we add elements as the initial sort.
         	table.setSortDirection(SWT.NONE);
@@ -479,6 +483,12 @@ public class InitialSynthesisDialog extends SynthesisDialog {
 				okButton.setEnabled(false);
 			}
 		}
+	}
+
+	@Override
+	public boolean close() {
+		stringEvaluator.allowCollectionOfNewStrings();  // Allow collection of strings from the last search.
+		return super.close();
 	}
     
     // Expression validator

@@ -55,6 +55,7 @@ import codehint.dialogs.InitialSynthesisDialog;
 import codehint.expreval.EvaluatedExpression;
 import codehint.expreval.EvaluationManager;
 import codehint.expreval.FullyEvaluatedExpression;
+import codehint.expreval.StringEvaluator;
 import codehint.exprgen.precondition.Arg;
 import codehint.exprgen.precondition.Const;
 import codehint.exprgen.precondition.GE;
@@ -233,6 +234,7 @@ public final class ExpressionGenerator {
 	private final SubtypeChecker subtypeChecker;
 	private final TypeCache typeCache;
 	private final EvaluationManager evalManager;
+    private final StringEvaluator stringEvaluator;
 	private final IJavaReferenceType thisType;
 	private final IJavaType intType;
 	private final IJavaType booleanType;
@@ -246,13 +248,14 @@ public final class ExpressionGenerator {
 	private String varName;
 	private Map<Value, ArrayList<EvaluatedExpression>> equivalences;
 	
-	public ExpressionGenerator(IJavaDebugTarget target, IJavaStackFrame stack, SubtypeChecker subtypeChecker, TypeCache typeCache, EvaluationManager evalManager) {
+	public ExpressionGenerator(IJavaDebugTarget target, IJavaStackFrame stack, SubtypeChecker subtypeChecker, TypeCache typeCache, EvaluationManager evalManager, StringEvaluator stringEvaluator) {
 		this.target = target;
 		this.stack = stack;
 		this.thread = (IJavaThread)stack.getThread();
 		this.subtypeChecker = subtypeChecker;
 		this.typeCache = typeCache;
 		this.evalManager = evalManager;
+		this.stringEvaluator = stringEvaluator;
 		try {
 			this.thisType = stack.getReferenceType();
 		} catch (DebugException e) {
@@ -372,7 +375,7 @@ public final class ExpressionGenerator {
     			unevaluatedExprs.add(e);
     	
     	//System.out.println("Generated " + exprs.size() + " potential expressions at depth " + depth + ", of which " + evaluatedExprs.size() + " already have values and " + unevaluatedExprs.size() + " still need to be evaluated.");
-    	//System.out.println("Generated " + (Utils.getNumValues(equivalences) + unevaluatedExprs.size()) + " total expressions at depth " + depth + ", of which " + unevaluatedExprs.size() + " still need to be evaluated.");
+    	//System.out.println("Generated " + (Utils.getNumValues(equivalences) + unevaluatedExprs.size() + evalManager.getNumCrashes() + stringEvaluator.getNumCrashes()) + " total expressions at depth " + depth + ", of which " + unevaluatedExprs.size() + " still need to be evaluated and " + (evalManager.getNumCrashes() + stringEvaluator.getNumCrashes()) + " crashed.");
     	
 		ArrayList<FullyEvaluatedExpression> results = evalManager.evaluateExpressions(evaluatedExprs, property, getVarType(), synthesisDialog, monitor);
     	if (unevaluatedExprs.size() > 0) {
@@ -1102,7 +1105,7 @@ public final class ExpressionGenerator {
 		if (curActuals.size() == possibleActuals.size()) {
 			if (meetsPreconditions(method, receiver, curActuals))
 				if (method.isConstructor() || isCorrectDepth(receiver, depth - 1) || isOneCorrectDepth(curActuals, depth - 1))  // We might evaluate the call when we create it (e.g., StringEvaluator), so first ensure it has the proper depth to avoid re-evaluating some calls.
-					addUniqueExpressionToList(ops, ExpressionMaker.makeCall(name, receiver, curActuals, returnType, thisType, method, target, thread), depth);
+					addUniqueExpressionToList(ops, ExpressionMaker.makeCall(name, receiver, curActuals, returnType, thisType, method, target, thread, stringEvaluator), depth);
 		} else {
 			int argNum = curActuals.size();
 			for (EvaluatedExpression e : possibleActuals.get(argNum)) {

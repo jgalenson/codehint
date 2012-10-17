@@ -653,6 +653,14 @@ public final class EvaluationManager {
 		}
 	}
 	
+	/**
+	 * Gets the number of expressions whose evaluation crashed.
+	 * @return The number of expressions whose evaluation crashed.
+	 */
+	public int getNumCrashes() {
+		return crashingExpressions.size();
+	}
+	
 	private static class Evaluator {
 		
 		private static final Semaphore semaphore = new Semaphore(0);

@@ -17,7 +17,13 @@ import com.sun.jdi.Method;
  */
 public class StringEvaluator {
 	
-	private static final ArrayList<IJavaObject> collectionDisableds = new ArrayList<IJavaObject>();
+	private final ArrayList<IJavaObject> collectionDisableds;
+	private int numCrashes;
+	
+	public StringEvaluator() {
+		collectionDisableds = new ArrayList<IJavaObject>();
+		numCrashes = 0;
+	}
 	
 	/**
 	 * Evaluates the given method call, which must be in
@@ -31,7 +37,7 @@ public class StringEvaluator {
 	 * the given arguments, or null if we could not evaluate
 	 * it, or void if the evaluation crashed.
 	 */
-	public static IJavaValue evaluateCall(TypedExpression receiver, ArrayList<? extends TypedExpression> args, Method method, IJavaDebugTarget target) {
+	public IJavaValue evaluateCall(TypedExpression receiver, ArrayList<? extends TypedExpression> args, Method method, IJavaDebugTarget target) {
 		IJavaValue result = null;
 		try {
 			IJavaValue[] argVals = new IJavaValue[args.size()];
@@ -49,6 +55,7 @@ public class StringEvaluator {
 			throw new RuntimeException(ex);
 		} catch (Exception ex) {
 			result = target.voidValue();
+			numCrashes++;
 		}
 		//System.out.println("Evaluating " + receiver.getExpression().toString().replaceAll("[\n]", "\\\\n") + "." + method.name() + args.toString().replaceAll("[\n]", "\\\\n") + " and got " + (result == null ? "null" : result.toString().replaceAll("[\n]", "\\\\n")));
 		return result;
@@ -57,7 +64,7 @@ public class StringEvaluator {
 	/**
 	 * Allow the strings we created ourselves to be collected.
 	 */
-	public static void allowCollectionOfNewStrings() {
+	public void allowCollectionOfNewStrings() {
 		try {
 			for (IJavaObject obj: collectionDisableds)
 				obj.enableCollection();
@@ -66,8 +73,12 @@ public class StringEvaluator {
 		}
 		collectionDisableds.clear();
 	}
+	
+	public int getNumCrashes() {
+		return numCrashes;
+	}
 
-	private static IJavaValue evaluateConstructorCall(IJavaValue[] args, Method method, IJavaDebugTarget target) throws DebugException {
+	private IJavaValue evaluateConstructorCall(IJavaValue[] args, Method method, IJavaDebugTarget target) throws DebugException {
 		String sig = method.signature();
 		if ("()V".equals(sig))
 			return valueOfString("", target);
@@ -105,7 +116,7 @@ public class StringEvaluator {
 		  Signature: (Ljava/lang/StringBuilder;)V
 	 */
 	
-	private static IJavaValue evaluateCall(String receiver, IJavaValue receiverValue, IJavaValue[] args, Method method, IJavaDebugTarget target) throws DebugException {
+	private IJavaValue evaluateCall(String receiver, IJavaValue receiverValue, IJavaValue[] args, Method method, IJavaDebugTarget target) throws DebugException {
 		String name = method.name();
 		String sig = method.signature();
 		if ("length".equals(name))
@@ -331,7 +342,7 @@ public class StringEvaluator {
 	
 	// Convert actual values to IJavaValues
 	
-	private static IJavaValue valueOfString(String s, IJavaDebugTarget target) throws DebugException {
+	private IJavaValue valueOfString(String s, IJavaDebugTarget target) throws DebugException {
 		IJavaObject strValue = (IJavaObject)target.newValue(s);
 		// We must disable collection on these strings since they are not reachable and hence could be collected.  Without this, the strings are collected and the EvaluationManager inserts non-quoted string literals for them and crashes.
 		strValue.disableCollection();

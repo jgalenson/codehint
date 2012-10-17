@@ -348,11 +348,11 @@ public class ExpressionMaker {
 	}
 
 	@SuppressWarnings("unused")
-	public static TypedExpression makeCall(String name, TypedExpression receiver, ArrayList<? extends TypedExpression> args, IJavaType returnType, IJavaType thisType, Method method, IJavaDebugTarget target, IJavaThread thread) {
+	public static TypedExpression makeCall(String name, TypedExpression receiver, ArrayList<? extends TypedExpression> args, IJavaType returnType, IJavaType thisType, Method method, IJavaDebugTarget target, IJavaThread thread, StringEvaluator stringEvaluator) {
 		//IJavaValue value = computeCall(method, receiver.getValue(), args, thread, target, ((JDIType)receiver.getType()));
 		IJavaValue value = null;
 		if ("java.lang.String".equals(method.declaringType().name()))
-			value = StringEvaluator.evaluateCall(receiver, args, method, target);
+			value = stringEvaluator.evaluateCall(receiver, args, method, target);
 		TypedExpression result = null;
 		if (receiver.getExpression() == null) {
 			assert "<init>".equals(name);
