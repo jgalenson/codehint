@@ -58,6 +58,7 @@ import codehint.dialogs.StatePropertyDialog;
 import codehint.dialogs.SynthesisDialog;
 import codehint.dialogs.TypePropertyDialog;
 import codehint.expreval.EvaluationManager;
+import codehint.expreval.StringEvaluator;
 import codehint.expreval.EvaluationManager.EvaluationError;
 import codehint.expreval.FullyEvaluatedExpression;
 import codehint.exprgen.ExpressionGenerator;
@@ -221,6 +222,7 @@ public class Synthesizer {
 							}
 			        	});
 						evalManager.resetFields();
+						StringEvaluator.allowCollectionOfNewStrings();  // TODO: This is probably wrong as the dialog still has the values.
 					}
 				}
 			};

@@ -32,6 +32,7 @@ import org.eclipse.jdt.core.dom.NumberLiteral;
 import org.eclipse.jdt.core.dom.ParenthesizedExpression;
 import org.eclipse.jdt.core.dom.PrefixExpression;
 import org.eclipse.jdt.core.dom.SimpleName;
+import org.eclipse.jdt.core.dom.SimpleType;
 import org.eclipse.jdt.core.dom.StringLiteral;
 import org.eclipse.jdt.core.dom.ThisExpression;
 import org.eclipse.jdt.core.dom.TypeLiteral;
@@ -1017,7 +1018,7 @@ public final class ExpressionGenerator {
 	 */
 	private void addUniqueExpressionToList(List<TypedExpression> list, TypedExpression e, int depth) throws DebugException {
 		// We only add constructors at max depth, but they might actually be lower depth.
-		if (e != null && (getDepth(e) + (isUnique(e) ? 0 : 1) == depth || (ExpressionMaker.getMethod(e.getExpression()) != null && ExpressionMaker.getMethod(e.getExpression()).isConstructor()))) {
+		if (e != null && isCorrectDepth(e, depth)) {
 			if (e.getValue() != null && "V".equals(e.getValue().getSignature()))
 				return;
 			Value value = e.getWrapperValue();
@@ -1029,6 +1030,33 @@ public final class ExpressionGenerator {
 				list.add(e);
 			}
 		}
+	}
+
+	/**
+	 * Checks whether the given expression has the given depth,
+	 * including checking uniqueness wrt UniqueASTChecker.
+	 * @param e Expression to add if it is unique.
+	 * @param depth The current search depth.
+	 * @return Whether the given expression has the given depth
+	 * wrt UniqueASTChecker.
+	 */
+	private boolean isCorrectDepth(TypedExpression e, int depth) {
+		return getDepth(e) + (isUnique(e) ? 0 : 1) == depth || (ExpressionMaker.getMethod(e.getExpression()) != null && ExpressionMaker.getMethod(e.getExpression()).isConstructor());
+	}
+	
+	/**
+	 * Checks whether one of the given expressions has the given
+	 * depth, including checking uniqueness wrt UniqueASTChecker.
+	 * @param es The expressions to check.
+	 * @param depth The current search depth.
+	 * @return Whether one of the given expressions has the given
+	 * depth wrt UniqueASTChecker.
+	 */
+	private boolean isOneCorrectDepth(ArrayList<? extends TypedExpression> es, int depth) {
+		for (TypedExpression e: es)
+			if (isCorrectDepth(e, depth))
+				return true;
+		return false;
 	}
 	
 	/**
@@ -1072,7 +1100,8 @@ public final class ExpressionGenerator {
 	private void makeAllCalls(Method method, String name, TypedExpression receiver, IJavaType returnType, List<TypedExpression> ops, ArrayList<ArrayList<EvaluatedExpression>> possibleActuals, ArrayList<EvaluatedExpression> curActuals, int depth) throws DebugException {
 		if (curActuals.size() == possibleActuals.size()) {
 			if (meetsPreconditions(method, receiver, curActuals))
-				addUniqueExpressionToList(ops, ExpressionMaker.makeCall(name, receiver, curActuals, returnType, thisType, method, target, thread), depth);
+				if (method.isConstructor() || isCorrectDepth(receiver, depth - 1) || isOneCorrectDepth(curActuals, depth - 1))  // We might evaluate the call when we create it (e.g., StringEvaluator), so first ensure it has the proper depth to avoid re-evaluating some calls.
+					addUniqueExpressionToList(ops, ExpressionMaker.makeCall(name, receiver, curActuals, returnType, thisType, method, target, thread), depth);
 		} else {
 			int argNum = curActuals.size();
 			for (EvaluatedExpression e : possibleActuals.get(argNum)) {
@@ -1409,6 +1438,12 @@ public final class ExpressionGenerator {
     	public boolean visit(NumberLiteral node) {
     		visit(node.getToken());
     		return true;
+    	}
+    	
+    	// Casts have type names that are SimpleNames inside SimpleTypes, but we don't want to count those towards non-uniqueness, so we don't visit them. 
+    	@Override
+    	public boolean visit(SimpleType node) {
+    		return false;
     	}
     	
     	private void visit(String s) {
