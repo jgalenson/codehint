@@ -2,6 +2,7 @@ package codehint.utils;
 
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.List;
 import java.util.Map;
 
 public class Utils {
@@ -9,7 +10,7 @@ public class Utils {
 	/**
 	 * Gets the element out of a singleton collection.
 	 * Fails an assertion if the collection does
-	 * not contain exacly one element.
+	 * not contain exactly one element.
 	 * @param xs The singleton collection.
 	 * @return The single element in the collection.
 	 */
@@ -78,6 +79,19 @@ public class Utils {
 			map.put(key, result);
 			return result;
 		}
+	}
+
+	/**
+	 * Gets the total number of values in the map.
+	 * @param map A map whose values are lists of
+	 * the actual values.
+	 * @return The total number of values in the map.
+	 */
+	public static <K, V> int getNumValues(Map<K, ? extends List<V>> map) {
+		int num = 0;
+		for (List<V> values: map.values())
+			num += values.size();
+		return num;
 	}
 
 }

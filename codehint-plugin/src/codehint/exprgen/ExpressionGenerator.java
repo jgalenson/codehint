@@ -372,6 +372,7 @@ public final class ExpressionGenerator {
     			unevaluatedExprs.add(e);
     	
     	//System.out.println("Generated " + exprs.size() + " potential expressions at depth " + depth + ", of which " + evaluatedExprs.size() + " already have values and " + unevaluatedExprs.size() + " still need to be evaluated.");
+    	//System.out.println("Generated " + (Utils.getNumValues(equivalences) + unevaluatedExprs.size()) + " total expressions at depth " + depth + ", of which " + unevaluatedExprs.size() + " still need to be evaluated.");
     	
 		ArrayList<FullyEvaluatedExpression> results = evalManager.evaluateExpressions(evaluatedExprs, property, getVarType(), synthesisDialog, monitor);
     	if (unevaluatedExprs.size() > 0) {

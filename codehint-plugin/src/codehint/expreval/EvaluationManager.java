@@ -56,6 +56,7 @@ import codehint.property.TypeProperty;
 import codehint.property.ValueProperty;
 import codehint.utils.EclipseUtils;
 import codehint.utils.Pair;
+import codehint.utils.Utils;
 
 /**
  * Class for evaluating expressions.
@@ -147,7 +148,7 @@ public final class EvaluationManager {
     		propertyPreconditions = property instanceof ValueProperty ? "" : pf.getPreconditions();  // TODO: This will presumably fail if the user does their own null check.
     		boolean validateStatically = property == null || property instanceof PrimitiveValueProperty || property instanceof TypeProperty || (property instanceof ValueProperty && ((ValueProperty)property).getValue().isNull()) || (property instanceof ObjectValueProperty && "java.lang.String".equals(((ObjectValueProperty)property).getValue().getJavaType().getName()));
 			Map<String, ArrayList<TypedExpression>> expressionsByType = getNonKnownCrashingExpressionByType(exprs);
-			int numExpressions = getNumExpressions(expressionsByType);
+			int numExpressions = Utils.getNumValues(expressionsByType);
 			this.monitor = SubMonitor.convert(monitor, "Expression evaluation", numExpressions);
 			ArrayList<FullyEvaluatedExpression> validExprs = new ArrayList<FullyEvaluatedExpression>(numExpressions);
 			for (Map.Entry<String, ArrayList<TypedExpression>> expressionsOfType: expressionsByType.entrySet()) {
@@ -192,19 +193,6 @@ public final class EvaluationManager {
 			expressionsByType.get("Object").addAll(nulls);
 		}
 		return expressionsByType;
-	}
-	
-	/**
-	 * Gets the total number of expressions in the map.
-	 * @param expressionsByType A map of types to expressions
-	 * of that type.
-	 * @return The total number of expressions.
-	 */
-	private static int getNumExpressions(Map<String, ArrayList<TypedExpression>> expressionsByType) {
-		int numExpressions = 0;
-		for (ArrayList<TypedExpression> exprs: expressionsByType.values())
-			numExpressions += exprs.size();
-		return numExpressions;
 	}
 
 	/**
@@ -298,7 +286,7 @@ public final class EvaluationManager {
 		    		numToSkip = skipLikelyCrashes(exprs, error, crashingIndex, crashedExpr);
 		    	}
 		    	if (work > 0) {
-		    		ArrayList<FullyEvaluatedExpression> newResults = getResultsFromArray(exprs, property, valuesField, startIndex, work, numEvaluated);
+		    		ArrayList<FullyEvaluatedExpression> newResults = getResultsFromArray(exprs, property, valuesField, startIndex, work, numEvaluated, validateStatically);
 			    	reportResults(newResults);
 			    	validExprs.addAll(newResults);
 		    	}
@@ -480,7 +468,7 @@ public final class EvaluationManager {
 	 * given property (or all that do not crash if it is null).
 	 * @throws DebugException
 	 */
-	private ArrayList<FullyEvaluatedExpression> getResultsFromArray(ArrayList<TypedExpression> exprs, Property property, IJavaFieldVariable valuesField, int startIndex, int count, int numEvaluated) throws DebugException {
+	private ArrayList<FullyEvaluatedExpression> getResultsFromArray(ArrayList<TypedExpression> exprs, Property property, IJavaFieldVariable valuesField, int startIndex, int count, int numEvaluated, boolean validateStatically) throws DebugException {
 		ArrayList<FullyEvaluatedExpression> validExprs = new ArrayList<FullyEvaluatedExpression>();
 		IJavaValue valuesFieldValue = (IJavaValue)valuesField.getValue();
 		IJavaValue[] values = numEvaluated == 0 || valuesFieldValue.isNull() ? null : ((IJavaArray)valuesFieldValue).getValues();
@@ -515,7 +503,7 @@ public final class EvaluationManager {
     		}
 			if (valid)
 				validExprs.add(new FullyEvaluatedExpression(typedExpr.getExpression(), typedExpr.getType(), new Value(curValue, thread), resultString));
-			if (typedExpr.getValue() == null || !(property instanceof PrimitiveValueProperty || property instanceof TypeProperty))
+			if (typedExpr.getValue() == null || !validateStatically)
 				evalIndex++;
 		}
 		return validExprs;

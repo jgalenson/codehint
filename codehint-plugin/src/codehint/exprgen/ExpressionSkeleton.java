@@ -637,7 +637,7 @@ public final class ExpressionSkeleton {
 				return fillSimpleName(node, curConstraint);
 			} else if (node instanceof StringLiteral) {
 				IJavaType type = EclipseUtils.getFullyQualifiedType("java.lang.String", stack, target, typeCache);
-				return new ExpressionsAndTypeConstraints(new EvaluatedExpression(node, type, new Value(target.newValue(((StringLiteral)node).getEscapedValue()), thread)), new SupertypeBound(type));
+				return new ExpressionsAndTypeConstraints(new EvaluatedExpression(node, type, new Value(target.newValue(((StringLiteral)node).getLiteralValue()), thread)), new SupertypeBound(type));
 			} else if (node instanceof SuperFieldAccess) {
 				SuperFieldAccess superAccess = (SuperFieldAccess)node;
 				IJavaType superType = getSuperType(superAccess.getQualifier());
@@ -1304,15 +1304,17 @@ public final class ExpressionSkeleton {
 		 * @param curActuals The current list of actuals, which is built
 		 * up through recursion.
 		 * @param resultExprs The map that stores the resulting expressions.
+		 * @throws DebugException 
 		 */
-		private void makeAllCalls(Method method, String name, String constraintName, TypedExpression receiver, Expression callNode, IJavaType returnType, IJavaType thisType, ArrayList<ArrayList<TypedExpression>> possibleActuals, ArrayList<TypedExpression> curActuals, Map<String, ArrayList<TypedExpression>> resultExprs) {
+		private void makeAllCalls(Method method, String name, String constraintName, TypedExpression receiver, Expression callNode, IJavaType returnType, IJavaType thisType, ArrayList<ArrayList<TypedExpression>> possibleActuals, ArrayList<TypedExpression> curActuals, Map<String, ArrayList<TypedExpression>> resultExprs) throws DebugException {
 			if (curActuals.size() == possibleActuals.size()) {
 				TypedExpression callExpr = null;
 				if (callNode instanceof SuperMethodInvocation)
 					callExpr = ExpressionMaker.makeSuperCall(name, ((SuperMethodInvocation)callNode).getQualifier(), curActuals, returnType, null, method, thread);
 				else
 					callExpr = ExpressionMaker.makeCall(name, receiver, curActuals, returnType, thisType, method, target, thread);
-				Utils.addToMap(resultExprs, constraintName, callExpr);
+				if (callExpr.getValue() == null || !"V".equals(callExpr.getValue().getSignature()))
+					Utils.addToMap(resultExprs, constraintName, callExpr);
 			}
 			else {
 				int argNum = curActuals.size();
