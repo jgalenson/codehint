@@ -48,7 +48,7 @@ public class EvaluatedExpression extends TypedExpression {
 		if (value == null)
 			return getSnippet();
 		else
-			return getSnippet() + " (= " + value.toString() + ")";
+			return getSnippet() + " (= " + value.toString().replace("\n", "\\n") + ")";
 	}
 	
 }

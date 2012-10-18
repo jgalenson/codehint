@@ -327,6 +327,9 @@ public final class ExpressionGenerator {
 		ArrayList<FullyEvaluatedExpression> nextLevel = new ArrayList<FullyEvaluatedExpression>(0);
 		for (int depth = 0; depth <= maxDepth; depth++) {
 			filterDuplicates(nextLevel);
+			/*System.out.println("Depth " + depth + " has " + nextLevel.size() + " inputs:");
+			for (FullyEvaluatedExpression e: nextLevel)
+				System.out.println(Utils.truncate(e.toString(), 100));*/
 			curLevel = genOneLevel(nextLevel, depth, maxDepth, property, monitor);
 			evalManager.cacheMethodResults(nextLevel);
 			if (depth < maxDepth)

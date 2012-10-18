@@ -40,7 +40,7 @@ public class Value {
 			int length = array.getLength();
 			int hashCode = length * 5;
 			for (int i = 0; i < 10 && i < length; i++)
-				hashCode += 7 * array.getValue(i).hashCode();
+				hashCode += 7 * getHashCode(array.getValue(i));
 			return hashCode;
 		} else if (value instanceof IJavaClassObject)
 			return ((IJavaClassObject)value).getInstanceType().getName().hashCode() * 11;
