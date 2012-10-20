@@ -36,6 +36,10 @@ public class OverloadChecker {
 	 * of the given receiver.
 	 * @param receiverType The type of the receiver of whose
 	 * methods this object will check.
+	 * @param stack The stack frame.
+	 * @param target The debug target.
+	 * @param typeCache The type cache.
+	 * @param subtypeChecker The subtype checker.
 	 */
 	public OverloadChecker(IJavaType receiverType, IJavaStackFrame stack, IJavaDebugTarget target, TypeCache typeCache, SubtypeChecker subtypeChecker) {
 		this.stack = stack;

@@ -74,8 +74,8 @@ public class ValueFlattener extends ASTFlattener {
 	 * strings with compile errors.
 	 * @param node The current node.
 	 * @param str The string of the node's value.
-	 * @return The StringBuilder with the given node's value
-	 * appended.
+	 * @param sb The StringBuilder into which we will
+	 * append the result.
 	 */
 	private void handleCast(Expression node, String str, StringBuilder sb) {
 		if (node instanceof CastExpression) {

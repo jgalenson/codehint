@@ -3,6 +3,7 @@ package codehint.expreval;
 import java.util.ArrayList;
 
 import org.eclipse.debug.core.DebugException;
+import org.eclipse.jdt.debug.core.IJavaClassObject;
 import org.eclipse.jdt.debug.core.IJavaDebugTarget;
 import org.eclipse.jdt.debug.core.IJavaObject;
 import org.eclipse.jdt.debug.core.IJavaPrimitiveValue;
@@ -50,7 +51,7 @@ public class StringEvaluator {
 			if (receiver.getExpression() == null)
 				result = evaluateConstructorCall(argVals, method, target);
 			else
-				result = evaluateCall(stringOfValue(receiver.getValue()), receiver.getValue(), argVals, method, target);
+				result = evaluateCall(receiver.getValue() instanceof IJavaClassObject ? null : stringOfValue(receiver.getValue()), receiver.getValue(), argVals, method, target);
 		} catch (DebugException ex) {
 			throw new RuntimeException(ex);
 		} catch (Exception ex) {
@@ -309,7 +310,7 @@ public class StringEvaluator {
 	// Convert IJavaValue to actual values
 	
 	private static String stringOfValue(IJavaValue value) throws DebugException {
-		assert isNullOrString(value);
+		assert isNullOrString(value) : value;
 		if (value.isNull())
 			return null;
 		else
