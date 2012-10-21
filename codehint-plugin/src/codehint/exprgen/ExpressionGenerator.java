@@ -55,7 +55,7 @@ import codehint.dialogs.InitialSynthesisDialog;
 import codehint.expreval.EvaluatedExpression;
 import codehint.expreval.EvaluationManager;
 import codehint.expreval.FullyEvaluatedExpression;
-import codehint.expreval.StringEvaluator;
+import codehint.expreval.StaticEvaluator;
 import codehint.exprgen.precondition.Arg;
 import codehint.exprgen.precondition.Const;
 import codehint.exprgen.precondition.GE;
@@ -234,7 +234,7 @@ public final class ExpressionGenerator {
 	private final SubtypeChecker subtypeChecker;
 	private final TypeCache typeCache;
 	private final EvaluationManager evalManager;
-    private final StringEvaluator stringEvaluator;
+    private final StaticEvaluator staticEvaluator;
 	private final IJavaReferenceType thisType;
 	private final IJavaType intType;
 	private final IJavaType booleanType;
@@ -248,14 +248,14 @@ public final class ExpressionGenerator {
 	private String varName;
 	private Map<Value, ArrayList<EvaluatedExpression>> equivalences;
 	
-	public ExpressionGenerator(IJavaDebugTarget target, IJavaStackFrame stack, SubtypeChecker subtypeChecker, TypeCache typeCache, EvaluationManager evalManager, StringEvaluator stringEvaluator) {
+	public ExpressionGenerator(IJavaDebugTarget target, IJavaStackFrame stack, SubtypeChecker subtypeChecker, TypeCache typeCache, EvaluationManager evalManager, StaticEvaluator staticEvaluator) {
 		this.target = target;
 		this.stack = stack;
 		this.thread = (IJavaThread)stack.getThread();
 		this.subtypeChecker = subtypeChecker;
 		this.typeCache = typeCache;
 		this.evalManager = evalManager;
-		this.stringEvaluator = stringEvaluator;
+		this.staticEvaluator = staticEvaluator;
 		try {
 			this.thisType = stack.getReferenceType();
 		} catch (DebugException e) {
@@ -378,7 +378,7 @@ public final class ExpressionGenerator {
     			unevaluatedExprs.add(e);
     	
     	//System.out.println("Generated " + exprs.size() + " potential expressions at depth " + depth + ", of which " + evaluatedExprs.size() + " already have values and " + unevaluatedExprs.size() + " still need to be evaluated.");
-    	//System.out.println("Generated " + (Utils.getNumValues(equivalences) + unevaluatedExprs.size() + evalManager.getNumCrashes() + stringEvaluator.getNumCrashes()) + " total expressions at depth " + depth + ", of which " + unevaluatedExprs.size() + " still need to be evaluated and " + (evalManager.getNumCrashes() + stringEvaluator.getNumCrashes()) + " crashed.");
+    	//System.out.println("Generated " + (Utils.getNumValues(equivalences) + unevaluatedExprs.size() + evalManager.getNumCrashes() + staticEvaluator.getNumCrashes()) + " total expressions at depth " + depth + ", of which " + unevaluatedExprs.size() + " still need to be evaluated and " + (evalManager.getNumCrashes() + staticEvaluator.getNumCrashes()) + " crashed.");
     	
 		ArrayList<FullyEvaluatedExpression> results = evalManager.evaluateExpressions(evaluatedExprs, property, getVarType(), synthesisDialog, monitor);
     	if (unevaluatedExprs.size() > 0) {
@@ -786,7 +786,7 @@ public final class ExpressionGenerator {
 	public static boolean isLegalMethod(Method method, IJavaType thisType, boolean isConstructor) {
 		return ((method.isPublic() || method.declaringType().equals(((JDIType)thisType).getUnderlyingType())) && (!method.isConstructor() || !method.isPackagePrivate()))  // Constructors are not marked as public.
 				&& isConstructor == method.isConstructor() && !method.isSynthetic() && !method.isStaticInitializer() && !method.declaringType().name().equals("java.lang.Object")
-				&& !"hashCode".equals(method.name());  // TODO: This should really be part of the blacklist.
+				&& !"hashCode".equals(method.name()) && !"deepHashCode".equals(method.name());  // TODO: This should really be part of the blacklist.
 	}
 
 	/**
@@ -1107,8 +1107,8 @@ public final class ExpressionGenerator {
 	private void makeAllCalls(Method method, String name, TypedExpression receiver, IJavaType returnType, List<TypedExpression> ops, ArrayList<ArrayList<EvaluatedExpression>> possibleActuals, ArrayList<EvaluatedExpression> curActuals, int depth) throws DebugException {
 		if (curActuals.size() == possibleActuals.size()) {
 			if (meetsPreconditions(method, receiver, curActuals))
-				if (method.isConstructor() || isCorrectDepth(receiver, depth - 1) || isOneCorrectDepth(curActuals, depth - 1))  // We might evaluate the call when we create it (e.g., StringEvaluator), so first ensure it has the proper depth to avoid re-evaluating some calls.
-					addUniqueExpressionToList(ops, ExpressionMaker.makeCall(name, receiver, curActuals, returnType, thisType, method, target, thread, stringEvaluator), depth);
+				if (method.isConstructor() || isCorrectDepth(receiver, depth - 1) || isOneCorrectDepth(curActuals, depth - 1))  // We might evaluate the call when we create it (e.g., staticEvaluator), so first ensure it has the proper depth to avoid re-evaluating some calls.
+					addUniqueExpressionToList(ops, ExpressionMaker.makeCall(name, receiver, curActuals, returnType, thisType, method, target, thread, staticEvaluator), depth);
 		} else {
 			int argNum = curActuals.size();
 			for (EvaluatedExpression e : possibleActuals.get(argNum)) {
