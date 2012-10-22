@@ -206,8 +206,23 @@ public final class ASTCopyer extends ASTVisitor {
 		return copyProperties(node, node.getAST().newNullLiteral());
 	}
 
+	//private static java.lang.reflect.Method nlSetter;
+	
 	private static NumberLiteral copy(NumberLiteral node) {
+		if (node.getToken().equals("0"))  // Short circuit to avoid an unnecessary slow Scanner in the creation/copy of a NumberLiteral.
+			return copyProperties(node, node.getAST().newNumberLiteral());
 		return copyProperties(node, node.getAST().newNumberLiteral(node.getToken()));
+		/*try {
+			NumberLiteral copy = node.getAST().newNumberLiteral();
+			if (nlSetter == null) {
+				nlSetter = NumberLiteral.class.getDeclaredMethod("internalSetToken", String.class);
+				nlSetter.setAccessible(true);
+			}
+			nlSetter.invoke(copy, node.getToken());
+			return copyProperties(node, copy);
+		} catch (Exception e) {
+			throw new RuntimeException(e);
+		}*/
 	}
 
 	private static ParenthesizedExpression copy(ParenthesizedExpression node) {
