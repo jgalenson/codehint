@@ -91,8 +91,6 @@ public final class ExpressionGenerator {
 	private final static InfixExpression.Operator[] BOOLEAN_COMPARE_OPS = new InfixExpression.Operator[] { InfixExpression.Operator.CONDITIONAL_AND, InfixExpression.Operator.CONDITIONAL_OR  };
 	private final static InfixExpression.Operator[] REF_COMPARE_OPS = new InfixExpression.Operator[] { InfixExpression.Operator.EQUALS, InfixExpression.Operator.NOT_EQUALS };
 
-	private final static int MAX_NUM_METHOD_CALLS = 600;
-	
 	private final static Set<String> classBlacklist = new HashSet<String>();
 	private final static Map<String, Set<String>> methodBlacklist = new HashMap<String, Set<String>>();
 	private final static Map<String, Predicate[]> methodPreconditions = new HashMap<String, Predicate[]>();
@@ -247,6 +245,8 @@ public final class ExpressionGenerator {
 	private TypeConstraint typeConstraint;
 	private String varName;
 	private Map<Value, ArrayList<EvaluatedExpression>> equivalences;
+	private Map<Method, Integer> prunedDepths;  // Maps a method to the first consecutive depth at which we pruned calls to it.
+	private Set<Method> newlyUnpruneds;  // A set of the methods that were pruned at the previous depth that are not pruned at the current depth.
 	
 	public ExpressionGenerator(IJavaDebugTarget target, IJavaStackFrame stack, SubtypeChecker subtypeChecker, TypeCache typeCache, EvaluationManager evalManager, StaticEvaluator staticEvaluator) {
 		this.target = target;
@@ -291,6 +291,8 @@ public final class ExpressionGenerator {
 			this.typeConstraint = typeConstraint;
 			this.varName = varName;
 			this.equivalences = new HashMap<Value, ArrayList<EvaluatedExpression>>();
+			this.prunedDepths = new HashMap<Method, Integer>();
+			this.newlyUnpruneds = new HashSet<Method>();
 			
 			ArrayList<FullyEvaluatedExpression> results = genAllExprs(maxExprDepth, property, synthesisDialog, monitor);
 
@@ -393,7 +395,7 @@ public final class ExpressionGenerator {
 					if (!argString.isEmpty())
 						argString += ", ";
 					IJavaValue value = ExpressionMaker.getExpressionValue((Expression)e);
-					argString += value != null ? value.toString() : "??";
+					argString += value != null ? value.toString().replace("\n", "\\n") : "??";
 				}
 				if (call.getExpression() instanceof ClassInstanceCreation)
 					System.out.println("new " + ((ClassInstanceCreation)call.getExpression()).getType() + "_" + method.signature() + "(" + argString + ")");
@@ -402,7 +404,7 @@ public final class ExpressionGenerator {
 				else {
 					Expression receiver = ((MethodInvocation)call.getExpression()).getExpression();
 					if (receiver == null)
-						receiver = ExpressionMaker.makeThis(stack.getThis(), thisType).getExpression();
+						receiver = ExpressionMaker.makeThis(stack.getThis(), thisType, thread).getExpression();
 					System.out.println(ExpressionMaker.getExpressionValue(receiver) + "." + name + "_" + method.signature() + "(" + argString + ")");
 				}
 	    	}*/
@@ -664,6 +666,9 @@ public final class ExpressionGenerator {
     					monitor.worked(1);
     				}
     			}
+    			for (Method method: newlyUnpruneds)
+    				prunedDepths.remove(method);
+    			newlyUnpruneds.clear();
     		}
     		
     		/*System.out.println("Exploring " + result.size() + " possible expressions.");
@@ -851,7 +856,7 @@ public final class ExpressionGenerator {
 					TypedExpression receiver = e;
 					if (method.isStatic())
 						receiver = ExpressionMaker.makeStaticName(EclipseUtils.sanitizeTypename(objTypeName), (IJavaReferenceType)e.getType(), thread);
-					pruneManyArgCalls(allPossibleActuals, depth - 1, receiver.getType() + "." + method.name());
+					pruneManyArgCalls(method, allPossibleActuals, depth, depth - 1, receiver.getType() + "." + method.name());
 					makeAllCalls(method, method.name(), receiver, returnType, ops, allPossibleActuals, new ArrayList<EvaluatedExpression>(allPossibleActuals.size()), depth);
 				}
 			}
@@ -863,22 +868,49 @@ public final class ExpressionGenerator {
 	 * there are not far too many actual calls.  We do this by
 	 * incrementally removing arguments of the greatest depth.
 	 * This is of course an incomplete heuristic.
+	 * @param method The method being called.
 	 * @param possibleActuals A list of all the possible
 	 * actuals for each argument.
+	 * @param curDepth The current depth of expressions being
+	 * generated.
 	 * @param curMaxArgDepth The current maximum depth of the args.
 	 * @param methodToString A toString representation of the
 	 * method being called.
 	 */
-	private static void pruneManyArgCalls(ArrayList<ArrayList<EvaluatedExpression>> allPossibleActuals, int curMaxArgDepth, String methodToString) {
+	private void pruneManyArgCalls(Method method, ArrayList<ArrayList<EvaluatedExpression>> allPossibleActuals, int curDepth, int curMaxArgDepth, String methodToString) {
+		boolean pruned = pruneManyArgCalls(allPossibleActuals, curDepth, curMaxArgDepth, methodToString);
+		if (pruned) {
+			if (!prunedDepths.containsKey(method))
+				prunedDepths.put(method, curDepth);
+		} else if (prunedDepths.containsKey(method))
+			newlyUnpruneds.add(method);
+	}
+	
+	/**
+	 * Prunes the given list of possible actuals to ensure that
+	 * there are not far too many actual calls.  We do this by
+	 * incrementally removing arguments of the greatest depth.
+	 * This is of course an incomplete heuristic.
+	 * @param possibleActuals A list of all the possible
+	 * actuals for each argument.
+	 * @param curDepth The current depth of expressions being
+	 * generated.
+	 * @param curMaxArgDepth The current maximum depth of the args.
+	 * @param methodToString A toString representation of the
+	 * method being called.
+	 */
+	private boolean pruneManyArgCalls(ArrayList<ArrayList<EvaluatedExpression>> allPossibleActuals, int curDepth, int curMaxArgDepth, String methodToString) {
 		long numCombinations = getNumCalls(allPossibleActuals);
-		if (numCombinations > MAX_NUM_METHOD_CALLS) {
+		if (numCombinations > 60 * Math.pow(10, Math.max(0, curDepth - 1))) {  // 60 at depth 1, 600 at depth 2, 6000 at depth 3, etc.
 			for (ArrayList<EvaluatedExpression> possibleActuals: allPossibleActuals)
 				for (Iterator<EvaluatedExpression> it = possibleActuals.iterator(); it.hasNext(); )
 					if (getDepth(it.next()) == curMaxArgDepth)
 						it.remove();
 			//System.out.println("Pruned call to " + methodToString + " from " + numCombinations + " to " + getNumCalls(allPossibleActuals));
-			pruneManyArgCalls(allPossibleActuals, curMaxArgDepth - 1, methodToString);
+			pruneManyArgCalls(allPossibleActuals, curDepth, curMaxArgDepth - 1, methodToString);
+			return true;
 		}
+		return false;
 	}
 	
 	/**
@@ -1048,18 +1080,21 @@ public final class ExpressionGenerator {
 	 * wrt UniqueASTChecker.
 	 */
 	private boolean isCorrectDepth(TypedExpression e, int depth) {
-		return getDepth(e) + (isUnique(e) ? 0 : 1) == depth || (ExpressionMaker.getMethod(e.getExpression()) != null && ExpressionMaker.getMethod(e.getExpression()).isConstructor());
+		return getDepth(e) == depth || (ExpressionMaker.getMethod(e.getExpression()) != null && ExpressionMaker.getMethod(e.getExpression()).isConstructor());
 	}
 	
 	/**
 	 * Checks whether one of the given expressions has the given
 	 * depth, including checking uniqueness wrt UniqueASTChecker.
-	 * @param es The expressions to check.
+	 * @param expr One expression to check.
+	 * @param es Other expressions to check.
 	 * @param depth The current search depth.
 	 * @return Whether one of the given expressions has the given
 	 * depth wrt UniqueASTChecker.
 	 */
-	private boolean isOneCorrectDepth(ArrayList<? extends TypedExpression> es, int depth) {
+	private boolean isOneCorrectDepth(TypedExpression expr, ArrayList<? extends TypedExpression> es, int depth) {
+		if (isCorrectDepth(expr, depth))
+			return true;
 		for (TypedExpression e: es)
 			if (isCorrectDepth(e, depth))
 				return true;
@@ -1107,8 +1142,10 @@ public final class ExpressionGenerator {
 	private void makeAllCalls(Method method, String name, TypedExpression receiver, IJavaType returnType, List<TypedExpression> ops, ArrayList<ArrayList<EvaluatedExpression>> possibleActuals, ArrayList<EvaluatedExpression> curActuals, int depth) throws DebugException {
 		if (curActuals.size() == possibleActuals.size()) {
 			if (meetsPreconditions(method, receiver, curActuals))
-				if (method.isConstructor() || isCorrectDepth(receiver, depth - 1) || isOneCorrectDepth(curActuals, depth - 1))  // We might evaluate the call when we create it (e.g., staticEvaluator), so first ensure it has the proper depth to avoid re-evaluating some calls.
-					addUniqueExpressionToList(ops, ExpressionMaker.makeCall(name, receiver, curActuals, returnType, thisType, method, target, thread, staticEvaluator), depth);
+				  // We might evaluate the call when we create it (e.g., StringEvaluator), so first ensure it has the proper depth to avoid re-evaluating some calls.
+				if (method.isConstructor() || isOneCorrectDepth(receiver, curActuals, depth - 1)
+						|| (newlyUnpruneds.contains(method) && isOneCorrectDepth(receiver, curActuals, prunedDepths.get(method))))
+					addUniqueExpressionToList(ops, ExpressionMaker.makeCall(name, receiver, curActuals, returnType, thisType, method, target, thread, staticEvaluator), depth);  // TODO: This should actually check if one is at least the saved depth, not exactly equal to it.
 		} else {
 			int argNum = curActuals.size();
 			for (EvaluatedExpression e : possibleActuals.get(argNum)) {
@@ -1471,27 +1508,78 @@ public final class ExpressionGenerator {
      * @param e The expression to check.
      * @return Whether or not the expression is unique wrt UniqueASTChecker.
      */
-    private boolean isUnique(TypedExpression e) {
+    private boolean isUnique(Expression e) {
     	UniqueASTChecker checker = new UniqueASTChecker(varName);
-    	e.getExpression().accept(checker);
+    	e.accept(checker);
     	return checker.isUnique();
     }
     
     /**
-     * Gets the depth of the given expression.
+     * Class that checks whether a method contains a call to
+     * one of a few specified methods.
+     */
+    private static class NamedMethodChecker extends ASTVisitor {
+    	
+    	private boolean hasNamedMethod;
+    	
+    	public NamedMethodChecker() {
+    		hasNamedMethod = false;
+    	}
+
+		@Override
+		public boolean visit(MethodInvocation node) {
+			String name = node.getName().getIdentifier();
+			// We do want to include Integer.valueOf and friends.
+			if (name.equals("toString") || (name.equals("valueOf") && "java.lang.String".equals(node.getExpression().toString())) || name.equals("deepToString") || name.equals("compareTo") || name.equals("compareToIgnoreCase") || name.equals("compare"))
+				hasNamedMethod = true;
+			return true;
+		}
+		
+		/**
+		 * Checks whether the given expression contains a call to
+		 * one of a few specified methods.
+		 * @param e The expression to check.
+		 * @return Whether the given expression contains a call
+		 * to one of a few specified methods.
+		 */
+		public static boolean hasNamedMethod(Expression e) {
+			NamedMethodChecker checker = new NamedMethodChecker();
+			e.accept(checker);
+			return checker.hasNamedMethod;
+		}
+		
+    }
+    
+    /**
+     * Gets the depth of the given expression including
+     * heuristics including whether the expression is unique.
      * @param expr The expression whose depth we want.
      * @return The depth of the given expression.
      */
-    private static int getDepth(TypedExpression expr) {
+    private int getDepth(TypedExpression expr) {
 		return getDepth(expr.getExpression());
     }
 
     /**
-     * Gets the depth of the given expression.
+     * Gets the depth of the given expression including
+     * heuristics including whether the expression is unique.
      * @param expr The expression whose depth we want.
      * @return The depth of the given expression.
      */
-    private static int getDepth(Expression expr) {
+    private int getDepth(Expression expr) {
+    	if (expr == null)
+    		return 0;
+		return getDepthImpl(expr) + (isUnique(expr) ? 0 : 1) + (NamedMethodChecker.hasNamedMethod(expr) ? 1 : 0);
+    }
+
+    /**
+     * Gets the depth of the given expression.
+     * This should not be called by clients; please use
+     * getDepth instead.
+     * @param expr The expression whose depth we want.
+     * @return The depth of the given expression.
+     */
+    private static int getDepthImpl(Expression expr) {
     	if (expr == null)
     		return 0;
     	Object depthProp = expr.getProperty("depth");
@@ -1500,39 +1588,39 @@ public final class ExpressionGenerator {
     	if (expr instanceof NumberLiteral || expr instanceof BooleanLiteral || expr instanceof Name || expr instanceof ThisExpression || expr instanceof NullLiteral)
 			return 0;
     	if (expr instanceof ParenthesizedExpression)
-			return getDepth(((ParenthesizedExpression)expr).getExpression());
+			return getDepthImpl(((ParenthesizedExpression)expr).getExpression());
 		else if (expr instanceof InfixExpression) {
 			InfixExpression infix = (InfixExpression)expr;
-			return Math.max(getDepth(infix.getLeftOperand()), getDepth(infix.getRightOperand())) + 1;
+			return Math.max(getDepthImpl(infix.getLeftOperand()), getDepthImpl(infix.getRightOperand())) + 1;
 		} else if (expr instanceof ArrayAccess) {
 			ArrayAccess array = (ArrayAccess)expr;
-			return Math.max(getDepth(array.getArray()), getDepth(array.getIndex())) + 1;
+			return Math.max(getDepthImpl(array.getArray()), getDepthImpl(array.getIndex())) + 1;
 		} else if (expr instanceof FieldAccess) {
-			return getDepth(((FieldAccess)expr).getExpression()) + 1;
+			return getDepthImpl(((FieldAccess)expr).getExpression()) + 1;
 		} else if (expr instanceof PrefixExpression) {
-			return getDepth(((PrefixExpression)expr).getOperand()) + 1;
+			return getDepthImpl(((PrefixExpression)expr).getOperand()) + 1;
 		} else if (expr instanceof MethodInvocation) {
 			MethodInvocation call = (MethodInvocation)expr;
-			int maxChildDepth = call.getExpression() == null ? 0 : getDepth(call.getExpression());
+			int maxChildDepth = call.getExpression() == null ? 0 : getDepthImpl(call.getExpression());
 			for (int i = 0; i < call.arguments().size(); i++) {
 				Expression curArg = (Expression)call.arguments().get(i);
-				int curArgDepth = getDepth(curArg);
+				int curArgDepth = getDepthImpl(curArg);
 				if (curArgDepth > maxChildDepth)
 					maxChildDepth = curArgDepth;
 			}
 			return maxChildDepth + 1;
 		} else if (expr instanceof ClassInstanceCreation) {
 			ClassInstanceCreation call = (ClassInstanceCreation)expr;
-			int maxChildDepth = call.getExpression() == null ? 0 : getDepth(call.getExpression());
+			int maxChildDepth = call.getExpression() == null ? 0 : getDepthImpl(call.getExpression());
 			for (int i = 0; i < call.arguments().size(); i++) {
 				Expression curArg = (Expression)call.arguments().get(i);
-				int curArgDepth = getDepth(curArg);
+				int curArgDepth = getDepthImpl(curArg);
 				if (curArgDepth > maxChildDepth)
 					maxChildDepth = curArgDepth;
 			}
 			return maxChildDepth + 1;
 		} else if (expr instanceof CastExpression) {
-			return getDepth(((CastExpression)expr).getExpression());
+			return getDepthImpl(((CastExpression)expr).getExpression());
 		} else
 			throw new RuntimeException("Unexpected Expression " + expr.toString());
     }
