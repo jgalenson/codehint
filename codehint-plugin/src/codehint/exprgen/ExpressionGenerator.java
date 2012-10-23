@@ -792,7 +792,7 @@ public final class ExpressionGenerator {
 	public static boolean isLegalMethod(Method method, IJavaType thisType, boolean isConstructor) {
 		return ((method.isPublic() || method.declaringType().equals(((JDIType)thisType).getUnderlyingType())) && (!method.isConstructor() || !method.isPackagePrivate()))  // Constructors are not marked as public.
 				&& isConstructor == method.isConstructor() && !method.isSynthetic() && !method.isStaticInitializer() && !method.declaringType().name().equals("java.lang.Object")
-				&& !"hashCode".equals(method.name()) && !"deepHashCode".equals(method.name());  // TODO: This should really be part of the blacklist.
+				&& !"hashCode".equals(method.name()) && !"deepHashCode".equals(method.name()) && !"intern".equals(method.name());  // TODO: This should really be part of the blacklist.
 	}
 
 	/**
@@ -1451,7 +1451,8 @@ public final class ExpressionGenerator {
 			if (e instanceof TypeLiteral || getDepth(e) < curDepth)
 				makeAllCalls(method, name, e, newCalls, newArguments, new ArrayList<Expression>(newArguments.size()));
 		for (Expression newCall : newCalls)
-			addIfNew(curEquivalences, new EvaluatedExpression(newCall, type, value), valued);
+			if (getDepth(newCall) <= curDepth)
+				addIfNew(curEquivalences, new EvaluatedExpression(newCall, type, value), valued);
 	}
     
     /**
@@ -1531,7 +1532,9 @@ public final class ExpressionGenerator {
 		public boolean visit(MethodInvocation node) {
 			String name = node.getName().getIdentifier();
 			// We do want to include Integer.valueOf and friends.
-			if (name.equals("toString") || (name.equals("valueOf") && "java.lang.String".equals(node.getExpression().toString())) || name.equals("deepToString") || name.equals("compareTo") || name.equals("compareToIgnoreCase") || name.equals("compare"))
+			if (name.equals("toString") || (name.equals("valueOf") && "java.lang.String".equals(node.getExpression().toString()))
+					|| (name.equals("format") && "java.lang.String".equals(node.getExpression().toString()))
+					|| name.equals("deepToString") || name.equals("compareTo") || name.equals("compareToIgnoreCase") || name.equals("compare"))
 				hasNamedMethod = true;
 			return true;
 		}
