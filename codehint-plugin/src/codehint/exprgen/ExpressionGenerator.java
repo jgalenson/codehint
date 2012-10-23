@@ -476,16 +476,17 @@ public final class ExpressionGenerator {
 	    		if (ExpressionMaker.isBoolean(demonstration.getJavaType()))
 	    			curLevel.add(ExpressionMaker.makeBoolean(Boolean.parseBoolean(demonstration.toString()), target.newValue(Boolean.parseBoolean(demonstration.toString())), booleanType, thread));
 			}
-    		// Add calls to the desired type's constructors (but only at the top-level).
-    		if (depth == maxDepth)
-    			for (IJavaType type: constraintTypes)
-    				if (type instanceof IJavaClassType)
-    					addMethodCalls(new TypedExpression(null, type), nextLevel, curLevel, depth, maxDepth);
     		
     		// Copy over the stuff from the next level.
     		for (TypedExpression e : nextLevel)
     			if (depth < maxDepth || isHelpfulType(e.getType(), depth, maxDepth))  // Note that this relies on the fact that something helpful for depth>=2 will be helpful for depth>=1.  If this changes, we'll need to call it again.
     				curLevel.add(e);
+    		
+    		// Add calls to the desired type's constructors (but only at the top-level).
+    		if (depth == maxDepth)
+    			for (IJavaType type: constraintTypes)
+    				if (type instanceof IJavaClassType)
+    					addMethodCalls(new TypedExpression(null, type), nextLevel, curLevel, depth, maxDepth);
     		
     		if (depth == 0) {
         		// Add zero and null.
