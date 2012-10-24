@@ -1085,24 +1085,6 @@ public final class ExpressionGenerator {
 	}
 	
 	/**
-	 * Checks whether one of the given expressions has the given
-	 * depth, including checking uniqueness wrt UniqueASTChecker.
-	 * @param expr One expression to check.
-	 * @param es Other expressions to check.
-	 * @param depth The current search depth.
-	 * @return Whether one of the given expressions has the given
-	 * depth wrt UniqueASTChecker.
-	 */
-	private boolean isOneCorrectDepth(TypedExpression expr, ArrayList<? extends TypedExpression> es, int depth) {
-		if (isCorrectDepth(expr, depth))
-			return true;
-		for (TypedExpression e: es)
-			if (isCorrectDepth(e, depth))
-				return true;
-		return false;
-	}
-	
-	/**
 	 * Determines whether an expression of the given type can be
 	 * useful to us.
 	 * We currently assume that anything can be useful until the
@@ -1144,9 +1126,9 @@ public final class ExpressionGenerator {
 		if (curActuals.size() == possibleActuals.size()) {
 			if (meetsPreconditions(method, receiver, curActuals))
 				  // We might evaluate the call when we create it (e.g., StringEvaluator), so first ensure it has the proper depth to avoid re-evaluating some calls.
-				if (method.isConstructor() || isOneCorrectDepth(receiver, curActuals, depth - 1)
-						|| (newlyUnpruneds.contains(method) && isOneCorrectDepth(receiver, curActuals, prunedDepths.get(method))))
-					addUniqueExpressionToList(ops, ExpressionMaker.makeCall(name, receiver, curActuals, returnType, thisType, method, target, thread, staticEvaluator), depth);  // TODO: This should actually check if one is at least the saved depth, not exactly equal to it.
+				if (method.isConstructor() || getDepthOfCall(receiver, curActuals, method.name()) == depth
+						|| (newlyUnpruneds.contains(method) && getDepthOfCall(receiver, curActuals, method.name()) >= prunedDepths.get(method)))
+					addUniqueExpressionToList(ops, ExpressionMaker.makeCall(name, receiver, curActuals, returnType, thisType, method, target, thread, staticEvaluator), depth);
 		} else {
 			int argNum = curActuals.size();
 			for (EvaluatedExpression e : possibleActuals.get(argNum)) {
@@ -1531,12 +1513,16 @@ public final class ExpressionGenerator {
 		@Override
 		public boolean visit(MethodInvocation node) {
 			String name = node.getName().getIdentifier();
-			// We do want to include Integer.valueOf and friends.
-			if (name.equals("toString") || (name.equals("valueOf") && "java.lang.String".equals(node.getExpression().toString()))
-					|| (name.equals("format") && "java.lang.String".equals(node.getExpression().toString()))
-					|| name.equals("deepToString") || name.equals("compareTo") || name.equals("compareToIgnoreCase") || name.equals("compare"))
+			if (isNamedMethod(name, node.getExpression()))
 				hasNamedMethod = true;
 			return true;
+		}
+		
+		public static boolean isNamedMethod(String name, Expression receiver) {
+			// We do want to include Integer.valueOf and friends.
+			return name.equals("toString") || (name.equals("valueOf") && "java.lang.String".equals(receiver.toString()))
+					|| (name.equals("format") && "java.lang.String".equals(receiver.toString()))
+					|| name.equals("deepToString") || name.equals("compareTo") || name.equals("compareToIgnoreCase") || name.equals("compare");
 		}
 		
 		/**
@@ -1574,6 +1560,32 @@ public final class ExpressionGenerator {
     	if (expr == null)
     		return 0;
 		return getDepthImpl(expr) + (isUnique(expr) ? 0 : 1) + (NamedMethodChecker.hasNamedMethod(expr) ? 1 : 0);
+    }
+    
+    /**
+     * Gets the depth of a call with the given receiver,
+     * arguments, and method name.  We special case this
+     * because constructing a new expression can be
+     * expensive.
+     * @param receiver The receiver of the call.
+     * @param args The arguments to the call.
+     * @param methodName The name of the method being called.
+     * @return The depth of a call with the given receiver,
+     * arguments, and method name.
+     */
+    private int getDepthOfCall(TypedExpression receiver, ArrayList<? extends TypedExpression> args, String methodName) {
+    	int depth = getDepthImpl(receiver.getExpression());
+    	for (TypedExpression arg: args)
+    		depth = Math.max(depth, getDepthImpl(arg.getExpression()));
+    	UniqueASTChecker uniqueChecker = new UniqueASTChecker(varName);
+    	NamedMethodChecker namedMethodChecker = new NamedMethodChecker();
+    	receiver.getExpression().accept(uniqueChecker);
+    	receiver.getExpression().accept(namedMethodChecker);
+    	for (TypedExpression arg: args) {
+    		arg.getExpression().accept(uniqueChecker);
+        	arg.getExpression().accept(namedMethodChecker);
+    	}
+    	return depth + 1 + (uniqueChecker.isUnique ? 0 : 1) + (namedMethodChecker.hasNamedMethod || NamedMethodChecker.isNamedMethod(methodName, receiver.getExpression()) ? 1 : 0);
     }
 
     /**
