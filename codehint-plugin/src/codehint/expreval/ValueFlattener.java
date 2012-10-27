@@ -1,6 +1,6 @@
 package codehint.expreval;
 
-import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.Map;
 
 import org.eclipse.debug.core.DebugException;
@@ -25,11 +25,11 @@ import codehint.utils.Pair;
 public class ValueFlattener extends ASTFlattener {
 
 	private final Map<String, Integer> temporaries;
-	private final ArrayList<Pair<String, String>> newTemporaries;
+	private final Map<String, Pair<Integer, String>> newTemporaries;
 	
 	public ValueFlattener(Map<String, Integer> temporaries) {
 		this.temporaries = temporaries;
-		this.newTemporaries = new ArrayList<Pair<String, String>>();
+		this.newTemporaries = new HashMap<String, Pair<Integer, String>>();
 	}
 	
 	@Override
@@ -95,12 +95,16 @@ public class ValueFlattener extends ASTFlattener {
 			if (temporaries.containsKey(toString)) {
 				sb.append("_$tmp").append(temporaries.get(toString));
 				return;
+			} else if (newTemporaries.containsKey(toString)) {
+				sb.append("_$tmp").append(newTemporaries.get(toString).first);
+				return;
 			} else {
 				Method method = ExpressionMaker.getMethod(node);
 				if (method != null) {  // The method should only be null during refinement.
 					String typeStr = EclipseUtils.sanitizeTypename(method.returnTypeName());
-					sb.append("_$tmp").append(temporaries.size() + newTemporaries.size());
-					newTemporaries.add(new Pair<String, String>(toString, typeStr));
+					int newIndex = temporaries.size() + newTemporaries.size();
+					sb.append("_$tmp").append(newIndex);
+					newTemporaries.put(toString, new Pair<Integer, String>(newIndex, typeStr));
 					return;
 				}
 			}
@@ -108,7 +112,7 @@ public class ValueFlattener extends ASTFlattener {
 		super.flatten(node, sb);
 	}
 	
-	public ArrayList<Pair<String, String>> getNewTemporaries() {
+	public Map<String, Pair<Integer, String>> getNewTemporaries() {
 		return newTemporaries;
 	}
 

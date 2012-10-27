@@ -121,6 +121,7 @@ public final class ExpressionGenerator {
 		methodBlacklist.put("java.util.Set", new HashSet<String>(Arrays.asList("add (Ljava/lang/Object;)Z", "addAll (Ljava/util/Collection;)Z", "remove (Ljava/lang/Object;)Z", "removeAll (Ljava/util/Collection;)Z", "retainAll (Ljava/util/Collection;)Z", "toArray ([Ljava/lang/Object;)[Ljava/lang/Object;")));
 		methodBlacklist.put("java.util.HashSet", new HashSet<String>(Arrays.asList("add (Ljava/lang/Object;)Z", "addAll (Ljava/util/Collection;)Z", "remove (Ljava/lang/Object;)Z", "removeAll (Ljava/util/Collection;)Z", "retainAll (Ljava/util/Collection;)Z", "toArray ([Ljava/lang/Object;)[Ljava/lang/Object;")));
 		methodBlacklist.put("java.util.TreeSet", new HashSet<String>(Arrays.asList("add (Ljava/lang/Object;)Z", "addAll (Ljava/util/Collection;)Z", "remove (Ljava/lang/Object;)Z", "removeAll (Ljava/util/Collection;)Z", "retainAll (Ljava/util/Collection;)Z", "toArray ([Ljava/lang/Object;)[Ljava/lang/Object;")));
+		methodBlacklist.put("java.util.Collection", new HashSet<String>(Arrays.asList("add (Ljava/lang/Object;)Z", "addAll (Ljava/util/Collection;)Z", "remove (Ljava/lang/Object;)Z", "removeAll (Ljava/util/Collection;)Z", "retainAll (Ljava/util/Collection;)Z", "toArray ([Ljava/lang/Object;)[Ljava/lang/Object;")));
 	}
 	
 	private static void initMethodPreconditions() {
@@ -900,11 +901,11 @@ public final class ExpressionGenerator {
 	 * @param methodToString A toString representation of the
 	 * method being called.
 	 */
-	private boolean pruneManyArgCalls(ArrayList<ArrayList<EvaluatedExpression>> allPossibleActuals, int curDepth, int curMaxArgDepth, String methodToString) {
+	private boolean pruneManyArgCalls(ArrayList<? extends ArrayList<? extends TypedExpression>> allPossibleActuals, int curDepth, int curMaxArgDepth, String methodToString) {
 		long numCombinations = getNumCalls(allPossibleActuals);
 		if (numCombinations > 60 * Math.pow(10, Math.max(0, curDepth - 1))) {  // 60 at depth 1, 600 at depth 2, 6000 at depth 3, etc.
-			for (ArrayList<EvaluatedExpression> possibleActuals: allPossibleActuals)
-				for (Iterator<EvaluatedExpression> it = possibleActuals.iterator(); it.hasNext(); )
+			for (ArrayList<? extends TypedExpression> possibleActuals: allPossibleActuals)
+				for (Iterator<? extends TypedExpression> it = possibleActuals.iterator(); it.hasNext(); )
 					if (getDepth(it.next()) == curMaxArgDepth)
 						it.remove();
 			//System.out.println("Pruned call to " + methodToString + " from " + numCombinations + " to " + getNumCalls(allPossibleActuals));
@@ -921,9 +922,9 @@ public final class ExpressionGenerator {
 	 * actuals for each argument.
 	 * @return The number of calls with the given possible actuals.
 	 */
-	private static long getNumCalls(ArrayList<ArrayList<EvaluatedExpression>> allPossibleActuals) {
+	private static long getNumCalls(ArrayList<? extends ArrayList<? extends TypedExpression>> allPossibleActuals) {
 		long total = 1L;
-		for (ArrayList<EvaluatedExpression> possibleActuals: allPossibleActuals)
+		for (ArrayList<? extends TypedExpression> possibleActuals: allPossibleActuals)
 			total *= possibleActuals.size();
 		return total;
 	}
@@ -1126,8 +1127,8 @@ public final class ExpressionGenerator {
 		if (curActuals.size() == possibleActuals.size()) {
 			if (meetsPreconditions(method, receiver, curActuals))
 				  // We might evaluate the call when we create it (e.g., StringEvaluator), so first ensure it has the proper depth to avoid re-evaluating some calls.
-				if (method.isConstructor() || getDepthOfCall(receiver, curActuals, method.name()) == depth
-						|| (newlyUnpruneds.contains(method) && getDepthOfCall(receiver, curActuals, method.name()) >= prunedDepths.get(method)))
+				if (method.isConstructor() || getDepthOfCall(receiver.getExpression(), curActuals, method.name()) == depth
+						|| (newlyUnpruneds.contains(method) && getDepthOfCall(receiver.getExpression(), curActuals, method.name()) >= prunedDepths.get(method)))
 					addUniqueExpressionToList(ops, ExpressionMaker.makeCall(name, receiver, curActuals, returnType, thisType, method, target, thread, staticEvaluator), depth);
 		} else {
 			int argNum = curActuals.size();
@@ -1150,17 +1151,19 @@ public final class ExpressionGenerator {
 	 * @param curActuals The current list of actuals, which is built
 	 * up through recursion.
 	 */
-	private static void makeAllCalls(Method method, String name, Expression receiver, List<Expression> result, ArrayList<Iterable<TypedExpression>> possibleActuals, ArrayList<Expression> curActuals) {
+	private void makeAllCalls(Method method, String name, Expression receiver, List<Expression> result, ArrayList<ArrayList<TypedExpression>> possibleActuals, ArrayList<TypedExpression> curActuals, int targetDepth) {
 		if (curActuals.size() == possibleActuals.size()) {
-			if ("<init>".equals(name))
-				result.add(ExpressionMaker.makeClassInstanceCreation(((TypeLiteral)receiver).getType(), curActuals, method));
-			else
-				result.add(ExpressionMaker.makeCall(name, receiver, curActuals, method));
+			if (getDepthOfCall(receiver, curActuals, method.name()) <= targetDepth) {
+				if ("<init>".equals(name))
+					result.add(ExpressionMaker.makeClassInstanceCreation(((TypeLiteral)receiver).getType(), curActuals, method));
+				else
+					result.add(ExpressionMaker.makeCall(name, receiver, curActuals, method));
+			}
 		} else {
 			int depth = curActuals.size();
 			for (TypedExpression e : possibleActuals.get(depth)) {
-				curActuals.add(e.getExpression());
-				makeAllCalls(method, name, receiver, result, possibleActuals, curActuals);
+				curActuals.add(e);
+				makeAllCalls(method, name, receiver, result, possibleActuals, curActuals, targetDepth);
 				curActuals.remove(depth);
 			}
 		}
@@ -1411,7 +1414,7 @@ public final class ExpressionGenerator {
 		expandEquivalencesRec(expression, newlyExpanded);
 		OverloadChecker overloadChecker = new OverloadChecker(EclipseUtils.getTypeAndLoadIfNeeded(method.declaringType().name(), stack, target, typeCache), stack, target, typeCache, subtypeChecker);
 		overloadChecker.setMethod(method);
-		ArrayList<Iterable<TypedExpression>> newArguments = new ArrayList<Iterable<TypedExpression>>(arguments.size());
+		ArrayList<ArrayList<TypedExpression>> newArguments = new ArrayList<ArrayList<TypedExpression>>(arguments.size());
 		ArrayList<TypeConstraint> argConstraints = new ArrayList<TypeConstraint>(arguments.size());
 		for (int i = 0; i < arguments.size(); i++) {
 			Expression curArg = (Expression)arguments.get(i);
@@ -1428,13 +1431,13 @@ public final class ExpressionGenerator {
 			newArguments.add(allCurArgPossibilities);
 			argConstraints.add(argConstraint);
 		}
+		pruneManyArgCalls(newArguments, curDepth, curDepth - 1, method.name());
 		List<Expression> newCalls = new ArrayList<Expression>();
 		for (Expression e : getEquivalentExpressionsOrGiven(expression, new MethodConstraint(name, UnknownConstraint.getUnknownConstraint(), argConstraints)))
 			if (e instanceof TypeLiteral || getDepth(e) < curDepth)
-				makeAllCalls(method, name, e, newCalls, newArguments, new ArrayList<Expression>(newArguments.size()));
+				makeAllCalls(method, name, e, newCalls, newArguments, new ArrayList<TypedExpression>(newArguments.size()), curDepth);
 		for (Expression newCall : newCalls)
-			if (getDepth(newCall) <= curDepth)
-				addIfNew(curEquivalences, new EvaluatedExpression(newCall, type, value), valued);
+			addIfNew(curEquivalences, new EvaluatedExpression(newCall, type, value), valued);
 	}
     
     /**
@@ -1573,19 +1576,21 @@ public final class ExpressionGenerator {
      * @return The depth of a call with the given receiver,
      * arguments, and method name.
      */
-    private int getDepthOfCall(TypedExpression receiver, ArrayList<? extends TypedExpression> args, String methodName) {
-    	int depth = getDepthImpl(receiver.getExpression());
+    private int getDepthOfCall(Expression receiver, ArrayList<? extends TypedExpression> args, String methodName) {
+    	int depth = getDepthImpl(receiver);
     	for (TypedExpression arg: args)
     		depth = Math.max(depth, getDepthImpl(arg.getExpression()));
     	UniqueASTChecker uniqueChecker = new UniqueASTChecker(varName);
     	NamedMethodChecker namedMethodChecker = new NamedMethodChecker();
-    	receiver.getExpression().accept(uniqueChecker);
-    	receiver.getExpression().accept(namedMethodChecker);
+    	if (receiver != null) {
+	    	receiver.accept(uniqueChecker);
+	    	receiver.accept(namedMethodChecker);
+    	}
     	for (TypedExpression arg: args) {
     		arg.getExpression().accept(uniqueChecker);
         	arg.getExpression().accept(namedMethodChecker);
     	}
-    	return depth + 1 + (uniqueChecker.isUnique ? 0 : 1) + (namedMethodChecker.hasNamedMethod || NamedMethodChecker.isNamedMethod(methodName, receiver.getExpression()) ? 1 : 0);
+    	return depth + 1 + (uniqueChecker.isUnique ? 0 : 1) + (namedMethodChecker.hasNamedMethod || NamedMethodChecker.isNamedMethod(methodName, receiver) ? 1 : 0);
     }
 
     /**
@@ -1601,7 +1606,7 @@ public final class ExpressionGenerator {
     	Object depthProp = expr.getProperty("depth");
     	if (depthProp != null)
     		return ((Integer)depthProp).intValue();
-    	if (expr instanceof NumberLiteral || expr instanceof BooleanLiteral || expr instanceof Name || expr instanceof ThisExpression || expr instanceof NullLiteral)
+    	if (expr instanceof NumberLiteral || expr instanceof BooleanLiteral || expr instanceof Name || expr instanceof ThisExpression || expr instanceof NullLiteral || expr instanceof TypeLiteral)
 			return 0;
     	if (expr instanceof ParenthesizedExpression)
 			return getDepthImpl(((ParenthesizedExpression)expr).getExpression());

@@ -380,12 +380,12 @@ public class ExpressionMaker {
 		return EvaluatedExpression.makeTypedOrEvaluatedExpression(e, returnType, value, thread);
 	}
 	@SuppressWarnings("unchecked")
-	public static Expression makeCall(String name, Expression receiver, ArrayList<Expression> args, Method method) {
+	public static Expression makeCall(String name, Expression receiver, ArrayList<TypedExpression> args, Method method) {
     	MethodInvocation e = ast.newMethodInvocation();
     	e.setName(ast.newSimpleName(name));
     	e.setExpression(ASTCopyer.copy(receiver));
-    	for (Expression ex: args)
-    		e.arguments().add(ASTCopyer.copy(ex));
+    	for (TypedExpression ex: args)
+    		e.arguments().add(ASTCopyer.copy(ex.getExpression()));
 		setMethod(e, method);
     	return e;
     }
@@ -446,11 +446,11 @@ public class ExpressionMaker {
 	}
 
 	@SuppressWarnings("unchecked")
-	public static ClassInstanceCreation makeClassInstanceCreation(Type type,ArrayList<Expression> args, Method method) {
+	public static ClassInstanceCreation makeClassInstanceCreation(Type type,ArrayList<TypedExpression> args, Method method) {
     	ClassInstanceCreation e = ast.newClassInstanceCreation();
     	e.setType(ASTCopyer.copy(type));
-    	for (Expression ex: args)
-    		e.arguments().add(ASTCopyer.copy(ex));
+    	for (TypedExpression ex: args)
+    		e.arguments().add(ASTCopyer.copy(ex.getExpression()));
 		setMethod(e, method);
     	return e;
 	}

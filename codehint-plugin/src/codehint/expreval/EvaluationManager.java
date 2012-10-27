@@ -335,9 +335,9 @@ public final class EvaluationManager {
 		IJavaValue curValue = curTypedExpr.getValue();
 		if (curValue == null || !validateStatically) {
 			StringBuilder curString = new StringBuilder();
-			for (Pair<String, String> newTemp: valueFlattener.getNewTemporaries()) {
-				curString.append(" ").append(newTemp.second).append(" _$tmp").append(temporaries.size()).append(" = (").append(newTemp.second).append(")").append(IMPL_QUALIFIER).append("methodResults[").append(methodResultsMap.get(newTemp.first)).append("];\n");
-				temporaries.put(newTemp.first, temporaries.size());
+			for (Map.Entry<String, Pair<Integer, String>> newTemp: valueFlattener.getNewTemporaries().entrySet()) {
+				curString.append(" ").append(newTemp.getValue().second).append(" _$tmp").append(newTemp.getValue().first).append(" = (").append(newTemp.getValue().second).append(")").append(IMPL_QUALIFIER).append("methodResults[").append(methodResultsMap.get(newTemp.getKey())).append("];\n");
+				temporaries.put(newTemp.getKey(), newTemp.getValue().first);
 			}
 			String curRHSStr = curExprStr;
 			if (isPrimitive && curValue != null)
@@ -423,10 +423,17 @@ public final class EvaluationManager {
 		// Check the expressions one-by-one and remove those that crash.
 		// We can crash thanks to generics and erasure (e.g., by passing an Object to List<String>.set).
 		int numDeleted = 0;
+		Map<String, Integer> temporaries = new HashMap<String, Integer>(0);
 		for (int j = i - 1; j >= startIndex; j--) {
-			String exprStr = exprs.get(j).getExpression().toString();
-			if (engine.getCompiledExpression(exprStr, stack).hasErrors()) {
-				crashingExpressions.add(exprStr);
+			// We need to get the flattened string not the actual string, since our temporaries can lose type information.  E.g., foo(bar(x),baz) might compile when storing bar(x) in a temporary with an erased type will not.
+			ValueFlattener valueFlattener = new ValueFlattener(temporaries);
+			String flattenedExprStr = valueFlattener.getResult(exprs.get(j).getExpression());
+			StringBuilder curString = new StringBuilder();
+			for (Map.Entry<String, Pair<Integer, String>> newTemp: valueFlattener.getNewTemporaries().entrySet())
+				curString.append(newTemp.getValue().second).append(" _$tmp").append(newTemp.getValue().first).append(" = (").append(newTemp.getValue().second).append(")").append(IMPL_QUALIFIER).append("methodResults[").append(methodResultsMap.get(newTemp.getKey())).append("];\n");
+			curString.append(flattenedExprStr).append(";\n ");
+			if (engine.getCompiledExpression(curString.toString(), stack).hasErrors()) {
+				crashingExpressions.add(exprs.get(j).getExpression().toString());
 				exprs.remove(j);
 				numDeleted++;
 				//System.out.println(exprStr + " does not compile.");
