@@ -248,6 +248,9 @@ public final class ExpressionGenerator {
 	private Map<Value, ArrayList<EvaluatedExpression>> equivalences;
 	private Map<Method, Integer> prunedDepths;  // Maps a method to the first consecutive depth at which we pruned calls to it.
 	private Set<Method> newlyUnpruneds;  // A set of the methods that were pruned at the previous depth that are not pruned at the current depth.
+	private IImportDeclaration[] imports;
+	private Set<String> importsSet;
+	private Set<String> staticAccesses;
 	
 	public ExpressionGenerator(IJavaDebugTarget target, IJavaStackFrame stack, SubtypeChecker subtypeChecker, TypeCache typeCache, EvaluationManager evalManager, StaticEvaluator staticEvaluator) {
 		this.target = target;
@@ -294,6 +297,11 @@ public final class ExpressionGenerator {
 			this.equivalences = new HashMap<Value, ArrayList<EvaluatedExpression>>();
 			this.prunedDepths = new HashMap<Method, Integer>();
 			this.newlyUnpruneds = new HashSet<Method>();
+			this.imports = ((ICompilationUnit)EclipseUtils.getProject(stack).findElement(new Path(stack.getSourcePath()))).getImports();
+			this.importsSet = new HashSet<String>(imports.length);
+			for (IImportDeclaration imp : imports)
+				this.importsSet.add(imp.getElementName());
+			this.staticAccesses = new HashSet<String>();
 			
 			ArrayList<FullyEvaluatedExpression> results = genAllExprs(maxExprDepth, property, synthesisDialog, monitor);
 
@@ -307,6 +315,8 @@ public final class ExpressionGenerator {
 	    	monitor.done();
 	    	return results;
 		} catch (DebugException e) {
+			throw new RuntimeException(e);
+		} catch (JavaModelException e) {
 			throw new RuntimeException(e);
 		}
 	}
@@ -339,6 +349,8 @@ public final class ExpressionGenerator {
 				nextLevel = evaluateExpressions(curLevel, null, null, monitor, depth);
 		}
 		ArrayList<FullyEvaluatedExpression> results = evaluateExpressions(curLevel, property, synthesisDialog, monitor, maxDepth);
+		
+		//printEquivalenceInfo();
 		
 		// Expand equivalences.
     	final ArrayList<FullyEvaluatedExpression> extraResults = expandEquivalences(results, monitor);
@@ -509,7 +521,6 @@ public final class ExpressionGenerator {
 					addUniqueExpressionToList(curLevel, ExpressionMaker.makeThis(stack.getThis(), thisType, thread), depth);
     		} else {
     			Set<IJavaReferenceType> objectInterfaceTypes = new HashSet<IJavaReferenceType>();
-				IImportDeclaration[] imports = ((ICompilationUnit)EclipseUtils.getProject(stack).findElement(new Path(stack.getSourcePath()))).getImports();
     			loadTypesFromMethods(nextLevel, imports);
     			monitor = SubMonitor.convert(monitor, "Expression generation", nextLevel.size() * nextLevel.size() + nextLevel.size() + imports.length);
     			addLocals(depth, maxDepth, curLevel);
@@ -633,9 +644,6 @@ public final class ExpressionGenerator {
     			}
     			// Extra things
     			{
-    				Set<String> importsSet = new HashSet<String>(imports.length);
-    				for (IImportDeclaration imp : imports)
-    					importsSet.add(imp.getElementName());
     				// Field accesses from static scope.
     				if (stack.isStatic() && !stack.getReceivingTypeName().contains("<"))  // TODO: Allow referring to generic classes (and below).
     					addFieldAccesses(ExpressionMaker.makeStaticName(stack.getReceivingTypeName(), thisType, thread), curLevel, depth, maxDepth);
@@ -681,8 +689,6 @@ public final class ExpressionGenerator {
 			e.printStackTrace();
         	EclipseUtils.showError("Error", "An error occurred during expression generation.", e);
 			throw new RuntimeException("I cannot compute all valid expressions.");
-		} catch (JavaModelException e) {
-			throw new RuntimeException(e);
 		}
 	}
 
@@ -720,6 +726,16 @@ public final class ExpressionGenerator {
 		} else
 			return new ArrayList<Field>(0);
 	}
+
+	/**
+	 * Checks whether the given method can legally be accessed.
+	 * @param field The field to check.
+	 * @param thisType The type of the this object.
+	 * @return Whether the given field is legal to access.
+	 */
+	private static boolean isLegalField(Field field, IJavaType thisType) {
+		return field.isPublic() || field.declaringType().equals(((JDIType)thisType).getUnderlyingType());
+	}
 	
 	/**
 	 * Adds field accesses of the given expression.
@@ -738,7 +754,9 @@ public final class ExpressionGenerator {
 		boolean isStatic = ExpressionMaker.isStatic(e.getExpression());
 		String objTypeName = isStatic ? e.getExpression().toString() : objTypeImpl.name();
 		for (Field field: getFields(e.getType())) {
-			if ((!field.isPublic() && !field.declaringType().equals(thisTypeImpl)) || (isStatic != field.isStatic()) || field.isSynthetic())
+			if (!isLegalField(field, thisType) || (isStatic != field.isStatic()) || field.isSynthetic())
+				continue;
+			if (field.isStatic() && staticAccesses.contains(field.declaringType().name() + " " + field.name()))
 				continue;
 			IJavaType fieldType = EclipseUtils.getTypeAndLoadIfNeeded(field.typeName(), stack, target, typeCache);
 			/*if (fieldType == null)
@@ -748,7 +766,7 @@ public final class ExpressionGenerator {
 				if (e.getExpression() instanceof ThisExpression || e.getType().equals(thisType))
 					receiver = null;  // Don't use a receiver if it is null or the this type.
 				else if (field.isStatic())
-					receiver = ExpressionMaker.makeStaticName(EclipseUtils.sanitizeTypename(objTypeName), (IJavaReferenceType)e.getType(), thread);
+						receiver = ExpressionMaker.makeStaticName(getShortestTypename(field.declaringType().name()), (IJavaReferenceType)EclipseUtils.getTypeAndLoadIfNeeded(field.declaringType().name(), stack, target, typeCache), thread);
 				IJavaValue fieldValue = null;
 				if (field.isStatic())
 					fieldValue = (IJavaValue)((IJavaReferenceType)e.getType()).getField(field.name()).getValue();
@@ -756,6 +774,8 @@ public final class ExpressionGenerator {
 					fieldValue = (IJavaValue)obj.getField(field.name(), !field.declaringType().equals(objTypeImpl)).getValue();
 				TypedExpression fieldExpr = receiver == null ? ExpressionMaker.makeVar(field.name(), fieldValue, fieldType, true, thread) : ExpressionMaker.makeFieldAccess(receiver, field.name(), fieldType, fieldValue, thread); 
 				addUniqueExpressionToList(ops, fieldExpr, depth);
+				if (field.isStatic())
+					staticAccesses.add(field.declaringType().name() + " " + field.name());
 			}
 		}
 	}
@@ -825,6 +845,8 @@ public final class ExpressionGenerator {
 				continue;
 			if (!isConstructor && method.returnTypeName().equals("void"))
 				continue;
+            if (method.isStatic() && staticAccesses.contains(method.declaringType().name() + " " + method.name() + " " + method.signature()))
+                continue;
 			IJavaType returnType = isConstructor ? e.getType() : EclipseUtils.getTypeAndLoadIfNeeded(method.returnTypeName(), stack, target, typeCache);
 			/*if (returnType == null)
 				System.err.println("I cannot get the class of the return type of " + objTypeImpl.name() + "." + method.name() + "() (" + method.returnTypeName() + ")");*/
@@ -857,9 +879,11 @@ public final class ExpressionGenerator {
 				if (allPossibleActuals.size() == argumentTypeNames.size()) {
 					TypedExpression receiver = e;
 					if (method.isStatic())
-						receiver = ExpressionMaker.makeStaticName(EclipseUtils.sanitizeTypename(objTypeName), (IJavaReferenceType)e.getType(), thread);
+							receiver = ExpressionMaker.makeStaticName(getShortestTypename(method.declaringType().name()), (IJavaReferenceType)EclipseUtils.getTypeAndLoadIfNeeded(method.declaringType().name(), stack, target, typeCache), thread);
 					pruneManyArgCalls(method, allPossibleActuals, depth, depth - 1, receiver.getType() + "." + method.name());
 					makeAllCalls(method, method.name(), receiver, returnType, ops, allPossibleActuals, new ArrayList<EvaluatedExpression>(allPossibleActuals.size()), depth);
+                    if (method.isStatic())
+                        staticAccesses.add(method.declaringType().name() + " " + method.name() + " " + method.signature());
 				}
 			}
 		}
@@ -986,11 +1010,16 @@ public final class ExpressionGenerator {
 		tryToLoad(importNames);
 		Set<String> typeNames = new HashSet<String>();
 		for (FullyEvaluatedExpression e: nextLevel)
-			if (ExpressionMaker.isObjectOrInterface(e.getType()) && (e.getValue() == null || !e.getValue().isNull()))
+			if (ExpressionMaker.isObjectOrInterface(e.getType()) && (e.getValue() == null || !e.getValue().isNull())) {
 				checkMethods(e.getType(), typeNames);
+				checkFields(e.getType(), typeNames);
+			}
 		for (IImportDeclaration imp : imports)
-			if (!imp.isOnDemand())
-				checkMethods(EclipseUtils.getTypeAndLoadIfNeeded(imp.getElementName(), stack, target, typeCache), typeNames);
+			if (!imp.isOnDemand()) {
+				IJavaType impType = EclipseUtils.getTypeAndLoadIfNeeded(imp.getElementName(), stack, target, typeCache);
+				checkMethods(impType, typeNames);
+				checkFields(impType, typeNames);
+			}
 		tryToLoad(typeNames);
 	}
 
@@ -1008,8 +1037,30 @@ public final class ExpressionGenerator {
 		for (Method method : getMethods(receiverType)) {
 			if (isLegalMethod(method, thisType, false) && !method.returnTypeName().equals("void")) {
 				addTypeName(method.returnTypeName(), typeNames);
+				if (method.isStatic())
+					addTypeName(method.declaringType().name(), typeNames);
 				for (Object argType: method.argumentTypeNames())
 					addTypeName((String)argType, typeNames);
+			}
+		}
+	}
+
+	/**
+	 * Gets the types used for fields of the given
+	 * receiver type.
+	 * Note that this is an overapproximation, as we
+	 * do not require that the type is helpful.
+	 * @param receiverType The type of the receiver of
+	 * the desired fields.
+	 * @param typeNames The set into which to store
+	 * the type names.
+	 */
+	private void checkFields(IJavaType receiverType, Set<String> typeNames) {
+		for (Field field: getFields(receiverType)) {
+			if (isLegalField(field, thisType)) {
+				addTypeName(field.typeName(), typeNames);
+				if (field.isStatic())
+					addTypeName(field.declaringType().name(), typeNames);
 			}
 		}
 	}
@@ -1041,6 +1092,19 @@ public final class ExpressionGenerator {
 		if (!unloadedTypeNames.isEmpty() && EclipseUtils.tryToLoadTypes(unloadedTypeNames, stack))
 			for (String typeName: unloadedTypeNames)  // Mark all the type names as legal so we will not have to check if they are illegal one-by-one, which is slow.
 				typeCache.markCheckedLegal(typeName);
+	}
+	
+	/**
+	 * If we have imported a type, use its unqualified name.
+	 * @param typeName The name of the type.
+	 * @return The shortest legal name for the given type.
+	 * @throws DebugException
+	 */
+	private String getShortestTypename(String typeName) throws DebugException {
+		if (importsSet.contains(typeName))
+			return EclipseUtils.getUnqualifiedName(EclipseUtils.sanitizeTypename(typeName));
+		else
+			return typeName;
 	}
 	
 	/**
@@ -1645,5 +1709,17 @@ public final class ExpressionGenerator {
 		} else
 			throw new RuntimeException("Unexpected Expression " + expr.toString());
     }
+    
+	/*private void printEquivalenceInfo() {
+    	for (Map.Entry<Value, ArrayList<EvaluatedExpression>> equivClass: equivalences.entrySet()) {
+    		System.out.println(equivClass.getKey().toString().replace("\n", "\\n") + " -> " + equivClass.getValue().size() + " (" + equivClass.getValue().toString().replace("\n", "\\n") + ")");
+    	}
+    	System.out.println("Buckets: ");
+    	Map<Integer, ArrayList<Value>> buckets = new HashMap<Integer, ArrayList<Value>>();
+    	for (Map.Entry<Value, ArrayList<EvaluatedExpression>> equivClass: equivalences.entrySet())
+    		Utils.addToMap(buckets, equivClass.getValue().size(), equivClass.getKey());
+    	for (Integer bucket: new java.util.TreeSet<Integer>(buckets.keySet()))
+    		System.out.println(bucket + " -> " + buckets.get(bucket).size() + " (" + buckets.get(bucket).toString().replace("\n", "\\n") + ")");
+    }*/
 
 }
