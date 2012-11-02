@@ -351,6 +351,7 @@ public final class ExpressionGenerator {
 		ArrayList<FullyEvaluatedExpression> results = evaluateExpressions(curLevel, property, synthesisDialog, monitor, maxDepth);
 		
 		//printEquivalenceInfo();
+		//System.out.println("Took " + (System.currentTimeMillis() - startTime) + " milliseconds pre-expansion.");
 		
 		// Expand equivalences.
     	final ArrayList<FullyEvaluatedExpression> extraResults = expandEquivalences(results, monitor);
@@ -927,7 +928,7 @@ public final class ExpressionGenerator {
 	 */
 	private boolean pruneManyArgCalls(ArrayList<? extends ArrayList<? extends TypedExpression>> allPossibleActuals, int curDepth, int curMaxArgDepth, String methodToString) {
 		long numCombinations = getNumCalls(allPossibleActuals);
-		if (numCombinations > 60 * Math.pow(10, Math.max(0, curDepth - 1))) {  // 60 at depth 1, 600 at depth 2, 6000 at depth 3, etc.
+		if (numCombinations > 50 * Math.pow(10, Math.max(0, curDepth - 1))) {  // 50 at depth 1, 500 at depth 2, 5000 at depth 3, etc.
 			for (ArrayList<? extends TypedExpression> possibleActuals: allPossibleActuals)
 				for (Iterator<? extends TypedExpression> it = possibleActuals.iterator(); it.hasNext(); )
 					if (getDepth(it.next()) == curMaxArgDepth)
@@ -1626,7 +1627,12 @@ public final class ExpressionGenerator {
     private int getDepth(Expression expr) {
     	if (expr == null)
     		return 0;
-		return getDepthImpl(expr) + (isUnique(expr) ? 0 : 1) + (NamedMethodChecker.hasNamedMethod(expr) ? 1 : 0);
+    	Object depthProp = expr.getProperty("realDepth");
+    	if (depthProp != null)
+    		return ((Integer)depthProp).intValue();
+		int depth = getDepthImpl(expr) + (isUnique(expr) ? 0 : 1) + (NamedMethodChecker.hasNamedMethod(expr) ? 1 : 0);
+		expr.setProperty("realDepth", depth);
+		return depth;
     }
     
     /**
@@ -1670,20 +1676,21 @@ public final class ExpressionGenerator {
     	Object depthProp = expr.getProperty("depth");
     	if (depthProp != null)
     		return ((Integer)depthProp).intValue();
+    	int depth;
     	if (expr instanceof NumberLiteral || expr instanceof BooleanLiteral || expr instanceof Name || expr instanceof ThisExpression || expr instanceof NullLiteral || expr instanceof TypeLiteral)
-			return 0;
-    	if (expr instanceof ParenthesizedExpression)
-			return getDepthImpl(((ParenthesizedExpression)expr).getExpression());
+			depth = 0;
+    	else if (expr instanceof ParenthesizedExpression)
+    		depth = getDepthImpl(((ParenthesizedExpression)expr).getExpression());
 		else if (expr instanceof InfixExpression) {
 			InfixExpression infix = (InfixExpression)expr;
 			return Math.max(getDepthImpl(infix.getLeftOperand()), getDepthImpl(infix.getRightOperand())) + 1;
 		} else if (expr instanceof ArrayAccess) {
 			ArrayAccess array = (ArrayAccess)expr;
-			return Math.max(getDepthImpl(array.getArray()), getDepthImpl(array.getIndex())) + 1;
+			depth = Math.max(getDepthImpl(array.getArray()), getDepthImpl(array.getIndex())) + 1;
 		} else if (expr instanceof FieldAccess) {
-			return getDepthImpl(((FieldAccess)expr).getExpression()) + 1;
+			depth = getDepthImpl(((FieldAccess)expr).getExpression()) + 1;
 		} else if (expr instanceof PrefixExpression) {
-			return getDepthImpl(((PrefixExpression)expr).getOperand()) + 1;
+			depth = getDepthImpl(((PrefixExpression)expr).getOperand()) + 1;
 		} else if (expr instanceof MethodInvocation) {
 			MethodInvocation call = (MethodInvocation)expr;
 			int maxChildDepth = call.getExpression() == null ? 0 : getDepthImpl(call.getExpression());
@@ -1693,7 +1700,7 @@ public final class ExpressionGenerator {
 				if (curArgDepth > maxChildDepth)
 					maxChildDepth = curArgDepth;
 			}
-			return maxChildDepth + 1;
+			depth = maxChildDepth + 1;
 		} else if (expr instanceof ClassInstanceCreation) {
 			ClassInstanceCreation call = (ClassInstanceCreation)expr;
 			int maxChildDepth = call.getExpression() == null ? 0 : getDepthImpl(call.getExpression());
@@ -1703,11 +1710,13 @@ public final class ExpressionGenerator {
 				if (curArgDepth > maxChildDepth)
 					maxChildDepth = curArgDepth;
 			}
-			return maxChildDepth + 1;
+			depth = maxChildDepth + 1;
 		} else if (expr instanceof CastExpression) {
-			return getDepthImpl(((CastExpression)expr).getExpression());
+			depth = getDepthImpl(((CastExpression)expr).getExpression());
 		} else
 			throw new RuntimeException("Unexpected Expression " + expr.toString());
+    	expr.setProperty("depth", depth);
+    	return depth;
     }
     
 	/*private void printEquivalenceInfo() {
