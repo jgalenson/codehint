@@ -3,7 +3,9 @@ package codehint.expreval;
 import java.io.UnsupportedEncodingException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Map;
 import java.util.Set;
 import java.util.regex.PatternSyntaxException;
 
@@ -34,6 +36,7 @@ public class StaticEvaluator {
 	private int numCrashes;
 	private final Set<String> unsupportedEncodings;
 	private final Set<String> illegalPatterns;
+	private final Map<String, IJavaValue> stringCache;
 	
 	public StaticEvaluator(IJavaStackFrame stack, TypeCache typeCache) {
 		this.stack = stack;
@@ -42,6 +45,7 @@ public class StaticEvaluator {
 		numCrashes = 0;
 		unsupportedEncodings = new HashSet<String>();
 		illegalPatterns = new HashSet<String>();
+		stringCache = new HashMap<String, IJavaValue>();
 	}
 	
 	/**
@@ -808,7 +812,12 @@ public class StaticEvaluator {
 	}
 	
 	private IJavaValue valueOfString(String s, IJavaDebugTarget target) throws DebugException {
-		return disableObjectCollection((IJavaObject)target.newValue(s));
+		IJavaValue value = stringCache.get(s);
+		if (value != null)
+			return value;
+		value = disableObjectCollection((IJavaObject)target.newValue(s));
+		stringCache.put(s, value);
+		return value;
 	}
 	
 	private static IJavaValue valueOfInt(int n, IJavaDebugTarget target) {
