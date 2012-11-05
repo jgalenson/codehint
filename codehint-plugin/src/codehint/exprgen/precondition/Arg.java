@@ -45,13 +45,23 @@ public class Arg extends Value {
 	}
 
 	/**
-	 * Gets the EvaluatedExpression represented by this argument.
+	 * Gets the Value represented by this argument.
 	 * @param receiver The receiver of the call.
 	 * @param actuals The actuals to the call.
-	 * @return The EvaluatedExpression represented by this argument.
+	 * @return The Value represented by this argument.
+	 */
+	protected codehint.exprgen.Value getJavaValueWrapper(TypedExpression receiver, ArrayList<EvaluatedExpression> actuals) {
+		return getJavaValue(index, receiver, actuals).getWrapperValue();
+	}
+
+	/**
+	 * Gets the IJavaValue represented by this argument.
+	 * @param receiver The receiver of the call.
+	 * @param actuals The actuals to the call.
+	 * @return The IJavaValue represented by this argument.
 	 */
 	protected IJavaValue getJavaValue(TypedExpression receiver, ArrayList<EvaluatedExpression> actuals) {
-		return getJavaValue(index, receiver, actuals).getValue();
+		return getJavaValueWrapper(receiver, actuals).getValue();
 	}
 
 }

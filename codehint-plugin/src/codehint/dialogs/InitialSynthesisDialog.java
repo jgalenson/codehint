@@ -42,6 +42,7 @@ import codehint.exprgen.ExpressionGenerator;
 import codehint.exprgen.ExpressionSkeleton;
 import codehint.exprgen.SubtypeChecker;
 import codehint.exprgen.TypeCache;
+import codehint.exprgen.ValueCache;
 import codehint.utils.EclipseUtils;
 
 public class InitialSynthesisDialog extends SynthesisDialog {
@@ -79,6 +80,7 @@ public class InitialSynthesisDialog extends SynthesisDialog {
 	private final SynthesisWorker worker;
     private final SubtypeChecker subtypeChecker;
     private final TypeCache typeCache;
+    private final ValueCache valueCache;
     private final EvaluationManager evalManager;
     private final StaticEvaluator staticEvaluator;
     private final ExpressionGenerator expressionGenerator;
@@ -103,9 +105,10 @@ public class InitialSynthesisDialog extends SynthesisDialog {
 		this.evaluationEngine = engine;
 		this.subtypeChecker = new SubtypeChecker();
 		this.typeCache = new TypeCache();
-		this.evalManager = new EvaluationManager(stack, subtypeChecker, typeCache);
+		this.valueCache = new ValueCache();
+		this.evalManager = new EvaluationManager(stack, subtypeChecker, typeCache, valueCache);
 		this.staticEvaluator = new StaticEvaluator(stack, typeCache);
-		this.expressionGenerator = new ExpressionGenerator(target, stack, subtypeChecker, typeCache, evalManager, staticEvaluator);
+		this.expressionGenerator = new ExpressionGenerator(target, stack, subtypeChecker, typeCache, valueCache, evalManager, staticEvaluator);
 		this.skeleton = null;
 	}
 
@@ -261,7 +264,7 @@ public class InitialSynthesisDialog extends SynthesisDialog {
         if (buttonId == searchButtonID) {
         	skeletonResult = skeletonInput.getText();
             property = propertyDialog.computeProperty(pdspecInput.getText(), typeCache);
-            skeleton = ExpressionSkeleton.fromString(skeletonResult, target, stack, evaluationEngine, subtypeChecker, typeCache, evalManager, staticEvaluator, expressionGenerator);
+            skeleton = ExpressionSkeleton.fromString(skeletonResult, target, stack, evaluationEngine, subtypeChecker, typeCache, valueCache, evalManager, staticEvaluator, expressionGenerator);
             startEndSynthesis(SynthesisState.START);
             expressions = new ArrayList<FullyEvaluatedExpression>();
             showResults();  // Clears any existing results.

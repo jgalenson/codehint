@@ -25,7 +25,7 @@ public class In extends Predicate {
 	public boolean satisfies(TypedExpression receiver, ArrayList<EvaluatedExpression> actuals) {
 		try {
 			int index = cur.getValue(receiver, actuals);
-			return 0 <= index && index < Len.getLength(Arg.getJavaValue(targetArgIndex, receiver, actuals).getValue());
+			return 0 <= index && index < Len.getLength(Arg.getJavaValue(targetArgIndex, receiver, actuals).getWrapperValue());
 		} catch (NumberFormatException e) {
 			throw new RuntimeException(e);
 		}

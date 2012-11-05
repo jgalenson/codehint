@@ -48,6 +48,7 @@ import codehint.exprgen.SubtypeChecker;
 import codehint.exprgen.TypeCache;
 import codehint.exprgen.TypedExpression;
 import codehint.exprgen.Value;
+import codehint.exprgen.ValueCache;
 import codehint.property.ObjectValueProperty;
 import codehint.property.PrimitiveValueProperty;
 import codehint.property.StateProperty;
@@ -83,6 +84,7 @@ public final class EvaluationManager {
 	
 	private final IJavaStackFrame stack;
 	private final IAstEvaluationEngine engine;
+    private final ValueCache valueCache;
 	private final IJavaDebugTarget target;
 	private final IJavaThread thread;
 	private final SubtypeChecker subtypeChecker;
@@ -102,9 +104,10 @@ public final class EvaluationManager {
 	private String propertyPreconditions;
 	private Map<String, Integer> methodResultsMap;
 	
-	public EvaluationManager(IJavaStackFrame stack, SubtypeChecker subtypeChecker, TypeCache typeCache) {
+	public EvaluationManager(IJavaStackFrame stack, SubtypeChecker subtypeChecker, TypeCache typeCache, ValueCache valueCache) {
 		this.stack = stack;
 		this.engine = EclipseUtils.getASTEvaluationEngine(stack);
+		this.valueCache = valueCache;
 		this.target = (IJavaDebugTarget)stack.getDebugTarget();
 		this.thread = (IJavaThread)stack.getThread();
 		this.subtypeChecker = subtypeChecker;
@@ -330,7 +333,7 @@ public final class EvaluationManager {
 	 */
 	private int buildStringForExpression(TypedExpression curTypedExpr, int i, StringBuilder expressionsStr, boolean isPrimitive, boolean validateStatically, boolean hasPropertyPrecondition, ArrayList<Integer> evalExprIndices, int numEvaluated, Map<String, Integer> temporaries, String valuesArrayName) throws DebugException {
 		Expression curExpr = curTypedExpr.getExpression();
-		ValueFlattener valueFlattener = new ValueFlattener(temporaries);
+		ValueFlattener valueFlattener = new ValueFlattener(temporaries, valueCache);
 		String curExprStr = valueFlattener.getResult(curExpr);
 		IJavaValue curValue = curTypedExpr.getValue();
 		if (curValue == null || !validateStatically) {
@@ -426,7 +429,7 @@ public final class EvaluationManager {
 		Map<String, Integer> temporaries = new HashMap<String, Integer>(0);
 		for (int j = i - 1; j >= startIndex; j--) {
 			// We need to get the flattened string not the actual string, since our temporaries can lose type information.  E.g., foo(bar(x),baz) might compile when storing bar(x) in a temporary with an erased type will not.
-			ValueFlattener valueFlattener = new ValueFlattener(temporaries);
+			ValueFlattener valueFlattener = new ValueFlattener(temporaries, valueCache);
 			String flattenedExprStr = valueFlattener.getResult(exprs.get(j).getExpression());
 			StringBuilder curString = new StringBuilder();
 			for (Map.Entry<String, Pair<Integer, String>> newTemp: valueFlattener.getNewTemporaries().entrySet())
@@ -509,7 +512,7 @@ public final class EvaluationManager {
 				resultString = getResultString(curValue, toStrings, evalIndex);
     		}
 			if (valid)
-				validExprs.add(new FullyEvaluatedExpression(typedExpr.getExpression(), typedExpr.getType(), new Value(curValue, thread), resultString));
+				validExprs.add(new FullyEvaluatedExpression(typedExpr.getExpression(), typedExpr.getType(), Value.makeValue(curValue, valueCache, thread), resultString));
 			if (typedExpr.getValue() == null || !validateStatically)
 				evalIndex++;
 		}

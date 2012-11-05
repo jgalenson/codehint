@@ -7,6 +7,7 @@ import org.eclipse.jdt.debug.core.IJavaValue;
 
 import codehint.exprgen.TypedExpression;
 import codehint.exprgen.Value;
+import codehint.exprgen.ValueCache;
 
 /**
  * A class that stores an expression, its type,
@@ -36,11 +37,11 @@ public class EvaluatedExpression extends TypedExpression {
 		return value;
 	}
 	
-	public static TypedExpression makeTypedOrEvaluatedExpression(Expression expression, IJavaType type, IJavaValue value, IJavaThread thread) {
+	public static TypedExpression makeTypedOrEvaluatedExpression(Expression expression, IJavaType type, IJavaValue value, ValueCache valueCache, IJavaThread thread) {
 		if (value == null)
 			return new TypedExpression(expression, type);
 		else
-			return new EvaluatedExpression(expression, type, new Value(value, thread));
+			return new EvaluatedExpression(expression, type, Value.makeValue(value, valueCache, thread));
 	}
 
 	@Override

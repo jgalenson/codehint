@@ -4,10 +4,10 @@ import java.util.ArrayList;
 
 import org.eclipse.debug.core.DebugException;
 import org.eclipse.jdt.debug.core.IJavaArray;
-import org.eclipse.jdt.debug.core.IJavaObject;
 import org.eclipse.jdt.debug.core.IJavaValue;
 
 import codehint.expreval.EvaluatedExpression;
+import codehint.exprgen.StringValue;
 import codehint.exprgen.TypedExpression;
 
 public class Len extends Arg {
@@ -23,22 +23,22 @@ public class Len extends Arg {
 
 	@Override
 	public int getValue(TypedExpression receiver, ArrayList<EvaluatedExpression> actuals) {
-		return getLength(getJavaValue(receiver, actuals));
+		return getLength(getJavaValueWrapper(receiver, actuals));
 	}
 
 	/**
 	 * Gets the length of the given object.
-	 * @param container The object whose length we want.
+	 * @param containerWrapper The object whose length we want.
 	 * It must be either an array or a String.
 	 * @return The length of the given object.
 	 */
-	public static int getLength(IJavaValue container) {
+	public static int getLength(codehint.exprgen.Value containerWrapper) {
 		try {
+			IJavaValue container = containerWrapper.getValue();
 			if (container instanceof IJavaArray)
 				return ((IJavaArray)container).getLength();
-			else if (container instanceof IJavaObject)
-				if ("java.lang.String".equals(((IJavaObject)container).getJavaType().toString()))
-					return container.getValueString().length();  // toString returns it with the quotes, getValueString returns it without them.
+			else if (containerWrapper instanceof StringValue)
+				return ((StringValue) containerWrapper).getStringValue().length();
 			throw new IllegalValue();
 		} catch (DebugException e) {
 			throw new RuntimeException(e);

@@ -19,8 +19,10 @@ import org.eclipse.jdt.debug.core.IJavaPrimitiveValue;
 import org.eclipse.jdt.debug.core.IJavaStackFrame;
 import org.eclipse.jdt.debug.core.IJavaValue;
 
+import codehint.exprgen.StringValue;
 import codehint.exprgen.TypeCache;
 import codehint.exprgen.TypedExpression;
+import codehint.exprgen.Value;
 import codehint.utils.EclipseUtils;
 
 import com.sun.jdi.Method;
@@ -65,18 +67,18 @@ public class StaticEvaluator {
 			return null;
 		IJavaValue result = null;
 		try {
-			IJavaValue[] argVals = new IJavaValue[args.size()];
+			Value[] argVals = new Value[args.size()];
 			for (int i = 0; i < args.size(); i++) {
 				TypedExpression arg = args.get(i);
 				if (arg.getValue() == null)
 					return null;
-				argVals[i] = arg.getValue();
+				argVals[i] = arg.getWrapperValue();
 			}
 			if ("java.lang.String".equals(declaringType)) {
 				if (receiver.getExpression() == null)
 					result = evaluateStringConstructorCall(argVals, method, target);
 				else
-					result = evaluateStringCall(receiver.getValue() instanceof IJavaClassObject ? null : stringOfValue(receiver.getValue()), receiver.getValue(), argVals, method, target);
+					result = evaluateStringCall(receiver.getValue() instanceof IJavaClassObject ? null : stringOfValue(receiver.getWrapperValue()), receiver.getValue(), argVals, method, target);
 			} else if ("java.util.Arrays".equals(declaringType))
 				result = evaluateArraysCall(argVals, method, target);
 		} catch (DebugException ex) {
@@ -107,7 +109,7 @@ public class StaticEvaluator {
 	}
 
 	@SuppressWarnings("deprecation")
-	private IJavaValue evaluateStringConstructorCall(IJavaValue[] args, Method method, IJavaDebugTarget target) throws DebugException {
+	private IJavaValue evaluateStringConstructorCall(Value[] args, Method method, IJavaDebugTarget target) throws DebugException {
 		String sig = method.signature();
 		if ("()V".equals(sig))
 			return valueOfString("", target);
@@ -165,7 +167,7 @@ public class StaticEvaluator {
 		  Signature: (Ljava/lang/StringBuilder;)V
 	 */
 	
-	private IJavaValue evaluateStringCall(String receiver, IJavaValue receiverValue, IJavaValue[] args, Method method, IJavaDebugTarget target) throws DebugException {
+	private IJavaValue evaluateStringCall(String receiver, IJavaValue receiverValue, Value[] args, Method method, IJavaDebugTarget target) throws DebugException {
 		String name = method.name();
 		String sig = method.signature();
 		if ("length".equals(name))
@@ -342,10 +344,10 @@ public class StaticEvaluator {
 			return valueOfCharArr(receiver.toCharArray(), target);
 		// format, valueOf, copyValueOf
 		if ("valueOf".equals(name) && "(Ljava/lang/Object;)Ljava/lang/String;".equals(sig)) {
-			if (args[0].isNull())
+			if (args[0].getValue().isNull())
 				return valueOfString("null", target);
 			else if (isNonNullString(args[0]))
-				return args[0];
+				return args[0].getValue();
 			else
 				return null;
 		}
@@ -407,7 +409,7 @@ public class StaticEvaluator {
 		  Signature: (Ljava/lang/Object;)I
 	 */
 
-	private IJavaValue evaluateArraysCall(IJavaValue[] args, Method method, IJavaDebugTarget target) throws DebugException {
+	private IJavaValue evaluateArraysCall(Value[] args, Method method, IJavaDebugTarget target) throws DebugException {
 		String name = method.name();
 		String sig = method.signature();
 		if ("binarySearch".equals(name) && "([JJ)I".equals(sig))
@@ -441,7 +443,7 @@ public class StaticEvaluator {
 		// binarySearch
 		if ("binarySearch".equals(name) && "([Ljava/lang/Object;Ljava/lang/Object;)I".equals(sig)) {
 			if (isNullOrStringArr(args[0]) && isNullOrString(args[1])) {
-				if (args[1].isNull())
+				if (args[1].getValue().isNull())
 					return handleCrash(target);
 				else
 					return valueOfInt(Arrays.binarySearch(stringArrOfValue(args[0]), stringOfValue(args[1])), target);
@@ -452,7 +454,7 @@ public class StaticEvaluator {
 		}
 		if ("binarySearch".equals(name) && "([Ljava/lang/Object;IILjava/lang/Object;)I".equals(sig)) {
 			if (isNullOrStringArr(args[0]) && isNullOrString(args[1])) {
-				if (args[3].isNull())
+				if (args[3].getValue().isNull())
 					return handleCrash(target);
 				else
 					return valueOfInt(Arrays.binarySearch(stringArrOfValue(args[0]), intOfValue(args[1]), intOfValue(args[2]), stringOfValue(args[3])), target);
@@ -460,19 +462,19 @@ public class StaticEvaluator {
 				return null;
 		}
 		if ("binarySearch".equals(name) && "([Ljava/lang/Object;Ljava/lang/Object;Ljava/util/Comparator;)I".equals(sig)) {
-			if (isNullOrStringArr(args[0]) && isNullOrString(args[1]) && args[2].isNull()) {
-				if (args[1].isNull())
+			if (isNullOrStringArr(args[0]) && isNullOrString(args[1]) && args[2].getValue().isNull()) {
+				if (args[1].getValue().isNull())
 					return handleCrash(target);
 				else
 					return valueOfInt(Arrays.binarySearch(stringArrOfValue(args[0]), stringOfValue(args[1]), null), target);
-			} else if (args[2].isNull() && ((IJavaArray)args[0]).getLength() > 0 && isNullOrStringArr(args[0]) && !isNullOrString(args[1]))
+			} else if (args[2].getValue().isNull() && ((IJavaArray)args[0]).getLength() > 0 && isNullOrStringArr(args[0]) && !isNullOrString(args[1]))
 				return handleCrash(target);
 			else
 				return null;
 		}
 		if ("binarySearch".equals(name) && "([Ljava/lang/Object;IILjava/lang/Object;Ljava/util/Comparator;)I".equals(sig)) {
-			if (isNullOrStringArr(args[0]) && isNullOrString(args[3]) && args[4].isNull()) {
-				if (args[3].isNull())
+			if (isNullOrStringArr(args[0]) && isNullOrString(args[3]) && args[4].getValue().isNull()) {
+				if (args[3].getValue().isNull())
 					return handleCrash(target);
 				else
 					return valueOfInt(Arrays.binarySearch(stringArrOfValue(args[0]), intOfValue(args[1]), intOfValue(args[2]), stringOfValue(args[3]), null), target);
@@ -649,12 +651,24 @@ public class StaticEvaluator {
 	
 	// Check type
 	
+	private static boolean isNonNullString(Value wrapper) throws DebugException {
+		return isNonNullString(wrapper.getValue());
+	}
+	
 	private static boolean isNonNullString(IJavaValue value) throws DebugException {
 		return "Ljava/lang/String;".equals(value.getSignature());
 	}
 	
+	private static boolean isNullOrString(Value wrapper) throws DebugException {
+		return isNullOrString(wrapper.getValue());
+	}
+	
 	private static boolean isNullOrString(IJavaValue value) throws DebugException {
 		return value.isNull() || "Ljava/lang/String;".equals(value.getSignature());
+	}
+	
+	private static boolean isNullOrStringArr(Value wrapper) throws DebugException {
+		return isNullOrStringArr(wrapper.getValue());
 	}
 	
 	private static boolean isNullOrStringArr(IJavaValue value) throws DebugException {
@@ -663,12 +677,53 @@ public class StaticEvaluator {
 	
 	// Convert IJavaValue to actual values
 	
+	private static String stringOfValue(Value wrapper) throws DebugException {
+		IJavaValue value = wrapper.getValue();
+		assert isNullOrString(value) : value;
+		if (value.isNull())
+			return null;
+		else
+			return ((StringValue)wrapper).getStringValue();
+	}
+	
 	private static String stringOfValue(IJavaValue value) throws DebugException {
 		assert isNullOrString(value) : value;
 		if (value.isNull())
 			return null;
 		else
 			return value.getValueString();
+	}
+	
+	private static int intOfValue(Value wrapper) {
+		return intOfValue(wrapper.getValue());
+	}
+	
+	private static boolean booleanOfValue(Value wrapper) {
+		return booleanOfValue(wrapper.getValue());
+	}
+	
+	private static char charOfValue(Value wrapper) {
+		return charOfValue(wrapper.getValue());
+	}
+	
+	private static long longOfValue(Value wrapper) {
+		return longOfValue(wrapper.getValue());
+	}
+	
+	private static float floatOfValue(Value wrapper) {
+		return floatOfValue(wrapper.getValue());
+	}
+	
+	private static double doubleOfValue(Value wrapper) {
+		return doubleOfValue(wrapper.getValue());
+	}
+	
+	private static byte byteOfValue(Value wrapper) {
+		return byteOfValue(wrapper.getValue());
+	}
+	
+	private static short shortOfValue(Value wrapper) {
+		return shortOfValue(wrapper.getValue());
 	}
 	
 	private static int intOfValue(IJavaValue value) {
@@ -703,7 +758,8 @@ public class StaticEvaluator {
 		return ((IJavaPrimitiveValue)value).getShortValue();
 	}
 	
-	private static char[] charArrOfValue(IJavaValue value) throws DebugException {
+	private static char[] charArrOfValue(Value wrapper) throws DebugException {
+		IJavaValue value = wrapper.getValue();
 		if (value.isNull())
 			return null;
 		IJavaArray array = (IJavaArray)value;
@@ -714,7 +770,8 @@ public class StaticEvaluator {
 		return result;
 	}
 	
-	private static byte[] byteArrOfValue(IJavaValue value) throws DebugException {
+	private static byte[] byteArrOfValue(Value wrapper) throws DebugException {
+		IJavaValue value = wrapper.getValue();
 		if (value.isNull())
 			return null;
 		IJavaArray array = (IJavaArray)value;
@@ -725,7 +782,8 @@ public class StaticEvaluator {
 		return result;
 	}
 	
-	private static long[] longArrOfValue(IJavaValue value) throws DebugException {
+	private static long[] longArrOfValue(Value wrapper) throws DebugException {
+		IJavaValue value = wrapper.getValue();
 		if (value.isNull())
 			return null;
 		IJavaArray array = (IJavaArray)value;
@@ -736,7 +794,8 @@ public class StaticEvaluator {
 		return result;
 	}
 	
-	private static int[] intArrOfValue(IJavaValue value) throws DebugException {
+	private static int[] intArrOfValue(Value wrapper) throws DebugException {
+		IJavaValue value = wrapper.getValue();
 		if (value.isNull())
 			return null;
 		IJavaArray array = (IJavaArray)value;
@@ -747,7 +806,8 @@ public class StaticEvaluator {
 		return result;
 	}
 	
-	private static short[] shortArrOfValue(IJavaValue value) throws DebugException {
+	private static short[] shortArrOfValue(Value wrapper) throws DebugException {
+		IJavaValue value = wrapper.getValue();
 		if (value.isNull())
 			return null;
 		IJavaArray array = (IJavaArray)value;
@@ -758,7 +818,8 @@ public class StaticEvaluator {
 		return result;
 	}
 	
-	private static double[] doubleArrOfValue(IJavaValue value) throws DebugException {
+	private static double[] doubleArrOfValue(Value wrapper) throws DebugException {
+		IJavaValue value = wrapper.getValue();
 		if (value.isNull())
 			return null;
 		IJavaArray array = (IJavaArray)value;
@@ -769,7 +830,8 @@ public class StaticEvaluator {
 		return result;
 	}
 	
-	private static float[] floatArrOfValue(IJavaValue value) throws DebugException {
+	private static float[] floatArrOfValue(Value wrapper) throws DebugException {
+		IJavaValue value = wrapper.getValue();
 		if (value.isNull())
 			return null;
 		IJavaArray array = (IJavaArray)value;
@@ -780,7 +842,8 @@ public class StaticEvaluator {
 		return result;
 	}
 	
-	private static boolean[] booleanArrOfValue(IJavaValue value) throws DebugException {
+	private static boolean[] booleanArrOfValue(Value wrapper) throws DebugException {
+		IJavaValue value = wrapper.getValue();
 		if (value.isNull())
 			return null;
 		IJavaArray array = (IJavaArray)value;
@@ -791,7 +854,8 @@ public class StaticEvaluator {
 		return result;
 	}
 	
-	private static String[] stringArrOfValue(IJavaValue value) throws DebugException {
+	private static String[] stringArrOfValue(Value wrapper) throws DebugException {
+		IJavaValue value = wrapper.getValue();
 		if (value.isNull())
 			return null;
 		IJavaArray array = (IJavaArray)value;

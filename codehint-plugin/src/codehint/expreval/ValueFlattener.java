@@ -14,6 +14,9 @@ import org.eclipse.jdt.debug.core.IJavaValue;
 import com.sun.jdi.Method;
 
 import codehint.exprgen.ExpressionMaker;
+import codehint.exprgen.StringValue;
+import codehint.exprgen.Value;
+import codehint.exprgen.ValueCache;
 import codehint.property.ASTFlattener;
 import codehint.utils.EclipseUtils;
 import codehint.utils.Pair;
@@ -26,10 +29,12 @@ public class ValueFlattener extends ASTFlattener {
 
 	private final Map<String, Integer> temporaries;
 	private final Map<String, Pair<Integer, String>> newTemporaries;
+	private final ValueCache valueCache;
 	
-	public ValueFlattener(Map<String, Integer> temporaries) {
+	public ValueFlattener(Map<String, Integer> temporaries, ValueCache valueCache) {
 		this.temporaries = temporaries;
 		this.newTemporaries = new HashMap<String, Pair<Integer, String>>();
+		this.valueCache = valueCache;
 	}
 	
 	@Override
@@ -55,7 +60,8 @@ public class ValueFlattener extends ASTFlattener {
 					handleCast(node, value.toString(), sb);
 					return;
 				} else if (value instanceof IJavaObject && "Ljava/lang/String;".equals(value.getSignature())) {
-					String str = value.toString();
+					Value wrapper = valueCache.getValue(value);
+					String str = wrapper instanceof StringValue ? ((StringValue)wrapper).getStringValue() : value.toString();
 					handleCast(node, str.replaceAll("[\n]", "\\\\n"), sb);  // Replace newlines.
 					return;
 				}

@@ -20,11 +20,27 @@ public class Value {
 	private final int hashCode;
 	private final IJavaThread thread;
 
-	public Value(IJavaValue value, IJavaThread thread) {
+	protected Value(IJavaValue value, IJavaThread thread) {
 		this.value = value;
 		this.thread = thread;
 		try {
 			this.hashCode = getHashCode(value);
+		} catch (DebugException e) {
+			throw new RuntimeException(e);
+		}
+	}
+	
+	public static Value makeValue(IJavaValue value, ValueCache valueCache, IJavaThread thread) {
+		try {
+			Value wrapper = valueCache.getValue(value);
+			if (wrapper != null)
+				return wrapper;
+			if (value != null && "Ljava/lang/String;".equals(value.getSignature()))
+				wrapper = new StringValue(value, thread);
+			else
+				wrapper = new Value(value, thread);
+			valueCache.addValue(wrapper);
+			return wrapper;
 		} catch (DebugException e) {
 			throw new RuntimeException(e);
 		}
@@ -71,7 +87,10 @@ public class Value {
 			return false;
 		if (getClass() != obj.getClass())
 			return false;
-		Value other = (Value) obj;
+		return equals((Value)obj);
+	}
+	
+	protected boolean equals(Value other) {
 		return equals(value, other.value, thread);
 	}
 	
