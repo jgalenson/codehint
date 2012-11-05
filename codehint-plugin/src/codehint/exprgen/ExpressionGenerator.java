@@ -1550,10 +1550,6 @@ public final class ExpressionGenerator {
     		else
     			seen.add(s);
     	}
-    	
-    	public boolean isUnique() {
-    		return isUnique;
-    	}
         
         /**
          * Checks whether a given expression is unique wrt UniqueASTChecker.
@@ -1572,7 +1568,7 @@ public final class ExpressionGenerator {
          * @return Whether or not the expression is unique wrt UniqueASTChecker.
          */
         public static boolean isUnique(Expression e, UniqueASTChecker checker) {
-        	if (!checker.isUnique())
+        	if (!checker.isUnique)
         		return false;
         	e.accept(checker);
         	return checker.isUnique;

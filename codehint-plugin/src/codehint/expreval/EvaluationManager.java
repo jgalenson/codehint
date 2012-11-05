@@ -65,7 +65,6 @@ import codehint.utils.Utils;
 public final class EvaluationManager {
 	
 	private final static int BATCH_SIZE = 100;
-	//private final static int MIN_NUM_BATCHES = 4;
 
 	private final static String IMPL_NAME = "codehint.CodeHintImpl";
 	private final static String IMPL_QUALIFIER = IMPL_NAME + ".";
@@ -143,7 +142,6 @@ public final class EvaluationManager {
 	public ArrayList<FullyEvaluatedExpression> evaluateExpressions(ArrayList<? extends TypedExpression> exprs, Property property, IJavaType varType, InitialSynthesisDialog synthesisDialog, IProgressMonitor monitor) {
 		try {
 			this.synthesisDialog = synthesisDialog;
-			//batchSize = exprs.size() >= 2 * BATCH_SIZE ? BATCH_SIZE : exprs.size() >= MIN_NUM_BATCHES ? exprs.size() / MIN_NUM_BATCHES : 1;
 			validVal = property == null ? "true" : property.getReplacedString("_$curValue", stack);
 			preVarsString = getPreVarsString(stack, property);
 			PropertyPreconditionFinder pf = new PropertyPreconditionFinder();

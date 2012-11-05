@@ -10,7 +10,7 @@ import org.eclipse.jdt.debug.core.IJavaValue;
  */
 public class ValueCache {
 	
-	private Map<IJavaValue, Value> valueCache;
+	private final Map<IJavaValue, Value> valueCache;
 	
 	public ValueCache() {
 		valueCache = new HashMap<IJavaValue, Value>();

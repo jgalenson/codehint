@@ -90,7 +90,7 @@ public final class ExpressionSkeleton {
     public final static String HOLE_SYNTAX = "??";
     private final static String LIST_HOLE_SYNTAX = "**";
     
-    private final static int SEARCH_DEPTH = 3;
+    private final static int SEARCH_DEPTH = 1;
     
     private final String sugaredString;
     private final Expression expression;
