@@ -667,8 +667,10 @@ public final class ExpressionGenerator {
     				for (IJavaReferenceType type : objectInterfaceTypes) {
     					String typeName = type.getName();
     					// If we have imported the type or it is an inner class of the this type, use the unqualified typename for brevity.
-    					if (importsSet.contains(typeName) || (typeName.contains("$") && thisType.getName().equals(typeName.substring(0, typeName.lastIndexOf('$')))))
+    					if (typeName.contains("$") && thisType.getName().equals(typeName.substring(0, typeName.lastIndexOf('$'))))
     						typeName = EclipseUtils.getUnqualifiedName(EclipseUtils.sanitizeTypename(typeName));
+    					else
+    						typeName = getShortestTypename(typeName);
     					addFieldAccesses(expressionMaker.makeStaticName(typeName, type, valueCache, thread), curLevel, depth, maxDepth);
     					addMethodCalls(expressionMaker.makeStaticName(typeName, type, valueCache, thread), nextLevel, curLevel, depth, maxDepth);
     				}
@@ -1116,6 +1118,8 @@ public final class ExpressionGenerator {
 	private String getShortestTypename(String typeName) throws DebugException {
 		if (importsSet.contains(typeName))
 			return EclipseUtils.getUnqualifiedName(EclipseUtils.sanitizeTypename(typeName));
+		else if (typeName.startsWith("java.lang."))
+			return typeName.substring("java.lang.".length());
 		else
 			return typeName;
 	}
@@ -1434,11 +1438,20 @@ public final class ExpressionGenerator {
 	 */
 	private ArrayList<EvaluatedExpression> getEquivalentExpressions(Value curValue, Expression curExpr, TypeConstraint constraint) throws DebugException {
 		ArrayList<EvaluatedExpression> results = new ArrayList<EvaluatedExpression>();
-		for (EvaluatedExpression expr: equivalences.get(curValue))
+		Set<String> fulfillingType = new HashSet<String>();
+		for (EvaluatedExpression expr: equivalences.get(curValue)) {
 			// We might get things that are equivalent but with difference static types (e.g., Object and String when we want a String), so we ensure we satisfy the type constraint.
 			// However, we have to special case static accesses/calls (e.g., Foo.bar), as the expression part has type Class not the desired type (Foo).
-			if (constraint.isFulfilledBy(expr.getType(), subtypeChecker, typeCache, stack, target) || (expressionMaker.isStatic(expr.getExpression()) && (constraint instanceof FieldConstraint || constraint instanceof MethodConstraint)))
+			IJavaType type = expr.getType();
+			String typeName = type.getName();
+			if (fulfillingType.contains(typeName))
+				results.add(expr);  // Cache the fulfilling types, since there can be a ton of equivalent expressions at higher depths and computing isFulfilledBy can take a lot of time.
+			else if (constraint.isFulfilledBy(type, subtypeChecker, typeCache, stack, target)) {
+				fulfillingType.add(typeName);
 				results.add(expr);
+			} else if (expressionMaker.isStatic(expr.getExpression()) && (constraint instanceof FieldConstraint || constraint instanceof MethodConstraint))
+				results.add(expr);
+		}
 		// 0 is already in the equivalences map, but no other int constants are.
 		if ((curExpr instanceof NumberLiteral && !"0".equals(((NumberLiteral)curExpr).getToken())) || curExpr instanceof StringLiteral || curExpr instanceof BooleanLiteral)
 			results.add(new EvaluatedExpression(curExpr, curValue.getValue().getJavaType(), curValue));
@@ -1624,8 +1637,8 @@ public final class ExpressionGenerator {
 		
 		public static boolean isNamedMethod(String name, Expression receiver) {
 			// We do want to include Integer.valueOf and friends.
-			return name.equals("toString") || (name.equals("valueOf") && "java.lang.String".equals(receiver.toString()))
-					|| (name.equals("format") && "java.lang.String".equals(receiver.toString()))
+			return name.equals("toString") || (name.equals("valueOf") && "String".equals(receiver.toString()))
+					|| (name.equals("format") && "String".equals(receiver.toString()))
 					|| name.equals("deepToString") || name.equals("compareTo") || name.equals("compareToIgnoreCase") || name.equals("compare");
 		}
 		

@@ -79,13 +79,13 @@ public class InitialSynthesisDialog extends SynthesisDialog {
     private final IJavaDebugTarget target;
     private final IAstEvaluationEngine evaluationEngine;
 	private final SynthesisWorker worker;
-    private final SubtypeChecker subtypeChecker;
-    private final TypeCache typeCache;
-    private final ValueCache valueCache;
-    private final ExpressionMaker expressionMaker;
-    private final EvaluationManager evalManager;
-    private final StaticEvaluator staticEvaluator;
-    private final ExpressionGenerator expressionGenerator;
+    private SubtypeChecker subtypeChecker;
+    private TypeCache typeCache;
+    private ValueCache valueCache;
+    private ExpressionMaker expressionMaker;
+    private EvaluationManager evalManager;
+    private StaticEvaluator staticEvaluator;
+    private ExpressionGenerator expressionGenerator;
     private ExpressionSkeleton skeleton;
 
 	public InitialSynthesisDialog(Shell parentShell, String varTypeName, IJavaType varType, IJavaStackFrame stack, PropertyDialog propertyDialog, SynthesisWorker worker) {
@@ -494,6 +494,30 @@ public class InitialSynthesisDialog extends SynthesisDialog {
 	@Override
 	public boolean close() {
 		staticEvaluator.allowCollectionOfNewStrings();  // Allow collection of strings from the last search.
+		table.dispose();
+		monitor.dispose();
+		skeletonInput = null;
+		skeletonResult = null;
+		searchButton = null;
+		searchCancelButton = null;
+		monitorComposite = null;
+		monitor = null;
+		tableViewer = null;
+		table = null;
+		synthesisResultComparator = null;
+		expressions = null;
+		checkAllButton = null;
+		uncheckAllButton = null;
+		checkSelectedButton = null;
+		uncheckSelectedButton = null;
+		subtypeChecker = null;
+		typeCache = null;
+		valueCache = null;
+		expressionMaker = null;
+		evalManager = null;
+		staticEvaluator = null;
+		expressionGenerator = null;
+		skeleton = null;
 		return super.close();
 	}
     
