@@ -29,18 +29,20 @@ public class ValueFlattener extends ASTFlattener {
 
 	private final Map<String, Integer> temporaries;
 	private final Map<String, Pair<Integer, String>> newTemporaries;
+	private final ExpressionMaker expressionMaker;
 	private final ValueCache valueCache;
 	
-	public ValueFlattener(Map<String, Integer> temporaries, ValueCache valueCache) {
+	public ValueFlattener(Map<String, Integer> temporaries, ExpressionMaker expressionMaker, ValueCache valueCache) {
 		this.temporaries = temporaries;
 		this.newTemporaries = new HashMap<String, Pair<Integer, String>>();
+		this.expressionMaker = expressionMaker;
 		this.valueCache = valueCache;
 	}
 	
 	@Override
 	protected void flatten(Expression node, StringBuilder sb) {
 		try {
-			IJavaValue value = ExpressionMaker.getExpressionValue(node);
+			IJavaValue value = expressionMaker.getExpressionValue(node);
 			if (value != null) {
 				if (value instanceof IJavaPrimitiveValue) {
 					String str = value.toString();
@@ -105,7 +107,7 @@ public class ValueFlattener extends ASTFlattener {
 				sb.append("_$tmp").append(newTemporaries.get(toString).first);
 				return;
 			} else {
-				Method method = ExpressionMaker.getMethod(node);
+				Method method = expressionMaker.getMethod(node);
 				if (method != null) {  // The method should only be null during refinement.
 					String typeStr = EclipseUtils.sanitizeTypename(method.returnTypeName());
 					int newIndex = temporaries.size() + newTemporaries.size();

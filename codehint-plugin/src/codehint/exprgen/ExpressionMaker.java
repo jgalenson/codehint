@@ -1,6 +1,10 @@
 package codehint.exprgen;
 
 import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Map;
+import java.util.Set;
 
 import org.eclipse.debug.core.DebugException;
 import org.eclipse.jdt.core.dom.AST;
@@ -19,6 +23,8 @@ import org.eclipse.jdt.core.dom.ParenthesizedExpression;
 import org.eclipse.jdt.core.dom.PostfixExpression;
 import org.eclipse.jdt.core.dom.PrefixExpression;
 import org.eclipse.jdt.core.dom.PrimitiveType;
+import org.eclipse.jdt.core.dom.QualifiedName;
+import org.eclipse.jdt.core.dom.SimpleName;
 import org.eclipse.jdt.core.dom.SuperFieldAccess;
 import org.eclipse.jdt.core.dom.SuperMethodInvocation;
 import org.eclipse.jdt.core.dom.ThisExpression;
@@ -44,6 +50,20 @@ import com.sun.jdi.Method;
 public class ExpressionMaker {
 
 	private final static AST ast = AST.newAST(AST.JLS4);
+	
+	private int id;
+	private final Map<Integer, IJavaValue> values;
+	private final Map<Integer, Method> methods;
+	private final Set<Integer> statics;
+	private final Map<Integer, Integer> depths;
+	
+	public ExpressionMaker() {
+		id = 0;
+		values = new HashMap<Integer, IJavaValue>();
+		methods = new HashMap<Integer, Method>();
+		statics = new HashSet<Integer>();
+		depths = new HashMap<Integer, Integer>();
+	}
 
 	public static boolean isInt(IJavaType type) throws DebugException {
 		return type != null && "I".equals(type.getSignature());
@@ -221,45 +241,49 @@ public class ExpressionMaker {
 	 */
 
 	// Pass in cached int type for efficiency.
-	public static TypedExpression makeNumber(String val, IJavaValue value, IJavaType type, ValueCache valueCache, IJavaThread thread) {
+	public TypedExpression makeNumber(String val, IJavaValue value, IJavaType type, ValueCache valueCache, IJavaThread thread) {
 		Expression e = ast.newNumberLiteral(val);
-		e.setProperty("isConstant", true);
+		//e.setProperty("isConstant", true);
+		setID(e);
 		setExpressionValue(e, value);
 		return new EvaluatedExpression(e, type, Value.makeValue(value, valueCache, thread));
 	}
 
 	// Pass in cached boolean type for efficiency.
-	public static TypedExpression makeBoolean(boolean val, IJavaValue value, IJavaType type, ValueCache valueCache, IJavaThread thread) {
+	public TypedExpression makeBoolean(boolean val, IJavaValue value, IJavaType type, ValueCache valueCache, IJavaThread thread) {
 		Expression e = ast.newBooleanLiteral(val);
-		e.setProperty("isConstant", true);
+		//e.setProperty("isConstant", true);
+		setID(e);
 		setExpressionValue(e, value);
 		return new EvaluatedExpression(e, type, Value.makeValue(value, valueCache, thread));
 	}
 
-	public static TypedExpression makeNull(IJavaDebugTarget target, ValueCache valueCache, IJavaThread thread) {
+	public TypedExpression makeNull(IJavaDebugTarget target, ValueCache valueCache, IJavaThread thread) {
 		Expression e = ast.newNullLiteral();
-		e.setProperty("isConstant", true);
+		//e.setProperty("isConstant", true);
 		IJavaValue value = target.nullValue();
+		setID(e);
 		setExpressionValue(e, value);
 		return new EvaluatedExpression(e, null, Value.makeValue(value, valueCache, thread));
 	}
 
-	public static TypedExpression makeVar(String name, IJavaValue value, IJavaType type, boolean isFieldAccess, ValueCache valueCache, IJavaThread thread) {
+	public TypedExpression makeVar(String name, IJavaValue value, IJavaType type, boolean isFieldAccess, ValueCache valueCache, IJavaThread thread) {
 		Expression e = ast.newSimpleName(name);
+		setID(e);
 		setExpressionValue(e, value);
 		if (isFieldAccess)
-			e.setProperty("depth", 1);
+			setDepth(e, 1);
 		return new EvaluatedExpression(e, type, Value.makeValue(value, valueCache, thread));
 	}
 
-	private static Expression newStaticName(String name, IJavaValue value) {
-		Expression e = ast.newName(name);
+	private Expression newStaticName(String name, IJavaValue value) {
+		Expression e = makeName(name);
 		setStatic(e);
 		setExpressionValue(e, value);
 		return e;
 	}
 
-	public static TypedExpression makeStaticName(String name, IJavaReferenceType type, ValueCache valueCache, IJavaThread thread) {
+	public TypedExpression makeStaticName(String name, IJavaReferenceType type, ValueCache valueCache, IJavaThread thread) {
 		try {
 			IJavaValue value = type.getClassObject();
 			return new EvaluatedExpression(newStaticName(name, value), type, Value.makeValue(value, valueCache, thread));
@@ -268,54 +292,58 @@ public class ExpressionMaker {
 		}
 	}
 
-	public static TypedExpression makeThis(IJavaValue value, IJavaType type, ValueCache valueCache, IJavaThread thread) {
+	public TypedExpression makeThis(IJavaValue value, IJavaType type, ValueCache valueCache, IJavaThread thread) {
 		ThisExpression e = ast.newThisExpression();
+		setID(e);
 		setExpressionValue(e, value);
 		return new EvaluatedExpression(e, type, Value.makeValue(value, valueCache, thread));
 	}
 
-	public static TypedExpression makeInfix(IJavaDebugTarget target, TypedExpression left, InfixExpression.Operator op, TypedExpression right, IJavaType type, ValueCache valueCache, IJavaThread thread) throws NumberFormatException, DebugException {
+	public TypedExpression makeInfix(IJavaDebugTarget target, TypedExpression left, InfixExpression.Operator op, TypedExpression right, IJavaType type, ValueCache valueCache, IJavaThread thread) throws NumberFormatException, DebugException {
 		InfixExpression e = makeInfix(left.getExpression(), op, right.getExpression());
 		IJavaValue value = computeInfixOp(target, left.getValue(), op, right.getValue(), left.getType() != null ? left.getType() : right.getType());
 		setExpressionValue(e, value);
 		return EvaluatedExpression.makeTypedOrEvaluatedExpression(e, type, value, valueCache, thread);
 	}
 
-	public static InfixExpression makeInfix(Expression l, InfixExpression.Operator op, Expression r) {
+	public InfixExpression makeInfix(Expression l, InfixExpression.Operator op, Expression r) {
 		InfixExpression e = ast.newInfixExpression();
 		e.setLeftOperand(parenIfNeeded(ASTCopyer.copy(l)));
 		e.setOperator(op);
 		e.setRightOperand(parenIfNeeded(ASTCopyer.copy(r)));
+		setID(e);
 		return e;
 	}
 
-	public static TypedExpression makeArrayAccess(TypedExpression array, TypedExpression index, IJavaValue value, ValueCache valueCache, IJavaThread thread) {
+	public TypedExpression makeArrayAccess(TypedExpression array, TypedExpression index, IJavaValue value, ValueCache valueCache, IJavaThread thread) {
 		ArrayAccess e = makeArrayAccess(array.getExpression(), index.getExpression());
 		setExpressionValue(e, value);
 		return EvaluatedExpression.makeTypedOrEvaluatedExpression(e, getArrayElementType(array), value, valueCache, thread);
 	}
 
-	public static ArrayAccess makeArrayAccess(Expression array, Expression index) {
+	public ArrayAccess makeArrayAccess(Expression array, Expression index) {
 		ArrayAccess e = ast.newArrayAccess();
 		e.setArray(ASTCopyer.copy(array));
 		e.setIndex(ASTCopyer.copy(index));
+		setID(e);
 		return e;
 	}
 
-	public static TypedExpression makeFieldAccess(TypedExpression obj, String name, IJavaType fieldType, IJavaValue value, ValueCache valueCache, IJavaThread thread) {
+	public TypedExpression makeFieldAccess(TypedExpression obj, String name, IJavaType fieldType, IJavaValue value, ValueCache valueCache, IJavaThread thread) {
 		FieldAccess e = makeFieldAccess(obj.getExpression(), name);
 		setExpressionValue(e, value);
 		return EvaluatedExpression.makeTypedOrEvaluatedExpression(e, fieldType, value, valueCache, thread);
 	}
 
-	public static FieldAccess makeFieldAccess(Expression obj, String name) {
+	public FieldAccess makeFieldAccess(Expression obj, String name) {
 		FieldAccess e = ast.newFieldAccess();
 		e.setExpression(ASTCopyer.copy(obj));
-		e.setName(ast.newSimpleName(name));
+		e.setName(makeSimpleName(name));
+		setID(e);
 		return e;
 	}
 
-	public static TypedExpression makePrefix(IJavaDebugTarget target, TypedExpression operand, PrefixExpression.Operator op, IJavaType type, ValueCache valueCache, IJavaThread thread) {
+	public TypedExpression makePrefix(IJavaDebugTarget target, TypedExpression operand, PrefixExpression.Operator op, IJavaType type, ValueCache valueCache, IJavaThread thread) {
 		try {
 			PrefixExpression e = makePrefix(operand.getExpression(), op);
 			IJavaValue value = computePrefixOp(target, operand.getValue(), op);
@@ -326,28 +354,30 @@ public class ExpressionMaker {
 		}
 	}
 
-	public static PrefixExpression makePrefix(Expression operand, PrefixExpression.Operator op) {
+	public PrefixExpression makePrefix(Expression operand, PrefixExpression.Operator op) {
 		PrefixExpression e = ast.newPrefixExpression();
 		e.setOperand(parenIfNeeded(ASTCopyer.copy(operand)));
 		e.setOperator(op);
+		setID(e);
 		return e;
 	}
 
-	public static TypedExpression makePostfix(IJavaDebugTarget target, TypedExpression operand, PostfixExpression.Operator op, IJavaType type, ValueCache valueCache, IJavaThread thread) {
+	public TypedExpression makePostfix(IJavaDebugTarget target, TypedExpression operand, PostfixExpression.Operator op, IJavaType type, ValueCache valueCache, IJavaThread thread) {
 		PostfixExpression e = makePostfix(operand.getExpression(), op);
 		IJavaValue value = computePostfixOp(target, operand.getValue(), op);
 		setExpressionValue(e, value);
 		return EvaluatedExpression.makeTypedOrEvaluatedExpression(e, type, value, valueCache, thread);
 	}
 
-	private static PostfixExpression makePostfix(Expression operand, PostfixExpression.Operator op) {
+	private PostfixExpression makePostfix(Expression operand, PostfixExpression.Operator op) {
 		PostfixExpression e = ast.newPostfixExpression();
 		e.setOperand(parenIfNeeded(ASTCopyer.copy(operand)));
 		e.setOperator(op);
+		setID(e);
 		return e;
 	}
 
-	public static TypedExpression makeCall(String name, TypedExpression receiver, ArrayList<? extends TypedExpression> args, IJavaType returnType, IJavaType thisType, Method method, IJavaDebugTarget target, ValueCache valueCache, IJavaThread thread, StaticEvaluator staticEvaluator) {
+	public TypedExpression makeCall(String name, TypedExpression receiver, ArrayList<? extends TypedExpression> args, IJavaType returnType, IJavaType thisType, Method method, IJavaDebugTarget target, ValueCache valueCache, IJavaThread thread, StaticEvaluator staticEvaluator) {
 		//IJavaValue value = computeCall(method, receiver.getValue(), args, thread, target, ((JDIType)receiver.getType()));
 		IJavaValue value = staticEvaluator.evaluateCall(receiver, args, method, target);
 		TypedExpression result = null;
@@ -366,57 +396,61 @@ public class ExpressionMaker {
 		setMethod(result.getExpression(), method);
 		return result;
 	}
-	/*private static TypedExpression makeCall(String name, String classname, ArrayList<TypedExpression> args, IJavaType returnType) {
+	/*private TypedExpression makeCall(String name, String classname, ArrayList<TypedExpression> args, IJavaType returnType) {
     	return makeCall(name, newStaticName(classname), args, returnType, null);
     }*/
 	@SuppressWarnings("unchecked")
-	private static TypedExpression makeCall(String name, Expression receiver, ArrayList<? extends TypedExpression> args, IJavaType returnType, IJavaValue value, ValueCache valueCache, IJavaThread thread) {
+	private TypedExpression makeCall(String name, Expression receiver, ArrayList<? extends TypedExpression> args, IJavaType returnType, IJavaValue value, ValueCache valueCache, IJavaThread thread) {
 		MethodInvocation e = ast.newMethodInvocation();
-		e.setName(ast.newSimpleName(name));
+		e.setName(makeSimpleName(name));
 		e.setExpression(receiver);
 		for (TypedExpression ex: args)
 			e.arguments().add(ASTCopyer.copy(ex.getExpression()));
+		setID(e);
 		setExpressionValue(e, value);
 		return EvaluatedExpression.makeTypedOrEvaluatedExpression(e, returnType, value, valueCache, thread);
 	}
 	@SuppressWarnings("unchecked")
-	public static Expression makeCall(String name, Expression receiver, ArrayList<TypedExpression> args, Method method) {
+	public Expression makeCall(String name, Expression receiver, ArrayList<TypedExpression> args, Method method) {
     	MethodInvocation e = ast.newMethodInvocation();
-    	e.setName(ast.newSimpleName(name));
+    	e.setName(makeSimpleName(name));
     	e.setExpression(ASTCopyer.copy(receiver));
     	for (TypedExpression ex: args)
     		e.arguments().add(ASTCopyer.copy(ex.getExpression()));
+		setID(e);
 		setMethod(e, method);
     	return e;
     }
 
-	public static TypedExpression makeCast(TypedExpression obj, IJavaType targetType, IJavaValue value, ValueCache valueCache, IJavaThread thread) {
+	public TypedExpression makeCast(TypedExpression obj, IJavaType targetType, IJavaValue value, ValueCache valueCache, IJavaThread thread) {
 		CastExpression e = makeCast(obj.getExpression(), targetType);
 		setExpressionValue(e, value);
 		return EvaluatedExpression.makeTypedOrEvaluatedExpression(e, targetType, value, valueCache, thread);
 	}
 
-	public static CastExpression makeCast(Expression obj, IJavaType targetType) {
+	public CastExpression makeCast(Expression obj, IJavaType targetType) {
 		CastExpression e = ast.newCastExpression();
 		e.setExpression(ASTCopyer.copy(obj));
 		e.setType(makeType(targetType));
+		setID(e);
 		return e;
 	}
 
-	public static TypedExpression makeInstanceOf(TypedExpression obj, Type targetDomType, IJavaType targetType, IJavaValue value, ValueCache valueCache, IJavaThread thread) {
+	public TypedExpression makeInstanceOf(TypedExpression obj, Type targetDomType, IJavaType targetType, IJavaValue value, ValueCache valueCache, IJavaThread thread) {
 		InstanceofExpression e = makeInstanceOf(obj.getExpression(), targetDomType);
 		setExpressionValue(e, value);
 		return EvaluatedExpression.makeTypedOrEvaluatedExpression(e, targetType, value, valueCache, thread);
 	}
 
-	private static InstanceofExpression makeInstanceOf(Expression expr, Type targetDomType) {
+	private InstanceofExpression makeInstanceOf(Expression expr, Type targetDomType) {
 		InstanceofExpression e = ast.newInstanceofExpression();
 		e.setLeftOperand(ASTCopyer.copy(expr));
 		e.setRightOperand(targetDomType);
+		setID(e);
 		return e;
 	}
 
-	public static TypedExpression makeConditional(TypedExpression cond, TypedExpression t, TypedExpression e, IJavaType type, ValueCache valueCache, IJavaThread thread) {
+	public TypedExpression makeConditional(TypedExpression cond, TypedExpression t, TypedExpression e, IJavaType type, ValueCache valueCache, IJavaThread thread) {
 		try {
 			ConditionalExpression ex = makeConditional(cond.getExpression(), t.getExpression(), e.getExpression());
 			IJavaValue value = computeConditionalOp(cond.getValue(), t.getValue(), e.getValue());
@@ -427,83 +461,90 @@ public class ExpressionMaker {
 		}
 	}
 
-	private static ConditionalExpression makeConditional(Expression cond, Expression t, Expression e) {
+	private ConditionalExpression makeConditional(Expression cond, Expression t, Expression e) {
 		ConditionalExpression ex = ast.newConditionalExpression();
 		ex.setExpression(ASTCopyer.copy(cond));
 		ex.setThenExpression(ASTCopyer.copy(t));
 		ex.setElseExpression(ASTCopyer.copy(e));
+		setID(ex);
 		return ex;
 	}
 
 	@SuppressWarnings("unchecked")
-	private static TypedExpression makeClassInstanceCreation(IJavaType type, ArrayList<? extends TypedExpression> args, IJavaValue value, ValueCache valueCache, IJavaThread thread) throws DebugException {
+	private TypedExpression makeClassInstanceCreation(IJavaType type, ArrayList<? extends TypedExpression> args, IJavaValue value, ValueCache valueCache, IJavaThread thread) throws DebugException {
 		ClassInstanceCreation e = ast.newClassInstanceCreation();
-		e.setType(ast.newSimpleType(ast.newName(EclipseUtils.sanitizeTypename(type.getName()))));
+		e.setType(ast.newSimpleType(makeName(EclipseUtils.sanitizeTypename(type.getName()))));
 		for (TypedExpression ex: args)
 			e.arguments().add(ASTCopyer.copy(ex.getExpression()));
+		setID(e);
 		setExpressionValue(e, value);
 		return EvaluatedExpression.makeTypedOrEvaluatedExpression(e, type, value, valueCache, thread);
 	}
 
 	@SuppressWarnings("unchecked")
-	public static ClassInstanceCreation makeClassInstanceCreation(Type type,ArrayList<TypedExpression> args, Method method) {
+	public ClassInstanceCreation makeClassInstanceCreation(Type type,ArrayList<TypedExpression> args, Method method) {
     	ClassInstanceCreation e = ast.newClassInstanceCreation();
     	e.setType(ASTCopyer.copy(type));
     	for (TypedExpression ex: args)
     		e.arguments().add(ASTCopyer.copy(ex.getExpression()));
+		setID(e);
 		setMethod(e, method);
     	return e;
 	}
 
-	public static TypedExpression makeParenthesized(TypedExpression obj, ValueCache valueCache, IJavaThread thread) {
+	public TypedExpression makeParenthesized(TypedExpression obj, ValueCache valueCache, IJavaThread thread) {
 		ParenthesizedExpression e = makeParenthesized(obj.getExpression());
 		return EvaluatedExpression.makeTypedOrEvaluatedExpression(e, obj.getType(), getExpressionValue(e), valueCache, thread);
 	}
 
-	private static ParenthesizedExpression makeParenthesized(Expression e) {
+	private ParenthesizedExpression makeParenthesized(Expression e) {
 		ParenthesizedExpression p = ast.newParenthesizedExpression();
 		p.setExpression(e);
+		setID(p);
 		setExpressionValue(p, getExpressionValue(e));
 		return p;
 	}
 
-	public static TypedExpression makeSuperFieldAccess(Name qualifier, String name, IJavaType fieldType, IJavaValue value, ValueCache valueCache, IJavaThread thread) {
+	public TypedExpression makeSuperFieldAccess(Name qualifier, String name, IJavaType fieldType, IJavaValue value, ValueCache valueCache, IJavaThread thread) {
 		SuperFieldAccess e = makeSuperFieldAccess(qualifier, name);
 		setExpressionValue(e, value);
 		return EvaluatedExpression.makeTypedOrEvaluatedExpression(e, fieldType, value, valueCache, thread);
 	}
 
-	private static SuperFieldAccess makeSuperFieldAccess(Name qualifier, String name) {
+	private SuperFieldAccess makeSuperFieldAccess(Name qualifier, String name) {
 		SuperFieldAccess e = ast.newSuperFieldAccess();
 		e.setQualifier((Name)ASTCopyer.copy(qualifier));
-		e.setName(ast.newSimpleName(name));
+		e.setName(makeSimpleName(name));
+		setID(e);
 		return e;
 	}
 
 	@SuppressWarnings("unchecked")
-	public static TypedExpression makeSuperCall(String name, Name qualifier, ArrayList<TypedExpression> args, IJavaType returnType, IJavaValue value, Method method, ValueCache valueCache, IJavaThread thread) {
+	public TypedExpression makeSuperCall(String name, Name qualifier, ArrayList<TypedExpression> args, IJavaType returnType, IJavaValue value, Method method, ValueCache valueCache, IJavaThread thread) {
 		SuperMethodInvocation e = ast.newSuperMethodInvocation();
-		e.setName(ast.newSimpleName(name));
+		e.setName(makeSimpleName(name));
 		e.setQualifier(qualifier);
 		for (TypedExpression ex: args)
 			e.arguments().add(ASTCopyer.copy(ex.getExpression()));
+		setID(e);
 		setExpressionValue(e, value);
 		setMethod(e, method);
 		return EvaluatedExpression.makeTypedOrEvaluatedExpression(e, returnType, value, valueCache, thread);
 	}
 	
-	public static TypeLiteral makeTypeLiteral(Type type) {
+	public TypeLiteral makeTypeLiteral(Type type) {
 		TypeLiteral e = ast.newTypeLiteral();
 		e.setType(ASTCopyer.copy(type));
+		setID(e);
 		return e;
 	}
 
-	private static Type makeType(IJavaType type) {
+	private Type makeType(IJavaType type) {
 		try {
 			if (type instanceof IJavaArrayType)
 				return ast.newArrayType(makeType(((IJavaArrayType)type).getComponentType()));
 			else if (type instanceof IJavaReferenceType)
-				return ast.newSimpleType(ast.newName(type.getName()));
+				return ast.newSimpleType(makeName(type.getName()));
 			else if (isInt(type))
 				return ast.newPrimitiveType(PrimitiveType.INT);
 			else if (isBoolean(type))
@@ -526,29 +567,64 @@ public class ExpressionMaker {
 			throw new RuntimeException(e);
 		}
 	}
-
-	public static void setExpressionValue(Expression e, IJavaValue v) {
-		e.setProperty("value", v);
+	
+	private SimpleName makeSimpleName(String name) {
+		SimpleName e = ast.newSimpleName(name);
+		setID(e);
+		return e;
+	}
+	
+	private Name makeName(String name) {
+		Name e = ast.newName(name);
+		for (Name cur = e; true; ) {
+			setID(cur);
+			if (cur instanceof QualifiedName) {
+				setID(((QualifiedName)cur).getName());
+				cur = ((QualifiedName)cur).getQualifier();
+			} else
+				break;
+		}
+		return e;
 	}
 
-	public static IJavaValue getExpressionValue(Expression e) {
-		return (IJavaValue)e.getProperty("value");
+	private void setID(Expression e) {
+		e.setProperty("id", id++);
 	}
 
-	private static void setStatic(Expression e) {
-		e.setProperty("isStatic", true);
+	public static int getID(Expression e) {
+		return (Integer)e.getProperty("id");
 	}
 
-	public static boolean isStatic(Expression e) {
-		return e.getProperty("isStatic") != null;
+	public void setExpressionValue(Expression e, IJavaValue v) {
+		values.put(getID(e), v);
 	}
 
-	private static void setMethod(Expression e, Method method) {
-		e.setProperty("method", method);
+	public IJavaValue getExpressionValue(Expression e) {
+		return values.get(getID(e));
 	}
 
-	public static Method getMethod(Expression e) {
-		return (Method)e.getProperty("method");
+	public void setDepth(Expression e, int d) {
+		depths.put(getID(e), d);
+	}
+
+	public Object getDepthOpt(Expression e) {
+		return depths.get(getID(e));
+	}
+
+	private void setStatic(Expression e) {
+		statics.add(getID(e));
+	}
+
+	public boolean isStatic(Expression e) {
+		return statics.contains(getID(e));
+	}
+
+	private void setMethod(Expression e, Method method) {
+		methods.put(getID(e), method);
+	}
+
+	public Method getMethod(Expression e) {
+		return methods.get(getID(e));
 	}
 
 	/**
@@ -557,7 +633,7 @@ public class ExpressionMaker {
 	 * @return The given expression parenthesized if it is infix
 	 * or prefix, and the expression itself otherwise.
 	 */
-	private static Expression parenIfNeeded(Expression e) {
+	private Expression parenIfNeeded(Expression e) {
 		if (e instanceof InfixExpression || e instanceof PrefixExpression) {
 			return makeParenthesized(e);
 		} else

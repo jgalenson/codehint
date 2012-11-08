@@ -61,6 +61,7 @@ import codehint.expreval.EvaluationManager;
 import codehint.expreval.EvaluationManager.EvaluationError;
 import codehint.expreval.FullyEvaluatedExpression;
 import codehint.exprgen.ExpressionGenerator;
+import codehint.exprgen.ExpressionMaker;
 import codehint.exprgen.ExpressionSkeleton;
 import codehint.exprgen.ExpressionSkeleton.TypeError;
 import codehint.exprgen.SubtypeChecker;
@@ -350,7 +351,7 @@ public class Synthesizer {
         	assert initialExprs.size() > 0;  // We must have at least one expression.
         	TypeCache typeCache = new TypeCache();
         	// TODO: Run the following off the UI thread like above when we do the first synthesis.
-        	EvaluationManager evalManager = new EvaluationManager(frame, new SubtypeChecker(), typeCache, new ValueCache());
+        	EvaluationManager evalManager = new EvaluationManager(frame, new ExpressionMaker(), new SubtypeChecker(), typeCache, new ValueCache());
    			ArrayList<FullyEvaluatedExpression> exprs = evalManager.evaluateExpressions(initialExprs, null, null, null, new NullProgressMonitor());
    			if (exprs.isEmpty()) {
    				EclipseUtils.showError("No valid expressions", "No valid expressions were found.", null);

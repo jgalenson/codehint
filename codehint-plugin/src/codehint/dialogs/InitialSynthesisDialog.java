@@ -39,6 +39,7 @@ import codehint.expreval.EvaluationManager;
 import codehint.expreval.FullyEvaluatedExpression;
 import codehint.expreval.StaticEvaluator;
 import codehint.exprgen.ExpressionGenerator;
+import codehint.exprgen.ExpressionMaker;
 import codehint.exprgen.ExpressionSkeleton;
 import codehint.exprgen.SubtypeChecker;
 import codehint.exprgen.TypeCache;
@@ -81,6 +82,7 @@ public class InitialSynthesisDialog extends SynthesisDialog {
     private final SubtypeChecker subtypeChecker;
     private final TypeCache typeCache;
     private final ValueCache valueCache;
+    private final ExpressionMaker expressionMaker;
     private final EvaluationManager evalManager;
     private final StaticEvaluator staticEvaluator;
     private final ExpressionGenerator expressionGenerator;
@@ -106,9 +108,10 @@ public class InitialSynthesisDialog extends SynthesisDialog {
 		this.subtypeChecker = new SubtypeChecker();
 		this.typeCache = new TypeCache();
 		this.valueCache = new ValueCache();
-		this.evalManager = new EvaluationManager(stack, subtypeChecker, typeCache, valueCache);
+		this.expressionMaker = new ExpressionMaker();
+		this.evalManager = new EvaluationManager(stack, expressionMaker, subtypeChecker, typeCache, valueCache);
 		this.staticEvaluator = new StaticEvaluator(stack, typeCache);
-		this.expressionGenerator = new ExpressionGenerator(target, stack, subtypeChecker, typeCache, valueCache, evalManager, staticEvaluator);
+		this.expressionGenerator = new ExpressionGenerator(target, stack, expressionMaker, subtypeChecker, typeCache, valueCache, evalManager, staticEvaluator);
 		this.skeleton = null;
 	}
 
@@ -264,7 +267,7 @@ public class InitialSynthesisDialog extends SynthesisDialog {
         if (buttonId == searchButtonID) {
         	skeletonResult = skeletonInput.getText();
             property = propertyDialog.computeProperty(pdspecInput.getText(), typeCache);
-            skeleton = ExpressionSkeleton.fromString(skeletonResult, target, stack, evaluationEngine, subtypeChecker, typeCache, valueCache, evalManager, staticEvaluator, expressionGenerator);
+            skeleton = ExpressionSkeleton.fromString(skeletonResult, target, stack, expressionMaker, evaluationEngine, subtypeChecker, typeCache, valueCache, evalManager, staticEvaluator, expressionGenerator);
             startEndSynthesis(SynthesisState.START);
             expressions = new ArrayList<FullyEvaluatedExpression>();
             showResults();  // Clears any existing results.

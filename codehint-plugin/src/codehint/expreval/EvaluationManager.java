@@ -86,6 +86,7 @@ public final class EvaluationManager {
     private final ValueCache valueCache;
 	private final IJavaDebugTarget target;
 	private final IJavaThread thread;
+	private final ExpressionMaker expressionMaker;
 	private final SubtypeChecker subtypeChecker;
 	private final IJavaClassType implType;
 	private final IJavaFieldVariable validField;
@@ -103,12 +104,13 @@ public final class EvaluationManager {
 	private String propertyPreconditions;
 	private Map<String, Integer> methodResultsMap;
 	
-	public EvaluationManager(IJavaStackFrame stack, SubtypeChecker subtypeChecker, TypeCache typeCache, ValueCache valueCache) {
+	public EvaluationManager(IJavaStackFrame stack, ExpressionMaker expressionMaker, SubtypeChecker subtypeChecker, TypeCache typeCache, ValueCache valueCache) {
 		this.stack = stack;
 		this.engine = EclipseUtils.getASTEvaluationEngine(stack);
 		this.valueCache = valueCache;
 		this.target = (IJavaDebugTarget)stack.getDebugTarget();
 		this.thread = (IJavaThread)stack.getThread();
+		this.expressionMaker = expressionMaker;
 		this.subtypeChecker = subtypeChecker;
 		this.implType = (IJavaClassType)EclipseUtils.getTypeAndLoadIfNeeded(IMPL_NAME, stack, target, typeCache);
 		try {
@@ -331,7 +333,7 @@ public final class EvaluationManager {
 	 */
 	private int buildStringForExpression(TypedExpression curTypedExpr, int i, StringBuilder expressionsStr, boolean isPrimitive, boolean validateStatically, boolean hasPropertyPrecondition, ArrayList<Integer> evalExprIndices, int numEvaluated, Map<String, Integer> temporaries, String valuesArrayName) throws DebugException {
 		Expression curExpr = curTypedExpr.getExpression();
-		ValueFlattener valueFlattener = new ValueFlattener(temporaries, valueCache);
+		ValueFlattener valueFlattener = new ValueFlattener(temporaries, expressionMaker, valueCache);
 		String curExprStr = valueFlattener.getResult(curExpr);
 		IJavaValue curValue = curTypedExpr.getValue();
 		if (curValue == null || !validateStatically) {
@@ -427,7 +429,7 @@ public final class EvaluationManager {
 		Map<String, Integer> temporaries = new HashMap<String, Integer>(0);
 		for (int j = i - 1; j >= startIndex; j--) {
 			// We need to get the flattened string not the actual string, since our temporaries can lose type information.  E.g., foo(bar(x),baz) might compile when storing bar(x) in a temporary with an erased type will not.
-			ValueFlattener valueFlattener = new ValueFlattener(temporaries, valueCache);
+			ValueFlattener valueFlattener = new ValueFlattener(temporaries, expressionMaker, valueCache);
 			String flattenedExprStr = valueFlattener.getResult(exprs.get(j).getExpression());
 			StringBuilder curString = new StringBuilder();
 			for (Map.Entry<String, Pair<Integer, String>> newTemp: valueFlattener.getNewTemporaries().entrySet())
@@ -570,9 +572,9 @@ public final class EvaluationManager {
 	 * that should be skipped.  This includes the expression that
 	 * crashed and so will always be at least one.
 	 */
-	private static int skipLikelyCrashes(ArrayList<TypedExpression> exprs, DebugException error, int crashingIndex, Expression crashedExpr) {
+	private int skipLikelyCrashes(ArrayList<TypedExpression> exprs, DebugException error, int crashingIndex, Expression crashedExpr) {
 		int numToSkip = 1;
-		Method crashedMethod = ExpressionMaker.getMethod(crashedExpr);
+		Method crashedMethod = expressionMaker.getMethod(crashedExpr);
 		String errorName = EclipseUtils.getExceptionName(error);
 		int numNulls = getNumNulls(crashedExpr);
 		// Only skip method calls that we think will throw a NPE and that have at least one subexpression we know is null.
@@ -580,7 +582,7 @@ public final class EvaluationManager {
 			while (crashingIndex + numToSkip < exprs.size()) {
 				Expression newExpr = exprs.get(crashingIndex + numToSkip).getExpression();
 				// Skip calls to the same method with at least as much known nulls.
-				if (crashedMethod.equals(ExpressionMaker.getMethod(newExpr)) && getNumNulls(newExpr) >= numNulls) {
+				if (crashedMethod.equals(expressionMaker.getMethod(newExpr)) && getNumNulls(newExpr) >= numNulls) {
 					//System.out.println("Skipping " + newExpr.toString() + ".");
 					numToSkip++;
 				} else
@@ -598,7 +600,7 @@ public final class EvaluationManager {
      * @return The number of subexpressions of the
      * given expression known to be null.
      */
-    private static int getNumNulls(Expression expr) {
+    private int getNumNulls(Expression expr) {
     	final int[] numNulls = new int[] { 0 };
     	expr.accept(new ASTVisitor() {
     		@Override
@@ -607,7 +609,7 @@ public final class EvaluationManager {
     				if (node instanceof NullLiteral)
     					numNulls[0]++;
     				else {
-    					IJavaValue value = ExpressionMaker.getExpressionValue((Expression)node);
+    					IJavaValue value = expressionMaker.getExpressionValue((Expression)node);
     					if (value != null && value.isNull())
         					numNulls[0]++;
     				}
