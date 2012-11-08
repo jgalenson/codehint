@@ -18,10 +18,12 @@ public class Parse {
     	String[] lines = email.split("\n");
     	Map<String, String> parts = new HashMap<String, String>(lines.length);
     	for (String line : lines) {
-    		int index = -1;
+    		int index = 0;
+    		//index = line.indexOf(seperator);
     		System.out.println("Task: Find the index of the seperator string in the line.");
 
     		String header = null;
+    		//header = line.substring(0,index);
     		System.out.println("Task: Find everything that comes before the separator in the line.");
     		
     		String body = null;
@@ -39,9 +41,10 @@ public class Parse {
      */
     private static String getArgument(String[] argsArr, String target, int offset) {
     	List<String> argsList = null;
+    	//argsList = Arrays.asList(argsArr);
     	System.out.println("Task: Convert the array of arguments into a list.");
     	
-    	int index = -1;
+    	int index = 0;
     	System.out.println("Task: Get the index of the target string in the array/list.");
     	
     	if (index == -1)

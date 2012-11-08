@@ -397,6 +397,9 @@ public final class ExpressionGenerator {
     	
     	//System.out.println("Generated " + exprs.size() + " potential expressions at depth " + depth + ", of which " + evaluatedExprs.size() + " already have values and " + unevaluatedExprs.size() + " still need to be evaluated.");
     	//System.out.println("Generated " + (Utils.getNumValues(equivalences) + unevaluatedExprs.size() + evalManager.getNumCrashes() + staticEvaluator.getNumCrashes()) + " total expressions at depth " + depth + ", of which " + unevaluatedExprs.size() + " still need to be evaluated and " + (evalManager.getNumCrashes() + staticEvaluator.getNumCrashes()) + " crashed.");
+
+		/*for (EvaluatedExpression e: evaluatedExprs)
+			System.out.println(Utils.truncate(e.toString(), 100));*/
     	
 		ArrayList<FullyEvaluatedExpression> results = evalManager.evaluateExpressions(evaluatedExprs, property, getVarType(), synthesisDialog, monitor);
     	if (unevaluatedExprs.size() > 0) {
@@ -420,7 +423,7 @@ public final class ExpressionGenerator {
 				else {
 					Expression receiver = ((MethodInvocation)call.getExpression()).getExpression();
 					if (receiver == null)
-						receiver = ExpressionMaker.makeThis(stack.getThis(), thisType, thread).getExpression();
+						receiver = ExpressionMaker.makeThis(stack.getThis(), thisType, valueCache, thread).getExpression();
 					System.out.println(ExpressionMaker.getExpressionValue(receiver) + "." + name + "_" + method.signature() + "(" + argString + ")");
 				}
 	    	}*/
