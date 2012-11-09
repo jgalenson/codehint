@@ -492,7 +492,7 @@ public class InitialSynthesisDialog extends SynthesisDialog {
 	}
 
 	@Override
-	public boolean close() {
+	public void cleanup() {
 		staticEvaluator.allowCollectionOfNewStrings();  // Allow collection of strings from the last search.
 		table.dispose();
 		monitor.dispose();
@@ -518,7 +518,7 @@ public class InitialSynthesisDialog extends SynthesisDialog {
 		staticEvaluator = null;
 		expressionGenerator = null;
 		skeleton = null;
-		return super.close();
+		super.cleanup();
 	}
     
     // Expression validator

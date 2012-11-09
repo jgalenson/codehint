@@ -240,7 +240,7 @@ public final class ExpressionGenerator {
 	private final IJavaReferenceType thisType;
 	private final IJavaType intType;
 	private final IJavaType booleanType;
-	private final IJavaValue zero;
+	private final TypedExpression zero;
 	private final TypedExpression one;
 	private final TypedExpression two;
 	private final Map<Integer, Integer> realDepths;
@@ -274,7 +274,7 @@ public final class ExpressionGenerator {
 		}
 		this.intType = EclipseUtils.getFullyQualifiedType("int", stack, target, typeCache);
 		this.booleanType = EclipseUtils.getFullyQualifiedType("boolean", stack, target, typeCache);
-		this.zero = target.newValue(0);
+		this.zero = expressionMaker.makeNumber("0", target.newValue(0), intType, valueCache, thread);
 		this.one = expressionMaker.makeNumber("1", target.newValue(1), intType, valueCache, thread);
 		this.two = expressionMaker.makeNumber("2", target.newValue(2), intType, valueCache, thread);
 		this.realDepths = new HashMap<Integer, Integer>();
@@ -516,16 +516,13 @@ public final class ExpressionGenerator {
     		
     		if (depth == 0) {
         		// Add zero and null.
-    			boolean hasInt = false;
     			boolean hasObject = false;
     			for (IJavaType type: constraintTypes) {
-    				if (ExpressionMaker.isInt(type))
-    					hasInt = true;
-    				else if (EclipseUtils.isObject(type))
+    				if (EclipseUtils.isObject(type)) {
     					hasObject = true;
+    					break;
+    				}
     			}
-    			if (depth < maxDepth || hasInt)
-    				addUniqueExpressionToList(curLevel, expressionMaker.makeNumber("0", zero, intType, valueCache, thread), depth);
     			if (depth < maxDepth || (hasObject && !(typeConstraint instanceof MethodConstraint) && !(typeConstraint instanceof FieldConstraint)))  // If we have a method or field constraint, we can't have null.
     				addUniqueExpressionToList(curLevel, expressionMaker.makeNull(target, valueCache, thread), depth);
 	    		addLocals(depth, maxDepth, curLevel);
@@ -627,6 +624,12 @@ public final class ExpressionGenerator {
     					addUniqueExpressionToList(curLevel, expressionMaker.makeInfix(target, e, InfixExpression.Operator.TIMES, two, intType, valueCache, thread), depth);
     					addUniqueExpressionToList(curLevel, expressionMaker.makeInfix(target, e, InfixExpression.Operator.MINUS, one, intType, valueCache, thread), depth);
     					addUniqueExpressionToList(curLevel, expressionMaker.makeInfix(target, e, InfixExpression.Operator.DIVIDE, two, intType, valueCache, thread), depth);
+    				}
+    				// Comparisons with constants.
+    				if (ExpressionMaker.isInt(e.getType()) && isHelpfulType(booleanType, depth, maxDepth)
+    						&& !isConstant(e.getExpression())) {
+    					addUniqueExpressionToList(curLevel, expressionMaker.makeInfix(target, e, InfixExpression.Operator.LESS, zero, intType, valueCache, thread), depth);
+    					addUniqueExpressionToList(curLevel, expressionMaker.makeInfix(target, e, InfixExpression.Operator.GREATER, zero, intType, valueCache, thread), depth);
     				}
     				// Field accesses to non-static fields from non-static scope.
     				if (e.getType() instanceof IJavaClassType
@@ -878,11 +881,14 @@ public final class ExpressionGenerator {
 						break;
 					}
 					int curArgIndex = allPossibleActuals.size();
+					SupertypeBound argBound = new SupertypeBound(argType);
 					ArrayList<EvaluatedExpression> curPossibleActuals = new ArrayList<EvaluatedExpression>();
 					// TODO (low priority): This can get called multiple times if there are multiple args with the same type (or even different methods with args of the same type), but this has a tiny effect compared to the general state space explosion problem.
 					for (EvaluatedExpression a : nextLevel)
-						if ((new SupertypeBound(argType)).isFulfilledBy(a.getType(), subtypeChecker, typeCache, stack, target)  // TODO: This doesn't work for generic methods.
-								&& meetsNonNullPreconditions(method, curArgIndex + 1, a)) {
+						if (argBound.isFulfilledBy(a.getType(), subtypeChecker, typeCache, stack, target)  // TODO: This doesn't work for generic methods.
+								&& meetsNonNullPreconditions(method, curArgIndex + 1, a)
+								// Avoid calling equals with things the same element, things of incomparable type, or null.
+								&& !("equals".equals(method.name()) && "(Ljava/lang/Object;)Z".equals(method.signature()) && (a == e || isConstant(a.getExpression()) || (!subtypeChecker.isSubtypeOf(a.getType(), e.getType()) && !subtypeChecker.isSubtypeOf(e.getType(), a.getType()))))) {
 							if (overloadChecker.needsCast(argType, a.getType(), curArgIndex)) {  // If the method is overloaded, when executing the expression we might get "Ambiguous call" compile errors, so we put in a cast to remove the ambiguity.
 								//System.out.println("Adding cast to type " + argType.toString() + " to argument " + a.getExpression().toString() + " at index "+ curArgIndex + " of method " + method.declaringType() + "." + method.name() + " with " + method.argumentTypeNames().size() + " arguments.");
 								a = (EvaluatedExpression)expressionMaker.makeCast(a, argType, a.getValue(), valueCache, thread);
@@ -894,7 +900,7 @@ public final class ExpressionGenerator {
 				if (allPossibleActuals.size() == argumentTypeNames.size()) {
 					TypedExpression receiver = e;
 					if (method.isStatic())
-							receiver = expressionMaker.makeStaticName(getShortestTypename(method.declaringType().name()), (IJavaReferenceType)EclipseUtils.getTypeAndLoadIfNeeded(method.declaringType().name(), stack, target, typeCache), valueCache, thread);
+						receiver = expressionMaker.makeStaticName(getShortestTypename(method.declaringType().name()), (IJavaReferenceType)EclipseUtils.getTypeAndLoadIfNeeded(method.declaringType().name(), stack, target, typeCache), valueCache, thread);
 					pruneManyArgCalls(method, allPossibleActuals, depth, depth - 1, receiver.getType() + "." + method.name());
 					makeAllCalls(method, method.name(), receiver, returnType, ops, allPossibleActuals, new ArrayList<EvaluatedExpression>(allPossibleActuals.size()), depth);
                     if (method.isStatic())
@@ -1443,7 +1449,7 @@ public final class ExpressionGenerator {
 			// We might get things that are equivalent but with difference static types (e.g., Object and String when we want a String), so we ensure we satisfy the type constraint.
 			// However, we have to special case static accesses/calls (e.g., Foo.bar), as the expression part has type Class not the desired type (Foo).
 			IJavaType type = expr.getType();
-			String typeName = type.getName();
+			String typeName = type == null ? null : type.getName();
 			if (fulfillingType.contains(typeName))
 				results.add(expr);  // Cache the fulfilling types, since there can be a ton of equivalent expressions at higher depths and computing isFulfilledBy can take a lot of time.
 			else if (constraint.isFulfilledBy(type, subtypeChecker, typeCache, stack, target)) {
@@ -1541,6 +1547,8 @@ public final class ExpressionGenerator {
 			case ASTNode.NUMBER_LITERAL:
 			case ASTNode.BOOLEAN_LITERAL:
 				return true;
+			case ASTNode.PARENTHESIZED_EXPRESSION:
+				return isConstant(((ParenthesizedExpression)e).getExpression());
 			default:
 				return false;
 		}

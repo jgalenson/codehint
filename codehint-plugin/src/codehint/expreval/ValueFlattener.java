@@ -42,7 +42,10 @@ public class ValueFlattener extends ASTFlattener {
 	@Override
 	protected void flatten(Expression node, StringBuilder sb) {
 		try {
-			IJavaValue value = expressionMaker.getExpressionValue(node);
+			IJavaValue value = null;
+			Object idObj = ExpressionMaker.getIDOpt(node);
+			if (idObj != null)
+				value = expressionMaker.getExpressionValue((Integer)idObj);
 			if (value != null) {
 				if (value instanceof IJavaPrimitiveValue) {
 					String str = value.toString();
@@ -107,7 +110,10 @@ public class ValueFlattener extends ASTFlattener {
 				sb.append("_$tmp").append(newTemporaries.get(toString).first);
 				return;
 			} else {
-				Method method = expressionMaker.getMethod(node);
+				Method method = null;
+				Object idObj = ExpressionMaker.getIDOpt(node);
+				if (idObj != null)
+					method = expressionMaker.getMethod((Integer)idObj);
 				if (method != null) {  // The method should only be null during refinement.
 					String typeStr = EclipseUtils.sanitizeTypename(method.returnTypeName());
 					int newIndex = temporaries.size() + newTemporaries.size();

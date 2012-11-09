@@ -293,7 +293,7 @@ public final class EvaluationManager {
 			    	reportResults(newResults);
 			    	validExprs.addAll(newResults);
 		    	}
-		    	/*System.out.println("Evaluated " + count + " expressions.");
+		    	/*System.out.println("Evaluated " + (work + numToSkip) + " expressions.");
 		    	if (hasError)
 		    		System.out.println("Crashed on " + exprs.get(startIndex + count));*/
 		    	monitor.worked(work + numToSkip);
@@ -346,15 +346,19 @@ public final class EvaluationManager {
 			if (isPrimitive && curValue != null)
 				curRHSStr = EclipseUtils.javaStringOfValue(curValue, stack);
 			//curString.append(" // ").append(curExpr.toString()).append("\n");
-			curString.append(" _$curValue = ").append(curRHSStr).append(";\n ");
+			String valueStr = "_$curValue";
+			if (!validateStatically || !isPrimitive)
+				curString.append(" _$curValue = ").append(curRHSStr).append(";\n");
+			else
+				valueStr = curRHSStr;
 			if (!validateStatically) {
-				curString.append(IMPL_QUALIFIER).append("valueCount = ").append(numEvaluated + 1).append(";\n ");
+				curString.append(" ").append(IMPL_QUALIFIER).append("valueCount = ").append(numEvaluated + 1).append(";\n ");
 				if (hasPropertyPrecondition)
 					curString.append("if (" + propertyPreconditions + ") {\n ");
 				curString.append("_$curValid = ").append(validVal).append(";\n ");
-				curString.append(IMPL_QUALIFIER).append("valid[").append(numEvaluated).append("] = _$curValid;\n ");
+				curString.append(IMPL_QUALIFIER).append("valid[").append(numEvaluated).append("] = _$curValid;\n");
 			}
-			curString.append(IMPL_QUALIFIER).append(valuesArrayName).append("[").append(numEvaluated).append("] = _$curValue;\n ");
+			curString.append(" ").append(IMPL_QUALIFIER).append(valuesArrayName).append("[").append(numEvaluated).append("] = ").append(valueStr).append(";\n ");
 			if (!isPrimitive) {
 				if (!validateStatically)
 					curString.append("if (_$curValid)\n  ");
@@ -394,14 +398,20 @@ public final class EvaluationManager {
 		} else
 		    newTypeString = type + newTypeString;
 		StringBuilder prefix = new StringBuilder();
-		prefix.append("{\n").append(IMPL_QUALIFIER).append(valuesArrayName).append(" = new ").append(newTypeString).append(";\n").append(IMPL_QUALIFIER).append("valid = new boolean[").append(numEvaluated).append("];\n");
+		prefix.append("{\n");
+		prefix.append(IMPL_QUALIFIER).append(valuesArrayName).append(" = new ").append(newTypeString).append(";\n");
+		if (!validateStatically)
+			prefix.append(IMPL_QUALIFIER).append("valid = new boolean[").append(numEvaluated).append("];\n");
+		else
+			prefix.append(IMPL_QUALIFIER).append("valid = null;\n");
 		if (!arePrimitives)
 			prefix.append(IMPL_QUALIFIER).append("toStrings = new String[").append(numEvaluated).append("];\n");
 		else
 			prefix.append(IMPL_QUALIFIER).append("toStrings = null;\n");
 		prefix.append(IMPL_QUALIFIER).append("valueCount = 0;\n");
 		prefix.append(IMPL_QUALIFIER).append("fullCount = 0;\n");
-		prefix.append(type).append(" _$curValue;\n");
+		if (!validateStatically || !arePrimitives)
+			prefix.append(type).append(" _$curValue;\n");
 		if (!validateStatically)
 			prefix.append("boolean _$curValid;\n");
 		expressionsStr.insert(0, prefix.toString());

@@ -228,14 +228,12 @@ public abstract class SynthesisDialog extends ModelessDialog {
     
     // Cleanup 
 
-	@Override
-	public boolean close() {
+	public void cleanup() {
 		propertyDialog = null;
 		pdspecComposite = null;
 		pdspecInput = null;
 		results = null;
 		property = null;
-		return super.close();
 	}
 
 }

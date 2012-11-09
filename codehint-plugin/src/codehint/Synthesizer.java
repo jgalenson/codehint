@@ -107,6 +107,7 @@ public class Synthesizer {
 			Property property = synthesisDialog.getProperty();
 			ExpressionSkeleton skeleton = synthesisDialog.getSkeleton();
 			List<FullyEvaluatedExpression> finalExpressions = synthesisDialog.getExpressions();
+			synthesisDialog.cleanup();
 	        if (finalExpressions == null) {
 		    	if (property != null && skeleton != null)
 		    		EclipseUtils.log("Cancelling synthesis for " + variable.toString() + " with property " + property.toString() + " and skeleton " + skeleton.toString() + ".");

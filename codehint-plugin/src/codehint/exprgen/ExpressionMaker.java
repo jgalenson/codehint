@@ -595,12 +595,20 @@ public class ExpressionMaker {
 		return (Integer)e.getProperty("id");
 	}
 
+	public static Object getIDOpt(Expression e) {
+		return e.getProperty("id");
+	}
+
 	public void setExpressionValue(Expression e, IJavaValue v) {
 		values.put(getID(e), v);
 	}
 
 	public IJavaValue getExpressionValue(Expression e) {
 		return values.get(getID(e));
+	}
+
+	public IJavaValue getExpressionValue(int id) {
+		return values.get(id);
 	}
 
 	public void setDepth(Expression e, int d) {
@@ -625,6 +633,10 @@ public class ExpressionMaker {
 
 	public Method getMethod(Expression e) {
 		return methods.get(getID(e));
+	}
+
+	public Method getMethod(int id) {
+		return methods.get(id);
 	}
 
 	/**
