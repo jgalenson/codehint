@@ -196,13 +196,14 @@ public class Synthesizer {
 		public void synthesize(final InitialSynthesisDialog synthesisDialog, final EvaluationManager evalManager, final int extraDepth) {
 			final Property property = synthesisDialog.getProperty();
 			final ExpressionSkeleton skeleton = synthesisDialog.getSkeleton();
+			final boolean searchConstructors = synthesisDialog.searchConstructors();
 			Job job = new Job("Expression generation") {
 				@Override
 				protected IStatus run(IProgressMonitor monitor) {
 					EclipseUtils.log("Beginning synthesis for " + varName + " with property " + property.toString() + " and skeleton " + skeleton.toString() + " with extra depth " + extraDepth + ".");
 					boolean unfinished = false;
 					try {
-						skeleton.synthesize(property, varName, varStaticType, extraDepth, synthesisDialog, synthesisDialog.getProgressMonitor());
+						skeleton.synthesize(property, varName, varStaticType, extraDepth, searchConstructors, synthesisDialog, synthesisDialog.getProgressMonitor());
 			        	return Status.OK_STATUS;
 					} catch (EvaluationError e) {
 						unfinished = true;

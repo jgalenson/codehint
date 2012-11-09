@@ -10,6 +10,7 @@ import org.eclipse.jdt.debug.core.IJavaType;
 import org.eclipse.jdt.debug.eval.IAstEvaluationEngine;
 import org.eclipse.jface.dialogs.IDialogConstants;
 import org.eclipse.jface.dialogs.IInputValidator;
+import org.eclipse.jface.resource.JFaceResources;
 import org.eclipse.jface.viewers.ArrayContentProvider;
 import org.eclipse.jface.viewers.ColumnLabelProvider;
 import org.eclipse.jface.viewers.TableViewer;
@@ -21,6 +22,7 @@ import org.eclipse.swt.SWT;
 import org.eclipse.swt.events.SelectionAdapter;
 import org.eclipse.swt.events.SelectionEvent;
 import org.eclipse.swt.layout.GridData;
+import org.eclipse.swt.layout.GridLayout;
 import org.eclipse.swt.widgets.Button;
 import org.eclipse.swt.widgets.Composite;
 import org.eclipse.swt.widgets.Control;
@@ -53,6 +55,7 @@ public class InitialSynthesisDialog extends SynthesisDialog {
 	private boolean skeletonIsValid;
 	private final IInputValidator skeletonValidator;
 	private String skeletonResult;
+	private Button searchConstructorsButton;
 
     private static final int searchButtonID = IDialogConstants.CLIENT_ID;
     private Button searchButton;
@@ -122,7 +125,11 @@ public class InitialSynthesisDialog extends SynthesisDialog {
 		String message = "Give an expression skeleton that describes the form of the desired expression, using " + ExpressionSkeleton.HOLE_SYNTAX + "s for unknown expressions and names.";
 		Composite skeletonComposite = makeChildComposite(composite, GridData.HORIZONTAL_ALIGN_FILL, 1);
 		skeletonInput = createInput(skeletonComposite, message, initialSkeletonText, skeletonValidator, new SkeletonModifyHandler(), "skeleton");
-
+		Composite skeletonButtonComposite = makeChildComposite(skeletonComposite, GridData.HORIZONTAL_ALIGN_CENTER, 0);
+		searchConstructorsButton = createCheckBoxButton(skeletonButtonComposite, "Search constructors");
+		if (!EclipseUtils.isObject(varType))
+			searchConstructorsButton.setEnabled(false);
+		
 		Composite topButtonComposite = makeChildComposite(composite, GridData.HORIZONTAL_ALIGN_CENTER, 0);
 		searchButton = createButton(topButtonComposite, searchButtonID, "Search", true);
 		searchButton.setEnabled(pdspecIsValid && skeletonIsValid);
@@ -261,6 +268,16 @@ public class InitialSynthesisDialog extends SynthesisDialog {
     		button.setEnabled(false);
     	return button;
     }
+    
+    // Cherry-picked from Dialog.createButton.
+    private Button createCheckBoxButton(Composite parent, String label) {
+		((GridLayout) parent.getLayout()).numColumns++;
+    	Button button = new Button(parent, SWT.CHECK);
+		button.setText(label);
+		button.setFont(JFaceResources.getDialogFont());
+		setButtonLayoutData(button);
+		return button;
+    }
 
     @Override
 	protected void buttonPressed(int buttonId) {
@@ -381,6 +398,10 @@ public class InitialSynthesisDialog extends SynthesisDialog {
     	return skeleton;
     }
     
+    public boolean searchConstructors() {
+    	return searchConstructorsButton.getSelection();
+    }
+    
     // Table code
     
     private void showResults() {
@@ -495,7 +516,8 @@ public class InitialSynthesisDialog extends SynthesisDialog {
 	public void cleanup() {
 		staticEvaluator.allowCollectionOfNewStrings();  // Allow collection of strings from the last search.
 		table.dispose();
-		monitor.dispose();
+		if (monitor != null)
+			monitor.dispose();
 		skeletonInput = null;
 		skeletonResult = null;
 		searchButton = null;

@@ -290,6 +290,7 @@ public final class ExpressionGenerator {
 	 * @param typeConstraint The constraint on the type of the expressions
 	 * being generated.
 	 * @param varName The name of the variable being assigned.
+	 * @param searchConstructors Whether or not to search constructors.
 	 * @param synthesisDialog The synthesis dialog to pass the valid expressions,
 	 * or null if we should not pass anything.
 	 * @param monitor Progress monitor.
@@ -298,7 +299,7 @@ public final class ExpressionGenerator {
 	 * to the given depth) whose result in the current stack frame satisfies
 	 * the given pdspec.
 	 */
-	public ArrayList<FullyEvaluatedExpression> generateExpression(Property property, TypeConstraint typeConstraint, String varName, InitialSynthesisDialog synthesisDialog, IProgressMonitor monitor, int maxExprDepth) {
+	public ArrayList<FullyEvaluatedExpression> generateExpression(Property property, TypeConstraint typeConstraint, String varName, boolean searchConstructors, InitialSynthesisDialog synthesisDialog, IProgressMonitor monitor, int maxExprDepth) {
 		monitor.beginTask("Expression generation and evaluation", IProgressMonitor.UNKNOWN);
 		
 		try {
@@ -313,7 +314,7 @@ public final class ExpressionGenerator {
 				this.importsSet.add(imp.getElementName());
 			this.staticAccesses = new HashSet<String>();
 			
-			ArrayList<FullyEvaluatedExpression> results = genAllExprs(maxExprDepth, property, synthesisDialog, monitor);
+			ArrayList<FullyEvaluatedExpression> results = genAllExprs(maxExprDepth, property, searchConstructors, synthesisDialog, monitor);
 
 			/*for (Map.Entry<Value, ArrayList<EvaluatedExpression>> entry : equivalences.entrySet())
 				System.out.println(entry.getKey() + " -> " + entry.getValue().toString());
@@ -336,6 +337,7 @@ public final class ExpressionGenerator {
 	 * current stack frame is that of the demonstration.
 	 * @param maxDepth The maximum depth to search (inclusive).
 	 * @param property The property entered by the user.
+	 * @param searchConstructors Whether or not to search constructors.
 	 * @param synthesisDialog The synthesis dialog to pass the valid expressions,
 	 * or null if we should not pass anything.
 	 * @param monitor Progress monitor.
@@ -343,7 +345,7 @@ public final class ExpressionGenerator {
 	 * current stack frame satisfies the current pdspec.
 	 * @throws DebugException 
 	 */
-	private ArrayList<FullyEvaluatedExpression> genAllExprs(int maxDepth, Property property, final InitialSynthesisDialog synthesisDialog, IProgressMonitor monitor) throws DebugException {
+	private ArrayList<FullyEvaluatedExpression> genAllExprs(int maxDepth, Property property, boolean searchConstructors, final InitialSynthesisDialog synthesisDialog, IProgressMonitor monitor) throws DebugException {
 		long startTime = System.currentTimeMillis();
 		
 		ArrayList<TypedExpression> curLevel = null;
@@ -353,7 +355,7 @@ public final class ExpressionGenerator {
 			/*System.out.println("Depth " + depth + " has " + nextLevel.size() + " inputs:");
 			for (FullyEvaluatedExpression e: nextLevel)
 				System.out.println(Utils.truncate(e.toString(), 100));*/
-			curLevel = genOneLevel(nextLevel, depth, maxDepth, property, monitor);
+			curLevel = genOneLevel(nextLevel, depth, maxDepth, property, searchConstructors, monitor);
 			evalManager.cacheMethodResults(nextLevel);
 			if (depth < maxDepth)
 				nextLevel = evaluateExpressions(curLevel, null, null, monitor, depth);
@@ -485,11 +487,12 @@ public final class ExpressionGenerator {
 	 * @param depth The current depth we are generating.
 	 * @param maxDepth The maximum depth we are generating.
 	 * @param property The property entered by the user.
+	 * @param searchConstructors Whether or not to search constructors.
 	 * @param monitor The progress monitor.  The caller should
 	 * not allocate a new progress monitor; this method will.
 	 * @return The expressions of the given depth.
 	 */
-	private ArrayList<TypedExpression> genOneLevel(List<FullyEvaluatedExpression> nextLevel, int depth, int maxDepth, Property property, IProgressMonitor monitor) {
+	private ArrayList<TypedExpression> genOneLevel(List<FullyEvaluatedExpression> nextLevel, int depth, int maxDepth, Property property, boolean searchConstructors, IProgressMonitor monitor) {
 		try {
 			ArrayList<TypedExpression> curLevel = new ArrayList<TypedExpression>();
 			IJavaType[] constraintTypes = typeConstraint.getTypes(stack, target, typeCache);
@@ -510,7 +513,7 @@ public final class ExpressionGenerator {
     				curLevel.add(e);
     		
     		// Add calls to the desired type's constructors (but only at the top-level).
-    		if (depth == maxDepth)
+    		if (searchConstructors && depth == maxDepth)
     			for (IJavaType type: constraintTypes)
     				if (type instanceof IJavaClassType)
     					addMethodCalls(new TypedExpression(null, type), nextLevel, curLevel, depth, maxDepth);

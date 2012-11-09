@@ -30,7 +30,7 @@ import codehint.utils.EclipseUtils;
 public abstract class SynthesisDialog extends ModelessDialog {
 	
 	private final String varTypeName;
-	private final IJavaType varType;
+	protected final IJavaType varType;
 	
 	private int comboIndex;
 
