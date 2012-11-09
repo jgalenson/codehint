@@ -100,14 +100,7 @@ public class Value {
 				return true;
 			if (x == null || y == null || x.isNull() || y.isNull())
 				return false;
-			String signature = x.getSignature();
-			if (!signature.equals(y.getSignature()))  // Short circuit if the two values are not the same type.
-				return false;
-			if ("V".equals(signature))
-				return true;
-			if (x instanceof IJavaPrimitiveValue || "Ljava/lang/String;".equals(signature))
-				return x.toString().equals(y.toString());
-			else if (x instanceof IJavaArray) {
+			if (x instanceof IJavaArray && y instanceof IJavaArray) {
 				IJavaArray a = (IJavaArray)x;
 				IJavaArray b = (IJavaArray)y;
 				if (a.getLength() != b.getLength())
@@ -116,8 +109,21 @@ public class Value {
 					if (!equals(a.getValue(i), b.getValue(i), thread))  // Recurse on the actual values.
 						return false;
 				return true;
-			} else
-				return ((IJavaPrimitiveValue)((IJavaObject)x).sendMessage("equals", "(Ljava/lang/Object;)Z", new IJavaValue[] { y }, thread, null)).getBooleanValue();
+			}
+			String signature = x.getSignature();
+			if (!signature.equals(y.getSignature()))  // Short circuit if the two values are not the same type.
+				return false;
+			if ("V".equals(signature))
+				return true;
+			if (x instanceof IJavaPrimitiveValue || "Ljava/lang/String;".equals(signature))
+				return x.toString().equals(y.toString());
+			else {
+				IJavaObject o1 = (IJavaObject)x;
+				IJavaObject o2 = (IJavaObject)y;
+				if (o1.getUniqueId() == o2.getUniqueId())  // Short circuit check for == equality.
+					return true;
+				return ((IJavaPrimitiveValue)o1.sendMessage("equals", "(Ljava/lang/Object;)Z", new IJavaValue[] { o2 }, thread, null)).getBooleanValue();
+			}
 		} catch (DebugException e) {
 			throw new RuntimeException(e);
 		}

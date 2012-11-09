@@ -3,6 +3,7 @@ package codehint.expreval;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.Semaphore;
@@ -103,6 +104,7 @@ public final class EvaluationManager {
 	private String preVarsString;
 	private String propertyPreconditions;
 	private Map<String, Integer> methodResultsMap;
+	private int skipped;
 	
 	public EvaluationManager(IJavaStackFrame stack, ExpressionMaker expressionMaker, SubtypeChecker subtypeChecker, TypeCache typeCache, ValueCache valueCache) {
 		this.stack = stack;
@@ -143,6 +145,7 @@ public final class EvaluationManager {
 	 */
 	public ArrayList<FullyEvaluatedExpression> evaluateExpressions(ArrayList<? extends TypedExpression> exprs, Property property, IJavaType varType, InitialSynthesisDialog synthesisDialog, IProgressMonitor monitor) {
 		try {
+			this.skipped = 0;
 			this.synthesisDialog = synthesisDialog;
 			validVal = property == null ? "true" : property.getReplacedString("_$curValue", stack);
 			preVarsString = getPreVarsString(stack, property);
@@ -581,14 +584,15 @@ public final class EvaluationManager {
 	 * @return The number of expressions starting from crashingIndex
 	 * that should be skipped.  This includes the expression that
 	 * crashed and so will always be at least one.
+	 * @throws DebugException 
 	 */
-	private int skipLikelyCrashes(ArrayList<TypedExpression> exprs, DebugException error, int crashingIndex, Expression crashedExpr) {
+	private int skipLikelyCrashes(ArrayList<TypedExpression> exprs, DebugException error, int crashingIndex, Expression crashedExpr) throws DebugException {
 		int numToSkip = 1;
 		Method crashedMethod = expressionMaker.getMethod(crashedExpr);
 		String errorName = EclipseUtils.getExceptionName(error);
 		int numNulls = getNumNulls(crashedExpr);
-		// Only skip method calls that we think will throw a NPE and that have at least one subexpression we know is null.
 		if (crashedMethod != null && "java.lang.NullPointerException".equals(errorName) && numNulls > 0) {
+			// Only skip method calls that we think will throw a NPE and that have at least one subexpression we know is null.
 			while (crashingIndex + numToSkip < exprs.size()) {
 				Expression newExpr = exprs.get(crashingIndex + numToSkip).getExpression();
 				// Skip calls to the same method with at least as much known nulls.
@@ -598,9 +602,61 @@ public final class EvaluationManager {
 				} else
 					break;
 			}
+		} else if (crashedMethod != null && ("java.lang.ArrayIndexOutOfBoundsException".equals(errorName) || "java.lang.IndexOutOfBoundsException".equals(errorName)) && crashedMethod.argumentTypeNames().size() == 1) {
+			// Skip methods that throw out-of-bounds exception if the new value is further from 0.
+			IJavaValue argValue = expressionMaker.getExpressionValue((Expression)getArguments(crashedExpr).get(0));
+			if ("int".equals(argValue.getJavaType().getName())) {
+				int argVal = ((IJavaPrimitiveValue)argValue).getIntValue();
+				while (crashingIndex + numToSkip < exprs.size()) {
+					Expression newExpr = exprs.get(crashingIndex + numToSkip).getExpression();
+					if (crashedMethod.equals(expressionMaker.getMethod(newExpr))) {
+						int curVal = ((IJavaPrimitiveValue)expressionMaker.getExpressionValue((Expression)getArguments(newExpr).get(0))).getIntValue();
+						if ((argVal < 0 && curVal < 0) || (argVal >= 0 && curVal > argVal)) {
+							//System.out.println("Skipping " + newExpr.toString() + ".");
+							numToSkip++;
+						} else
+							break;
+					} else
+						break;
+				}
+			}
+		} else if (crashedMethod != null && ("java.lang.IllegalArgumentException".equals(errorName) || "java.lang.ClassCastException".equals(errorName))) {
+			// Skip wrong type exceptions if the arguments have the same type.
+			List<?> args = getArguments(crashedExpr);
+			String[] argTypes = new String[args.size()];
+			for (int i = 0; i < argTypes.length; i++)
+				argTypes[i] = String.valueOf(expressionMaker.getExpressionValue((Expression)args.get(i)).getJavaType());
+			exprLoop: while (crashingIndex + numToSkip < exprs.size()) {
+				Expression newExpr = exprs.get(crashingIndex + numToSkip).getExpression();
+				if (crashedMethod.equals(expressionMaker.getMethod(newExpr))) {
+					List<?> curArgs = getArguments(newExpr);
+					for (int i = 0; i < argTypes.length; i++)
+						if (!argTypes[i].equals(String.valueOf(expressionMaker.getExpressionValue((Expression)curArgs.get(i)).getJavaType())))
+							break exprLoop;
+					//System.out.println("Skipping " + newExpr.toString() + ".");
+					numToSkip++;
+				} else
+					break;
+			}
 		}
 		//System.out.println("Evaluation of " + crashedExpr.toString() + " crashed with message: " + EclipseUtils.getExceptionMessage(error) + ".  Skipping " + numToSkip + ".");
+		skipped += numToSkip - 1;
 		return numToSkip;
+	}
+	
+	/**
+	 * Gets the list of arguments to a call/constructor.
+	 * @param expr The call or constructor invocation.
+	 * @return The arguments to the given call/constructor.
+	 */
+	private static List<?> getArguments(Expression expr) {
+		if (expr instanceof MethodInvocation)
+			return ((MethodInvocation)expr).arguments();
+		if (expr instanceof SuperMethodInvocation)
+			return ((SuperMethodInvocation)expr).arguments();
+		if (expr instanceof ClassInstanceCreation)
+			return ((ClassInstanceCreation)expr).arguments();
+		throw new RuntimeException("Unexpected expression type: " + expr.getClass());
 	}
     
     /**
@@ -678,7 +734,7 @@ public final class EvaluationManager {
 	 * @return The number of expressions whose evaluation crashed.
 	 */
 	public int getNumCrashes() {
-		return crashingExpressions.size();
+		return crashingExpressions.size() + skipped;
 	}
 	
 	private static class Evaluator {

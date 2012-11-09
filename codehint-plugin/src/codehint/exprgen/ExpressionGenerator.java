@@ -41,6 +41,7 @@ import org.eclipse.jdt.debug.core.IJavaArray;
 import org.eclipse.jdt.debug.core.IJavaArrayType;
 import org.eclipse.jdt.debug.core.IJavaClassType;
 import org.eclipse.jdt.debug.core.IJavaDebugTarget;
+import org.eclipse.jdt.debug.core.IJavaInterfaceType;
 import org.eclipse.jdt.debug.core.IJavaObject;
 import org.eclipse.jdt.debug.core.IJavaReferenceType;
 import org.eclipse.jdt.debug.core.IJavaStackFrame;
@@ -628,8 +629,8 @@ public final class ExpressionGenerator {
     				// Comparisons with constants.
     				if (ExpressionMaker.isInt(e.getType()) && isHelpfulType(booleanType, depth, maxDepth)
     						&& !isConstant(e.getExpression())) {
-    					addUniqueExpressionToList(curLevel, expressionMaker.makeInfix(target, e, InfixExpression.Operator.LESS, zero, intType, valueCache, thread), depth);
-    					addUniqueExpressionToList(curLevel, expressionMaker.makeInfix(target, e, InfixExpression.Operator.GREATER, zero, intType, valueCache, thread), depth);
+    					addUniqueExpressionToList(curLevel, expressionMaker.makeInfix(target, e, InfixExpression.Operator.LESS, zero, booleanType, valueCache, thread), depth);
+    					addUniqueExpressionToList(curLevel, expressionMaker.makeInfix(target, e, InfixExpression.Operator.GREATER, zero, booleanType, valueCache, thread), depth);
     				}
     				// Field accesses to non-static fields from non-static scope.
     				if (e.getType() instanceof IJavaClassType
@@ -865,6 +866,11 @@ public final class ExpressionGenerator {
 				continue;
             if (method.isStatic() && staticAccesses.contains(method.declaringType().name() + " " + method.name() + " " + method.signature()))
                 continue;
+            if (!(e.getType() instanceof IJavaInterfaceType)) {  // Skip interface methods called on non-interface objects, as the object method will also be in the list.  Without this, we duplicate calls to interface methods when the static type is a non-interface.
+				IJavaType declaringType = EclipseUtils.getTypeAndLoadIfNeeded(method.declaringType().name(), stack, target, typeCache);
+				if (declaringType instanceof IJavaInterfaceType)
+					continue;
+            }
 			IJavaType returnType = isConstructor ? e.getType() : EclipseUtils.getTypeAndLoadIfNeeded(method.returnTypeName(), stack, target, typeCache);
 			/*if (returnType == null)
 				System.err.println("I cannot get the class of the return type of " + objTypeImpl.name() + "." + method.name() + "() (" + method.returnTypeName() + ")");*/
@@ -900,7 +906,7 @@ public final class ExpressionGenerator {
 				if (allPossibleActuals.size() == argumentTypeNames.size()) {
 					TypedExpression receiver = e;
 					if (method.isStatic())
-						receiver = expressionMaker.makeStaticName(getShortestTypename(method.declaringType().name()), (IJavaReferenceType)EclipseUtils.getTypeAndLoadIfNeeded(method.declaringType().name(), stack, target, typeCache), valueCache, thread);
+						receiver = expressionMaker.makeStaticName(EclipseUtils.sanitizeTypename(getShortestTypename(method.declaringType().name())), (IJavaReferenceType)EclipseUtils.getTypeAndLoadIfNeeded(method.declaringType().name(), stack, target, typeCache), valueCache, thread);
 					pruneManyArgCalls(method, allPossibleActuals, depth, depth - 1, receiver.getType() + "." + method.name());
 					makeAllCalls(method, method.name(), receiver, returnType, ops, allPossibleActuals, new ArrayList<EvaluatedExpression>(allPossibleActuals.size()), depth);
                     if (method.isStatic())
