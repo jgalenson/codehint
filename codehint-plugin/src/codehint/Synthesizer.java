@@ -198,6 +198,7 @@ public class Synthesizer {
 			final Property property = synthesisDialog.getProperty();
 			final ExpressionSkeleton skeleton = synthesisDialog.getSkeleton();
 			final boolean searchConstructors = synthesisDialog.searchConstructors();
+			final boolean searchOperators = synthesisDialog.searchOperators();
 			Job job = new Job("Expression generation") {
 				@Override
 				protected IStatus run(IProgressMonitor monitor) {
@@ -205,7 +206,7 @@ public class Synthesizer {
 					boolean unfinished = false;
 					try {
 						evalManager.init();
-						skeleton.synthesize(property, varName, varStaticType, extraDepth, searchConstructors, synthesisDialog, synthesisDialog.getProgressMonitor());
+						skeleton.synthesize(property, varName, varStaticType, extraDepth, searchConstructors, searchOperators, synthesisDialog, synthesisDialog.getProgressMonitor());
 			        	return Status.OK_STATUS;
 					} catch (EvaluationError e) {
 						unfinished = true;

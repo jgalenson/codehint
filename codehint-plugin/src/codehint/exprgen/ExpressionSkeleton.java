@@ -410,21 +410,22 @@ public final class ExpressionSkeleton {
 	 * @param varStaticType The static type of the variable being assigned.
 	 * @param extraDepth Extra depth to search.
 	 * @param searchConstructors Whether or not to search constructors.
+	 * @param searchOperators Whether or not to search operator expressions.
 	 * @param synthesisDialog The synthesis dialog to pass valid expressions.
 	 * @param monitor The progress monitor.
 	 * @return Expressions that satisfy this skeleton and the pdspec.
 	 */
-	public ArrayList<FullyEvaluatedExpression> synthesize(Property property, String varName, IJavaType varStaticType, int extraDepth, boolean searchConstructors, InitialSynthesisDialog synthesisDialog, IProgressMonitor monitor) {
+	public ArrayList<FullyEvaluatedExpression> synthesize(Property property, String varName, IJavaType varStaticType, int extraDepth, boolean searchConstructors, boolean searchOperators, InitialSynthesisDialog synthesisDialog, IProgressMonitor monitor) {
 		try {
 			long startTime = System.currentTimeMillis();
 			// TODO: Improve progress monitor so it shows you which evaluation it is.
 			TypeConstraint typeConstraint = getInitialTypeConstraint(varStaticType, property);
 			ArrayList<FullyEvaluatedExpression> results;
 			if (HOLE_SYNTAX.equals(sugaredString))  // Optimization: Optimize special case of "??" skeleton by simply calling old ExprGen code directly.
-				results = expressionGenerator.generateExpression(property, typeConstraint, varName, searchConstructors, synthesisDialog, monitor, SEARCH_DEPTH + extraDepth);
+				results = expressionGenerator.generateExpression(property, typeConstraint, varName, searchConstructors, searchOperators, synthesisDialog, monitor, SEARCH_DEPTH + extraDepth);
 			else {
 				monitor.beginTask("Skeleton generation", holeInfos.size() + 2);
-				ArrayList<TypedExpression> exprs = SkeletonFiller.fillSkeleton(expression, typeConstraint, extraDepth, searchConstructors, holeInfos, stack, target, expressionMaker, evalManager, staticEvaluator, expressionGenerator, subtypeChecker, typeCache, valueCache, monitor);
+				ArrayList<TypedExpression> exprs = SkeletonFiller.fillSkeleton(expression, typeConstraint, extraDepth, searchConstructors, searchOperators, holeInfos, stack, target, expressionMaker, evalManager, staticEvaluator, expressionGenerator, subtypeChecker, typeCache, valueCache, monitor);
 				EclipseUtils.log("Fitting " + exprs.size() + " potential expressions with extra depth " + extraDepth + " into skeleton " + sugaredString + ".");
 				results = evalManager.evaluateExpressions(exprs, property, varStaticType, synthesisDialog, monitor);
 				EclipseUtils.log("Synthesis found " + exprs.size() + " expressions of which " + results.size() + " were valid and took " + (System.currentTimeMillis() - startTime) + " milliseconds.");
@@ -515,6 +516,7 @@ public final class ExpressionSkeleton {
 		private final Map<String, Map<String, ArrayList<Method>>> holeMethods;
 		private final int extraDepth;
 		private final boolean searchConstructors;
+		private final boolean searchOperators;
 		private final Map<String, HoleInfo> holeInfos;
 		private final ExpressionMaker expressionMaker;
 		private final EvaluationManager evalManager;
@@ -536,6 +538,7 @@ public final class ExpressionSkeleton {
 		 * stored as ivars for convenience.
 		 * @param extraDepth Extra depth to search.
 		 * @param searchConstructors Whether or not to search constructors.
+		 * @param searchOperators Whether or not to search operator expressions.
 		 * @param holeInfos The information about the holes in the skeleton.
 		 * @param stack The current stack frame.
 		 * @param target The debug target.
@@ -548,9 +551,10 @@ public final class ExpressionSkeleton {
 		 * @param valueCache The value cache.
 		 * @param monitor The progress monitor.
 		 */
-		private SkeletonFiller(int extraDepth, boolean searchConstructors, Map<String, HoleInfo> holeInfos, IJavaStackFrame stack, IJavaDebugTarget target, ExpressionMaker expressionMaker, EvaluationManager evalManager, StaticEvaluator staticEvaluator, ExpressionGenerator expressionGenerator, SubtypeChecker subtypeChecker, TypeCache typeCache, ValueCache valueCache, IProgressMonitor monitor) {
+		private SkeletonFiller(int extraDepth, boolean searchConstructors, boolean searchOperators, Map<String, HoleInfo> holeInfos, IJavaStackFrame stack, IJavaDebugTarget target, ExpressionMaker expressionMaker, EvaluationManager evalManager, StaticEvaluator staticEvaluator, ExpressionGenerator expressionGenerator, SubtypeChecker subtypeChecker, TypeCache typeCache, ValueCache valueCache, IProgressMonitor monitor) {
 			this.extraDepth = extraDepth;
 			this.searchConstructors = searchConstructors;
+			this.searchOperators = searchOperators;
 			this.holeFields = new HashMap<String, Map<String, ArrayList<Field>>>();
 			this.holeMethods = new HashMap<String, Map<String, ArrayList<Method>>>();
 			this.holeInfos = holeInfos;
@@ -578,6 +582,7 @@ public final class ExpressionSkeleton {
 		 * entire skeleton.  This constrains what type it must return.
 		 * @param extraDepth Extra depth to search.
 		 * @param searchConstructors Whether or not to search constructors.
+		 * @param searchOperators Whether or not to search operator expressions.
 		 * @param holeInfos The information about the holes in the skeleton.
 		 * @param stack The current stack frame.
 		 * @param target The debug target.
@@ -592,8 +597,8 @@ public final class ExpressionSkeleton {
 		 * @return Expressions that meet the skeleton (with the
 		 * holes filled in).
 		 */
-		public static ArrayList<TypedExpression> fillSkeleton(Expression skeleton, TypeConstraint initialTypeConstraint, int extraDepth, boolean searchConstructors, Map<String, HoleInfo> holeInfos, IJavaStackFrame stack, IJavaDebugTarget target, ExpressionMaker expressionMaker, EvaluationManager evalManager, StaticEvaluator staticEvaluator, ExpressionGenerator expressionGenerator, SubtypeChecker subtypeChecker, TypeCache typeCache, ValueCache valueCache, IProgressMonitor monitor) {
-			SkeletonFiller filler = new SkeletonFiller(extraDepth, searchConstructors, holeInfos, stack, target, expressionMaker, evalManager, staticEvaluator, expressionGenerator, subtypeChecker, typeCache, valueCache, monitor);
+		public static ArrayList<TypedExpression> fillSkeleton(Expression skeleton, TypeConstraint initialTypeConstraint, int extraDepth, boolean searchConstructors, boolean searchOperators, Map<String, HoleInfo> holeInfos, IJavaStackFrame stack, IJavaDebugTarget target, ExpressionMaker expressionMaker, EvaluationManager evalManager, StaticEvaluator staticEvaluator, ExpressionGenerator expressionGenerator, SubtypeChecker subtypeChecker, TypeCache typeCache, ValueCache valueCache, IProgressMonitor monitor) {
+			SkeletonFiller filler = new SkeletonFiller(extraDepth, searchConstructors, searchOperators, holeInfos, stack, target, expressionMaker, evalManager, staticEvaluator, expressionGenerator, subtypeChecker, typeCache, valueCache, monitor);
 			ExpressionsAndTypeConstraints result = filler.fillSkeleton(skeleton, initialTypeConstraint, HoleParentSetter.getParentsOfHoles(holeInfos, skeleton));
 			ArrayList<TypedExpression> exprs = new ArrayList<TypedExpression>();
 			for (ArrayList<TypedExpression> curExprs: result.getExprs().values())
@@ -988,7 +993,7 @@ public final class ExpressionSkeleton {
 							// Evaluate all the expressions.
 							values = evalManager.evaluateExpressions(fakeTypedHoleInfos, null, null, null, monitor);
 						} else  // If the user did not provide potential expressions, synthesize some.
-							values = expressionGenerator.generateExpression(null, curConstraint, null, searchConstructors, null, monitor, (holeInfos.size() == 1 ? SEARCH_DEPTH : SEARCH_DEPTH - 1) + extraDepth);
+							values = expressionGenerator.generateExpression(null, curConstraint, null, searchConstructors, searchOperators, null, monitor, (holeInfos.size() == 1 ? SEARCH_DEPTH : SEARCH_DEPTH - 1) + extraDepth);
 						// Group the expressions by their type.
 						Map<String, ArrayList<EvaluatedExpression>> valuesByType = new HashMap<String, ArrayList<EvaluatedExpression>>();
 						List<IJavaType> resultTypes = new ArrayList<IJavaType>(values.size());

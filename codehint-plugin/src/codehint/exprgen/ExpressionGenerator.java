@@ -291,6 +291,7 @@ public final class ExpressionGenerator {
 	 * being generated.
 	 * @param varName The name of the variable being assigned.
 	 * @param searchConstructors Whether or not to search constructors.
+	 * @param searchOperators Whether or not to search operator expressions.
 	 * @param synthesisDialog The synthesis dialog to pass the valid expressions,
 	 * or null if we should not pass anything.
 	 * @param monitor Progress monitor.
@@ -299,7 +300,7 @@ public final class ExpressionGenerator {
 	 * to the given depth) whose result in the current stack frame satisfies
 	 * the given pdspec.
 	 */
-	public ArrayList<FullyEvaluatedExpression> generateExpression(Property property, TypeConstraint typeConstraint, String varName, boolean searchConstructors, InitialSynthesisDialog synthesisDialog, IProgressMonitor monitor, int maxExprDepth) {
+	public ArrayList<FullyEvaluatedExpression> generateExpression(Property property, TypeConstraint typeConstraint, String varName, boolean searchConstructors, boolean searchOperators, InitialSynthesisDialog synthesisDialog, IProgressMonitor monitor, int maxExprDepth) {
 		monitor.beginTask("Expression generation and evaluation", IProgressMonitor.UNKNOWN);
 		
 		try {
@@ -314,7 +315,7 @@ public final class ExpressionGenerator {
 				this.importsSet.add(imp.getElementName());
 			this.staticAccesses = new HashSet<String>();
 			
-			ArrayList<FullyEvaluatedExpression> results = genAllExprs(maxExprDepth, property, searchConstructors, synthesisDialog, monitor);
+			ArrayList<FullyEvaluatedExpression> results = genAllExprs(maxExprDepth, property, searchConstructors, searchOperators, synthesisDialog, monitor);
 
 			/*for (Map.Entry<Value, ArrayList<EvaluatedExpression>> entry : equivalences.entrySet())
 				System.out.println(entry.getKey() + " -> " + entry.getValue().toString());
@@ -338,6 +339,7 @@ public final class ExpressionGenerator {
 	 * @param maxDepth The maximum depth to search (inclusive).
 	 * @param property The property entered by the user.
 	 * @param searchConstructors Whether or not to search constructors.
+	 * @param searchOperators Whether or not to search operator expressions.
 	 * @param synthesisDialog The synthesis dialog to pass the valid expressions,
 	 * or null if we should not pass anything.
 	 * @param monitor Progress monitor.
@@ -345,7 +347,7 @@ public final class ExpressionGenerator {
 	 * current stack frame satisfies the current pdspec.
 	 * @throws DebugException 
 	 */
-	private ArrayList<FullyEvaluatedExpression> genAllExprs(int maxDepth, Property property, boolean searchConstructors, final InitialSynthesisDialog synthesisDialog, IProgressMonitor monitor) throws DebugException {
+	private ArrayList<FullyEvaluatedExpression> genAllExprs(int maxDepth, Property property, boolean searchConstructors, boolean searchOperators, final InitialSynthesisDialog synthesisDialog, IProgressMonitor monitor) throws DebugException {
 		long startTime = System.currentTimeMillis();
 		
 		ArrayList<TypedExpression> curLevel = null;
@@ -355,7 +357,7 @@ public final class ExpressionGenerator {
 			/*System.out.println("Depth " + depth + " has " + nextLevel.size() + " inputs:");
 			for (FullyEvaluatedExpression e: nextLevel)
 				System.out.println(Utils.truncate(e.toString(), 100));*/
-			curLevel = genOneLevel(nextLevel, depth, maxDepth, property, searchConstructors, monitor);
+			curLevel = genOneLevel(nextLevel, depth, maxDepth, property, searchConstructors, searchOperators, monitor);
 			evalManager.cacheMethodResults(nextLevel);
 			if (depth < maxDepth)
 				nextLevel = evaluateExpressions(curLevel, null, null, monitor, depth);
@@ -488,11 +490,12 @@ public final class ExpressionGenerator {
 	 * @param maxDepth The maximum depth we are generating.
 	 * @param property The property entered by the user.
 	 * @param searchConstructors Whether or not to search constructors.
+	 * @param searchOperators Whether or not to search operator expressions.
 	 * @param monitor The progress monitor.  The caller should
 	 * not allocate a new progress monitor; this method will.
 	 * @return The expressions of the given depth.
 	 */
-	private ArrayList<TypedExpression> genOneLevel(List<FullyEvaluatedExpression> nextLevel, int depth, int maxDepth, Property property, boolean searchConstructors, IProgressMonitor monitor) {
+	private ArrayList<TypedExpression> genOneLevel(List<FullyEvaluatedExpression> nextLevel, int depth, int maxDepth, Property property, boolean searchConstructors, boolean searchOperators, IProgressMonitor monitor) {
 		try {
 			ArrayList<TypedExpression> curLevel = new ArrayList<TypedExpression>();
 			IJavaType[] constraintTypes = typeConstraint.getTypes(stack, target, typeCache);
@@ -557,7 +560,7 @@ public final class ExpressionGenerator {
     						}
     					}
     					// Arithmetic operations, e.g., +,*.
-    					if (ExpressionMaker.isInt(l.getType()) && ExpressionMaker.isInt(r.getType()) && isHelpfulType(intType, depth, maxDepth)
+    					if (searchOperators && ExpressionMaker.isInt(l.getType()) && ExpressionMaker.isInt(r.getType()) && isHelpfulType(intType, depth, maxDepth)
     							&& !isConstant(l.getExpression()) && !isConstant(r.getExpression())) {
     						if (l.getExpression().toString().compareTo(r.getExpression().toString()) < 0)
     							addUniqueExpressionToList(curLevel, expressionMaker.makeInfix(l, InfixExpression.Operator.PLUS, r, intType, valueCache, thread), depth);
@@ -570,13 +573,13 @@ public final class ExpressionGenerator {
     							addUniqueExpressionToList(curLevel, expressionMaker.makeInfix(l, InfixExpression.Operator.DIVIDE, r, intType, valueCache, thread), depth);
     					}
     					// Integer comparisons, e.g., ==,<.
-    					if (isHelpfulType(booleanType, depth, maxDepth) && ExpressionMaker.isInt(l.getType()) && ExpressionMaker.isInt(r.getType()))
+    					if (searchOperators && isHelpfulType(booleanType, depth, maxDepth) && ExpressionMaker.isInt(l.getType()) && ExpressionMaker.isInt(r.getType()))
     						if (l.getExpression().toString().compareTo(r.getExpression().toString()) < 0
     								&& (!(l.getExpression() instanceof PrefixExpression) || !(r.getExpression() instanceof PrefixExpression)))
     							for (InfixExpression.Operator op : INT_COMPARE_OPS)
     								addUniqueExpressionToList(curLevel, expressionMaker.makeInfix(l, op, r, booleanType, valueCache, thread), depth);
     					// Boolean connectives, &&,||.
-    					if (isHelpfulType(booleanType, depth, maxDepth) && ExpressionMaker.isBoolean(l.getType()) && ExpressionMaker.isBoolean(r.getType()))
+    					if (searchOperators && isHelpfulType(booleanType, depth, maxDepth) && ExpressionMaker.isBoolean(l.getType()) && ExpressionMaker.isBoolean(r.getType()))
     						if (l.getExpression().toString().compareTo(r.getExpression().toString()) < 0)
     							for (InfixExpression.Operator op : BOOLEAN_COMPARE_OPS)
     								addUniqueExpressionToList(curLevel, expressionMaker.makeInfix(l, op, r, booleanType, valueCache, thread), depth);
@@ -608,7 +611,7 @@ public final class ExpressionGenerator {
     						}
     					}
     					// Object/array comparisons
-    					if (l.getType() instanceof IJavaReferenceType && r.getType() instanceof IJavaReferenceType
+    					if (searchOperators && l.getType() instanceof IJavaReferenceType && r.getType() instanceof IJavaReferenceType
     							&& isHelpfulType(booleanType, depth, maxDepth)
     							&& (subtypeChecker.isSubtypeOf(l.getType(), r.getType()) || subtypeChecker.isSubtypeOf(r.getType(), l.getType())))
     						if (l.getExpression().toString().compareTo(r.getExpression().toString()) < 0)
@@ -622,7 +625,7 @@ public final class ExpressionGenerator {
     				if (monitor.isCanceled())
     					throw new OperationCanceledException();
     				// Arithmetic with constants.
-    				if (ExpressionMaker.isInt(e.getType()) && isHelpfulType(intType, depth, maxDepth)
+    				if (searchOperators && ExpressionMaker.isInt(e.getType()) && isHelpfulType(intType, depth, maxDepth)
     						&& !isConstant(e.getExpression())) {
     					addUniqueExpressionToList(curLevel, expressionMaker.makeInfix(e, InfixExpression.Operator.PLUS, one, intType, valueCache, thread), depth);
     					addUniqueExpressionToList(curLevel, expressionMaker.makeInfix(e, InfixExpression.Operator.TIMES, two, intType, valueCache, thread), depth);
@@ -630,7 +633,7 @@ public final class ExpressionGenerator {
     					addUniqueExpressionToList(curLevel, expressionMaker.makeInfix(e, InfixExpression.Operator.DIVIDE, two, intType, valueCache, thread), depth);
     				}
     				// Comparisons with constants.
-    				if (ExpressionMaker.isInt(e.getType()) && isHelpfulType(booleanType, depth, maxDepth)
+    				if (searchOperators && ExpressionMaker.isInt(e.getType()) && isHelpfulType(booleanType, depth, maxDepth)
     						&& !isConstant(e.getExpression())) {
     					addUniqueExpressionToList(curLevel, expressionMaker.makeInfix(e, InfixExpression.Operator.LESS, zero, booleanType, valueCache, thread), depth);
     					addUniqueExpressionToList(curLevel, expressionMaker.makeInfix(e, InfixExpression.Operator.GREATER, zero, booleanType, valueCache, thread), depth);
@@ -640,12 +643,12 @@ public final class ExpressionGenerator {
     						&& (e.getValue() == null || !e.getValue().isNull()))  // Skip things we know are null dereferences.
     					addFieldAccesses(e, curLevel, depth, maxDepth);
     				// Boolean negation.
-    				if (ExpressionMaker.isBoolean(e.getType()) && isHelpfulType(booleanType, depth, maxDepth)
+    				if (searchOperators && ExpressionMaker.isBoolean(e.getType()) && isHelpfulType(booleanType, depth, maxDepth)
     						&& !(e.getExpression() instanceof PrefixExpression) && !(e.getExpression() instanceof InfixExpression)
     						&& !isConstant(e.getExpression()))  // Disallow things like !(x < y) and !(!x).
     					addUniqueExpressionToList(curLevel, expressionMaker.makePrefix(e, PrefixExpression.Operator.NOT, booleanType, valueCache, thread), depth);
     				// Integer negation.
-    				if (ExpressionMaker.isInt(e.getType()) && isHelpfulType(intType, depth, maxDepth)
+    				if (searchOperators && ExpressionMaker.isInt(e.getType()) && isHelpfulType(intType, depth, maxDepth)
     						&& !(e.getExpression() instanceof PrefixExpression) && !(e.getExpression() instanceof InfixExpression)
     						&& !isConstant(e.getExpression()))  // Disallow things like -(-x) and -(x + y).
     					addUniqueExpressionToList(curLevel, expressionMaker.makePrefix(e, PrefixExpression.Operator.MINUS, intType, valueCache, thread), depth);

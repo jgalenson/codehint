@@ -56,6 +56,7 @@ public class InitialSynthesisDialog extends SynthesisDialog {
 	private final IInputValidator skeletonValidator;
 	private String skeletonResult;
 	private Button searchConstructorsButton;
+	private Button searchOperatorsButton;
 
     private static final int searchButtonID = IDialogConstants.CLIENT_ID;
     private Button searchButton;
@@ -129,6 +130,7 @@ public class InitialSynthesisDialog extends SynthesisDialog {
 		searchConstructorsButton = createCheckBoxButton(skeletonButtonComposite, "Search constructors");
 		if (!EclipseUtils.isObject(varType))
 			searchConstructorsButton.setEnabled(false);
+		searchOperatorsButton = createCheckBoxButton(skeletonButtonComposite, "Search operators");
 		
 		Composite topButtonComposite = makeChildComposite(composite, GridData.HORIZONTAL_ALIGN_CENTER, 0);
 		searchButton = createButton(topButtonComposite, searchButtonID, "Search", true);
@@ -400,6 +402,10 @@ public class InitialSynthesisDialog extends SynthesisDialog {
     
     public boolean searchConstructors() {
     	return searchConstructorsButton.getSelection();
+    }
+    
+    public boolean searchOperators() {
+    	return searchOperatorsButton.getSelection();
     }
     
     // Table code
