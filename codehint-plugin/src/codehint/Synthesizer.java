@@ -203,6 +203,7 @@ public class Synthesizer {
 					EclipseUtils.log("Beginning synthesis for " + varName + " with property " + property.toString() + " and skeleton " + skeleton.toString() + " with extra depth " + extraDepth + ".");
 					boolean unfinished = false;
 					try {
+						evalManager.init();
 						skeleton.synthesize(property, varName, varStaticType, extraDepth, searchConstructors, synthesisDialog, synthesisDialog.getProgressMonitor());
 			        	return Status.OK_STATUS;
 					} catch (EvaluationError e) {
@@ -354,6 +355,7 @@ public class Synthesizer {
         	TypeCache typeCache = new TypeCache();
         	// TODO: Run the following off the UI thread like above when we do the first synthesis.
         	EvaluationManager evalManager = new EvaluationManager(frame, new ExpressionMaker(), new SubtypeChecker(), typeCache, new ValueCache());
+        	evalManager.init();
    			ArrayList<FullyEvaluatedExpression> exprs = evalManager.evaluateExpressions(initialExprs, null, null, null, new NullProgressMonitor());
    			if (exprs.isEmpty()) {
    				EclipseUtils.showError("No valid expressions", "No valid expressions were found.", null);

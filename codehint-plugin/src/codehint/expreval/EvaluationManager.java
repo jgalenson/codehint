@@ -718,6 +718,17 @@ public final class EvaluationManager {
     }
 	
 	/**
+	 * Initializes implementation details.
+	 */
+	public void init() {
+		try {
+			EclipseUtils.evaluate(IMPL_QUALIFIER + "init()", stack);
+		} catch (DebugException e) {
+			throw new RuntimeException(e);
+		}
+	}
+	
+	/**
 	 * Nulls out the CodeHintImpl fields used during evaluation
 	 * to free up memory.
 	 */
