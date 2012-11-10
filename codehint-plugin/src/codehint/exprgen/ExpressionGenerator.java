@@ -560,26 +560,26 @@ public final class ExpressionGenerator {
     					if (ExpressionMaker.isInt(l.getType()) && ExpressionMaker.isInt(r.getType()) && isHelpfulType(intType, depth, maxDepth)
     							&& !isConstant(l.getExpression()) && !isConstant(r.getExpression())) {
     						if (l.getExpression().toString().compareTo(r.getExpression().toString()) < 0)
-    							addUniqueExpressionToList(curLevel, expressionMaker.makeInfix(target, l, InfixExpression.Operator.PLUS, r, intType, valueCache, thread), depth);
+    							addUniqueExpressionToList(curLevel, expressionMaker.makeInfix(l, InfixExpression.Operator.PLUS, r, intType, valueCache, thread), depth);
     						if (l.getExpression().toString().compareTo(r.getExpression().toString()) <= 0)
-    							addUniqueExpressionToList(curLevel, expressionMaker.makeInfix(target, l, InfixExpression.Operator.TIMES, r, intType, valueCache, thread), depth);
+    							addUniqueExpressionToList(curLevel, expressionMaker.makeInfix(l, InfixExpression.Operator.TIMES, r, intType, valueCache, thread), depth);
     						if (l.getExpression().toString().compareTo(r.getExpression().toString()) != 0)
-    							addUniqueExpressionToList(curLevel, expressionMaker.makeInfix(target, l, InfixExpression.Operator.MINUS, r, intType, valueCache, thread), depth);
+    							addUniqueExpressionToList(curLevel, expressionMaker.makeInfix(l, InfixExpression.Operator.MINUS, r, intType, valueCache, thread), depth);
     						if (l.getExpression().toString().compareTo(r.getExpression().toString()) != 0
     								&& (r.getValue() == null || !r.getValue().getValueString().equals("0")))  // Don't divide by things we know are 0.
-    							addUniqueExpressionToList(curLevel, expressionMaker.makeInfix(target, l, InfixExpression.Operator.DIVIDE, r, intType, valueCache, thread), depth);
+    							addUniqueExpressionToList(curLevel, expressionMaker.makeInfix(l, InfixExpression.Operator.DIVIDE, r, intType, valueCache, thread), depth);
     					}
     					// Integer comparisons, e.g., ==,<.
     					if (isHelpfulType(booleanType, depth, maxDepth) && ExpressionMaker.isInt(l.getType()) && ExpressionMaker.isInt(r.getType()))
     						if (l.getExpression().toString().compareTo(r.getExpression().toString()) < 0
     								&& (!(l.getExpression() instanceof PrefixExpression) || !(r.getExpression() instanceof PrefixExpression)))
     							for (InfixExpression.Operator op : INT_COMPARE_OPS)
-    								addUniqueExpressionToList(curLevel, expressionMaker.makeInfix(target, l, op, r, booleanType, valueCache, thread), depth);
+    								addUniqueExpressionToList(curLevel, expressionMaker.makeInfix(l, op, r, booleanType, valueCache, thread), depth);
     					// Boolean connectives, &&,||.
     					if (isHelpfulType(booleanType, depth, maxDepth) && ExpressionMaker.isBoolean(l.getType()) && ExpressionMaker.isBoolean(r.getType()))
     						if (l.getExpression().toString().compareTo(r.getExpression().toString()) < 0)
     							for (InfixExpression.Operator op : BOOLEAN_COMPARE_OPS)
-    								addUniqueExpressionToList(curLevel, expressionMaker.makeInfix(target, l, op, r, booleanType, valueCache, thread), depth);
+    								addUniqueExpressionToList(curLevel, expressionMaker.makeInfix(l, op, r, booleanType, valueCache, thread), depth);
     					// Array access, a[i].
     					if (l.getType() instanceof IJavaArrayType && ExpressionMaker.isInt(r.getType())) {
     						IJavaType elemType = ExpressionMaker.getArrayElementType(l);
@@ -613,7 +613,7 @@ public final class ExpressionGenerator {
     							&& (subtypeChecker.isSubtypeOf(l.getType(), r.getType()) || subtypeChecker.isSubtypeOf(r.getType(), l.getType())))
     						if (l.getExpression().toString().compareTo(r.getExpression().toString()) < 0)
     							for (InfixExpression.Operator op : REF_COMPARE_OPS)
-    								addUniqueExpressionToList(curLevel, expressionMaker.makeInfix(target, l, op, r, booleanType, valueCache, thread), depth);
+    								addUniqueExpressionToList(curLevel, expressionMaker.makeInfix(l, op, r, booleanType, valueCache, thread), depth);
     					monitor.worked(1);
     				}
     			}
@@ -624,16 +624,16 @@ public final class ExpressionGenerator {
     				// Arithmetic with constants.
     				if (ExpressionMaker.isInt(e.getType()) && isHelpfulType(intType, depth, maxDepth)
     						&& !isConstant(e.getExpression())) {
-    					addUniqueExpressionToList(curLevel, expressionMaker.makeInfix(target, e, InfixExpression.Operator.PLUS, one, intType, valueCache, thread), depth);
-    					addUniqueExpressionToList(curLevel, expressionMaker.makeInfix(target, e, InfixExpression.Operator.TIMES, two, intType, valueCache, thread), depth);
-    					addUniqueExpressionToList(curLevel, expressionMaker.makeInfix(target, e, InfixExpression.Operator.MINUS, one, intType, valueCache, thread), depth);
-    					addUniqueExpressionToList(curLevel, expressionMaker.makeInfix(target, e, InfixExpression.Operator.DIVIDE, two, intType, valueCache, thread), depth);
+    					addUniqueExpressionToList(curLevel, expressionMaker.makeInfix(e, InfixExpression.Operator.PLUS, one, intType, valueCache, thread), depth);
+    					addUniqueExpressionToList(curLevel, expressionMaker.makeInfix(e, InfixExpression.Operator.TIMES, two, intType, valueCache, thread), depth);
+    					addUniqueExpressionToList(curLevel, expressionMaker.makeInfix(e, InfixExpression.Operator.MINUS, one, intType, valueCache, thread), depth);
+    					addUniqueExpressionToList(curLevel, expressionMaker.makeInfix(e, InfixExpression.Operator.DIVIDE, two, intType, valueCache, thread), depth);
     				}
     				// Comparisons with constants.
     				if (ExpressionMaker.isInt(e.getType()) && isHelpfulType(booleanType, depth, maxDepth)
     						&& !isConstant(e.getExpression())) {
-    					addUniqueExpressionToList(curLevel, expressionMaker.makeInfix(target, e, InfixExpression.Operator.LESS, zero, booleanType, valueCache, thread), depth);
-    					addUniqueExpressionToList(curLevel, expressionMaker.makeInfix(target, e, InfixExpression.Operator.GREATER, zero, booleanType, valueCache, thread), depth);
+    					addUniqueExpressionToList(curLevel, expressionMaker.makeInfix(e, InfixExpression.Operator.LESS, zero, booleanType, valueCache, thread), depth);
+    					addUniqueExpressionToList(curLevel, expressionMaker.makeInfix(e, InfixExpression.Operator.GREATER, zero, booleanType, valueCache, thread), depth);
     				}
     				// Field accesses to non-static fields from non-static scope.
     				if (e.getType() instanceof IJavaClassType
@@ -643,12 +643,12 @@ public final class ExpressionGenerator {
     				if (ExpressionMaker.isBoolean(e.getType()) && isHelpfulType(booleanType, depth, maxDepth)
     						&& !(e.getExpression() instanceof PrefixExpression) && !(e.getExpression() instanceof InfixExpression)
     						&& !isConstant(e.getExpression()))  // Disallow things like !(x < y) and !(!x).
-    					addUniqueExpressionToList(curLevel, expressionMaker.makePrefix(target, e, PrefixExpression.Operator.NOT, booleanType, valueCache, thread), depth);
+    					addUniqueExpressionToList(curLevel, expressionMaker.makePrefix(e, PrefixExpression.Operator.NOT, booleanType, valueCache, thread), depth);
     				// Integer negation.
     				if (ExpressionMaker.isInt(e.getType()) && isHelpfulType(intType, depth, maxDepth)
     						&& !(e.getExpression() instanceof PrefixExpression) && !(e.getExpression() instanceof InfixExpression)
     						&& !isConstant(e.getExpression()))  // Disallow things like -(-x) and -(x + y).
-    					addUniqueExpressionToList(curLevel, expressionMaker.makePrefix(target, e, PrefixExpression.Operator.MINUS, intType, valueCache, thread), depth);
+    					addUniqueExpressionToList(curLevel, expressionMaker.makePrefix(e, PrefixExpression.Operator.MINUS, intType, valueCache, thread), depth);
     				// Array length (which uses the field access AST).
     				if (e.getType() instanceof IJavaArrayType && isHelpfulType(intType, depth, maxDepth)
     						&& (e.getValue() == null || !e.getValue().isNull()))  // Skip things we know are null dereferences.

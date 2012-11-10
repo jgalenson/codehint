@@ -110,10 +110,10 @@ public class InitialSynthesisDialog extends SynthesisDialog {
 		this.evaluationEngine = engine;
 		this.subtypeChecker = new SubtypeChecker();
 		this.typeCache = new TypeCache();
-		this.valueCache = new ValueCache();
-		this.expressionMaker = new ExpressionMaker();
+		this.valueCache = new ValueCache(target);
+		this.expressionMaker = new ExpressionMaker(valueCache);
 		this.evalManager = new EvaluationManager(stack, expressionMaker, subtypeChecker, typeCache, valueCache);
-		this.staticEvaluator = new StaticEvaluator(stack, typeCache);
+		this.staticEvaluator = new StaticEvaluator(stack, typeCache, valueCache);
 		this.expressionGenerator = new ExpressionGenerator(target, stack, expressionMaker, subtypeChecker, typeCache, valueCache, evalManager, staticEvaluator);
 		this.skeleton = null;
 	}
@@ -288,7 +288,7 @@ public class InitialSynthesisDialog extends SynthesisDialog {
             startEndSynthesis(SynthesisState.START);
             expressions = new ArrayList<FullyEvaluatedExpression>();
             showResults();  // Clears any existing results.
-            staticEvaluator.allowCollectionOfNewStrings();  // Allow collection of strings from previous search.
+            valueCache.allowCollectionOfNewStrings();  // Allow collection of strings from previous search.
         	// Reset column sort indicators.
         	tableViewer.setComparator(null);  // We want to use the order in which we add elements as the initial sort.
         	table.setSortDirection(SWT.NONE);
@@ -514,7 +514,7 @@ public class InitialSynthesisDialog extends SynthesisDialog {
 
 	@Override
 	public void cleanup() {
-		staticEvaluator.allowCollectionOfNewStrings();  // Allow collection of strings from the last search.
+		valueCache.allowCollectionOfNewStrings();  // Allow collection of strings from the last search.
 		table.dispose();
 		if (monitor != null)
 			monitor.dispose();

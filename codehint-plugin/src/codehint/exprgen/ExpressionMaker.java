@@ -56,13 +56,15 @@ public class ExpressionMaker {
 	private final Map<Integer, Method> methods;
 	private final Set<Integer> statics;
 	private final Map<Integer, Integer> depths;
+	private final ValueCache valueCache;
 	
-	public ExpressionMaker() {
+	public ExpressionMaker(ValueCache valueCache) {
 		id = 0;
 		values = new HashMap<Integer, IJavaValue>();
 		methods = new HashMap<Integer, Method>();
 		statics = new HashSet<Integer>();
 		depths = new HashMap<Integer, Integer>();
+		this.valueCache = valueCache;
 	}
 
 	public static boolean isInt(IJavaType type) throws DebugException {
@@ -103,86 +105,86 @@ public class ExpressionMaker {
 
 	// Evaluation helpers that compute IJavaValues and IJavaTypes.
 
-	private static IJavaValue computeInfixOp(IJavaDebugTarget target, IJavaValue left, InfixExpression.Operator op, IJavaValue right, IJavaType type) throws NumberFormatException, DebugException {
+	private IJavaValue computeInfixOp(IJavaValue left, InfixExpression.Operator op, IJavaValue right, IJavaType type) throws NumberFormatException, DebugException {
 		if (isInt(type))
-			return computeIntInfixOp(target, left, op, right);
+			return computeIntInfixOp(left, op, right);
 		else if (isBoolean(type))
-			return computeBooleanInfixOp(target, left, op, right);
+			return computeBooleanInfixOp(left, op, right);
 		else if (type instanceof IJavaReferenceType)
-			return computeRefInfixOp(target, left, op, right);
+			return computeRefInfixOp(left, op, right);
 		else
 			throw new RuntimeException("Unexpected type: " + type);
 	}
 
-	private static IJavaValue computeIntInfixOp(IJavaDebugTarget target, IJavaValue left, InfixExpression.Operator op, IJavaValue right) throws NumberFormatException, DebugException {
+	private IJavaValue computeIntInfixOp(IJavaValue left, InfixExpression.Operator op, IJavaValue right) throws NumberFormatException, DebugException {
 		if (left == null || right == null)
 			return null;
 		int l = Integer.parseInt(left.getValueString());
 		int r = Integer.parseInt(right.getValueString());
 		if (op == InfixExpression.Operator.PLUS)
-			return target.newValue(l + r);
+			return valueCache.getIntJavaValue(l + r);
 		if (op == InfixExpression.Operator.MINUS)
-			return target.newValue(l - r);
+			return valueCache.getIntJavaValue(l - r);
 		if (op == InfixExpression.Operator.TIMES)
-			return target.newValue(l * r);
+			return valueCache.getIntJavaValue(l * r);
 		if (op == InfixExpression.Operator.DIVIDE) {
 			assert r != 0;
-			return target.newValue(l / r);
+			return valueCache.getIntJavaValue(l / r);
 		}
 		if (op == InfixExpression.Operator.EQUALS)
-			return target.newValue(l == r);
+			return valueCache.getBooleanJavaValue(l == r);
 		if (op == InfixExpression.Operator.NOT_EQUALS)
-			return target.newValue(l != r);
+			return valueCache.getBooleanJavaValue(l != r);
 		if (op == InfixExpression.Operator.LESS)
-			return target.newValue(l < r);
+			return valueCache.getBooleanJavaValue(l < r);
 		if (op == InfixExpression.Operator.LESS_EQUALS)
-			return target.newValue(l <= r);
+			return valueCache.getBooleanJavaValue(l <= r);
 		if (op == InfixExpression.Operator.GREATER)
-			return target.newValue(l > r);
+			return valueCache.getBooleanJavaValue(l > r);
 		if (op == InfixExpression.Operator.GREATER_EQUALS)
-			return target.newValue(l >= r);
+			return valueCache.getBooleanJavaValue(l >= r);
 		throw new RuntimeException("Unknown infix operation: " + op.toString());
 	}
 
-	private static IJavaValue computeBooleanInfixOp(IJavaDebugTarget target, IJavaValue left, InfixExpression.Operator op, IJavaValue right) throws DebugException {
+	private IJavaValue computeBooleanInfixOp(IJavaValue left, InfixExpression.Operator op, IJavaValue right) throws DebugException {
 		if (left == null || right == null)
 			return null;
 		boolean l = Boolean.parseBoolean(left.getValueString());
 		boolean r = Boolean.parseBoolean(right.getValueString());
 		if (op == InfixExpression.Operator.EQUALS)
-			return target.newValue(l == r);
+			return valueCache.getBooleanJavaValue(l == r);
 		if (op == InfixExpression.Operator.NOT_EQUALS)
-			return target.newValue(l != r);
+			return valueCache.getBooleanJavaValue(l != r);
 		if (op == InfixExpression.Operator.CONDITIONAL_AND)
-			return target.newValue(l && r);
+			return valueCache.getBooleanJavaValue(l && r);
 		if (op == InfixExpression.Operator.CONDITIONAL_OR)
-			return target.newValue(l || r);
+			return valueCache.getBooleanJavaValue(l || r);
 		throw new RuntimeException("Unknown infix operation: " + op.toString());
 	}
 
-	private static IJavaValue computeRefInfixOp(IJavaDebugTarget target, IJavaValue left, InfixExpression.Operator op, IJavaValue right) throws DebugException {
+	private IJavaValue computeRefInfixOp(IJavaValue left, InfixExpression.Operator op, IJavaValue right) throws DebugException {
 		if (left == null || right == null)
 			return null;
 		IJavaObject l = (IJavaObject)left;
 		IJavaObject r = (IJavaObject)right;
 		if (op == InfixExpression.Operator.EQUALS)
-			return target.newValue(l.getUniqueId() == r.getUniqueId());
+			return valueCache.getBooleanJavaValue(l.getUniqueId() == r.getUniqueId());
 		if (op == InfixExpression.Operator.NOT_EQUALS)
-			return target.newValue(l.getUniqueId() != r.getUniqueId());
+			return valueCache.getBooleanJavaValue(l.getUniqueId() != r.getUniqueId());
 		IJavaType lType = l.getJavaType();
 		IJavaType rType = r.getJavaType();
 		if (op == InfixExpression.Operator.PLUS && ((lType != null && "java.lang.String".equals(lType.getName())) || (rType != null && "java.lang.String".equals(rType.getName()))))
-			return target.newValue(l.getValueString() + r.getValueString());
+			return valueCache.getStringJavaValue(l.getValueString() + r.getValueString());
 		throw new RuntimeException("Unknown infix operation: " + op.toString() + " for types " + lType.toString() + " and " + rType.toString());
 	}
 
-	private static IJavaValue computePrefixOp(IJavaDebugTarget target, IJavaValue e, PrefixExpression.Operator op) throws DebugException {
+	private IJavaValue computePrefixOp(IJavaValue e, PrefixExpression.Operator op) throws DebugException {
 		if (e == null )
 			return null;
 		if (op == PrefixExpression.Operator.MINUS)
-			return target.newValue(-Integer.parseInt(e.getValueString()));
+			return valueCache.getIntJavaValue(-Integer.parseInt(e.getValueString()));
 		if (op == PrefixExpression.Operator.NOT)
-			return target.newValue(!Boolean.parseBoolean(e.getValueString()));
+			return valueCache.getBooleanJavaValue(!Boolean.parseBoolean(e.getValueString()));
 		throw new RuntimeException("Unknown prefix operation: " + op.toString());
 	}
 
@@ -299,9 +301,9 @@ public class ExpressionMaker {
 		return new EvaluatedExpression(e, type, Value.makeValue(value, valueCache, thread));
 	}
 
-	public TypedExpression makeInfix(IJavaDebugTarget target, TypedExpression left, InfixExpression.Operator op, TypedExpression right, IJavaType type, ValueCache valueCache, IJavaThread thread) throws NumberFormatException, DebugException {
+	public TypedExpression makeInfix(TypedExpression left, InfixExpression.Operator op, TypedExpression right, IJavaType type, ValueCache valueCache, IJavaThread thread) throws NumberFormatException, DebugException {
 		InfixExpression e = makeInfix(left.getExpression(), op, right.getExpression());
-		IJavaValue value = computeInfixOp(target, left.getValue(), op, right.getValue(), left.getType() != null ? left.getType() : right.getType());
+		IJavaValue value = computeInfixOp(left.getValue(), op, right.getValue(), left.getType() != null ? left.getType() : right.getType());
 		setExpressionValue(e, value);
 		return EvaluatedExpression.makeTypedOrEvaluatedExpression(e, type, value, valueCache, thread);
 	}
@@ -343,10 +345,10 @@ public class ExpressionMaker {
 		return e;
 	}
 
-	public TypedExpression makePrefix(IJavaDebugTarget target, TypedExpression operand, PrefixExpression.Operator op, IJavaType type, ValueCache valueCache, IJavaThread thread) {
+	public TypedExpression makePrefix(TypedExpression operand, PrefixExpression.Operator op, IJavaType type, ValueCache valueCache, IJavaThread thread) {
 		try {
 			PrefixExpression e = makePrefix(operand.getExpression(), op);
-			IJavaValue value = computePrefixOp(target, operand.getValue(), op);
+			IJavaValue value = computePrefixOp(operand.getValue(), op);
 			setExpressionValue(e, value);
 			return EvaluatedExpression.makeTypedOrEvaluatedExpression(e, type, value, valueCache, thread);
 		} catch (DebugException ex) {

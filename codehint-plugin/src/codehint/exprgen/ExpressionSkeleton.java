@@ -841,7 +841,7 @@ public final class ExpressionSkeleton {
 									for (TypedExpression rightExpr: rightExprs.getValue())
 										if (leftExpr.getValue() == null || !leftExpr.getValue().isNull() || rightExpr.getValue() == null || !rightExpr.getValue().isNull()) {  // TODO: These two checks should be part of my constraint when I search for the child holes above.
 											IJavaType resultType = isBooleanResult ? booleanType : leftExpr.getValue() == null || !leftExpr.getValue().isNull() ? leftExpr.getType() : rightExpr.getType();
-											Utils.addToMap(resultExprs, leftExprs.getKey(), expressionMaker.makeInfix(target, leftExpr, infix.getOperator(), rightExpr, resultType, valueCache, thread));
+											Utils.addToMap(resultExprs, leftExprs.getKey(), expressionMaker.makeInfix(leftExpr, infix.getOperator(), rightExpr, resultType, valueCache, thread));
 										}
 					}
 				}
@@ -944,7 +944,7 @@ public final class ExpressionSkeleton {
 			Map<String, ArrayList<TypedExpression>> resultExprs = new HashMap<String, ArrayList<TypedExpression>>(exprResult.getExprs().size());
 			for (Map.Entry<String, ArrayList<TypedExpression>> res: exprResult.getExprs().entrySet())
 				for (TypedExpression expr: res.getValue())
-					Utils.addToMap(resultExprs, res.getKey(), expressionMaker.makePrefix(target, expr, prefix.getOperator(), expr.getType(), valueCache, thread));
+					Utils.addToMap(resultExprs, res.getKey(), expressionMaker.makePrefix(expr, prefix.getOperator(), expr.getType(), valueCache, thread));
 			return new ExpressionsAndTypeConstraints(resultExprs, curConstraint);
 		}
 

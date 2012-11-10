@@ -36,6 +36,7 @@ import org.eclipse.jdt.core.dom.NumberLiteral;
 import org.eclipse.jdt.core.dom.QualifiedName;
 import org.eclipse.jdt.core.dom.SimpleName;
 import org.eclipse.jdt.debug.core.IJavaArray;
+import org.eclipse.jdt.debug.core.IJavaDebugTarget;
 import org.eclipse.jdt.debug.core.IJavaObject;
 import org.eclipse.jdt.debug.core.IJavaStackFrame;
 import org.eclipse.jdt.debug.core.IJavaType;
@@ -353,8 +354,9 @@ public class Synthesizer {
    				initialExprs.add(new TypedExpression((Expression)it.next(), varStaticType));
         	assert initialExprs.size() > 0;  // We must have at least one expression.
         	TypeCache typeCache = new TypeCache();
+        	ValueCache valueCache = new ValueCache((IJavaDebugTarget)frame.getDebugTarget());
         	// TODO: Run the following off the UI thread like above when we do the first synthesis.
-        	EvaluationManager evalManager = new EvaluationManager(frame, new ExpressionMaker(), new SubtypeChecker(), typeCache, new ValueCache());
+        	EvaluationManager evalManager = new EvaluationManager(frame, new ExpressionMaker(valueCache), new SubtypeChecker(), typeCache, valueCache);
         	evalManager.init();
    			ArrayList<FullyEvaluatedExpression> exprs = evalManager.evaluateExpressions(initialExprs, null, null, null, new NullProgressMonitor());
    			if (exprs.isEmpty()) {

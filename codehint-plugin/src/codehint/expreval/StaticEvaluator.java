@@ -3,9 +3,7 @@ package codehint.expreval;
 import java.io.UnsupportedEncodingException;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.HashMap;
 import java.util.HashSet;
-import java.util.Map;
 import java.util.Set;
 import java.util.regex.PatternSyntaxException;
 
@@ -14,7 +12,6 @@ import org.eclipse.jdt.debug.core.IJavaArray;
 import org.eclipse.jdt.debug.core.IJavaArrayType;
 import org.eclipse.jdt.debug.core.IJavaClassObject;
 import org.eclipse.jdt.debug.core.IJavaDebugTarget;
-import org.eclipse.jdt.debug.core.IJavaObject;
 import org.eclipse.jdt.debug.core.IJavaPrimitiveValue;
 import org.eclipse.jdt.debug.core.IJavaStackFrame;
 import org.eclipse.jdt.debug.core.IJavaValue;
@@ -23,6 +20,7 @@ import codehint.exprgen.StringValue;
 import codehint.exprgen.TypeCache;
 import codehint.exprgen.TypedExpression;
 import codehint.exprgen.Value;
+import codehint.exprgen.ValueCache;
 import codehint.utils.EclipseUtils;
 
 import com.sun.jdi.Method;
@@ -34,20 +32,18 @@ public class StaticEvaluator {
 	
 	private final IJavaStackFrame stack;
 	private final TypeCache typeCache;
-	private final ArrayList<IJavaObject> collectionDisableds;
+	private final ValueCache valueCache;
 	private int numCrashes;
 	private final Set<String> unsupportedEncodings;
 	private final Set<String> illegalPatterns;
-	private final Map<String, IJavaValue> stringCache;
 	
-	public StaticEvaluator(IJavaStackFrame stack, TypeCache typeCache) {
+	public StaticEvaluator(IJavaStackFrame stack, TypeCache typeCache, ValueCache valueCache) {
 		this.stack = stack;
 		this.typeCache = typeCache;
-		collectionDisableds = new ArrayList<IJavaObject>();
+		this.valueCache = valueCache;
 		numCrashes = 0;
 		unsupportedEncodings = new HashSet<String>();
 		illegalPatterns = new HashSet<String>();
-		stringCache = new HashMap<String, IJavaValue>();
 	}
 	
 	/**
@@ -91,19 +87,6 @@ public class StaticEvaluator {
 		return result;
 	}
 	
-	/**
-	 * Allow the strings we created ourselves to be collected.
-	 */
-	public void allowCollectionOfNewStrings() {
-		try {
-			for (IJavaObject obj: collectionDisableds)
-				obj.enableCollection();
-		} catch (DebugException e) {
-			throw new RuntimeException(e);
-		}
-		collectionDisableds.clear();
-	}
-	
 	public int getNumCrashes() {
 		return numCrashes;
 	}
@@ -112,24 +95,24 @@ public class StaticEvaluator {
 	private IJavaValue evaluateStringConstructorCall(Value[] args, Method method, IJavaDebugTarget target) throws DebugException {
 		String sig = method.signature();
 		if ("()V".equals(sig))
-			return valueOfString("", target);
+			return valueOfString("");
 		if ("(Ljava/lang/String;)V".equals(sig))
-			return valueOfString(stringOfValue(args[0]), target);
+			return valueOfString(stringOfValue(args[0]));
 		if ("([C)V".equals(sig))
-			return valueOfString(new String(charArrOfValue(args[0])), target);
+			return valueOfString(new String(charArrOfValue(args[0])));
 		if ("([CII)V".equals(sig))
-			return valueOfString(new String(charArrOfValue(args[0]), intOfValue(args[1]), intOfValue(args[2])), target);
+			return valueOfString(new String(charArrOfValue(args[0]), intOfValue(args[1]), intOfValue(args[2])));
 		if ("([III)V".equals(sig))
-			return valueOfString(new String(intArrOfValue(args[0]), intOfValue(args[1]), intOfValue(args[2])), target);
+			return valueOfString(new String(intArrOfValue(args[0]), intOfValue(args[1]), intOfValue(args[2])));
 		if ("([BIII)V".equals(sig))
-			return valueOfString(new String(byteArrOfValue(args[0]), intOfValue(args[1]), intOfValue(args[2]), intOfValue(args[3])), target);
+			return valueOfString(new String(byteArrOfValue(args[0]), intOfValue(args[1]), intOfValue(args[2]), intOfValue(args[3])));
 		if ("([BI)V".equals(sig))
-			return valueOfString(new String(byteArrOfValue(args[0]), intOfValue(args[1])), target);
+			return valueOfString(new String(byteArrOfValue(args[0]), intOfValue(args[1])));
 		if ("([BIILjava/lang/String;)V".equals(sig)) {
 			String charsetName = stringOfValue(args[3]);
 			if (!unsupportedEncodings.contains(charsetName)) {
 				try {
-					return valueOfString(new String(byteArrOfValue(args[0]), intOfValue(args[1]), intOfValue(args[2]), charsetName), target);
+					return valueOfString(new String(byteArrOfValue(args[0]), intOfValue(args[1]), intOfValue(args[2]), charsetName));
 				} catch (UnsupportedEncodingException ex) {
 					unsupportedEncodings.add(charsetName);
 				}
@@ -141,7 +124,7 @@ public class StaticEvaluator {
 			String charsetName = stringOfValue(args[1]);
 			if (!unsupportedEncodings.contains(charsetName)) {
 				try {
-					return valueOfString(new String(byteArrOfValue(args[0]), charsetName), target);
+					return valueOfString(new String(byteArrOfValue(args[0]), charsetName));
 				} catch (UnsupportedEncodingException ex) {
 					unsupportedEncodings.add(charsetName);
 				}
@@ -150,9 +133,9 @@ public class StaticEvaluator {
 		}
 		// String(byte[], java.nio.charset.Charset)
 		if ("([BII)V".equals(sig))
-			return valueOfString(new String(byteArrOfValue(args[0]), intOfValue(args[1]), intOfValue(args[2])), target);
+			return valueOfString(new String(byteArrOfValue(args[0]), intOfValue(args[1]), intOfValue(args[2])));
 		if ("([B)V".equals(sig))
-			return valueOfString(new String(byteArrOfValue(args[0])), target);
+			return valueOfString(new String(byteArrOfValue(args[0])));
 		// String(java.lang.StringBuffer), String(java.lang.StringBuffer)
 		return null;
 	}
@@ -171,23 +154,23 @@ public class StaticEvaluator {
 		String name = method.name();
 		String sig = method.signature();
 		if ("length".equals(name))
-			return valueOfInt(receiver.length(), target);
+			return valueOfInt(receiver.length());
 		if ("isEmpty".equals(name))
-			return valueOfBoolean(receiver.isEmpty(), target);
+			return valueOfBoolean(receiver.isEmpty());
 		if ("charAt".equals(name))
 			return valueOfChar(receiver.charAt(intOfValue(args[0])), target);
 		if ("codePointAt".equals(name))
-			return valueOfInt(receiver.codePointAt(intOfValue(args[0])), target);
+			return valueOfInt(receiver.codePointAt(intOfValue(args[0])));
 		if ("codePointBefore".equals(name))
-			return valueOfInt(receiver.codePointBefore(intOfValue(args[0])), target);
+			return valueOfInt(receiver.codePointBefore(intOfValue(args[0])));
 		if ("codePointCount".equals(name))
-			return valueOfInt(receiver.codePointCount(intOfValue(args[0]), intOfValue(args[1])), target);
+			return valueOfInt(receiver.codePointCount(intOfValue(args[0]), intOfValue(args[1])));
 		if ("offsetByCodePoints".equals(name)) {
 			int index = intOfValue(args[0]);
 			int codePointOffset = intOfValue(args[1]);
 			if ((codePointOffset >= 0 && receiver.codePointCount(index, receiver.length()) >= codePointOffset)
 					|| (codePointOffset < 0 && receiver.codePointCount(0, index) >= -codePointOffset))
-				return valueOfInt(receiver.offsetByCodePoints(index, codePointOffset), target);
+				return valueOfInt(receiver.offsetByCodePoints(index, codePointOffset));
 			else
 				return handleCrash(target);
 		}
@@ -207,65 +190,65 @@ public class StaticEvaluator {
 			return valueOfByteArr(receiver.getBytes(), target);
 		if ("equals".equals(name))
 			if (isNullOrString(args[0]))
-				return valueOfBoolean(receiver.equals(stringOfValue(args[0])), target);
+				return valueOfBoolean(receiver.equals(stringOfValue(args[0])));
 			else
-				return valueOfBoolean(false, target);
+				return valueOfBoolean(false);
 		// contentEquals
 		if ("contentEquals".equals(name) && "(Ljava/lang/CharSequence;)Z".equals(sig)) {
 			if (isNullOrString(args[0]))
-				return valueOfBoolean(receiver.contentEquals(stringOfValue(args[0])), target);
+				return valueOfBoolean(receiver.contentEquals(stringOfValue(args[0])));
 			else
 				return null;
 		}
 		if ("equalsIgnoreCase".equals(name))
-			return valueOfBoolean(receiver.equalsIgnoreCase(stringOfValue(args[0])), target);
+			return valueOfBoolean(receiver.equalsIgnoreCase(stringOfValue(args[0])));
 		if ("compareTo".equals(name))
-			return valueOfInt(receiver.compareTo(stringOfValue(args[0])), target);
+			return valueOfInt(receiver.compareTo(stringOfValue(args[0])));
 		if ("compareToIgnoreCase".equals(name))
-			return valueOfInt(receiver.compareToIgnoreCase(stringOfValue(args[0])), target);
+			return valueOfInt(receiver.compareToIgnoreCase(stringOfValue(args[0])));
 		if ("regionMatches".equals(name) && "(ILjava/lang/String;II)Z".equals(sig))
-			return valueOfBoolean(receiver.regionMatches(intOfValue(args[0]), stringOfValue(args[1]), intOfValue(args[2]), intOfValue(args[3])), target);
+			return valueOfBoolean(receiver.regionMatches(intOfValue(args[0]), stringOfValue(args[1]), intOfValue(args[2]), intOfValue(args[3])));
 		if ("regionMatches".equals(name) && "(ZILjava/lang/String;II)Z".equals(sig))
-			return valueOfBoolean(receiver.regionMatches(booleanOfValue(args[0]), intOfValue(args[1]), stringOfValue(args[2]), intOfValue(args[3]), intOfValue(args[4])), target);
+			return valueOfBoolean(receiver.regionMatches(booleanOfValue(args[0]), intOfValue(args[1]), stringOfValue(args[2]), intOfValue(args[3]), intOfValue(args[4])));
 		if ("startsWith".equals(name) && "(Ljava/lang/String;I)Z".equals(sig))
-			return valueOfBoolean(receiver.startsWith(stringOfValue(args[0]), intOfValue(args[1])), target);
+			return valueOfBoolean(receiver.startsWith(stringOfValue(args[0]), intOfValue(args[1])));
 		if ("startsWith".equals(name) && "(Ljava/lang/String;)Z".equals(sig))
-			return valueOfBoolean(receiver.startsWith(stringOfValue(args[0])), target);
+			return valueOfBoolean(receiver.startsWith(stringOfValue(args[0])));
 		if ("endsWith".equals(name) && "(Ljava/lang/String;)Z".equals(sig))
-			return valueOfBoolean(receiver.endsWith(stringOfValue(args[0])), target);
+			return valueOfBoolean(receiver.endsWith(stringOfValue(args[0])));
 		if ("hashCode".equals(name))
-			return valueOfInt(receiver.hashCode(), target);
+			return valueOfInt(receiver.hashCode());
 		if ("indexOf".equals(name) && "(I)I".equals(sig))
-			return valueOfInt(receiver.indexOf(intOfValue(args[0])), target);
+			return valueOfInt(receiver.indexOf(intOfValue(args[0])));
 		if ("indexOf".equals(name) && "(II)I".equals(sig))
-			return valueOfInt(receiver.indexOf(intOfValue(args[0]), intOfValue(args[1])), target);
+			return valueOfInt(receiver.indexOf(intOfValue(args[0]), intOfValue(args[1])));
 		if ("lastIndexOf".equals(name) && "(I)I".equals(sig))
-			return valueOfInt(receiver.lastIndexOf(intOfValue(args[0])), target);
+			return valueOfInt(receiver.lastIndexOf(intOfValue(args[0])));
 		if ("lastIndexOf".equals(name) && "(II)I".equals(sig))
-			return valueOfInt(receiver.lastIndexOf(intOfValue(args[0]), intOfValue(args[1])), target);
+			return valueOfInt(receiver.lastIndexOf(intOfValue(args[0]), intOfValue(args[1])));
 		if ("indexOf".equals(name) && "(Ljava/lang/String;)I".equals(sig))
-			return valueOfInt(receiver.indexOf(stringOfValue(args[0])), target);
+			return valueOfInt(receiver.indexOf(stringOfValue(args[0])));
 		if ("indexOf".equals(name) && "(Ljava/lang/String;I)I".equals(sig))
-			return valueOfInt(receiver.indexOf(stringOfValue(args[0]), intOfValue(args[1])), target);
+			return valueOfInt(receiver.indexOf(stringOfValue(args[0]), intOfValue(args[1])));
 		if ("lastIndexOf".equals(name) && "(Ljava/lang/String;)I".equals(sig))
-			return valueOfInt(receiver.lastIndexOf(stringOfValue(args[0])), target);
+			return valueOfInt(receiver.lastIndexOf(stringOfValue(args[0])));
 		if ("lastIndexOf".equals(name) && "(Ljava/lang/String;I)I".equals(sig))
-			return valueOfInt(receiver.lastIndexOf(stringOfValue(args[0]), intOfValue(args[1])), target);
+			return valueOfInt(receiver.lastIndexOf(stringOfValue(args[0]), intOfValue(args[1])));
 		if ("substring".equals(name) && "(I)Ljava/lang/String;".equals(sig))
-			return valueOfString(receiver.substring(intOfValue(args[0])), target);
+			return valueOfString(receiver.substring(intOfValue(args[0])));
 		if ("substring".equals(name) && "(II)Ljava/lang/String;".equals(sig))
-			return valueOfString(receiver.substring(intOfValue(args[0]), intOfValue(args[1])), target);
+			return valueOfString(receiver.substring(intOfValue(args[0]), intOfValue(args[1])));
 		if ("subSequence".equals(name))
-			return valueOfString((String)receiver.subSequence(intOfValue(args[0]), intOfValue(args[1])), target);
+			return valueOfString((String)receiver.subSequence(intOfValue(args[0]), intOfValue(args[1])));
 		if ("concat".equals(name))
-			return valueOfString(receiver.concat(stringOfValue(args[0])), target);
+			return valueOfString(receiver.concat(stringOfValue(args[0])));
 		if ("replace".equals(name) && "(CC)Ljava/lang/String;".equals(sig))
-			return valueOfString(receiver.replace(charOfValue(args[0]), charOfValue(args[1])), target);
+			return valueOfString(receiver.replace(charOfValue(args[0]), charOfValue(args[1])));
 		if ("matches".equals(name)) {
 			String regex = stringOfValue(args[0]);
 			if (!illegalPatterns.contains(regex)) {
 				try {
-					return valueOfBoolean(receiver.matches(regex), target);
+					return valueOfBoolean(receiver.matches(regex));
 				} catch (PatternSyntaxException ex) {
 					illegalPatterns.add(regex);
 				}
@@ -275,7 +258,7 @@ public class StaticEvaluator {
 		// contains
 		if ("contains".equals(name)) {
 			if (isNullOrString(args[0]))
-				return valueOfBoolean(receiver.contains(stringOfValue(args[0])), target);
+				return valueOfBoolean(receiver.contains(stringOfValue(args[0])));
 			else
 				return null;
 		}
@@ -283,7 +266,7 @@ public class StaticEvaluator {
 			String regex = stringOfValue(args[0]);
 			if (!illegalPatterns.contains(regex)) {
 				try {
-					return valueOfString(receiver.replaceFirst(regex, stringOfValue(args[1])), target);
+					return valueOfString(receiver.replaceFirst(regex, stringOfValue(args[1])));
 				} catch (PatternSyntaxException ex) {
 					illegalPatterns.add(regex);
 				}
@@ -294,7 +277,7 @@ public class StaticEvaluator {
 			String regex = stringOfValue(args[0]);
 			if (!illegalPatterns.contains(regex)) {
 				try {
-					return valueOfString(receiver.replaceAll(regex, stringOfValue(args[1])), target);
+					return valueOfString(receiver.replaceAll(regex, stringOfValue(args[1])));
 				} catch (PatternSyntaxException ex) {
 					illegalPatterns.add(regex);
 				}
@@ -303,7 +286,7 @@ public class StaticEvaluator {
 		}
 		if ("replace".equals(name) && "(Ljava/lang/CharSequence;Ljava/lang/CharSequence;)Ljava/lang/String;".equals(sig)) {
 			if (isNullOrString(args[0]) && isNullOrString(args[1]))
-				return valueOfString(receiver.replace(stringOfValue(args[0]), stringOfValue(args[1])), target);
+				return valueOfString(receiver.replace(stringOfValue(args[0]), stringOfValue(args[1])));
 			else
 				return null;
 		}
@@ -332,12 +315,12 @@ public class StaticEvaluator {
 		}
 		// toLowerCase
 		if ("toLowerCase".equals(name) && "()Ljava/lang/String;".equals(sig))
-			return valueOfString(receiver.toLowerCase(), target);
+			return valueOfString(receiver.toLowerCase());
 		// toUpperCase
 		if ("toUpperCase".equals(name) && "()Ljava/lang/String;".equals(sig))
-			return valueOfString(receiver.toUpperCase(), target);
+			return valueOfString(receiver.toUpperCase());
 		if ("trim".equals(name))
-			return valueOfString(receiver.trim(), target);
+			return valueOfString(receiver.trim());
 		if ("toString".equals(name))
 			return receiverValue;
 		if ("toCharArray".equals(name))
@@ -345,32 +328,32 @@ public class StaticEvaluator {
 		// format, valueOf, copyValueOf
 		if ("valueOf".equals(name) && "(Ljava/lang/Object;)Ljava/lang/String;".equals(sig)) {
 			if (args[0].getValue().isNull())
-				return valueOfString("null", target);
+				return valueOfString("null");
 			else if (isNonNullString(args[0]))
 				return args[0].getValue();
 			else
 				return null;
 		}
 		if ("valueOf".equals(name) && "([C)Ljava/lang/String;".equals(sig))
-			return valueOfString(String.valueOf(charArrOfValue(args[0])), target);
+			return valueOfString(String.valueOf(charArrOfValue(args[0])));
 		if ("valueOf".equals(name) && "([CII)Ljava/lang/String;".equals(sig))
-			return valueOfString(String.valueOf(charArrOfValue(args[0]), intOfValue(args[1]), intOfValue(args[2])), target);
+			return valueOfString(String.valueOf(charArrOfValue(args[0]), intOfValue(args[1]), intOfValue(args[2])));
 		if ("copyValueOf".equals(name) && "([CII)Ljava/lang/String;".equals(sig))
-			return valueOfString(String.copyValueOf(charArrOfValue(args[0]), intOfValue(args[1]), intOfValue(args[2])), target);
+			return valueOfString(String.copyValueOf(charArrOfValue(args[0]), intOfValue(args[1]), intOfValue(args[2])));
 		if ("copyValueOf".equals(name) && "([C)Ljava/lang/String;".equals(sig))
-			return valueOfString(String.copyValueOf(charArrOfValue(args[0])), target);
+			return valueOfString(String.copyValueOf(charArrOfValue(args[0])));
 		if ("valueOf".equals(name) && "(Z)Ljava/lang/String;".equals(sig))
-			return valueOfString(String.valueOf(booleanOfValue(args[0])), target);
+			return valueOfString(String.valueOf(booleanOfValue(args[0])));
 		if ("valueOf".equals(name) && "(C)Ljava/lang/String;".equals(sig))
-			return valueOfString(String.valueOf(charOfValue(args[0])), target);
+			return valueOfString(String.valueOf(charOfValue(args[0])));
 		if ("valueOf".equals(name) && "(I)Ljava/lang/String;".equals(sig))
-			return valueOfString(String.valueOf(intOfValue(args[0])), target);
+			return valueOfString(String.valueOf(intOfValue(args[0])));
 		if ("valueOf".equals(name) && "(J)Ljava/lang/String;".equals(sig))
-			return valueOfString(String.valueOf(longOfValue(args[0])), target);
+			return valueOfString(String.valueOf(longOfValue(args[0])));
 		if ("valueOf".equals(name) && "(F)Ljava/lang/String;".equals(sig))
-			return valueOfString(String.valueOf(floatOfValue(args[0])), target);
+			return valueOfString(String.valueOf(floatOfValue(args[0])));
 		if ("valueOf".equals(name) && "(D)Ljava/lang/String;".equals(sig))
-			return valueOfString(String.valueOf(doubleOfValue(args[0])), target);
+			return valueOfString(String.valueOf(doubleOfValue(args[0])));
 		// intern, compareTo
 		return null;
 	}
@@ -413,40 +396,40 @@ public class StaticEvaluator {
 		String name = method.name();
 		String sig = method.signature();
 		if ("binarySearch".equals(name) && "([JJ)I".equals(sig))
-			return valueOfInt(Arrays.binarySearch(longArrOfValue(args[0]), longOfValue(args[1])), target);
+			return valueOfInt(Arrays.binarySearch(longArrOfValue(args[0]), longOfValue(args[1])));
 		if ("binarySearch".equals(name) && "([JIIJ)I".equals(sig))
-			return valueOfInt(Arrays.binarySearch(longArrOfValue(args[0]), intOfValue(args[1]), intOfValue(args[2]), longOfValue(args[3])), target);
+			return valueOfInt(Arrays.binarySearch(longArrOfValue(args[0]), intOfValue(args[1]), intOfValue(args[2]), longOfValue(args[3])));
 		if ("binarySearch".equals(name) && "([II)I".equals(sig))
-			return valueOfInt(Arrays.binarySearch(intArrOfValue(args[0]), intOfValue(args[1])), target);
+			return valueOfInt(Arrays.binarySearch(intArrOfValue(args[0]), intOfValue(args[1])));
 		if ("binarySearch".equals(name) && "([IIII)I".equals(sig))
-			return valueOfInt(Arrays.binarySearch(intArrOfValue(args[0]), intOfValue(args[1]), intOfValue(args[2]), intOfValue(args[3])), target);
+			return valueOfInt(Arrays.binarySearch(intArrOfValue(args[0]), intOfValue(args[1]), intOfValue(args[2]), intOfValue(args[3])));
 		if ("binarySearch".equals(name) && "([SS)I".equals(sig))
-			return valueOfInt(Arrays.binarySearch(shortArrOfValue(args[0]), shortOfValue(args[1])), target);
+			return valueOfInt(Arrays.binarySearch(shortArrOfValue(args[0]), shortOfValue(args[1])));
 		if ("binarySearch".equals(name) && "([SIIS)I".equals(sig))
-			return valueOfInt(Arrays.binarySearch(shortArrOfValue(args[0]), intOfValue(args[1]), intOfValue(args[2]), shortOfValue(args[3])), target);
+			return valueOfInt(Arrays.binarySearch(shortArrOfValue(args[0]), intOfValue(args[1]), intOfValue(args[2]), shortOfValue(args[3])));
 		if ("binarySearch".equals(name) && "([CC)I".equals(sig))
-			return valueOfInt(Arrays.binarySearch(charArrOfValue(args[0]), charOfValue(args[1])), target);
+			return valueOfInt(Arrays.binarySearch(charArrOfValue(args[0]), charOfValue(args[1])));
 		if ("binarySearch".equals(name) && "([CIIC)I".equals(sig))
-			return valueOfInt(Arrays.binarySearch(charArrOfValue(args[0]), intOfValue(args[1]), intOfValue(args[2]), charOfValue(args[3])), target);
+			return valueOfInt(Arrays.binarySearch(charArrOfValue(args[0]), intOfValue(args[1]), intOfValue(args[2]), charOfValue(args[3])));
 		if ("binarySearch".equals(name) && "([BB)I".equals(sig))
-			return valueOfInt(Arrays.binarySearch(byteArrOfValue(args[0]), byteOfValue(args[1])), target);
+			return valueOfInt(Arrays.binarySearch(byteArrOfValue(args[0]), byteOfValue(args[1])));
 		if ("binarySearch".equals(name) && "([BIIB)I".equals(sig))
-			return valueOfInt(Arrays.binarySearch(byteArrOfValue(args[0]), intOfValue(args[1]), intOfValue(args[2]), byteOfValue(args[3])), target);
+			return valueOfInt(Arrays.binarySearch(byteArrOfValue(args[0]), intOfValue(args[1]), intOfValue(args[2]), byteOfValue(args[3])));
 		if ("binarySearch".equals(name) && "([DD)I".equals(sig))
-			return valueOfInt(Arrays.binarySearch(doubleArrOfValue(args[0]), doubleOfValue(args[1])), target);
+			return valueOfInt(Arrays.binarySearch(doubleArrOfValue(args[0]), doubleOfValue(args[1])));
 		if ("binarySearch".equals(name) && "([DIID)I".equals(sig))
-			return valueOfInt(Arrays.binarySearch(doubleArrOfValue(args[0]), intOfValue(args[1]), intOfValue(args[2]), doubleOfValue(args[3])), target);
+			return valueOfInt(Arrays.binarySearch(doubleArrOfValue(args[0]), intOfValue(args[1]), intOfValue(args[2]), doubleOfValue(args[3])));
 		if ("binarySearch".equals(name) && "([FF)I".equals(sig))
-			return valueOfInt(Arrays.binarySearch(floatArrOfValue(args[0]), floatOfValue(args[1])), target);
+			return valueOfInt(Arrays.binarySearch(floatArrOfValue(args[0]), floatOfValue(args[1])));
 		if ("binarySearch".equals(name) && "([FIIF)I".equals(sig))
-			return valueOfInt(Arrays.binarySearch(floatArrOfValue(args[0]), intOfValue(args[1]), intOfValue(args[2]), floatOfValue(args[3])), target);
+			return valueOfInt(Arrays.binarySearch(floatArrOfValue(args[0]), intOfValue(args[1]), intOfValue(args[2]), floatOfValue(args[3])));
 		// binarySearch
 		if ("binarySearch".equals(name) && "([Ljava/lang/Object;Ljava/lang/Object;)I".equals(sig)) {
 			if (isNullOrStringArr(args[0]) && isNullOrString(args[1])) {
 				if (args[1].getValue().isNull())
 					return handleCrash(target);
 				else
-					return valueOfInt(Arrays.binarySearch(stringArrOfValue(args[0]), stringOfValue(args[1])), target);
+					return valueOfInt(Arrays.binarySearch(stringArrOfValue(args[0]), stringOfValue(args[1])));
 			} else if (((IJavaArray)args[0]).getLength() > 0 && isNullOrStringArr(args[0]) && !isNullOrString(args[1]))
 				return handleCrash(target);
 			 else
@@ -457,7 +440,7 @@ public class StaticEvaluator {
 				if (args[3].getValue().isNull())
 					return handleCrash(target);
 				else
-					return valueOfInt(Arrays.binarySearch(stringArrOfValue(args[0]), intOfValue(args[1]), intOfValue(args[2]), stringOfValue(args[3])), target);
+					return valueOfInt(Arrays.binarySearch(stringArrOfValue(args[0]), intOfValue(args[1]), intOfValue(args[2]), stringOfValue(args[3])));
 			} else
 				return null;
 		}
@@ -466,7 +449,7 @@ public class StaticEvaluator {
 				if (args[1].getValue().isNull())
 					return handleCrash(target);
 				else
-					return valueOfInt(Arrays.binarySearch(stringArrOfValue(args[0]), stringOfValue(args[1]), null), target);
+					return valueOfInt(Arrays.binarySearch(stringArrOfValue(args[0]), stringOfValue(args[1]), null));
 			} else if (args[2].getValue().isNull() && ((IJavaArray)args[0]).getLength() > 0 && isNullOrStringArr(args[0]) && !isNullOrString(args[1]))
 				return handleCrash(target);
 			else
@@ -477,30 +460,30 @@ public class StaticEvaluator {
 				if (args[3].getValue().isNull())
 					return handleCrash(target);
 				else
-					return valueOfInt(Arrays.binarySearch(stringArrOfValue(args[0]), intOfValue(args[1]), intOfValue(args[2]), stringOfValue(args[3]), null), target);
+					return valueOfInt(Arrays.binarySearch(stringArrOfValue(args[0]), intOfValue(args[1]), intOfValue(args[2]), stringOfValue(args[3]), null));
 			} else
 				return null;
 		}
 		if ("equals".equals(name) && "([J[J)Z".equals(sig))
-			return valueOfBoolean(Arrays.equals(longArrOfValue(args[0]), longArrOfValue(args[1])), target);
+			return valueOfBoolean(Arrays.equals(longArrOfValue(args[0]), longArrOfValue(args[1])));
 		if ("equals".equals(name) && "([I[I)Z".equals(sig))
-			return valueOfBoolean(Arrays.equals(intArrOfValue(args[0]), intArrOfValue(args[1])), target);
+			return valueOfBoolean(Arrays.equals(intArrOfValue(args[0]), intArrOfValue(args[1])));
 		if ("equals".equals(name) && "([S[S)Z".equals(sig))
-			return valueOfBoolean(Arrays.equals(shortArrOfValue(args[0]), shortArrOfValue(args[1])), target);
+			return valueOfBoolean(Arrays.equals(shortArrOfValue(args[0]), shortArrOfValue(args[1])));
 		if ("equals".equals(name) && "([C[C)Z".equals(sig))
-			return valueOfBoolean(Arrays.equals(charArrOfValue(args[0]), charArrOfValue(args[1])), target);
+			return valueOfBoolean(Arrays.equals(charArrOfValue(args[0]), charArrOfValue(args[1])));
 		if ("equals".equals(name) && "([B[B)Z".equals(sig))
-			return valueOfBoolean(Arrays.equals(byteArrOfValue(args[0]), byteArrOfValue(args[1])), target);
+			return valueOfBoolean(Arrays.equals(byteArrOfValue(args[0]), byteArrOfValue(args[1])));
 		if ("equals".equals(name) && "([Z[Z)Z".equals(sig))
-			return valueOfBoolean(Arrays.equals(booleanArrOfValue(args[0]), booleanArrOfValue(args[1])), target);
+			return valueOfBoolean(Arrays.equals(booleanArrOfValue(args[0]), booleanArrOfValue(args[1])));
 		if ("equals".equals(name) && "([D[D)Z".equals(sig))
-			return valueOfBoolean(Arrays.equals(doubleArrOfValue(args[0]), doubleArrOfValue(args[1])), target);
+			return valueOfBoolean(Arrays.equals(doubleArrOfValue(args[0]), doubleArrOfValue(args[1])));
 		if ("equals".equals(name) && "([F[F)Z".equals(sig))
-			return valueOfBoolean(Arrays.equals(floatArrOfValue(args[0]), floatArrOfValue(args[1])), target);
+			return valueOfBoolean(Arrays.equals(floatArrOfValue(args[0]), floatArrOfValue(args[1])));
 		// equals
 		if ("equals".equals(name) && "([Ljava/lang/Object;[Ljava/lang/Object;)Z".equals(sig)) {
 			if (isNullOrStringArr(args[0]) && isNullOrStringArr(args[1]))
-				return valueOfBoolean(Arrays.equals(stringArrOfValue(args[0]), stringArrOfValue(args[1])), target);
+				return valueOfBoolean(Arrays.equals(stringArrOfValue(args[0]), stringArrOfValue(args[1])));
 			else
 				return null;
 		}
@@ -553,36 +536,36 @@ public class StaticEvaluator {
 		// asList, hashCode, deepEquals
 		if ("deepEquals".equals(name) && "([Ljava/lang/Object;[Ljava/lang/Object;)Z".equals(sig)) {
 			if (isNullOrStringArr(args[0]) && isNullOrStringArr(args[1]))
-				return valueOfBoolean(Arrays.deepEquals(stringArrOfValue(args[0]), stringArrOfValue(args[1])), target);
+				return valueOfBoolean(Arrays.deepEquals(stringArrOfValue(args[0]), stringArrOfValue(args[1])));
 			else
 				return null;
 		}
 		if ("toString".equals(name) && "([J)Ljava/lang/String;".equals(sig))
-			return valueOfString(Arrays.toString(longArrOfValue(args[0])), target);
+			return valueOfString(Arrays.toString(longArrOfValue(args[0])));
 		if ("toString".equals(name) && "([I)Ljava/lang/String;".equals(sig))
-			return valueOfString(Arrays.toString(intArrOfValue(args[0])), target);
+			return valueOfString(Arrays.toString(intArrOfValue(args[0])));
 		if ("toString".equals(name) && "([S)Ljava/lang/String;".equals(sig))
-			return valueOfString(Arrays.toString(shortArrOfValue(args[0])), target);
+			return valueOfString(Arrays.toString(shortArrOfValue(args[0])));
 		if ("toString".equals(name) && "([C)Ljava/lang/String;".equals(sig))
-			return valueOfString(Arrays.toString(charArrOfValue(args[0])), target);
+			return valueOfString(Arrays.toString(charArrOfValue(args[0])));
 		if ("toString".equals(name) && "([B)Ljava/lang/String;".equals(sig))
-			return valueOfString(Arrays.toString(byteArrOfValue(args[0])), target);
+			return valueOfString(Arrays.toString(byteArrOfValue(args[0])));
 		if ("toString".equals(name) && "([Z)Ljava/lang/String;".equals(sig))
-			return valueOfString(Arrays.toString(booleanArrOfValue(args[0])), target);
+			return valueOfString(Arrays.toString(booleanArrOfValue(args[0])));
 		if ("toString".equals(name) && "([F)Ljava/lang/String;".equals(sig))
-			return valueOfString(Arrays.toString(floatArrOfValue(args[0])), target);
+			return valueOfString(Arrays.toString(floatArrOfValue(args[0])));
 		if ("toString".equals(name) && "([D)Ljava/lang/String;".equals(sig))
-			return valueOfString(Arrays.toString(doubleArrOfValue(args[0])), target);
+			return valueOfString(Arrays.toString(doubleArrOfValue(args[0])));
 		// toString, deepToString
 		if ("toString".equals(name) && "([Ljava/lang/Object;)Ljava/lang/String;".equals(sig)) {
 			if (isNullOrStringArr(args[0]))
-				return valueOfString(Arrays.toString(stringArrOfValue(args[0])), target);
+				return valueOfString(Arrays.toString(stringArrOfValue(args[0])));
 			else
 				return null;
 		}
 		if ("deepToString".equals(name) && "([Ljava/lang/Object;)Ljava/lang/String;".equals(sig)) {
 			if (isNullOrStringArr(args[0]))
-				return valueOfString(Arrays.deepToString(stringArrOfValue(args[0])), target);
+				return valueOfString(Arrays.deepToString(stringArrOfValue(args[0])));
 			else
 				return null;
 		}
@@ -867,29 +850,17 @@ public class StaticEvaluator {
 	}
 	
 	// Convert actual values to IJavaValues
-
-	// We must disable collection on these strings since they are not reachable and hence could be collected.  Without this, the strings are collected and the EvaluationManager inserts non-quoted string literals for them and crashes.
-	private <T extends IJavaObject> T disableObjectCollection(T o) throws DebugException {
-		o.disableCollection();
-		collectionDisableds.add(o);
-		return o;
+	
+	private IJavaValue valueOfString(String s) {
+		return valueCache.getStringJavaValue(s);
 	}
 	
-	private IJavaValue valueOfString(String s, IJavaDebugTarget target) throws DebugException {
-		IJavaValue value = stringCache.get(s);
-		if (value != null)
-			return value;
-		value = disableObjectCollection((IJavaObject)target.newValue(s));
-		stringCache.put(s, value);
-		return value;
+	private IJavaValue valueOfInt(int n) {
+		return valueCache.getIntJavaValue(n);
 	}
 	
-	private static IJavaValue valueOfInt(int n, IJavaDebugTarget target) {
-		return target.newValue(n);
-	}
-	
-	private static IJavaValue valueOfBoolean(boolean b, IJavaDebugTarget target) {
-		return target.newValue(b);
+	private IJavaValue valueOfBoolean(boolean b) {
+		return valueCache.getBooleanJavaValue(b);
 	}
 	
 	private static IJavaValue valueOfChar(char c, IJavaDebugTarget target) {
@@ -918,7 +889,7 @@ public class StaticEvaluator {
 	
 	private IJavaArray valueOfCharArr(char[] a, IJavaDebugTarget target) throws DebugException {
 		IJavaArrayType charArrType = (IJavaArrayType)EclipseUtils.getFullyQualifiedType("char[]", stack, target, typeCache);
-		IJavaArray result = disableObjectCollection(charArrType.newInstance(a.length));
+		IJavaArray result = valueCache.disableObjectCollection(charArrType.newInstance(a.length));
 		IJavaValue[] arrValues = new IJavaValue[a.length];
 		for (int i = 0; i < a.length; i++)
 			arrValues[i] = valueOfChar(a[i], target);
@@ -928,7 +899,7 @@ public class StaticEvaluator {
 	
 	private IJavaArray valueOfByteArr(byte[] a, IJavaDebugTarget target) throws DebugException {
 		IJavaArrayType byteArrType = (IJavaArrayType)EclipseUtils.getFullyQualifiedType("byte[]", stack, target, typeCache);
-		IJavaArray result = disableObjectCollection(byteArrType.newInstance(a.length));
+		IJavaArray result = valueCache.disableObjectCollection(byteArrType.newInstance(a.length));
 		IJavaValue[] arrValues = new IJavaValue[a.length];
 		for (int i = 0; i < a.length; i++)
 			arrValues[i] = valueOfByte(a[i], target);
@@ -938,17 +909,17 @@ public class StaticEvaluator {
 	
 	private IJavaArray valueOfStringArr(String[] a, IJavaDebugTarget target) throws DebugException {
 		IJavaArrayType stringArrType = (IJavaArrayType)EclipseUtils.getFullyQualifiedType("java.lang.String[]", stack, target, typeCache);
-		IJavaArray result = disableObjectCollection(stringArrType.newInstance(a.length));
+		IJavaArray result = valueCache.disableObjectCollection(stringArrType.newInstance(a.length));
 		IJavaValue[] arrValues = new IJavaValue[a.length];
 		for (int i = 0; i < a.length; i++)
-			arrValues[i] = a[i] == null ? target.nullValue() : valueOfString(a[i], target);
+			arrValues[i] = a[i] == null ? target.nullValue() : valueOfString(a[i]);
 		result.setValues(arrValues);
 		return result;
 	}
 	
 	private IJavaArray valueOfLongArr(long[] a, IJavaDebugTarget target) throws DebugException {
 		IJavaArrayType longArrType = (IJavaArrayType)target.getJavaTypes("long[]")[0];
-		IJavaArray result = disableObjectCollection(longArrType.newInstance(a.length));
+		IJavaArray result = valueCache.disableObjectCollection(longArrType.newInstance(a.length));
 		IJavaValue[] arrValues = new IJavaValue[a.length];
 		for (int i = 0; i < a.length; i++)
 			arrValues[i] = valueOfLong(a[i], target);
@@ -958,7 +929,7 @@ public class StaticEvaluator {
 	
 	private IJavaArray valueOfShortArr(short[] a, IJavaDebugTarget target) throws DebugException {
 		IJavaArrayType shortArrType = (IJavaArrayType)EclipseUtils.getFullyQualifiedType("short[]", stack, target, typeCache);
-		IJavaArray result = disableObjectCollection(shortArrType.newInstance(a.length));
+		IJavaArray result = valueCache.disableObjectCollection(shortArrType.newInstance(a.length));
 		IJavaValue[] arrValues = new IJavaValue[a.length];
 		for (int i = 0; i < a.length; i++)
 			arrValues[i] = valueOfShort(a[i], target);
@@ -968,17 +939,17 @@ public class StaticEvaluator {
 	
 	private IJavaArray valueOfIntArr(int[] a, IJavaDebugTarget target) throws DebugException {
 		IJavaArrayType intArrType = (IJavaArrayType)EclipseUtils.getFullyQualifiedType("int[]", stack, target, typeCache);
-		IJavaArray result = disableObjectCollection(intArrType.newInstance(a.length));
+		IJavaArray result = valueCache.disableObjectCollection(intArrType.newInstance(a.length));
 		IJavaValue[] arrValues = new IJavaValue[a.length];
 		for (int i = 0; i < a.length; i++)
-			arrValues[i] = valueOfInt(a[i], target);
+			arrValues[i] = valueOfInt(a[i]);
 		result.setValues(arrValues);
 		return result;
 	}
 	
 	private IJavaArray valueOfFloatArr(float[] a, IJavaDebugTarget target) throws DebugException {
 		IJavaArrayType floatArrType = (IJavaArrayType)EclipseUtils.getFullyQualifiedType("float[]", stack, target, typeCache);
-		IJavaArray result = disableObjectCollection(floatArrType.newInstance(a.length));
+		IJavaArray result = valueCache.disableObjectCollection(floatArrType.newInstance(a.length));
 		IJavaValue[] arrValues = new IJavaValue[a.length];
 		for (int i = 0; i < a.length; i++)
 			arrValues[i] = valueOfFloat(a[i], target);
@@ -988,7 +959,7 @@ public class StaticEvaluator {
 	
 	private IJavaArray valueOfDoubleArr(double[] a, IJavaDebugTarget target) throws DebugException {
 		IJavaArrayType doubleArrType = (IJavaArrayType)EclipseUtils.getFullyQualifiedType("double[]", stack, target, typeCache);
-		IJavaArray result = disableObjectCollection(doubleArrType.newInstance(a.length));
+		IJavaArray result = valueCache.disableObjectCollection(doubleArrType.newInstance(a.length));
 		IJavaValue[] arrValues = new IJavaValue[a.length];
 		for (int i = 0; i < a.length; i++)
 			arrValues[i] = valueOfDouble(a[i], target);
@@ -998,10 +969,10 @@ public class StaticEvaluator {
 	
 	private IJavaArray valueOfBooleanArr(boolean[] a, IJavaDebugTarget target) throws DebugException {
 		IJavaArrayType booleanArrType = (IJavaArrayType)EclipseUtils.getFullyQualifiedType("boolean[]", stack, target, typeCache);
-		IJavaArray result = disableObjectCollection(booleanArrType.newInstance(a.length));
+		IJavaArray result = valueCache.disableObjectCollection(booleanArrType.newInstance(a.length));
 		IJavaValue[] arrValues = new IJavaValue[a.length];
 		for (int i = 0; i < a.length; i++)
-			arrValues[i] = valueOfBoolean(a[i], target);
+			arrValues[i] = valueOfBoolean(a[i]);
 		result.setValues(arrValues);
 		return result;
 	}
