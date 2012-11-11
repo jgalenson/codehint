@@ -16,6 +16,7 @@ import org.eclipse.core.runtime.SubMonitor;
 import org.eclipse.debug.core.DebugException;
 import org.eclipse.jdt.core.Flags;
 import org.eclipse.jdt.core.ICompilationUnit;
+import org.eclipse.jdt.core.IField;
 import org.eclipse.jdt.core.IImportDeclaration;
 import org.eclipse.jdt.core.IJavaProject;
 import org.eclipse.jdt.core.IMethod;
@@ -783,8 +784,9 @@ public final class ExpressionGenerator {
 	 * @param depth The current search depth.
 	 * @param maxDepth The maximum search depth.
 	 * @throws DebugException
+	 * @throws JavaModelException 
 	 */
-	private void addFieldAccesses(TypedExpression e, List<TypedExpression> ops, int depth, int maxDepth) throws DebugException {
+	private void addFieldAccesses(TypedExpression e, List<TypedExpression> ops, int depth, int maxDepth) throws DebugException, JavaModelException {
 		// We could use the public Eclipse API here, but it isn't as clean and works on objects not types, so wouldn't work with our static accesses, which we give a null value.  Note that as below with methods, we must now be careful converting between jdi types and Eclipse types. 
 		IJavaObject obj = e.getValue() != null ? (IJavaObject)e.getValue() : null;
 		Type objTypeImpl = ((JDIType)e.getType()).getUnderlyingType();
@@ -796,6 +798,9 @@ public final class ExpressionGenerator {
 				continue;
 			if (field.isStatic() && staticAccesses.contains(field.declaringType().name() + " " + field.name()))
 				continue;
+            IField ifield = getIField(field);
+            if (ifield != null && Flags.isDeprecated(ifield.getFlags()))
+            	continue;
 			IJavaType fieldType = EclipseUtils.getTypeAndLoadIfNeeded(field.typeName(), stack, target, typeCache);
 			/*if (fieldType == null)
 				System.err.println("I cannot get the class of " + objTypeImpl.name() + "." + field.name() + "(" + field.typeName() + ")");*/
@@ -816,6 +821,20 @@ public final class ExpressionGenerator {
 					staticAccesses.add(field.declaringType().name() + " " + field.name());
 			}
 		}
+	}
+	
+	/**
+	 * Gets the IField associated with the given field.
+	 * @param field The field.
+	 * @return The IField associated with the given field.
+	 * @throws DebugException
+	 * @throws JavaModelException
+	 */
+	private IField getIField(Field field) throws JavaModelException {
+		IType itype = project.findType(field.declaringType().name());
+		if (itype == null)
+			return null;
+		return itype.getField(field.name());
 	}
 
 	/**
