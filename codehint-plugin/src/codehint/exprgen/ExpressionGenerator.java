@@ -14,8 +14,12 @@ import org.eclipse.core.runtime.OperationCanceledException;
 import org.eclipse.core.runtime.Path;
 import org.eclipse.core.runtime.SubMonitor;
 import org.eclipse.debug.core.DebugException;
+import org.eclipse.jdt.core.Flags;
 import org.eclipse.jdt.core.ICompilationUnit;
 import org.eclipse.jdt.core.IImportDeclaration;
+import org.eclipse.jdt.core.IJavaProject;
+import org.eclipse.jdt.core.IMethod;
+import org.eclipse.jdt.core.IType;
 import org.eclipse.jdt.core.JavaModelException;
 import org.eclipse.jdt.core.dom.ASTNode;
 import org.eclipse.jdt.core.dom.ASTVisitor;
@@ -239,6 +243,7 @@ public final class ExpressionGenerator {
 	private final EvaluationManager evalManager;
     private final StaticEvaluator staticEvaluator;
 	private final IJavaReferenceType thisType;
+	private final IJavaProject project;
 	private final IJavaType intType;
 	private final IJavaType booleanType;
 	private final TypedExpression zero;
@@ -273,6 +278,7 @@ public final class ExpressionGenerator {
 		} catch (DebugException e) {
 			throw new RuntimeException(e);
 		}
+		this.project = EclipseUtils.getProject(stack);
 		this.intType = EclipseUtils.getFullyQualifiedType("int", stack, target, typeCache);
 		this.booleanType = EclipseUtils.getFullyQualifiedType("boolean", stack, target, typeCache);
 		this.zero = expressionMaker.makeNumber("0", target.newValue(0), intType, valueCache, thread);
@@ -309,7 +315,7 @@ public final class ExpressionGenerator {
 			this.equivalences = new HashMap<Value, ArrayList<EvaluatedExpression>>();
 			this.prunedDepths = new HashMap<Method, Integer>();
 			this.newlyUnpruneds = new HashSet<Method>();
-			this.imports = ((ICompilationUnit)EclipseUtils.getProject(stack).findElement(new Path(stack.getSourcePath()))).getImports();
+			this.imports = ((ICompilationUnit)project.findElement(new Path(stack.getSourcePath()))).getImports();
 			this.importsSet = new HashSet<String>(imports.length);
 			for (IImportDeclaration imp : imports)
 				this.importsSet.add(imp.getElementName());
@@ -416,8 +422,11 @@ public final class ExpressionGenerator {
 		ArrayList<FullyEvaluatedExpression> results = evalManager.evaluateExpressions(evaluatedExprs, property, getVarType(), synthesisDialog, monitor);
     	if (unevaluatedExprs.size() > 0) {
 
-	    	/*for (TypedExpression call: unevaluatedExprs) {
+    		/*int printCount = 0;
+	    	for (TypedExpression call: unevaluatedExprs) {
 	    		System.out.println(call.getExpression());
+	    		if (++printCount % 1000 == 0)
+	    			printCount = printCount + 1 - 1;
 	    		Method method = expressionMaker.getMethod(call.getExpression());
 	    		String name = method.name();
 	    		List<?> args = call.getExpression() instanceof MethodInvocation ? ((MethodInvocation)call.getExpression()).arguments() : ((ClassInstanceCreation)call.getExpression()).arguments();
@@ -714,6 +723,10 @@ public final class ExpressionGenerator {
 			e.printStackTrace();
         	EclipseUtils.showError("Error", "An error occurred during expression generation.", e);
 			throw new RuntimeException("I cannot compute all valid expressions.");
+		} catch (JavaModelException e) {
+			e.printStackTrace();
+        	EclipseUtils.showError("Error", "An error occurred during expression generation.", e);
+			throw new RuntimeException("I cannot compute all valid expressions.");
 		}
 	}
 
@@ -838,7 +851,7 @@ public final class ExpressionGenerator {
 	public static boolean isLegalMethod(Method method, IJavaType thisType, boolean isConstructor) {
 		return ((method.isPublic() || method.declaringType().equals(((JDIType)thisType).getUnderlyingType())) && (!method.isConstructor() || !method.isPackagePrivate()))  // Constructors are not marked as public.
 				&& isConstructor == method.isConstructor() && !method.isSynthetic() && !method.isStaticInitializer() && !method.declaringType().name().equals("java.lang.Object")
-				&& !"hashCode".equals(method.name()) && !"deepHashCode".equals(method.name()) && !"intern".equals(method.name());  // TODO: This should really be part of the blacklist.
+				&& !"hashCode".equals(method.name()) && !"deepHashCode".equals(method.name()) && !"intern".equals(method.name()) && !"clone".equals(method.name());  // TODO: This should really be part of the blacklist.
 	}
 
 	/**
@@ -851,8 +864,9 @@ public final class ExpressionGenerator {
 	 * @param depth The current search depth.
 	 * @param maxDepth The maximum search depth.
 	 * @throws DebugException
+	 * @throws JavaModelException 
 	 */
-	private void addMethodCalls(TypedExpression e, List<FullyEvaluatedExpression> nextLevel, List<TypedExpression> ops, int depth, int maxDepth) throws DebugException {
+	private void addMethodCalls(TypedExpression e, List<FullyEvaluatedExpression> nextLevel, List<TypedExpression> ops, int depth, int maxDepth) throws DebugException, JavaModelException {
 		// The public API doesn't tell us the methods of a class, so we need to use the jdi.  Note that we must now be careful converting between jdi types and Eclipse types.
 		Type objTypeImpl = ((JDIType)e.getType()).getUnderlyingType();
 		if (classBlacklist.contains(objTypeImpl.name()))
@@ -877,6 +891,9 @@ public final class ExpressionGenerator {
 				if (declaringType instanceof IJavaInterfaceType)
 					continue;
             }
+            IMethod imethod = getIMethod(method);
+            if (imethod != null && Flags.isDeprecated(imethod.getFlags()))
+            	continue;
 			IJavaType returnType = isConstructor ? e.getType() : EclipseUtils.getTypeAndLoadIfNeeded(method.returnTypeName(), stack, target, typeCache);
 			/*if (returnType == null)
 				System.err.println("I cannot get the class of the return type of " + objTypeImpl.name() + "." + method.name() + "() (" + method.returnTypeName() + ")");*/
@@ -920,6 +937,39 @@ public final class ExpressionGenerator {
 				}
 			}
 		}
+	}
+	
+	/**
+	 * Gets the IMethod associated with the given method.
+	 * Note that this is not complete; it can (and often
+	 * will) fail to find the correct IMethod and return null.
+	 * @param method The method.
+	 * @return The IMethod associated with the given
+	 * method, or null.
+	 * @throws DebugException
+	 * @throws JavaModelException
+	 */
+	private IMethod getIMethod(Method method) throws DebugException, JavaModelException {
+		IType itype = project.findType(method.declaringType().name());
+		if (itype == null)
+			return null;
+		String name = method.name();
+		String signature = method.signature();
+		IMethod best = null;
+		for (IMethod cur: itype.getMethods()) {
+			if (cur.getElementName().equals(name)) {
+				if (best != null)
+					return null;
+				if (cur.getSignature().equals(signature))
+					return cur;
+				best = cur;
+			}
+		}
+		/*String parentName = curType.getSuperclassName();
+		if (parentName == null)
+			break;
+		curType = project.findType(parentName);*/
+		return best;
 	}
 	
 	/**
