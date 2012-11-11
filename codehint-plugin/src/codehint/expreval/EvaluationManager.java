@@ -638,6 +638,17 @@ public final class EvaluationManager {
 				} else
 					break;
 			}
+		} else if (crashedMethod != null && "codehint.SynthesisSecurityManager$SynthesisSecurityException".equals(errorName)) {
+			// Skip calls to methods that try to make illegal system calls.
+			while (crashingIndex + numToSkip < exprs.size()) {
+				Expression newExpr = exprs.get(crashingIndex + numToSkip).getExpression();
+				// Skip calls to the same method.
+				if (crashedMethod.equals(expressionMaker.getMethod(newExpr))) {
+					//System.out.println("Skipping " + newExpr.toString() + ".");
+					numToSkip++;
+				} else
+					break;
+			}
 		}
 		//System.out.println("Evaluation of " + crashedExpr.toString() + " crashed with message: " + EclipseUtils.getExceptionMessage(error) + ".  Skipping " + numToSkip + ".");
 		skipped += numToSkip - 1;
