@@ -2,7 +2,7 @@ package codehint;
 
 import java.security.Permission;
 
-public class SynthesisSecurityManager extends SecurityManager {
+class SynthesisSecurityManager extends SecurityManager {
 	
 	private static class SynthesisSecurityException extends SecurityException {
 	    
@@ -15,8 +15,21 @@ public class SynthesisSecurityManager extends SecurityManager {
 		
 	}
 	
+	private boolean disabled;
+	
+	public SynthesisSecurityManager() {
+		disabled = false;
+	}
+	
+	protected void disable(SecurityManager sm) {
+		disabled = true;
+		System.setSecurityManager(sm);
+	}
+	
     @Override
 	public void checkPermission(Permission perm) {
+    	if (!disabled && "setSecurityManager".equals(perm.getName()))
+	    	throw new SynthesisSecurityException();
     	// Do nothing and hence allow anything not explicitly disallowed.
     }
 

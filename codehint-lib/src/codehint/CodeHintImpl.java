@@ -23,12 +23,14 @@ public final class CodeHintImpl {
 	public static int fullCount;
 	
 	public static Object[] methodResults;
-	
+
 	private static SecurityManager oldSecurityManager;
+	private static SynthesisSecurityManager newSecurityManager;
 	
 	public static void init() {
 		oldSecurityManager = System.getSecurityManager();
-		System.setSecurityManager(new SynthesisSecurityManager());
+		newSecurityManager = new SynthesisSecurityManager();
+		System.setSecurityManager(newSecurityManager);
 	}
 	
 	public static void reset() {
@@ -44,7 +46,9 @@ public final class CodeHintImpl {
 		valid = null;
 		toStrings = null;
 		methodResults = null;
-		System.setSecurityManager(oldSecurityManager);
+		newSecurityManager.disable(oldSecurityManager);
+		oldSecurityManager = null;
+		newSecurityManager = null;
 	}
 
 }
