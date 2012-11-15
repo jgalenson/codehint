@@ -14,22 +14,26 @@ class SynthesisSecurityManager extends SecurityManager {
 	    }
 		
 	}
-	
+
+	private final SecurityManager oldSecurityManager;
 	private boolean disabled;
 	
 	public SynthesisSecurityManager() {
+		this.oldSecurityManager = System.getSecurityManager();
 		disabled = false;
 	}
 	
-	protected void disable(SecurityManager sm) {
+	protected void disable() {
 		disabled = true;
-		System.setSecurityManager(sm);
+		System.setSecurityManager(oldSecurityManager);
 	}
 	
     @Override
 	public void checkPermission(Permission perm) {
-    	if (!disabled && "setSecurityManager".equals(perm.getName()))
+    	if ("setSecurityManager".equals(perm.getName()) && !disabled)
 	    	throw new SynthesisSecurityException();
+    	if (oldSecurityManager != null)
+    		oldSecurityManager.checkPermission(perm);
     	// Do nothing and hence allow anything not explicitly disallowed.
     }
 
@@ -45,6 +49,11 @@ class SynthesisSecurityManager extends SecurityManager {
 
     @Override
     public void checkExec(String cmd) {
+    	throw new SynthesisSecurityException();
+    }
+
+    @Override
+    public void checkPrintJobAccess() {
     	throw new SynthesisSecurityException();
     }
 

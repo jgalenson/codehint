@@ -163,7 +163,7 @@ public final class EvaluationManager {
 				String valuesArrayName = getValuesArrayName(type);
 				IJavaFieldVariable valuesField = implType.getField(valuesArrayName);
 				if (property != null && varType != null && "Object".equals(type))  // The pdspec might call methods on the objects, so we need their actual types.
-					type = varType.getName();
+					type = EclipseUtils.sanitizeTypename(varType.getName());
 				evaluateExpressions(expressionsOfType.getValue(), validExprs, type, arePrimitives, property, validateStatically, valuesField);
 			}
 			return validExprs;
