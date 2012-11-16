@@ -14,6 +14,7 @@ import java.io.PrintWriter;
 import java.security.Permission;
 
 
+@SuppressWarnings("unused")
 public class BlockSyscalls {
 
 	public static void main(String[] args) {
@@ -151,7 +152,9 @@ public class BlockSyscalls {
 		
 		private static class MySecurityException extends SecurityException {
 		    
-		    @Override
+			private static final long serialVersionUID = 4659045456427013269L;
+
+			@Override
 			public Throwable fillInStackTrace() {
 		    	return this;
 		    }

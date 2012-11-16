@@ -88,7 +88,7 @@ public final class ExpressionSkeleton {
     private final static ASTParser parser = ASTParser.newParser(AST.JLS4);
     
     public final static String HOLE_SYNTAX = "??";
-    private final static String LIST_HOLE_SYNTAX = "**";
+    public final static String LIST_HOLE_SYNTAX = "**";
     
     private final static int SEARCH_DEPTH = 1;
     
@@ -623,6 +623,7 @@ public final class ExpressionSkeleton {
 		 * skeleton piece and the type constraint representing their types.
 		 */
 		private ExpressionsAndTypeConstraints fillSkeleton(Expression node, TypeConstraint curConstraint, Set<ASTNode> parentsOfHoles) {
+			expressionMaker.setIDIfNeeded(node);  // Ensure this node has an id, since we might use it for synthesis.
 			if (node instanceof ArrayAccess) {
 				return fillArrayAccess((ArrayAccess)node, curConstraint, parentsOfHoles);
 			} else if (node instanceof BooleanLiteral) {

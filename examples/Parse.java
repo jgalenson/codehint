@@ -14,13 +14,13 @@ public class Parse {
 	 * For example, given the email below, it will map "Subject" to
 	 * "[cs-grads-food] Pizza" and "Date" to "Mon, 27 Feb 2012 15:28:03 -0800".
 	 */
-    private static Map<String, String> parse(String email, String seperator) {
+    private static Map<String, String> parse(String email, String separator) {
     	String[] lines = email.split("\n");
     	Map<String, String> parts = new HashMap<String, String>(lines.length);
     	for (String line : lines) {
     		int index = 0;
-    		//index = line.indexOf(seperator);
-    		System.out.println("Task: Find the index of the seperator string in the line.");
+    		//index = line.indexOf(separator);
+    		System.out.println("Task: Find the first index where the separator string occurs in the line.");
 
     		String header = null;
     		//header = line.substring(0,index);

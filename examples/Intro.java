@@ -6,45 +6,52 @@ import java.lang.reflect.Type;
 public class Intro {
 
 	public static void main(String[] args) {
-		round((float)42.137);
+		round(424242.137f);
 		sum(1, 10);
 		inverseSin(1);
 		hypotenuse(3, 4);
-		getBluePoint(new Point(42, 42), new ColoredPoint(42, 42, "blue"), new ColoredPoint(42, 42, "green"));
+		getColoredPoint(42, 42, "blue", "evil red");
 		findInterfaces(String.class);
-		getUppercaseColor(new ColoredPoint(42, 42, "aqua "));
+		getUppercaseColor(new ColoredPoint(42, 42, "    aqua "));
+		getStringInfo("Hello", "world", 1, 2);
 	}
 	
 	private static int round(float d) {
-		int rounded = -1;
+		int rounded = 0;
 		System.out.println("Task: round d.");
 		return rounded;
 	}
 	
-	private static int sum(int l, int u) {
+	private static int sum(int min, int max) {
 		int sum = 0;
-		for (int i = l; i <= u; i++) {
-			System.out.println("Task: Update sum to keep a running sum of the numbers between l and i.");
+		for (int i = min; i <= max; i++) {
+			for (int j = 1; j <= i; j++) {
+				int cur = 0;
+				System.out.println("Task: Update sum to keep a running sum of the numbers between l and i.");
+				sum += cur;
+			}
 		}
 		return sum;
 	}
 	
 	private static double inverseSin(double n) {
-		double theta = -1;
+		double theta = 0;
 		System.out.println("Task: Compute a theta such that sin(theta) == n.");
 		return theta;
 	}
 	
 	private static double hypotenuse(double a, double b) {
-		double c = -1;
+		double c = 0;
 		System.out.println("Task: Synthesize the hypotenuse.");
 		return c;
 	}
 	
-	private static Point getBluePoint(Point p1, ColoredPoint p2, Point p3) {
-		Point bluePoint = null;
-		System.out.println("Task: Get the blue point.");
-		return bluePoint;
+	private static Point getColoredPoint(int x, int y, String color, String fakeColor) {
+		Point point = null;
+		System.out.println("Task: Get a colored point.");
+		ColoredPoint coloredPoint = null;
+		System.out.println("Task: Get a blue colored point.");
+		return point;
 	}
 	
 	private static Type[] findInterfaces(Class<String> c) {
@@ -57,6 +64,11 @@ public class Intro {
 		String uppercaseColor = null;
 		System.out.println("Task: Get an upper case string of p's color with any surrounding whitespace removed.");
 		return uppercaseColor;
+	}
+	
+	private static int getStringInfo(String useMe, String ignoreMe, int x, int y) {
+		int result = 0;
+		return result;
 	}
 	
 	private static class Point {

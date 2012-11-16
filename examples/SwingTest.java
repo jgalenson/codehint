@@ -50,14 +50,15 @@ public class SwingTest {
 				JTree tree = jtree;
 				int mouseX = e.getX();
 				int mouseY = e.getY();
-				int clickedRow = 0;
-				//clickedRow = tree.getRowForLocation(mouseX,mouseY);
+				int row = 0;
+				//row = tree.getRowForLocation(mouseX,mouseY);
 				System.out.println("Task: Figure out which row (0-based, containing all elements in the tree, including the top-level one) the user clicked, or -1 if they didn't click a valid element.");
 				
-				TreePath clickedPath = null;
+				TreePath path = null;
 				System.out.println("Task: Find the path the user clicked, or null if they didn't click a valid element.");
 				
-				System.out.println(clickedPath);
+				System.out.println(row);
+				System.out.println(path);
 			}
 		});
 		

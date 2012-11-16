@@ -374,6 +374,7 @@ public class Synthesizer {
    			            			
    			// If all expressions evaluate to the same value, use that and move on.
    			if (allHaveSameResult(exprs)) {
+   				evalManager.resetFields();
    				if (exprs.size() < initialExprs.size())  // Some expressions crashed, so remove them from the code.
            			newLine = rewriteLine(matcher, varname, curLine, initialProperty, exprs, lineNumber);
    				value = exprs.get(0).getValue();

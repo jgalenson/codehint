@@ -596,6 +596,11 @@ public class ExpressionMaker {
 	public static int getID(Expression e) {
 		return (Integer)e.getProperty("id");
 	}
+	
+	public void setIDIfNeeded(Expression e) {
+		if (e.getProperty("id") == null)
+			setID(e);
+	}
 
 	public static Object getIDOpt(Expression e) {
 		return e.getProperty("id");

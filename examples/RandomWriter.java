@@ -24,11 +24,11 @@ public class RandomWriter {
 			
 			String seed = null;
 			//seed = text.substring(i,j);
-			System.out.println("Task: Find me the seed string.");
+			System.out.println("Task: Find the seed string.");
 			
 			char follower = 0;
 			//follower = text.charAt(j);
-			System.out.println("Task: Find me the character that follows the seed.");
+			System.out.println("Task: Find the character that follows the seed.");
 			
 			// Add this following character to the list of characters we've seen that follow this seed.
 			if (!model.containsKey(seed))
@@ -47,7 +47,7 @@ public class RandomWriter {
 		
 		Collection<String> allKeys = null;
 		//allKeys = model.keySet();
-		System.out.println("Task: Find me a Collection of all the keys in the model.");
+		System.out.println("Task: Find a Collection of all the keys in the model.");
 		
 		// Given the set of keys, find one that occurs the most often.
 		for (String seed: allKeys)
@@ -64,7 +64,7 @@ public class RandomWriter {
 	private static String doRandomWrite(Map<String, List<Character>> model, int length) {
 		String seed = null;
 		//seed = getMostCommonSeed(model);
-		System.out.println("Task: Get me one of the seeds that occurs the most in the input string / model.");
+		System.out.println("Task: Get one of the seeds that occurs the most in the input string / model.");
 		
 		String text = seed;
 		Random random = new Random();
@@ -72,10 +72,10 @@ public class RandomWriter {
 		while (text.length() < length && model.containsKey(seed)) {
 			List<Character> followers = model.get(seed);
 			
-			int randomIndex = 0;
+			int rand = 0;
 			System.out.println("Task: Get a random index inside the list of followers.");
 			
-			char next = followers.get(randomIndex);
+			char next = followers.get(rand);
 			text += next;
 			seed = seed.substring(1) + next;
 		}

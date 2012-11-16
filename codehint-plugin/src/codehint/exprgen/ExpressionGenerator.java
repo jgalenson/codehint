@@ -257,6 +257,7 @@ public final class ExpressionGenerator {
 
 	private TypeConstraint typeConstraint;
 	private String varName;
+	private IProgressMonitor curMonitor;
 	private Map<Value, ArrayList<EvaluatedExpression>> equivalences;
 	private Map<Method, Integer> prunedDepths;  // Maps a method to the first consecutive depth at which we pruned calls to it.
 	private Set<Method> newlyUnpruneds;  // A set of the methods that were pruned at the previous depth that are not pruned at the current depth.
@@ -534,12 +535,16 @@ public final class ExpressionGenerator {
     		if (depth == 0) {
         		// Add zero and null.
     			boolean hasObject = false;
+    			//boolean hasInt = false;
     			for (IJavaType type: constraintTypes) {
     				if (EclipseUtils.isObject(type)) {
     					hasObject = true;
     					break;
-    				}
+    				}// else if (ExpressionMaker.isInt(type))
+                    //    hasInt = true;
     			}
+    			//if (depth < maxDepth || hasInt)
+                //    addUniqueExpressionToList(curLevel, zero, depth);
     			if (depth < maxDepth || (hasObject && !(typeConstraint instanceof MethodConstraint) && !(typeConstraint instanceof FieldConstraint)))  // If we have a method or field constraint, we can't have null.
     				addUniqueExpressionToList(curLevel, expressionMaker.makeNull(target, valueCache, thread), depth);
 	    		addLocals(depth, maxDepth, curLevel);
@@ -549,12 +554,12 @@ public final class ExpressionGenerator {
     		} else {
     			Set<IJavaReferenceType> objectInterfaceTypes = new HashSet<IJavaReferenceType>();
     			loadTypesFromMethods(nextLevel, imports);
-    			monitor = SubMonitor.convert(monitor, "Expression generation", nextLevel.size() * nextLevel.size() + nextLevel.size() + imports.length);
+    			curMonitor = SubMonitor.convert(monitor, "Expression generation", nextLevel.size() * nextLevel.size() + nextLevel.size() + imports.length);
     			addLocals(depth, maxDepth, curLevel);
     			// Get binary ops.
     			// We use string comparisons to avoid duplicates, e.g., x+y and y+x.
     			for (TypedExpression l : nextLevel) {
-    				if (monitor.isCanceled())
+    				if (curMonitor.isCanceled())
     					throw new OperationCanceledException();
     				for (TypedExpression r : nextLevel) {
     					// Help ensure that we generate infix operations for equivalent things (e.g., y+z if x=y=z; without this we would not generate x+x).
@@ -627,12 +632,12 @@ public final class ExpressionGenerator {
     						if (l.getExpression().toString().compareTo(r.getExpression().toString()) < 0)
     							for (InfixExpression.Operator op : REF_COMPARE_OPS)
     								addUniqueExpressionToList(curLevel, expressionMaker.makeInfix(l, op, r, booleanType, valueCache, thread), depth);
-    					monitor.worked(1);
+    					curMonitor.worked(1);
     				}
     			}
     			// Get unary ops
     			for (TypedExpression e : nextLevel) {
-    				if (monitor.isCanceled())
+    				if (curMonitor.isCanceled())
     					throw new OperationCanceledException();
     				// Arithmetic with constants.
     				if (searchOperators && ExpressionMaker.isInt(e.getType()) && isHelpfulType(intType, depth, maxDepth)
@@ -673,7 +678,7 @@ public final class ExpressionGenerator {
     				// Collect the class and interface types we've seen.
     				if (ExpressionMaker.isObjectOrInterface(e.getType()))
     					objectInterfaceTypes.add((IJavaReferenceType)e.getType());
-    				monitor.worked(1);
+    				curMonitor.worked(1);
     			}
     			// Extra things
     			{
@@ -708,7 +713,7 @@ public final class ExpressionGenerator {
     						} else
     							;//System.err.println("I cannot get the class of the import " + fullName);
     					}
-    					monitor.worked(1);
+    					curMonitor.worked(1);
     				}
     			}
     			for (Method method: newlyUnpruneds)
@@ -1292,6 +1297,8 @@ public final class ExpressionGenerator {
 	 * @throws DebugException 
 	 */
 	private void makeAllCalls(Method method, String name, TypedExpression receiver, IJavaType returnType, List<TypedExpression> ops, ArrayList<ArrayList<EvaluatedExpression>> possibleActuals, ArrayList<EvaluatedExpression> curActuals, int depth) throws DebugException {
+		if (curMonitor.isCanceled())
+			throw new OperationCanceledException();
 		if (curActuals.size() == possibleActuals.size()) {
 			if (meetsPreconditions(method, receiver, curActuals))
 				  // We might evaluate the call when we create it (e.g., StringEvaluator), so first ensure it has the proper depth to avoid re-evaluating some calls.
@@ -1320,6 +1327,8 @@ public final class ExpressionGenerator {
 	 * up through recursion.
 	 */
 	private void makeAllCalls(Method method, String name, Expression receiver, List<Expression> result, ArrayList<ArrayList<TypedExpression>> possibleActuals, ArrayList<TypedExpression> curActuals, int targetDepth) {
+		if (curMonitor.isCanceled())
+			throw new OperationCanceledException();
 		if (curActuals.size() == possibleActuals.size()) {
 			if (getDepthOfCall(receiver, curActuals, method.name()) <= targetDepth) {
 				if ("<init>".equals(name))
@@ -1374,14 +1383,14 @@ public final class ExpressionGenerator {
 				totalWork += equivalences.get(value).size();
 			}
 		}
-		monitor = SubMonitor.convert(monitor, "Equivalence expansions", totalWork);
+		curMonitor = SubMonitor.convert(monitor, "Equivalence expansions", totalWork);
 		ArrayList<FullyEvaluatedExpression> results = new ArrayList<FullyEvaluatedExpression>();
 		for (Value value: values) {
 			for (TypedExpression expr : new ArrayList<TypedExpression>(equivalences.get(value))) {  // Make a copy since we'll probably add expressions to this.
-				if (monitor.isCanceled())
+				if (curMonitor.isCanceled())
 					throw new OperationCanceledException();
 				expandEquivalencesRec(expr.getExpression(), newlyExpanded);
-				monitor.worked(1);
+				curMonitor.worked(1);
 			}
 			String valueString = toStrings.get(value);
 			for (EvaluatedExpression expr: getEquivalentExpressions(value, null, typeConstraint))
@@ -1735,6 +1744,8 @@ public final class ExpressionGenerator {
 		 * Checks whether the given expression contains a call to
 		 * one of a few specified methods.
 		 * @param e The expression to check.
+		 * @param hasNamedMethods Result cache to avoid recomputation
+		 * when possible.
 		 * @return Whether the given expression contains a call
 		 * to one of a few specified methods.
 		 */
@@ -1747,6 +1758,8 @@ public final class ExpressionGenerator {
 		 * one of a few specified methods.
 		 * @param e The expression to check.
 		 * @param checker The checker to use.
+		 * @param hasNamedMethods Result cache to avoid recomputation
+		 * when possible.
 		 * @return Whether the given expression contains a call
 		 * to one of a few specified methods.
 		 */

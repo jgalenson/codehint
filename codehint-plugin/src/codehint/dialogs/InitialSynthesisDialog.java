@@ -123,7 +123,7 @@ public class InitialSynthesisDialog extends SynthesisDialog {
 	protected Control createDialogArea(Composite parent) {
 		Composite composite = (Composite)super.createDialogArea(parent);
 		
-		String message = "Give an expression skeleton that describes the form of the desired expression, using " + ExpressionSkeleton.HOLE_SYNTAX + "s for unknown expressions and names.";
+		String message = "Give a skeleton that describes the form of the desired expression, using " + ExpressionSkeleton.HOLE_SYNTAX + "s for unknown expressions and names and " + ExpressionSkeleton.LIST_HOLE_SYNTAX + "s for an unknown number of arguments.";
 		Composite skeletonComposite = makeChildComposite(composite, GridData.HORIZONTAL_ALIGN_FILL, 1);
 		skeletonInput = createInput(skeletonComposite, message, initialSkeletonText, skeletonValidator, new SkeletonModifyHandler(), "skeleton");
 		Composite skeletonButtonComposite = makeChildComposite(skeletonComposite, GridData.HORIZONTAL_ALIGN_CENTER, 0);
@@ -235,9 +235,7 @@ public class InitialSynthesisDialog extends SynthesisDialog {
         	skeletonIsValid = !hasError;
         	if (searchButton != null)
         		searchButton.setEnabled(pdspecIsValid && skeletonIsValid && !searchCancelButton.isEnabled());
-        	numSearches = 0;
-        	if (searchButton != null)
-        		setSearchButtonText("Search");
+        	resetNumSearches();
         }
 		
 	}
@@ -249,9 +247,7 @@ public class InitialSynthesisDialog extends SynthesisDialog {
 			super.inputChanged(hasError);
         	if (searchButton != null)
         		searchButton.setEnabled(pdspecIsValid && skeletonIsValid && !searchCancelButton.isEnabled());
-        	numSearches = 0;
-        	if (searchButton != null)
-        		setSearchButtonText("Search");
+        	resetNumSearches();
         }
 		
 	}
@@ -278,7 +274,19 @@ public class InitialSynthesisDialog extends SynthesisDialog {
 		button.setText(label);
 		button.setFont(JFaceResources.getDialogFont());
 		setButtonLayoutData(button);
+		button.addSelectionListener(new SelectionAdapter() {
+            @Override
+			public void widgetSelected(SelectionEvent e) {
+            	resetNumSearches();
+            }
+        });
 		return button;
+    }
+    
+    private void resetNumSearches() {
+    	 numSearches = 0;
+     	if (searchButton != null)
+     		setSearchButtonText("Search");
     }
 
     @Override
