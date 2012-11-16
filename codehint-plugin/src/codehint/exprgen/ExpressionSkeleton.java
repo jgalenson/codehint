@@ -11,6 +11,7 @@ import java.util.Map.Entry;
 import java.util.Set;
 
 import org.eclipse.core.runtime.IProgressMonitor;
+import org.eclipse.core.runtime.OperationCanceledException;
 import org.eclipse.debug.core.DebugException;
 import org.eclipse.jdt.core.dom.AST;
 import org.eclipse.jdt.core.dom.ASTNode;
@@ -1346,6 +1347,8 @@ public final class ExpressionSkeleton {
 		 * @throws DebugException 
 		 */
 		private void makeAllCalls(Method method, String name, String constraintName, TypedExpression receiver, Expression callNode, IJavaType returnType, IJavaType thisType, ArrayList<ArrayList<TypedExpression>> possibleActuals, ArrayList<TypedExpression> curActuals, Map<String, ArrayList<TypedExpression>> resultExprs) throws DebugException {
+			if (monitor.isCanceled())
+				throw new OperationCanceledException();
 			if (curActuals.size() == possibleActuals.size()) {
 				TypedExpression callExpr = null;
 				if (callNode instanceof SuperMethodInvocation)

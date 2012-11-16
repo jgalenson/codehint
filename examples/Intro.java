@@ -6,7 +6,7 @@ import java.lang.reflect.Type;
 public class Intro {
 
 	public static void main(String[] args) {
-		round(424242.137f);
+		round(423712.137f);
 		sum(1, 10);
 		inverseSin(1);
 		hypotenuse(3, 4);
@@ -27,7 +27,7 @@ public class Intro {
 		for (int i = min; i <= max; i++) {
 			for (int j = 1; j <= i; j++) {
 				int cur = 0;
-				System.out.println("Task: Update sum to keep a running sum of the numbers between l and i.");
+				System.out.println("Task: Update cur to by the sum of i and j.");
 				sum += cur;
 			}
 		}
@@ -68,6 +68,7 @@ public class Intro {
 	
 	private static int getStringInfo(String useMe, String ignoreMe, int x, int y) {
 		int result = 0;
+		System.out.println("Task: Get some integer information from the string.");
 		return result;
 	}
 	
