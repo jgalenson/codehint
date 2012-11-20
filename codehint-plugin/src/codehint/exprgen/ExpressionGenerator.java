@@ -527,10 +527,13 @@ public final class ExpressionGenerator {
     				curLevel.add(e);
     		
     		// Add calls to the desired type's constructors (but only at the top-level).
-    		if (searchConstructors && depth == maxDepth)
+    		if (searchConstructors && depth == maxDepth) {
+    			curMonitor = SubMonitor.convert(monitor, "Expression generation", IProgressMonitor.UNKNOWN);
     			for (IJavaType type: constraintTypes)
     				if (type instanceof IJavaClassType)
     					addMethodCalls(new TypedExpression(null, type), nextLevel, curLevel, depth, maxDepth);
+    			curMonitor.done();
+    		}
     		
     		if (depth == 0) {
         		// Add zero and null.
@@ -777,7 +780,7 @@ public final class ExpressionGenerator {
 	 * @param thisType The type of the this object.
 	 * @return Whether the given field is legal to access.
 	 */
-	private static boolean isLegalField(Field field, IJavaType thisType) {
+	public static boolean isLegalField(Field field, IJavaType thisType) {
 		return field.isPublic() || field.declaringType().equals(((JDIType)thisType).getUnderlyingType());
 	}
 	

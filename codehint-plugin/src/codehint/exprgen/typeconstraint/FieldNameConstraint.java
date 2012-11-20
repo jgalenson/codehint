@@ -53,7 +53,7 @@ public class FieldNameConstraint extends NameConstraint {
 			for (IJavaType receiverType: receiverTypes) {
 				String typeName = receiverType.getName();
 				for (Field field: ExpressionGenerator.getFields(receiverType))
-					if (fieldFulfills(field, stack, target, subtypeChecker, typeCache))
+					if (ExpressionGenerator.isLegalField(field, stack.getReferenceType()) && fieldFulfills(field, stack, target, subtypeChecker, typeCache))
 						Utils.addToMap(fieldsByType, typeName, field);
 			}
 			return fieldsByType;
