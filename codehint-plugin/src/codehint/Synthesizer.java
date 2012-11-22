@@ -72,6 +72,7 @@ import codehint.exprgen.ValueCache;
 import codehint.handler.DemonstrateStatePropertyHandler;
 import codehint.handler.DemonstrateTypeHandler;
 import codehint.handler.DemonstrateValueHandler;
+import codehint.handler.SynthesisStarter;
 import codehint.property.LambdaProperty;
 import codehint.property.ObjectValueProperty;
 import codehint.property.PrimitiveValueProperty;
@@ -147,11 +148,7 @@ public class Synthesizer {
 			String typename = stack.getDeclaringTypeName();
 			IResource resource = (IResource)editor.getEditorInput().getAdapter(IResource.class);
 
-			try {
-				JDIDebugModel.createLineBreakpoint(resource, typename, line, -1, -1, 0, true, null);
-			} catch (CoreException e) {
-				throw new RuntimeException(e);
-			}
+			addBreakpoint(resource, typename, line);
 
 			// TODO: Using the text of the statement as a key is not a very good idea.
 			if (finalExpressions.size() > 1)
@@ -319,6 +316,15 @@ public class Synthesizer {
 			        	EclipseUtils.showError("Error", "An error occurred during refinement.", e);
 						assert false;
 					} catch (BadLocationException e) {
+						throw new RuntimeException(e);
+					}
+	            } else if (source instanceof IJavaDebugTarget && event.getKind() == DebugEvent.TERMINATE) {
+	            	// Remove the breakpoints we added automatically, if any.
+					try {
+						for (IBreakpoint bp: addedBreakpoints)
+							bp.delete();
+		            	addedBreakpoints.clear();
+					} catch (CoreException e) {
 						throw new RuntimeException(e);
 					}
 	            }
@@ -696,6 +702,17 @@ public class Synthesizer {
     	listener = null;
     	initialDemonstrations = null;
     	ExpressionGenerator.clear();
+    }
+    
+    private static List<IBreakpoint> addedBreakpoints = new ArrayList<IBreakpoint>();
+    
+    public static void addBreakpoint(IResource resource, String typename, int line) {
+    	try {
+			IBreakpoint bp = JDIDebugModel.createLineBreakpoint(resource, typename, line, -1, -1, 0, true, null);
+			addedBreakpoints.add(bp);
+		} catch (CoreException e) {
+			throw new RuntimeException(e);
+		}
     }
 
 }

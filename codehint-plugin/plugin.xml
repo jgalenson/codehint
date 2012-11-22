@@ -57,6 +57,19 @@
             </visibleWhen>
          </command>
       </menuContribution>
+      <menuContribution
+            allPopups="false"
+            locationURI="toolbar:org.eclipse.ui.main.toolbar">
+         <toolbar
+               id="codehint.toolbar"
+               label="CodeHint">
+            <command
+                  commandId="codehint.synthesize"
+                  id="codehint.synthesizeCommandInToolbar"
+                  style="push">
+            </command>
+         </toolbar>
+      </menuContribution>
    </extension>
    <extension
          point="org.eclipse.ui.commands">
@@ -79,6 +92,11 @@
             defaultHandler="codehint.handler.DemonstrateStatePropertyHandler"
             id="codehint.handler.demonstrateStateProperty"
             name="Demonstrate state property">
+      </command>
+      <command
+            defaultHandler="codehint.handler.SynthesisStarter"
+            id="codehint.synthesize"
+            name="Synthesize">
       </command>
    </extension>
    
@@ -106,6 +124,21 @@
             properties="isObject"
             type="java.lang.Object">
       </propertyTester>
+   </extension>
+   <extension
+         point="org.eclipse.ui.commandImages">
+      <image
+            commandId="codehint.synthesize"
+            icon="icons/synthesis.png">
+      </image>
+   </extension>
+   <extension
+         point="org.eclipse.ui.bindings">
+      <key
+            commandId="codehint.synthesize"
+            schemeId="org.eclipse.ui.defaultAcceleratorConfiguration"
+            sequence="F9">
+      </key>
    </extension>
 
 </plugin>

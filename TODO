@@ -45,6 +45,7 @@ We can generate an illegal LHS after a demonstration when the LHS is complicated
 Our default names for evaluation and properties will cause problems if they exist in the user's code.
 Add "import codehint.CodeHint;" and add codehint-lib.jar to the classpath if necessary.
 Don't allow assigning to the this variable.
+Do a better job of adding a keystroke for starting the synthesis (e.g., integrate with existing keys).
 
 Optimizations
 -------------
