@@ -567,6 +567,20 @@ public final class EclipseUtils {
 			return false;
 		return getASTEvaluationEngine(stack).getCompiledExpression(getClassLoadExpression(typeName), stack).hasErrors();
 	}
+	
+	/**
+	 * Gets the text at the given line.
+	 * @param document The document.
+	 * @param line The line number.
+	 * @return The text in the document at the given line.
+	 * @throws BadLocationException
+	 */
+	public static String getTextAtLine(IDocument document, int line) throws BadLocationException {
+    	//TODO: Expression could be spread across multiple lines
+   		int offset = document.getLineOffset(line);
+   		int length = document.getLineLength(line);
+   		return document.get(offset, length);
+	}
     
     /**
      * Inserts the given text at the given line.
@@ -574,7 +588,7 @@ public final class EclipseUtils {
      * @param line The line at which to insert it.
      * @throws BadLocationException
      */
-   	public static void insertIndentedLineAtCurrentDebugPoint(String text, int line) throws BadLocationException {
+   	public static void insertIndentedLine(String text, int line) throws BadLocationException {
    		IDocument document = getDocument();
    		
    		int offset = document.getLineOffset(line);
@@ -587,16 +601,6 @@ public final class EclipseUtils {
    		//Bug fix: need to keep the debug cursor before the inserted line so we can
    		// execute it.  Inserting at beginning of line shifts it down one.
    		document.replace(firstchar, 0, text + "\n" + indent);
-   	}
-
-    /**
-     * Replaces the text at the given line with the next text.
-     * @param newText The text to insert.
-     * @param line The line at which to insert it.
-     * @throws BadLocationException
-     */
-   	public static void replaceLineAtCurrentDebugPoint(String newText, int line) throws BadLocationException {
-   		replaceLine(newText, line);
    	}
 
     /**
@@ -618,6 +622,23 @@ public final class EclipseUtils {
    		//Bug fix: need to keep the debug cursor before the inserted line so we can
    		// execute it.  Inserting at beginning of line shifts it down one.
    		document.replace(firstChar, lastChar - firstChar, newText);
+   	}
+   	
+   	/**
+   	 * Deletes the next at the given line.
+   	 * @param line The line at which to delete text.
+   	 * @throws BadLocationException
+   	 */
+   	public static void deleteLine(int line) throws BadLocationException {
+   		IDocument document = getDocument();
+   		
+   		int firstChar = document.getLineOffset(line);
+   		int lastChar = firstChar;
+   		while (document.getChar(lastChar) != '\n')
+   			lastChar++;
+   		//Bug fix: need to keep the debug cursor before the inserted line so we can
+   		// execute it.  Inserting at beginning of line shifts it down one.
+   		document.replace(firstChar, lastChar - firstChar + 1, "");
    	}
    	
    	/**

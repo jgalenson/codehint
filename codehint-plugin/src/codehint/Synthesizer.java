@@ -126,9 +126,9 @@ public class Synthesizer {
 			//Insert the new text
 			try {
 				if (replaceCurLine)
-					EclipseUtils.replaceLineAtCurrentDebugPoint(statement, stack.getLineNumber() - 1);
+					EclipseUtils.replaceLine(statement, stack.getLineNumber() - 1);
 				else
-					EclipseUtils.insertIndentedLineAtCurrentDebugPoint(statement, stack.getLineNumber() - 1);
+					EclipseUtils.insertIndentedLine(statement, stack.getLineNumber() - 1);
 			} catch (BadLocationException e) {
 				throw new RuntimeException(e);
 			}
@@ -299,10 +299,7 @@ public class Synthesizer {
 	                   		continue;
 	                   	int line = frame.getLineNumber() - 1 ;
 	
-	                	//TODO: Expression could be spread across multiple lines
-	               		int offset = document.getLineOffset(line);
-	               		int length = document.getLineLength(line);
-	               		String fullCurLine = document.get(offset, length);
+	               		String fullCurLine = EclipseUtils.getTextAtLine(document, line);
 	               		
 	               		Matcher matcher = choosePattern.matcher(fullCurLine);
 	               		if(matcher.matches()) {
@@ -327,6 +324,8 @@ public class Synthesizer {
 					} catch (CoreException e) {
 						throw new RuntimeException(e);
 					}
+					// Remove the text we added, if any.
+					SynthesisStarter.cleanup();
 	            }
 	        }
 	        

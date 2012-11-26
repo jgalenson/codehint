@@ -84,11 +84,7 @@ public abstract class SynthesisDialog extends ModelessDialog {
 		comboLabel.setFont(comboComposite.getFont());
 		
 		final Combo combo = new Combo(comboComposite, SWT.READ_ONLY);
-		final boolean isPrimitive = EclipseUtils.isPrimitive(varType);
-		if (isPrimitive)
-			combo.setItems(new String[] { "Demonstrate value", "Demonstrate state property", "Demonstrate lambda property" });
-		else
-			combo.setItems(new String[] { "Demonstrate value", "Demonstrate type", "Demonstrate state property", "Demonstrate lambda property" });
+		combo.setItems(new String[] { "Demonstrate value", "Demonstrate type", "Demonstrate state property", "Demonstrate lambda property" });
 		combo.addSelectionListener(new SelectionAdapter() {
 			@Override
 			public void widgetSelected(SelectionEvent e) {
@@ -102,11 +98,11 @@ public abstract class SynthesisDialog extends ModelessDialog {
 						propertyDialog = new ArrayValuePropertyDialog(propertyDialog.getVarName(), varTypeName, stack, "", propertyDialog.getExtraMessage());
 					else
 						propertyDialog = new PrimitiveValuePropertyDialog(propertyDialog.getVarName(), varTypeName, stack, "", propertyDialog.getExtraMessage());
-				} else if (!isPrimitive && index == 1)
+				} else if (index == 1)
 					propertyDialog = new TypePropertyDialog(propertyDialog.getVarName(), varTypeName, stack, varTypeName, propertyDialog.getExtraMessage());
-				else if (index == (isPrimitive ? 1 : 2))
+				else if (index == 2)
 					propertyDialog = new StatePropertyDialog(propertyDialog.getVarName(), stack, "", propertyDialog.getExtraMessage());
-				else if (index == (isPrimitive ? 2 : 3))
+				else if (index == 3)
 					propertyDialog = new LambdaPropertyDialog(propertyDialog.getVarName(), varTypeName, varType, stack, "", propertyDialog.getExtraMessage());
 				else
 					throw new IllegalArgumentException();
@@ -126,9 +122,9 @@ public abstract class SynthesisDialog extends ModelessDialog {
 		else if (propertyDialog instanceof TypePropertyDialog)
 			comboIndex = 1;
 		else if (propertyDialog instanceof StatePropertyDialog)
-			comboIndex = isPrimitive ? 1 : 2;
+			comboIndex = 2;
 		else if (propertyDialog instanceof LambdaPropertyDialog)
-			comboIndex = isPrimitive ? 2 : 3;
+			comboIndex = 3;
 		else
 			throw new IllegalArgumentException();
 		combo.select(comboIndex);

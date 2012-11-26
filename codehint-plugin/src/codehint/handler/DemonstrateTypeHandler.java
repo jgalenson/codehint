@@ -18,7 +18,7 @@ import codehint.dialogs.TypePropertyDialog;
 
 public class DemonstrateTypeHandler extends CommandHandler {
 
-    public final static Pattern PATTERN = Pattern.compile("\\s*CodeHint.<(.*)>type\\((\\w*)\\);\\s*\\r?\\n\\s*");
+    public final static Pattern PATTERN = Pattern.compile("\\s*CodeHint.(?:<(.*)>)?type\\((\\w*)\\);\\s*\\r?\\n\\s*");
     
     @Override
 	public void handle(IVariable variable, String path, Shell shell) {
@@ -31,7 +31,6 @@ public class DemonstrateTypeHandler extends CommandHandler {
     }
     
     private static void handle(IVariable variable, String path, Shell shell, Matcher matcher, IJavaStackFrame stack) throws DebugException {
-		assert !EclipseUtils.isPrimitive(variable);
 		IJavaType varType = EclipseUtils.getTypeOfVariableAndLoadIfNeeded((IJavaVariable)variable, stack);
 		String varTypeName = EclipseUtils.sanitizeTypename(varType.getName());
 		String initValue = "";
@@ -41,6 +40,8 @@ public class DemonstrateTypeHandler extends CommandHandler {
 				return;
 			}
 			initValue = matcher.group(1);
+			if (initValue == null)
+				initValue = varTypeName;
 		} else
 			initValue = varTypeName;
 		InitialSynthesisDialog dialog = new InitialSynthesisDialog(shell, varTypeName, varType, stack, new TypePropertyDialog(path, varTypeName, stack, initValue, null), new SynthesisWorker(path, varType));

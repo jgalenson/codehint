@@ -34,14 +34,9 @@
                style="push">
             <visibleWhen>
                <with variable="activeMenuSelection">
-                  <and>
-                     <count value="1">
-                     </count>
-                     <test
-                           forcePluginActivation="true"
-                           property="codehint.isObject">
-                     </test>
-                  </and>
+                  <count
+                        value="1">
+                  </count>
                </with>
             </visibleWhen>
          </command>
@@ -64,8 +59,13 @@
                id="codehint.toolbar"
                label="CodeHint">
             <command
-                  commandId="codehint.synthesize"
-                  id="codehint.synthesizeCommandInToolbar"
+                  commandId="codehint.synthesizeLine"
+                  id="codehint.synthesizeLineInToolbar"
+                  style="push">
+            </command>
+            <command
+                  commandId="codehint.synthesizeVar"
+                  id="codehint.synthesizeVarInToolbar"
                   style="push">
             </command>
          </toolbar>
@@ -94,10 +94,22 @@
             name="Demonstrate state property">
       </command>
       <command
+            categoryId="codehint.codehintCategory"
             defaultHandler="codehint.handler.SynthesisStarter"
-            id="codehint.synthesize"
-            name="Synthesize">
+            id="codehint.synthesizeLine"
+            name="Synthesize line">
       </command>
+      <command
+            categoryId="codehint.codehintCategory"
+            defaultHandler="codehint.handler.SynthesisStarter"
+            id="codehint.synthesizeVar"
+            name="Synthesize variable">
+      </command>
+      <category
+            description="CodeHint"
+            id="codehint.codehintCategory"
+            name="CodeHint">
+      </category>
    </extension>
    
    <extension
@@ -115,6 +127,7 @@
       </markerResolutionGenerator>
    </extension>
    
+   <!--
    <extension
          point="org.eclipse.core.expressions.propertyTesters">
       <propertyTester
@@ -125,19 +138,29 @@
             type="java.lang.Object">
       </propertyTester>
    </extension>
+   -->
    <extension
          point="org.eclipse.ui.commandImages">
       <image
-            commandId="codehint.synthesize"
-            icon="icons/synthesis.png">
+            commandId="codehint.synthesizeLine"
+            icon="icons/synthesis-line.png">
+      </image>
+      <image
+            commandId="codehint.synthesizeVar"
+            icon="icons/synthesis-var.png">
       </image>
    </extension>
    <extension
          point="org.eclipse.ui.bindings">
       <key
-            commandId="codehint.synthesize"
+            commandId="codehint.synthesizeLine"
             schemeId="org.eclipse.ui.defaultAcceleratorConfiguration"
             sequence="F9">
+      </key>
+      <key
+            commandId="codehint.synthesizeVar"
+            schemeId="org.eclipse.ui.defaultAcceleratorConfiguration"
+            sequence="M1+F9">
       </key>
    </extension>
 

@@ -1,6 +1,8 @@
 package codehint.handler;
 
 import java.util.ArrayList;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import org.eclipse.core.commands.AbstractHandler;
 import org.eclipse.core.commands.ExecutionEvent;
@@ -10,16 +12,16 @@ import org.eclipse.core.runtime.CoreException;
 import org.eclipse.debug.core.DebugPlugin;
 import org.eclipse.debug.core.ILaunch;
 import org.eclipse.debug.core.ILaunchConfiguration;
-import org.eclipse.debug.core.Launch;
 import org.eclipse.debug.ui.DebugUITools;
 import org.eclipse.jdt.core.dom.CompilationUnit;
-import org.eclipse.jdt.debug.core.IJavaStackFrame;
 import org.eclipse.jdt.debug.core.JDIDebugModel;
 import org.eclipse.jdt.internal.debug.core.breakpoints.ValidBreakpointLocationLocator;
 import org.eclipse.jdt.ui.JavaUI;
 import org.eclipse.jdt.ui.SharedASTProvider;
+import org.eclipse.jface.text.BadLocationException;
 import org.eclipse.jface.text.ITextSelection;
 import org.eclipse.jface.viewers.ISelection;
+import org.eclipse.swt.widgets.Display;
 import org.eclipse.ui.IEditorPart;
 import org.eclipse.ui.IFileEditorInput;
 import org.eclipse.ui.handlers.HandlerUtil;
@@ -33,6 +35,10 @@ import codehint.utils.EclipseUtils;
  * and then launching the debugger.
  */
 public class SynthesisStarter extends AbstractHandler {
+	
+	private final static Pattern declPattern = Pattern.compile("\\s*(\\w+)\\s+([\\w\\[\\].]+)\\s*(?:|=.*)?;\\s*\\r?\\n\\s*");
+	
+	private static int lineWhereTextAdded = -1;
 
 	@Override
 	public Object execute(ExecutionEvent event) throws ExecutionException {
@@ -57,8 +63,27 @@ public class SynthesisStarter extends AbstractHandler {
 			CompilationUnit unit = SharedASTProvider.getAST(JavaUI.getWorkingCopyManager().getWorkingCopy(editor.getEditorInput()), SharedASTProvider.WAIT_YES, null);
 			ValidBreakpointLocationLocator bpLoc = new ValidBreakpointLocationLocator(unit, line, false, false);
 			unit.accept(bpLoc);
-			line = bpLoc.getLineLocation();
-			assert line != -1;
+			if (event.getCommand().getId().equals("codehint.synthesizeVar")) {
+				String fullCurLine = getTextAtLine(editor, line);
+           		Matcher matcher = declPattern.matcher(fullCurLine);
+           		if(matcher.matches()) {
+           			// Insert the pdspec into the text and set a breakpoint on it so we open the window automatically.
+           			String varName = matcher.group(2);
+           			String newLine = "CodeHint.type(" + varName + ");";
+           			boolean isDirty = editor.isDirty();
+					EclipseUtils.insertIndentedLine(newLine, line);
+					if (!isDirty)
+						editor.doSave(null);
+					line++;  // We want to break on the newly-inserted line.
+					lineWhereTextAdded = line;
+           		} else {
+           			EclipseUtils.showError("Error", "Please select a line that contains a variable declaration.", null);
+    				return null;
+           		}
+			} else {
+				line = bpLoc.getLineLocation();
+				assert line != -1;
+			}
 			String typename = bpLoc.getFullyQualifiedTypeName();
 			// TODO: Replace the above internal API, perhaps with something like the below, which programatically causes a toggle breakpoint action (but doesn't work correctly). 
 			//editor.getAction(ITextEditorActionConstants.RULER_DOUBLE_CLICK).run();
@@ -70,7 +95,20 @@ public class SynthesisStarter extends AbstractHandler {
 			return null;
 		} catch (CoreException e) {
 			throw new RuntimeException(e);
+		} catch (BadLocationException e) {
+			throw new RuntimeException(e);
 		}
+	}
+
+	/**
+	 * Gets the text at the current line.
+	 * @param editor The text editor.
+	 * @param line The line number (debug version, 1-based).
+	 * @return The text at the given line.
+	 * @throws BadLocationException
+	 */
+	private static String getTextAtLine(ITextEditor editor, int line) throws BadLocationException {
+		return EclipseUtils.getTextAtLine(editor.getDocumentProvider().getDocument(editor.getEditorInput()), line - 1);
 	}
 	
 	/**
@@ -100,6 +138,7 @@ public class SynthesisStarter extends AbstractHandler {
 	 * Gets the line number of the start of the current selection.
 	 * @param editor The text editor.
 	 * @return The line number of the start of the selection.
+	 * Gets the debug version, which is 1-based.
 	 */
 	private static int getLineNumber(ITextEditor editor) {
 		ISelection selection = editor.getSelectionProvider().getSelection();
@@ -145,6 +184,26 @@ public class SynthesisStarter extends AbstractHandler {
 			return null;
 		} catch (CoreException e) {
 			throw new RuntimeException(e);
+		}
+	}
+	
+	/**
+	 * Cleans up any text added.
+	 */
+	public static void cleanup() {
+		if (lineWhereTextAdded >= 0) {
+        	Display.getDefault().asyncExec(new Runnable(){
+				@Override
+				public void run() {
+					try {
+						if (DemonstrateTypeHandler.PATTERN.matcher(getTextAtLine(EclipseUtils.getActiveTextEditor(), lineWhereTextAdded)).matches())
+							EclipseUtils.deleteLine(lineWhereTextAdded - 1);
+    					lineWhereTextAdded = -1;
+					} catch (BadLocationException e) {
+						throw new RuntimeException(e);
+					}
+				}
+        	});
 		}
 	}
 
