@@ -113,6 +113,10 @@ public class StateProperty extends Property {
 		return node.getExpression() instanceof SimpleName && "CodeHint".equals(((SimpleName)node.getExpression()).getIdentifier()) && name.equals(node.getName().getIdentifier());
 	}
 	
+	public String getPropertyString() {
+		return propertyStr;
+	}
+	
 	@Override
 	public String toString() {
 		return propertyStr;

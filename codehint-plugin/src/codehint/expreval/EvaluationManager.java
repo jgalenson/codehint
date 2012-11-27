@@ -152,7 +152,7 @@ public final class EvaluationManager {
 			PropertyPreconditionFinder pf = new PropertyPreconditionFinder();
     		EclipseUtils.parseExpr(parser, validVal).accept(pf);
     		propertyPreconditions = property instanceof ValueProperty ? "" : pf.getPreconditions();  // TODO: This will presumably fail if the user does their own null check.
-    		boolean validateStatically = property == null || property instanceof PrimitiveValueProperty || property instanceof TypeProperty || (property instanceof ValueProperty && ((ValueProperty)property).getValue().isNull()) || (property instanceof ObjectValueProperty && "java.lang.String".equals(((ObjectValueProperty)property).getValue().getJavaType().getName()));
+    		boolean validateStatically = property == null || property instanceof PrimitiveValueProperty || property instanceof TypeProperty || (property instanceof ValueProperty && ((ValueProperty)property).getValue().isNull()) || (property instanceof ObjectValueProperty && "java.lang.String".equals(((ObjectValueProperty)property).getValue().getJavaType().getName())) || (property instanceof StateProperty && "true".equals(((StateProperty)property).getPropertyString()));
 			Map<String, ArrayList<TypedExpression>> expressionsByType = getNonKnownCrashingExpressionByType(exprs);
 			int numExpressions = Utils.getNumValues(expressionsByType);
 			this.monitor = SubMonitor.convert(monitor, "Expression evaluation", numExpressions);
@@ -520,6 +520,9 @@ public final class EvaluationManager {
     		} else if (property instanceof ObjectValueProperty && "java.lang.String".equals(((ObjectValueProperty)property).getValue().getJavaType().getName())) {  // The property's value cannot be null because of the previous special case.
     			valid = ((ObjectValueProperty)property).getValue().toString().equals(curValue.toString());
     			resultString = EclipseUtils.javaStringOfValue(curValue, stack);
+    		} else if (property instanceof StateProperty && "true".equals(((StateProperty)property).getPropertyString())) {
+    			valid = true;
+				resultString = getResultString(curValue, toStrings, evalIndex);
     		} else {
     			valid = "true".equals(valids[evalIndex].toString());
 				resultString = getResultString(curValue, toStrings, evalIndex);
