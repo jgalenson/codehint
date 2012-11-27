@@ -76,7 +76,7 @@ public class SynthesisStarter extends AbstractHandler {
            			String varName = matcher.group(1);
            			String newLine = "CodeHint.type(" + varName + ");";
            			boolean isDirty = editor.isDirty();
-					EclipseUtils.insertIndentedLine(newLine, line);
+					EclipseUtils.insertIndentedLineAfter(newLine, line - 1);
 					if (!isDirty)
 						editor.doSave(null);
 					line++;  // We want to break on the newly-inserted line.

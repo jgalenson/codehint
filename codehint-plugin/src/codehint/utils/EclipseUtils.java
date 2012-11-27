@@ -595,14 +595,33 @@ public final class EclipseUtils {
    		
    		int offset = document.getLineOffset(line);
    		int firstchar = offset;
-   		while( document.getChar(firstchar) == ' ' ||
-   				document.getChar(firstchar) == '\t') {
+   		while (document.getChar(firstchar) == ' ' || document.getChar(firstchar) == '\t')
    			firstchar++;
-   		}
-   		String indent = document.get(offset, firstchar-offset);
+   		String indent = document.get(offset, firstchar - offset);
    		//Bug fix: need to keep the debug cursor before the inserted line so we can
    		// execute it.  Inserting at beginning of line shifts it down one.
    		document.replace(firstchar, 0, text + "\n" + indent);
+   	}
+    
+    /**
+     * Inserts the given text after the given line.
+     * @param text The text to insert.
+     * @param line The line after which to insert it.
+     * @throws BadLocationException
+     */
+   	public static void insertIndentedLineAfter(String text, int line) throws BadLocationException {
+   		IDocument document = getDocument();
+   		
+   		int offset = document.getLineOffset(line);
+   		int firstchar = offset;
+   		while (document.getChar(firstchar) == ' ' || document.getChar(firstchar) == '\t')
+   			firstchar++;
+   		String indent = document.get(offset, firstchar - offset);
+   		while (document.getChar(firstchar) != '\n')
+   			firstchar++;
+   		//Bug fix: need to keep the debug cursor before the inserted line so we can
+   		// execute it.  Inserting at beginning of line shifts it down one.
+   		document.replace(++firstchar, 0, indent + text + "\n");
    	}
 
     /**
