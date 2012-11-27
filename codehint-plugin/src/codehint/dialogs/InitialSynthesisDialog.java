@@ -46,6 +46,8 @@ import codehint.exprgen.ExpressionSkeleton;
 import codehint.exprgen.SubtypeChecker;
 import codehint.exprgen.TypeCache;
 import codehint.exprgen.ValueCache;
+import codehint.property.Property;
+import codehint.property.StateProperty;
 import codehint.utils.EclipseUtils;
 
 public class InitialSynthesisDialog extends SynthesisDialog {
@@ -58,11 +60,11 @@ public class InitialSynthesisDialog extends SynthesisDialog {
 	private Button searchConstructorsButton;
 	private Button searchOperatorsButton;
 
-    private static final int searchButtonID = IDialogConstants.CLIENT_ID;
-    private Button searchButton;
-    private int numSearches;
-    private static final int searchCancelButtonID = IDialogConstants.CLIENT_ID + 1;
+    private static final int searchCancelButtonID = IDialogConstants.CLIENT_ID;
     private Button searchCancelButton;
+    private boolean amSearching;
+    private int numSearches;
+    private boolean shouldContinue;
     private Composite monitorComposite;
     private ProgressMonitorPart monitor;
     private static final int MONITOR_WIDTH = 300;
@@ -99,8 +101,10 @@ public class InitialSynthesisDialog extends SynthesisDialog {
 		this.skeletonIsValid = false;
 		this.skeletonValidator = new ExpressionSkeletonValidator(stack, varTypeName, engine);
 		this.skeletonResult = null;
-		this.searchButton = null;
+		this.searchCancelButton = null;
+		this.amSearching = false;
 		this.numSearches = 0;
+		this.shouldContinue = true;
 		this.monitor = null;
 		this.tableViewer = null;
 		this.table = null;
@@ -133,10 +137,8 @@ public class InitialSynthesisDialog extends SynthesisDialog {
 		searchOperatorsButton = createCheckBoxButton(skeletonButtonComposite, "Search operators");
 		
 		Composite topButtonComposite = makeChildComposite(composite, GridData.HORIZONTAL_ALIGN_CENTER, 0);
-		searchButton = createButton(topButtonComposite, searchButtonID, "Search", true);
-		searchButton.setEnabled(pdspecIsValid && skeletonIsValid);
-		searchCancelButton = createButton(topButtonComposite, searchCancelButtonID, "Cancel", false);
-		searchCancelButton.setEnabled(false);
+		searchCancelButton = createButton(topButtonComposite, searchCancelButtonID, "Search", true);
+		searchCancelButton.setEnabled(pdspecIsValid && skeletonIsValid);
 		
 		monitorComposite = makeChildComposite(composite, GridData.HORIZONTAL_ALIGN_CENTER, 1);
 		
@@ -233,9 +235,9 @@ public class InitialSynthesisDialog extends SynthesisDialog {
         @Override
 		public void inputChanged(boolean hasError) {
         	skeletonIsValid = !hasError;
-        	if (searchButton != null)
-        		searchButton.setEnabled(pdspecIsValid && skeletonIsValid && !searchCancelButton.isEnabled());
-        	resetNumSearches();
+        	if (searchCancelButton != null && !amSearching)
+        		searchCancelButton.setEnabled(pdspecIsValid && skeletonIsValid);
+        	ensureNoContinue();
         }
 		
 	}
@@ -245,9 +247,9 @@ public class InitialSynthesisDialog extends SynthesisDialog {
         @Override
 		public void inputChanged(boolean hasError) {
 			super.inputChanged(hasError);
-        	if (searchButton != null)
-        		searchButton.setEnabled(pdspecIsValid && skeletonIsValid && !searchCancelButton.isEnabled());
-        	resetNumSearches();
+        	if (searchCancelButton != null && !amSearching)
+        		searchCancelButton.setEnabled(pdspecIsValid && skeletonIsValid);
+        	ensureNoContinue();
         }
 		
 	}
@@ -277,41 +279,26 @@ public class InitialSynthesisDialog extends SynthesisDialog {
 		button.addSelectionListener(new SelectionAdapter() {
             @Override
 			public void widgetSelected(SelectionEvent e) {
-            	resetNumSearches();
+            	ensureNoContinue();
             }
         });
 		return button;
     }
     
-    private void resetNumSearches() {
+    private void ensureNoContinue() {
     	 numSearches = 0;
-     	if (searchButton != null)
-     		setSearchButtonText("Search");
+    	 shouldContinue = false;
+     	if (searchCancelButton != null && !amSearching)
+     		setSearchCancelButtonText("Search");
     }
 
     @Override
 	protected void buttonPressed(int buttonId) {
-        if (buttonId == searchButtonID) {
-        	skeletonResult = skeletonInput.getText();
-            property = propertyDialog.computeProperty(pdspecInput.getText(), typeCache);
-            skeleton = ExpressionSkeleton.fromString(skeletonResult, target, stack, expressionMaker, evaluationEngine, subtypeChecker, typeCache, valueCache, evalManager, staticEvaluator, expressionGenerator);
-            startEndSynthesis(SynthesisState.START);
-            expressions = new ArrayList<FullyEvaluatedExpression>();
-            showResults();  // Clears any existing results.
-            valueCache.allowCollectionOfNewStrings();  // Allow collection of strings from previous search.
-        	// Reset column sort indicators.
-        	tableViewer.setComparator(null);  // We want to use the order in which we add elements as the initial sort.
-        	table.setSortDirection(SWT.NONE);
-    		table.setSortColumn(null);
-    		// Set up progress monitor
-    		monitor = new SynthesisProgressMonitor(monitorComposite, null);
-    		monitor.attachToCancelComponent(searchCancelButton);
-    		GridData gridData = new GridData();
-    		gridData.widthHint = MONITOR_WIDTH;
-    		monitor.setLayoutData(gridData);
-    		monitorComposite.getParent().layout(true);
-    		// Start the synthesis
-	    	worker.synthesize(this, evalManager, numSearches);
+        if (buttonId == searchCancelButtonID) {
+        	if (!amSearching)
+        		startSearch(propertyDialog.computeProperty(pdspecInput.getText(), typeCache));
+        	else
+        		monitor.setCanceled(true);
         } else if (buttonId == IDialogConstants.OK_ID) {
          	results = new ArrayList<FullyEvaluatedExpression>();
          	for (int i = 0; i < table.getItemCount(); i++)
@@ -321,27 +308,52 @@ public class InitialSynthesisDialog extends SynthesisDialog {
         super.buttonPressed(buttonId);
     }
 
+	private void startSearch(Property prop) {
+		property = prop;
+		skeletonResult = skeletonInput.getText();
+		skeleton = ExpressionSkeleton.fromString(skeletonResult, target, stack, expressionMaker, evaluationEngine, subtypeChecker, typeCache, valueCache, evalManager, staticEvaluator, expressionGenerator);
+		startEndSynthesis(SynthesisState.START);
+		expressions = new ArrayList<FullyEvaluatedExpression>();
+		showResults();  // Clears any existing results.
+		valueCache.allowCollectionOfNewStrings();  // Allow collection of strings from previous search.
+		shouldContinue = true;
+		// Reset column sort indicators.
+		tableViewer.setComparator(null);  // We want to use the order in which we add elements as the initial sort.
+		table.setSortDirection(SWT.NONE);
+		table.setSortColumn(null);
+		// Set up progress monitor
+		monitor = new SynthesisProgressMonitor(monitorComposite, null);
+		//monitor.attachToCancelComponent(searchButton);
+		GridData gridData = new GridData();
+		gridData.widthHint = MONITOR_WIDTH;
+		monitor.setLayoutData(gridData);
+		monitorComposite.getParent().layout(true);
+		// Start the synthesis
+		worker.synthesize(this, evalManager, numSearches);
+	}
+
 	public void startEndSynthesis(SynthesisState state) {
         getButton(IDialogConstants.CANCEL_ID).setEnabled(state != SynthesisState.START);
-    	searchButton.setEnabled(state != SynthesisState.START && pdspecIsValid && skeletonIsValid);
-    	searchCancelButton.setEnabled(state == SynthesisState.START);
+    	searchCancelButton.setEnabled(state != SynthesisState.START || (pdspecIsValid && skeletonIsValid));
+    	amSearching = state == SynthesisState.START;
+    	setSearchCancelButtonText(amSearching ? "Cancel" : "Search");
     	if (state != SynthesisState.START) {
     		monitor.dispose();
     		monitorComposite.getParent().layout(true);
-    		if (state == SynthesisState.END) {
+    		if (state == SynthesisState.END && shouldContinue) {
     			numSearches++;
-    			setSearchButtonText("Continue search");
+    			setSearchCancelButtonText("Continue search");
     		}
     	}
     }
 	
 	public enum SynthesisState { START, END, UNFINISHED };
 	
-	private void setSearchButtonText(String text) {
-		if (!text.equals(searchButton.getText())) {
-			searchButton.setText(text);
-			setButtonLayoutData(searchButton);
-			searchButton.getParent().getParent().layout(true);
+	private void setSearchCancelButtonText(String text) {
+		if (!text.equals(searchCancelButton.getText())) {
+			searchCancelButton.setText(text);
+			setButtonLayoutData(searchCancelButton);
+			searchCancelButton.getParent().getParent().layout(true);
 		}
 	}
     
@@ -525,6 +537,21 @@ public class InitialSynthesisDialog extends SynthesisDialog {
 			}
 		}
 	}
+	
+	@Override
+    protected void opened() {
+		automaticallyStartSynthesisIfPossible();
+	}
+	
+	@Override
+    protected void propertyTypeChanged() {
+		automaticallyStartSynthesisIfPossible();
+	}
+	
+	private void automaticallyStartSynthesisIfPossible() {
+		if (expressions == null)
+			startSearch(StateProperty.fromPropertyString(propertyDialog.getVarName(), "true"));
+	}
 
 	@Override
 	public void cleanup() {
@@ -534,7 +561,6 @@ public class InitialSynthesisDialog extends SynthesisDialog {
 			monitor.dispose();
 		skeletonInput = null;
 		skeletonResult = null;
-		searchButton = null;
 		searchCancelButton = null;
 		monitorComposite = null;
 		monitor = null;

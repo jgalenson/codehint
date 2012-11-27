@@ -114,6 +114,7 @@ public abstract class SynthesisDialog extends ModelessDialog {
 				pdspecInput.selectAll();
 				pdspecComposite.layout(true);
 				pdspecComposite.getParent().layout(true);
+				propertyTypeChanged();
 			}
 		});
 		
@@ -210,6 +211,14 @@ public abstract class SynthesisDialog extends ModelessDialog {
     		errorText.getParent().update();
     	}
     	return hasError;
+    }
+    
+    /**
+     * Called when the user changes the type of the pdspec
+     * they intend to give.
+     */
+    protected void propertyTypeChanged() {
+    	
     }
     
     // Logic code

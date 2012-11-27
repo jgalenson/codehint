@@ -29,8 +29,17 @@ public class ModelessDialog extends TrayDialog {
 	public int open()
 	{
 		int retVal = super.open();
+		opened();
 		pumpMessages();
 		return retVal; // TODO: Since super.open() now returns immediately, we don't get the real return value.  Specifically, if the user clicks Cancel, we think they clicked OK.
+	}
+	
+	/**
+	 * Called immediately after the window opens.
+	 * Subclasses can override this to define new behavior.
+	 */
+	protected void opened() {
+		
 	}
 
 	protected void pumpMessages()
