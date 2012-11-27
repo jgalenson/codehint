@@ -36,7 +36,7 @@ import codehint.utils.EclipseUtils;
  */
 public class SynthesisStarter extends AbstractHandler {
 	
-	private final static Pattern declPattern = Pattern.compile("\\s*(\\w+)\\s+([\\w\\[\\].]+)\\s*(?:|=.*)?;\\s*\\r?\\n\\s*");
+	private final static Pattern declPattern = Pattern.compile("\\s*(?:\\w+\\s+)?([\\w\\[\\].]+)\\s*(?:|=.*)?;\\s*\\r?\\n\\s*");
 	
 	private static int lineWhereTextAdded = -1;
 
@@ -68,7 +68,7 @@ public class SynthesisStarter extends AbstractHandler {
            		Matcher matcher = declPattern.matcher(fullCurLine);
            		if(matcher.matches()) {
            			// Insert the pdspec into the text and set a breakpoint on it so we open the window automatically.
-           			String varName = matcher.group(2);
+           			String varName = matcher.group(1);
            			String newLine = "CodeHint.type(" + varName + ");";
            			boolean isDirty = editor.isDirty();
 					EclipseUtils.insertIndentedLine(newLine, line);
@@ -77,7 +77,7 @@ public class SynthesisStarter extends AbstractHandler {
 					line++;  // We want to break on the newly-inserted line.
 					lineWhereTextAdded = line;
            		} else {
-           			EclipseUtils.showError("Error", "Please select a line that contains a variable declaration.", null);
+           			EclipseUtils.showError("Error", "Please select a line that contains a variable assignment.", null);
     				return null;
            		}
 			} else {
