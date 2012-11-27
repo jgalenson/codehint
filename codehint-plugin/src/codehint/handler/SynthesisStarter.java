@@ -24,6 +24,9 @@ import org.eclipse.jface.viewers.ISelection;
 import org.eclipse.swt.widgets.Display;
 import org.eclipse.ui.IEditorPart;
 import org.eclipse.ui.IFileEditorInput;
+import org.eclipse.ui.IWorkbenchPage;
+import org.eclipse.ui.IWorkbenchWindow;
+import org.eclipse.ui.PlatformUI;
 import org.eclipse.ui.handlers.HandlerUtil;
 import org.eclipse.ui.texteditor.ITextEditor;
 
@@ -67,6 +70,8 @@ public class SynthesisStarter extends AbstractHandler {
 				String fullCurLine = getTextAtLine(editor, line);
            		Matcher matcher = declPattern.matcher(fullCurLine);
            		if(matcher.matches()) {
+           			if (!saveAllEditors())
+           				return null;
            			// Insert the pdspec into the text and set a breakpoint on it so we open the window automatically.
            			String varName = matcher.group(1);
            			String newLine = "CodeHint.type(" + varName + ");";
@@ -81,6 +86,8 @@ public class SynthesisStarter extends AbstractHandler {
     				return null;
            		}
 			} else {
+       			if (!saveAllEditors())
+       				return null;
 				line = bpLoc.getLineLocation();
 				assert line != -1;
 			}
@@ -188,6 +195,27 @@ public class SynthesisStarter extends AbstractHandler {
 	}
 	
 	/**
+	 * Save all dirty editors in the workbench.  Opens a dialog to
+	 * prompt the user.  Returns true only if all dirty files
+	 * were saved.
+	 * TODO: This should also build after the save, so that if the
+	 * build fails I don't add a new line and the breakpoint as well.
+	 * @param editor The current text editor.
+	 * @return True if the save was successful and false if the user
+	 * clicked "No" or "Cancel" or did not save all dirty files.
+	 */
+	private static boolean saveAllEditors() {
+		boolean notCancelled = PlatformUI.getWorkbench().saveAllEditors(true);
+		if (!notCancelled)
+			return false;
+		for (IWorkbenchWindow window: PlatformUI.getWorkbench().getWorkbenchWindows())
+			for (IWorkbenchPage page: window.getPages())
+				if (page.getDirtyEditors().length > 0)
+					return false;
+		return true;
+	}
+	
+	/**
 	 * Cleans up any text added.
 	 */
 	public static void cleanup() {
@@ -196,8 +224,12 @@ public class SynthesisStarter extends AbstractHandler {
 				@Override
 				public void run() {
 					try {
-						if (DemonstrateTypeHandler.PATTERN.matcher(getTextAtLine(EclipseUtils.getActiveTextEditor(), lineWhereTextAdded)).matches())
+						ITextEditor editor = EclipseUtils.getActiveTextEditor();
+	           			boolean isDirty = editor.isDirty();
+						if (DemonstrateTypeHandler.PATTERN.matcher(getTextAtLine(editor, lineWhereTextAdded)).matches())
 							EclipseUtils.deleteLine(lineWhereTextAdded - 1);
+						if (!isDirty)  // If the document was not dirty, then save after we delete the line we ourselves added.
+							editor.doSave(null);
     					lineWhereTextAdded = -1;
 					} catch (BadLocationException e) {
 						throw new RuntimeException(e);
