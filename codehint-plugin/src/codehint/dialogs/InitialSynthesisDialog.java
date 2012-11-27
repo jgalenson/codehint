@@ -3,6 +3,10 @@ package codehint.dialogs;
 import java.util.ArrayList;
 
 import org.eclipse.core.runtime.IProgressMonitor;
+import org.eclipse.debug.core.DebugException;
+import org.eclipse.jdt.core.IJavaProject;
+import org.eclipse.jdt.core.IMethod;
+import org.eclipse.jdt.core.JavaModelException;
 import org.eclipse.jdt.debug.core.IJavaDebugTarget;
 import org.eclipse.jdt.debug.core.IJavaPrimitiveValue;
 import org.eclipse.jdt.debug.core.IJavaStackFrame;
@@ -13,10 +17,12 @@ import org.eclipse.jface.dialogs.IInputValidator;
 import org.eclipse.jface.resource.JFaceResources;
 import org.eclipse.jface.viewers.ArrayContentProvider;
 import org.eclipse.jface.viewers.ColumnLabelProvider;
+import org.eclipse.jface.viewers.ColumnViewerToolTipSupport;
 import org.eclipse.jface.viewers.TableViewer;
 import org.eclipse.jface.viewers.TableViewerColumn;
 import org.eclipse.jface.viewers.Viewer;
 import org.eclipse.jface.viewers.ViewerComparator;
+import org.eclipse.jface.window.ToolTip;
 import org.eclipse.jface.wizard.ProgressMonitorPart;
 import org.eclipse.swt.SWT;
 import org.eclipse.swt.events.SelectionAdapter;
@@ -34,6 +40,8 @@ import org.eclipse.swt.widgets.TableColumn;
 import org.eclipse.swt.widgets.TableItem;
 import org.eclipse.swt.widgets.Text;
 import org.eclipse.ui.PlatformUI;
+
+import com.sun.jdi.Method;
 
 import codehint.Activator;
 import codehint.Synthesizer.SynthesisWorker;
@@ -82,6 +90,7 @@ public class InitialSynthesisDialog extends SynthesisDialog {
     private static final int uncheckSelectedButtonID = IDialogConstants.CLIENT_ID + 3;
     private Button uncheckSelectedButton;
 
+    private final IJavaProject project;
     private final IJavaDebugTarget target;
     private final IAstEvaluationEngine evaluationEngine;
 	private final SynthesisWorker worker;
@@ -111,6 +120,7 @@ public class InitialSynthesisDialog extends SynthesisDialog {
 		this.synthesisResultComparator = null;
 		this.expressions = null;
 		this.worker = worker;
+		this.project = EclipseUtils.getProject(stack);
 		this.target = (IJavaDebugTarget)stack.getDebugTarget();
 		this.evaluationEngine = engine;
 		this.subtypeChecker = new SubtypeChecker();
@@ -171,15 +181,38 @@ public class InitialSynthesisDialog extends SynthesisDialog {
 				return getExpressionLabel((FullyEvaluatedExpression)element);
 			}
 			
-			/*@Override
+			@Override
 			public String getToolTipText(Object element) {
-				return "";
+				try {
+					// TODO: Handle fields and expressions with multiple methods.
+					FullyEvaluatedExpression expr = (FullyEvaluatedExpression)element;
+					Method method = expressionMaker.getMethod(expr.getExpression());
+					if (method == null)
+						return null;
+					IMethod imethod = EclipseUtils.getIMethod(method, project);
+					if (imethod == null)
+						return null;
+					String javadoc = imethod.getAttachedJavadoc(null);
+					if (javadoc == null)
+						return null;
+					javadoc = javadoc.replaceAll("<H3>([^<]|\n)*</H3>\n?", "");
+					javadoc = javadoc.replaceAll("<DL>|<DD>|<DT>", "\n");
+					javadoc = javadoc.replaceAll("<[^>]*>", "");
+					javadoc = javadoc.replaceAll("&nbsp;", " ").replaceAll("&lt;", "<").replaceAll("&gt;", ">").replaceAll("&quot;", "\"");
+					javadoc = javadoc.replaceAll("[\n\r]{2,}", "\n\n");
+					javadoc = javadoc.trim();
+					return javadoc;
+				} catch (DebugException e) {
+					throw new RuntimeException(e);
+				} catch (JavaModelException e) {
+					throw new RuntimeException(e);
+				}
 			}
 			
 			@Override
 			public int getToolTipDisplayDelayTime(Object object) {
 				return 100;
-			}*/
+			}
 		});
     	TableViewerColumn column2 = addColumn("Value", 1);
     	column2.setLabelProvider(new ColumnLabelProvider() {
@@ -190,7 +223,7 @@ public class InitialSynthesisDialog extends SynthesisDialog {
 		});
     	tableViewer.setContentProvider(ArrayContentProvider.getInstance());
     	synthesisResultComparator = new SynthesisResultComparator();
-    	//ColumnViewerToolTipSupport.enableFor(tableViewer, ToolTip.NO_RECREATE);
+    	ColumnViewerToolTipSupport.enableFor(tableViewer, ToolTip.NO_RECREATE);
         PlatformUI.getWorkbench().getHelpSystem().setHelp(table, Activator.PLUGIN_ID + "." + "candidate-selector");
 
 		Composite bottomButtonComposite = makeChildComposite(composite, GridData.HORIZONTAL_ALIGN_CENTER, 0);

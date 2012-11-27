@@ -918,7 +918,7 @@ public final class ExpressionGenerator {
 				if (declaringType instanceof IJavaInterfaceType)
 					continue;
             }
-            IMethod imethod = getIMethod(method);
+            IMethod imethod = EclipseUtils.getIMethod(method, project);
             if (imethod != null && Flags.isDeprecated(imethod.getFlags()))
             	continue;
 			IJavaType returnType = isConstructor ? e.getType() : EclipseUtils.getTypeAndLoadIfNeeded(method.returnTypeName(), stack, target, typeCache);
@@ -964,39 +964,6 @@ public final class ExpressionGenerator {
 				}
 			}
 		}
-	}
-	
-	/**
-	 * Gets the IMethod associated with the given method.
-	 * Note that this is not complete; it can (and often
-	 * will) fail to find the correct IMethod and return null.
-	 * @param method The method.
-	 * @return The IMethod associated with the given
-	 * method, or null.
-	 * @throws DebugException
-	 * @throws JavaModelException
-	 */
-	private IMethod getIMethod(Method method) throws DebugException, JavaModelException {
-		IType itype = project.findType(method.declaringType().name());
-		if (itype == null)
-			return null;
-		String name = method.name();
-		String signature = method.signature();
-		IMethod best = null;
-		for (IMethod cur: itype.getMethods()) {
-			if (cur.getElementName().equals(name)) {
-				if (best != null)
-					return null;
-				if (cur.getSignature().equals(signature))
-					return cur;
-				best = cur;
-			}
-		}
-		/*String parentName = curType.getSuperclassName();
-		if (parentName == null)
-			break;
-		curType = project.findType(parentName);*/
-		return best;
 	}
 	
 	/**

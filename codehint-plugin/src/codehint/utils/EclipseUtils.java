@@ -18,6 +18,7 @@ import org.eclipse.debug.core.model.IVariable;
 import org.eclipse.debug.ui.DebugUITools;
 import org.eclipse.jdt.core.IJavaElement;
 import org.eclipse.jdt.core.IJavaProject;
+import org.eclipse.jdt.core.IMethod;
 import org.eclipse.jdt.core.IType;
 import org.eclipse.jdt.core.JavaCore;
 import org.eclipse.jdt.core.JavaModelException;
@@ -48,6 +49,7 @@ import org.eclipse.ui.PlatformUI;
 import org.eclipse.ui.texteditor.ITextEditor;
 
 import com.sun.jdi.InvocationException;
+import com.sun.jdi.Method;
 import com.sun.jdi.ObjectReference;
 
 import codehint.Activator;
@@ -934,6 +936,43 @@ public final class EclipseUtils {
     	});
     	return result;
     }*/
+	
+	/**
+	 * Gets the IMethod associated with the given method.
+	 * Note that this is not complete; it can (and often
+	 * will) fail to find the correct IMethod and return null.
+	 * @param method The method.
+	 * @param project The java project.
+	 * @return The IMethod associated with the given
+	 * method, or null.
+	 * @throws DebugException
+	 * @throws JavaModelException
+	 */
+	public static IMethod getIMethod(Method method, IJavaProject project) throws DebugException, JavaModelException {
+		IType itype = project.findType(method.declaringType().name());
+		if (itype == null)
+			return null;
+		String name = method.isConstructor() ? getUnqualifiedName(method.declaringType().name()) : method.name();
+		String signature = method.signature();
+		int numArgs = method.argumentTypeNames().size();
+		IMethod best = null;
+		for (IMethod cur: itype.getMethods()) {
+			if (cur.getElementName().equals(name)) {
+				if (cur.getNumberOfParameters() != numArgs)
+					continue;
+				if (cur.getSignature().equals(signature))
+					return cur;
+				if (best != null)
+					best = null;
+				best = cur;
+			}
+		}
+		/*String parentName = curType.getSuperclassName();
+		if (parentName == null)
+			break;
+		curType = project.findType(parentName);*/
+		return best;
+	}
     
     /**
      * Extracts the errors messages out of a failing IEvaluationResult.
