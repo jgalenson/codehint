@@ -40,7 +40,7 @@ import codehint.utils.EclipseUtils;
  */
 public class SynthesisStarter extends AbstractHandler {
 	
-	private final static Pattern declPattern = Pattern.compile("\\s*(?:\\w+\\s+)?([\\w\\[\\].]+)\\s*(?:|=.*)?;\\s*\\r?\\n\\s*");
+	private final static Pattern declPattern = Pattern.compile("\\s*(?:[\\w<>\\]\\[]+\\s+)?([\\w\\]\\[.]+)\\s*(?:|=.*)?;\\s*\\r?\\n\\s*");
 	
 	private static String initialFile = null;
 	private static int breakpointLine = -1;

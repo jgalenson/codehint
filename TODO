@@ -46,6 +46,7 @@ Our default names for evaluation and properties will cause problems if they exis
 Add "import codehint.CodeHint;" and add codehint-lib.jar to the classpath if necessary.
 Don't allow assigning to the this variable.
 Do a better job of adding a keystroke for starting the synthesis (e.g., integrate with existing keys).
+Let specs in code work for variables that are field/array accesses (change the regexes in Demonstrate*Handler and also write code so they can get the variable).
 
 Optimizations
 -------------

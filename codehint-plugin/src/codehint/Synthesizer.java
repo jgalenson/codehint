@@ -50,7 +50,6 @@ import org.eclipse.swt.widgets.Shell;
 import org.eclipse.ui.texteditor.ITextEditor;
 
 import codehint.dialogs.InitialSynthesisDialog;
-import codehint.dialogs.LambdaPropertyDialog;
 import codehint.dialogs.ObjectValuePropertyDialog;
 import codehint.dialogs.PrimitiveValuePropertyDialog;
 import codehint.dialogs.PropertyDialog;
@@ -73,7 +72,6 @@ import codehint.handler.DemonstrateStatePropertyHandler;
 import codehint.handler.DemonstrateTypeHandler;
 import codehint.handler.DemonstrateValueHandler;
 import codehint.handler.SynthesisStarter;
-import codehint.property.LambdaProperty;
 import codehint.property.ObjectValueProperty;
 import codehint.property.PrimitiveValueProperty;
 import codehint.property.Property;
@@ -283,7 +281,7 @@ public class Synthesizer {
 	private static class ChoiceBreakpointListener implements IDebugEventSetListener {
 	    
 	    private final static ASTParser parser = ASTParser.newParser(AST.JLS4);
-	    private final static Pattern choosePattern = Pattern.compile("\\s*(?:(\\w+)\\s+)?([\\w\\[\\].]+)\\s*=\\s*(CodeHint.choose.*);\\s*\\r?\\n\\s*");
+	    private final static Pattern choosePattern = Pattern.compile("\\s*(?:(\\w+)\\s+)?([\\w\\]\\[.]+)\\s*=\\s*(CodeHint.choose.*);\\s*\\r?\\n\\s*");
 	    
 	    @Override
 		public void handleDebugEvents(DebugEvent[] events) {
