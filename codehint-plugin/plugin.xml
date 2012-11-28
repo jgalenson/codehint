@@ -17,6 +17,7 @@
                </with>
             </visibleWhen>
          </command>
+   		 <!--
          <command
                commandId="codehint.handler.demonstrateLambdaProperty"
                label="Demonstrate lambda property"
@@ -28,6 +29,7 @@
                </with>
             </visibleWhen>
          </command>
+         -->
          <command
                commandId="codehint.handler.demonstrateType"
                label="Demonstrate type"
@@ -78,11 +80,13 @@
             id="codehint.handler.demonstrateValue"
             name="Demonstrate value">
       </command>
+      <!--
       <command
             defaultHandler="codehint.handler.DemonstrateLambdaPropertyHandler"
             id="codehint.handler.demonstrateLambdaProperty"
             name="Demonstrate lambda property">
       </command>
+      -->
       <command
             defaultHandler="codehint.handler.DemonstrateTypeHandler"
             id="codehint.handler.demonstrateType"

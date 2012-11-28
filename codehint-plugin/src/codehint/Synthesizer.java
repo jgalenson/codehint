@@ -594,8 +594,8 @@ public class Synthesizer {
 				propertyDialog = new ObjectValuePropertyDialog(varName, varStaticTypeName, stackFrame, "", extraMessage);
 			else if (oldProperty instanceof TypeProperty)
 				propertyDialog = new TypePropertyDialog(varName, varStaticTypeName, stackFrame, ((TypeProperty)oldProperty).getTypeName(), extraMessage);
-			else if (oldProperty instanceof LambdaProperty)
-				propertyDialog = new LambdaPropertyDialog(varName, varStaticType.getName(), varStaticType, stackFrame, oldProperty.toString(), extraMessage);
+			/*else if (oldProperty instanceof LambdaProperty)
+				propertyDialog = new LambdaPropertyDialog(varName, varStaticType.getName(), varStaticType, stackFrame, oldProperty.toString(), extraMessage);*/
 			else
 				throw new IllegalArgumentException(oldProperty.toString());
 			return new RefinementSynthesisDialog(shell, varStaticTypeName, varStaticType, stackFrame, propertyDialog, new RefinementWorker(exprs, varStaticType, evalManager), typeCache);

@@ -84,7 +84,7 @@ public abstract class SynthesisDialog extends ModelessDialog {
 		comboLabel.setFont(comboComposite.getFont());
 		
 		final Combo combo = new Combo(comboComposite, SWT.READ_ONLY);
-		combo.setItems(new String[] { "Demonstrate value", "Demonstrate type", "Demonstrate state property", "Demonstrate lambda property" });
+		combo.setItems(new String[] { "Demonstrate value", "Demonstrate type", "Demonstrate state property"/*, "Demonstrate lambda property"*/ });
 		combo.addSelectionListener(new SelectionAdapter() {
 			@Override
 			public void widgetSelected(SelectionEvent e) {
@@ -102,8 +102,8 @@ public abstract class SynthesisDialog extends ModelessDialog {
 					propertyDialog = new TypePropertyDialog(propertyDialog.getVarName(), varTypeName, stack, varTypeName, propertyDialog.getExtraMessage());
 				else if (index == 2)
 					propertyDialog = new StatePropertyDialog(propertyDialog.getVarName(), stack, "", propertyDialog.getExtraMessage());
-				else if (index == 3)
-					propertyDialog = new LambdaPropertyDialog(propertyDialog.getVarName(), varTypeName, varType, stack, "", propertyDialog.getExtraMessage());
+				/*else if (index == 3)
+					propertyDialog = new LambdaPropertyDialog(propertyDialog.getVarName(), varTypeName, varType, stack, "", propertyDialog.getExtraMessage());*/
 				else
 					throw new IllegalArgumentException();
 				comboIndex = index;
@@ -124,8 +124,8 @@ public abstract class SynthesisDialog extends ModelessDialog {
 			comboIndex = 1;
 		else if (propertyDialog instanceof StatePropertyDialog)
 			comboIndex = 2;
-		else if (propertyDialog instanceof LambdaPropertyDialog)
-			comboIndex = 3;
+		/*else if (propertyDialog instanceof LambdaPropertyDialog)
+			comboIndex = 3;*/
 		else
 			throw new IllegalArgumentException();
 		combo.select(comboIndex);
