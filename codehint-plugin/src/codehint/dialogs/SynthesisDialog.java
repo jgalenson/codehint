@@ -232,6 +232,12 @@ public abstract class SynthesisDialog extends ModelessDialog {
     }
     
     // Cleanup 
+    
+    @Override
+	protected void configureShell(Shell shell) {
+        super.configureShell(shell);
+        shell.setText("CodeHint");
+     }
 
 	public void cleanup() {
 		propertyDialog = null;

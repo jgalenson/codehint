@@ -448,13 +448,15 @@ public class Synthesizer {
 		/**
 		 * Checks to see if there is a pdspec at the current line, and synthesizes
 		 * it if there is.
+		 * Note that I have to use Display.syncExec instead of asyncExec or else
+		 * the newly-opened dialog box will not have focus for some reason....
 		 * @param fullCurLine The current line of code.
 		 * @param stack The current stack frame.
 		 */
 	    private static void checkLineForSpecs(String fullCurLine, final IJavaStackFrame stack) {
 	    	final Matcher statePropertyMatcher = DemonstrateStatePropertyHandler.PATTERN.matcher(fullCurLine);
        		if(statePropertyMatcher.matches()) {
-            	Display.getDefault().asyncExec(new Runnable(){
+            	Display.getDefault().syncExec(new Runnable(){
     				@Override
     				public void run() {
                     	DemonstrateStatePropertyHandler.handleFromText(statePropertyMatcher, stack);
@@ -465,7 +467,7 @@ public class Synthesizer {
 
 	    	final Matcher valuePropertyMatcher = DemonstrateValueHandler.PATTERN.matcher(fullCurLine);
        		if(valuePropertyMatcher.matches()) {
-            	Display.getDefault().asyncExec(new Runnable(){
+            	Display.getDefault().syncExec(new Runnable(){
     				@Override
     				public void run() {
                     	DemonstrateValueHandler.handleFromText(valuePropertyMatcher, stack);
@@ -476,7 +478,7 @@ public class Synthesizer {
 
 	    	final Matcher typePropertyMatcher = DemonstrateTypeHandler.PATTERN.matcher(fullCurLine);
        		if(typePropertyMatcher.matches()) {
-            	Display.getDefault().asyncExec(new Runnable(){
+            	Display.getDefault().syncExec(new Runnable(){
     				@Override
     				public void run() {
                     	DemonstrateTypeHandler.handleFromText(typePropertyMatcher, stack);
