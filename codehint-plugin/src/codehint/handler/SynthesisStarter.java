@@ -43,6 +43,7 @@ public class SynthesisStarter extends AbstractHandler {
 	private final static Pattern declPattern = Pattern.compile("\\s*(?:[\\w<>\\]\\[]+\\s+)?([\\w\\]\\[.]+)\\s*(?:|=.*)?;\\s*\\r?\\n\\s*");
 	
 	private static String initialFile = null;
+	private static boolean lineAdded = false;
 	private static int breakpointLine = -1;
 
 	@Override
@@ -80,6 +81,7 @@ public class SynthesisStarter extends AbstractHandler {
            			String newLine = "CodeHint.type(" + varName + ");";
            			boolean isDirty = editor.isDirty();
 					EclipseUtils.insertIndentedLineAfter(newLine, line - 1);
+					lineAdded = true;
 					if (!isDirty)
 						editor.doSave(null);
 					line++;  // We want to break on the newly-inserted line.
@@ -239,7 +241,7 @@ public class SynthesisStarter extends AbstractHandler {
 					try {
 						ITextEditor editor = EclipseUtils.getActiveTextEditor();
 						String curLine = getTextAtLine(editor, breakpointLine);
-						if (DemonstrateTypeHandler.PATTERN.matcher(curLine).matches()) {
+						if (lineAdded && DemonstrateTypeHandler.PATTERN.matcher(curLine).matches()) {
 		           			boolean isDirty = editor.isDirty();
 							EclipseUtils.deleteLine(breakpointLine - 1);
 							if (!isDirty)  // If the document was not dirty, then save after we delete the line we ourselves added.
@@ -252,6 +254,7 @@ public class SynthesisStarter extends AbstractHandler {
 						}
 						breakpointLine = -1;
 						initialFile = null;
+						lineAdded = false;
 					} catch (BadLocationException e) {
 						throw new RuntimeException(e);
 					}
