@@ -93,17 +93,17 @@ public abstract class SynthesisDialog extends ModelessDialog {
 					return;
 				if (index == 0) {
 					if (EclipseUtils.isObject(varType))
-						propertyDialog = new ObjectValuePropertyDialog(propertyDialog.getVarName(), varTypeName, stack, "", propertyDialog.getExtraMessage());
+						propertyDialog = new ObjectValuePropertyDialog(propertyDialog.getVarName(), varTypeName, stack, pdspecInput.getText(), propertyDialog.getExtraMessage());
 					else if (EclipseUtils.isArray(varType))
-						propertyDialog = new ArrayValuePropertyDialog(propertyDialog.getVarName(), varTypeName, stack, "", propertyDialog.getExtraMessage());
+						propertyDialog = new ArrayValuePropertyDialog(propertyDialog.getVarName(), varTypeName, stack, pdspecInput.getText(), propertyDialog.getExtraMessage());
 					else
-						propertyDialog = new PrimitiveValuePropertyDialog(propertyDialog.getVarName(), varTypeName, stack, "", propertyDialog.getExtraMessage());
+						propertyDialog = new PrimitiveValuePropertyDialog(propertyDialog.getVarName(), varTypeName, stack, pdspecInput.getText(), propertyDialog.getExtraMessage());
 				} else if (index == 1)
-					propertyDialog = new TypePropertyDialog(propertyDialog.getVarName(), varTypeName, stack, varTypeName, propertyDialog.getExtraMessage());
+					propertyDialog = new TypePropertyDialog(propertyDialog.getVarName(), varTypeName, stack, pdspecInput.getText().equals("") ? varTypeName : pdspecInput.getText(), propertyDialog.getExtraMessage());
 				else if (index == 2)
-					propertyDialog = new StatePropertyDialog(propertyDialog.getVarName(), stack, "", propertyDialog.getExtraMessage());
+					propertyDialog = new StatePropertyDialog(propertyDialog.getVarName(), stack, pdspecInput.getText(), propertyDialog.getExtraMessage());
 				/*else if (index == 3)
-					propertyDialog = new LambdaPropertyDialog(propertyDialog.getVarName(), varTypeName, varType, stack, "", propertyDialog.getExtraMessage());*/
+					propertyDialog = new LambdaPropertyDialog(propertyDialog.getVarName(), varTypeName, varType, stack, pdspecInput.getText(), propertyDialog.getExtraMessage());*/
 				else
 					throw new IllegalArgumentException();
 				comboIndex = index;
@@ -132,14 +132,14 @@ public abstract class SynthesisDialog extends ModelessDialog {
 	}
 	
 	// For buttons, pass in 0 for numColumns, as createButtons increments it.
-	protected static Composite makeChildComposite(Composite composite, int horizStyle, int numColumns) {
-		Composite buttonComposite = new Composite(composite, SWT.NONE);
+	protected static Composite makeChildComposite(Composite parent, int horizStyle, int numColumns) {
+		Composite composite = new Composite(parent, SWT.NONE);
 		GridLayout layout = new GridLayout();
 		layout.numColumns = numColumns;
-		buttonComposite.setLayout(layout);
-		buttonComposite.setLayoutData(new GridData(horizStyle | GridData.VERTICAL_ALIGN_CENTER));
-		buttonComposite.setFont(composite.getFont());
-		return buttonComposite;
+		composite.setLayout(layout);
+		composite.setLayoutData(new GridData(horizStyle | GridData.VERTICAL_ALIGN_CENTER));
+		composite.setFont(parent.getFont());
+		return composite;
 	}
 	
 	protected Text createInput(Composite composite, String message, String initialText, final IInputValidator validator, final ModifyHandler modifyListener, String helpID) {
@@ -205,7 +205,7 @@ public abstract class SynthesisDialog extends ModelessDialog {
     private static boolean setErrorMessage(Text errorText, String errorMessage) {
 		boolean hasError = errorMessage != null;
     	if (!errorText.isDisposed()) {
-    		errorText.setText(errorMessage == null ? " \n " : errorMessage);
+    		errorText.setText(errorMessage == null ? "" : errorMessage);
     		errorText.setEnabled(hasError);
     		errorText.setVisible(hasError);
     		errorText.getParent().update();

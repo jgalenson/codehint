@@ -27,6 +27,8 @@ import org.eclipse.jface.wizard.ProgressMonitorPart;
 import org.eclipse.swt.SWT;
 import org.eclipse.swt.events.SelectionAdapter;
 import org.eclipse.swt.events.SelectionEvent;
+import org.eclipse.swt.graphics.Point;
+import org.eclipse.swt.graphics.Rectangle;
 import org.eclipse.swt.layout.GridData;
 import org.eclipse.swt.layout.GridLayout;
 import org.eclipse.swt.widgets.Button;
@@ -137,7 +139,7 @@ public class InitialSynthesisDialog extends SynthesisDialog {
 	protected Control createDialogArea(Composite parent) {
 		Composite composite = (Composite)super.createDialogArea(parent);
 		
-		String message = "Give a skeleton that describes the form of the desired expression, using " + ExpressionSkeleton.HOLE_SYNTAX + "s for unknown expressions and names and " + ExpressionSkeleton.LIST_HOLE_SYNTAX + "s for an unknown number of arguments.";
+		String message = "Give a skeleton describing the form of the desired expression, using " + ExpressionSkeleton.HOLE_SYNTAX + "s for unknown expressions and names and " + ExpressionSkeleton.LIST_HOLE_SYNTAX + "s for an unknown number of arguments.";
 		Composite skeletonComposite = makeChildComposite(composite, GridData.HORIZONTAL_ALIGN_FILL, 1);
 		skeletonInput = createInput(skeletonComposite, message, initialSkeletonText, skeletonValidator, new SkeletonModifyHandler(), "skeleton");
 		Composite skeletonButtonComposite = makeChildComposite(skeletonComposite, GridData.HORIZONTAL_ALIGN_CENTER, 0);
@@ -304,7 +306,7 @@ public class InitialSynthesisDialog extends SynthesisDialog {
     
     // Cherry-picked from Dialog.createButton.
     private Button createCheckBoxButton(Composite parent, String label) {
-		((GridLayout) parent.getLayout()).numColumns++;
+		((GridLayout)parent.getLayout()).numColumns++;
     	Button button = new Button(parent, SWT.CHECK);
 		button.setText(label);
 		button.setFont(JFaceResources.getDialogFont());
@@ -584,6 +586,13 @@ public class InitialSynthesisDialog extends SynthesisDialog {
 	private void automaticallyStartSynthesisIfPossible() {
 		if (expressions == null)
 			startSearch(StateProperty.fromPropertyString(propertyDialog.getVarName(), "true"));
+	}
+	
+	@Override
+	protected Point getInitialLocation(Point initialSize) {
+		// Put the dialog relatively near the bottom of the screen.
+		Rectangle shellBounds = getParentShell().getBounds();
+		return new Point(shellBounds.x + shellBounds.width / 2 - initialSize.x / 2, shellBounds.y + shellBounds.height / 2 - initialSize.y / 3);
 	}
 
 	@Override
