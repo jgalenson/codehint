@@ -324,7 +324,7 @@ public class Synthesizer {
 					} catch (CoreException e) {
 						throw new RuntimeException(e);
 					}
-					// Remove the text we added, if any.
+					// Remove the text we added, if any, and save if possible.
 					SynthesisStarter.cleanup();
 	            }
 	        }

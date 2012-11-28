@@ -19,6 +19,7 @@ import org.eclipse.jdt.internal.debug.core.breakpoints.ValidBreakpointLocationLo
 import org.eclipse.jdt.ui.JavaUI;
 import org.eclipse.jdt.ui.SharedASTProvider;
 import org.eclipse.jface.text.BadLocationException;
+import org.eclipse.jface.text.IDocument;
 import org.eclipse.jface.text.ITextSelection;
 import org.eclipse.jface.viewers.ISelection;
 import org.eclipse.swt.widgets.Display;
@@ -41,7 +42,8 @@ public class SynthesisStarter extends AbstractHandler {
 	
 	private final static Pattern declPattern = Pattern.compile("\\s*(?:\\w+\\s+)?([\\w\\[\\].]+)\\s*(?:|=.*)?;\\s*\\r?\\n\\s*");
 	
-	private static int lineWhereTextAdded = -1;
+	private static String initialFile = null;
+	private static int breakpointLine = -1;
 
 	@Override
 	public Object execute(ExecutionEvent event) throws ExecutionException {
@@ -62,6 +64,7 @@ public class SynthesisStarter extends AbstractHandler {
 				return null;
 			}
 			int line = getLineNumber(editor);
+			initialFile = getDocument(editor).get();
 			// Get the closest line that can have a breakpoint (e.g., is executable).
 			CompilationUnit unit = SharedASTProvider.getAST(JavaUI.getWorkingCopyManager().getWorkingCopy(editor.getEditorInput()), SharedASTProvider.WAIT_YES, null);
 			ValidBreakpointLocationLocator bpLoc = new ValidBreakpointLocationLocator(unit, line, false, false);
@@ -80,7 +83,6 @@ public class SynthesisStarter extends AbstractHandler {
 					if (!isDirty)
 						editor.doSave(null);
 					line++;  // We want to break on the newly-inserted line.
-					lineWhereTextAdded = line;
            		} else {
            			EclipseUtils.showError("Error", "Please select a line that contains a variable assignment.", null);
     				return null;
@@ -91,6 +93,7 @@ public class SynthesisStarter extends AbstractHandler {
 				line = bpLoc.getLineLocation();
 				assert line != -1;
 			}
+			breakpointLine = line;
 			String typename = bpLoc.getFullyQualifiedTypeName();
 			// TODO: Replace the above internal API, perhaps with something like the below, which programatically causes a toggle breakpoint action (but doesn't work correctly). 
 			//editor.getAction(ITextEditorActionConstants.RULER_DOUBLE_CLICK).run();
@@ -108,6 +111,15 @@ public class SynthesisStarter extends AbstractHandler {
 	}
 
 	/**
+	 * Gets the document.
+	 * @param editor The text editor.
+	 * @return The document.
+	 */
+	private static IDocument getDocument(ITextEditor editor) {
+		return editor.getDocumentProvider().getDocument(editor.getEditorInput());
+	}
+
+	/**
 	 * Gets the text at the current line.
 	 * @param editor The text editor.
 	 * @param line The line number (debug version, 1-based).
@@ -115,7 +127,7 @@ public class SynthesisStarter extends AbstractHandler {
 	 * @throws BadLocationException
 	 */
 	private static String getTextAtLine(ITextEditor editor, int line) throws BadLocationException {
-		return EclipseUtils.getTextAtLine(editor.getDocumentProvider().getDocument(editor.getEditorInput()), line - 1);
+		return EclipseUtils.getTextAtLine(getDocument(editor), line - 1);
 	}
 	
 	/**
@@ -216,26 +228,35 @@ public class SynthesisStarter extends AbstractHandler {
 	}
 	
 	/**
-	 * Cleans up any text added.
+	 * Cleans up any text added and save the file
+	 * if nothing else has changed.
 	 */
 	public static void cleanup() {
-		if (lineWhereTextAdded >= 0) {
-        	Display.getDefault().asyncExec(new Runnable(){
+		if (breakpointLine >= 0) {
+	    	Display.getDefault().asyncExec(new Runnable(){
 				@Override
 				public void run() {
 					try {
 						ITextEditor editor = EclipseUtils.getActiveTextEditor();
-	           			boolean isDirty = editor.isDirty();
-						if (DemonstrateTypeHandler.PATTERN.matcher(getTextAtLine(editor, lineWhereTextAdded)).matches())
-							EclipseUtils.deleteLine(lineWhereTextAdded - 1);
-						if (!isDirty)  // If the document was not dirty, then save after we delete the line we ourselves added.
-							editor.doSave(null);
-    					lineWhereTextAdded = -1;
+						String curLine = getTextAtLine(editor, breakpointLine);
+						if (DemonstrateTypeHandler.PATTERN.matcher(curLine).matches()) {
+		           			boolean isDirty = editor.isDirty();
+							EclipseUtils.deleteLine(breakpointLine - 1);
+							if (!isDirty)  // If the document was not dirty, then save after we delete the line we ourselves added.
+								editor.doSave(null);
+						} else if (Pattern.compile("\\s*(?:(\\w+)\\s+)?([\\w\\[\\].]+)\\s*=\\s*(CodeHint.(?:choose|chosen).*);\\s*\\r?\\n\\s*").matcher(curLine).matches()) {
+							IDocument document = getDocument(editor);
+							String curFile = document.get(0, document.getLineOffset(breakpointLine - 1)) + document.get(document.getLineOffset(breakpointLine), document.getLength() - document.getLineOffset(breakpointLine));
+							if (curFile.equals(initialFile))  // If the only change to the file since the synthesis started is a choose/chosen call, save the file.
+								editor.doSave(null);
+						}
+						breakpointLine = -1;
+						initialFile = null;
 					} catch (BadLocationException e) {
 						throw new RuntimeException(e);
 					}
 				}
-        	});
+	    	});
 		}
 	}
 
