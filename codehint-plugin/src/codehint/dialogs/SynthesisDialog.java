@@ -91,17 +91,19 @@ public abstract class SynthesisDialog extends ModelessDialog {
 				int index = combo.getSelectionIndex();
 				if (index == comboIndex)
 					return;
+				String curText = pdspecInput.getText();
+				boolean curTextIsTypeName = curText.equals(varTypeName) || curText.equals(EclipseUtils.getUnqualifiedName(varTypeName));
 				if (index == 0) {
 					if (EclipseUtils.isObject(varType))
-						propertyDialog = new ObjectValuePropertyDialog(propertyDialog.getVarName(), varTypeName, stack, pdspecInput.getText().equals(varTypeName) ? "" : pdspecInput.getText(), propertyDialog.getExtraMessage());
+						propertyDialog = new ObjectValuePropertyDialog(propertyDialog.getVarName(), varTypeName, stack, curTextIsTypeName ? "" : curText, propertyDialog.getExtraMessage());
 					else if (EclipseUtils.isArray(varType))
-						propertyDialog = new ArrayValuePropertyDialog(propertyDialog.getVarName(), varTypeName, stack, pdspecInput.getText().equals(varTypeName) ? "" : pdspecInput.getText(), propertyDialog.getExtraMessage());
+						propertyDialog = new ArrayValuePropertyDialog(propertyDialog.getVarName(), varTypeName, stack, curTextIsTypeName ? "" : curText, propertyDialog.getExtraMessage());
 					else
-						propertyDialog = new PrimitiveValuePropertyDialog(propertyDialog.getVarName(), varTypeName, stack, pdspecInput.getText().equals(varTypeName) ? "" : pdspecInput.getText(), propertyDialog.getExtraMessage());
+						propertyDialog = new PrimitiveValuePropertyDialog(propertyDialog.getVarName(), varTypeName, stack, curTextIsTypeName ? "" : curText, propertyDialog.getExtraMessage());
 				} else if (index == 1)
-					propertyDialog = new TypePropertyDialog(propertyDialog.getVarName(), varTypeName, stack, pdspecInput.getText().equals("") ? varTypeName : pdspecInput.getText(), propertyDialog.getExtraMessage());
+					propertyDialog = new TypePropertyDialog(propertyDialog.getVarName(), varTypeName, stack, pdspecInput.getText().equals("") ? varTypeName : curText, propertyDialog.getExtraMessage());
 				else if (index == 2)
-					propertyDialog = new StatePropertyDialog(propertyDialog.getVarName(), stack, pdspecInput.getText().equals(varTypeName) ? "" : pdspecInput.getText(), propertyDialog.getExtraMessage());
+					propertyDialog = new StatePropertyDialog(propertyDialog.getVarName(), stack, curTextIsTypeName ? "" : curText, propertyDialog.getExtraMessage());
 				/*else if (index == 3)
 					propertyDialog = new LambdaPropertyDialog(propertyDialog.getVarName(), varTypeName, varType, stack, pdspecInput.getText(), propertyDialog.getExtraMessage());*/
 				else
