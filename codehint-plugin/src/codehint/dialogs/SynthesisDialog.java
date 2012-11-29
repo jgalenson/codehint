@@ -93,15 +93,15 @@ public abstract class SynthesisDialog extends ModelessDialog {
 					return;
 				if (index == 0) {
 					if (EclipseUtils.isObject(varType))
-						propertyDialog = new ObjectValuePropertyDialog(propertyDialog.getVarName(), varTypeName, stack, pdspecInput.getText(), propertyDialog.getExtraMessage());
+						propertyDialog = new ObjectValuePropertyDialog(propertyDialog.getVarName(), varTypeName, stack, pdspecInput.getText().equals(varTypeName) ? "" : pdspecInput.getText(), propertyDialog.getExtraMessage());
 					else if (EclipseUtils.isArray(varType))
-						propertyDialog = new ArrayValuePropertyDialog(propertyDialog.getVarName(), varTypeName, stack, pdspecInput.getText(), propertyDialog.getExtraMessage());
+						propertyDialog = new ArrayValuePropertyDialog(propertyDialog.getVarName(), varTypeName, stack, pdspecInput.getText().equals(varTypeName) ? "" : pdspecInput.getText(), propertyDialog.getExtraMessage());
 					else
-						propertyDialog = new PrimitiveValuePropertyDialog(propertyDialog.getVarName(), varTypeName, stack, pdspecInput.getText(), propertyDialog.getExtraMessage());
+						propertyDialog = new PrimitiveValuePropertyDialog(propertyDialog.getVarName(), varTypeName, stack, pdspecInput.getText().equals(varTypeName) ? "" : pdspecInput.getText(), propertyDialog.getExtraMessage());
 				} else if (index == 1)
 					propertyDialog = new TypePropertyDialog(propertyDialog.getVarName(), varTypeName, stack, pdspecInput.getText().equals("") ? varTypeName : pdspecInput.getText(), propertyDialog.getExtraMessage());
 				else if (index == 2)
-					propertyDialog = new StatePropertyDialog(propertyDialog.getVarName(), stack, pdspecInput.getText(), propertyDialog.getExtraMessage());
+					propertyDialog = new StatePropertyDialog(propertyDialog.getVarName(), stack, pdspecInput.getText().equals(varTypeName) ? "" : pdspecInput.getText(), propertyDialog.getExtraMessage());
 				/*else if (index == 3)
 					propertyDialog = new LambdaPropertyDialog(propertyDialog.getVarName(), varTypeName, varType, stack, pdspecInput.getText(), propertyDialog.getExtraMessage());*/
 				else
