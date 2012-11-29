@@ -408,6 +408,8 @@ public final class EclipseUtils {
     			return null;
     		if (varTypeName.equals(newTypeName))  // ITypes dislike primitive types, so this handles them.
     			return null;
+    		if (newTypeName.contains("<"))
+    			return "Please enter an unparameterized type";
     		int firstArrayVar = varTypeName.indexOf("[]");
     		if (firstArrayVar != -1) {
         		int firstArrayNew = newTypeName.indexOf("[]");
@@ -417,7 +419,12 @@ public final class EclipseUtils {
     			} else  // Recursively check the component types since there seem to be no ITypes for arrays....
     				return getValidTypeError(project, varTypeName.substring(0, firstArrayVar), thisType, newTypeName.substring(0, firstArrayNew));
     		}
-    		String[][] allTypes = thisType.resolveType(newTypeName);
+			String[][] allTypes;
+    		try {
+    			allTypes = thisType.resolveType(newTypeName);
+    		} catch (IllegalArgumentException ex) {
+    			return "Please enter a valid type.";
+    		}
     		if (allTypes == null)
         		return "Please enter a valid type.";
     		if (allTypes.length > 1)
