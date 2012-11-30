@@ -3,6 +3,9 @@ package codehint.dialogs;
 import java.util.ArrayList;
 
 import org.eclipse.core.runtime.IProgressMonitor;
+import org.eclipse.core.runtime.IStatus;
+import org.eclipse.core.runtime.Status;
+import org.eclipse.core.runtime.jobs.Job;
 import org.eclipse.debug.core.DebugException;
 import org.eclipse.jdt.core.IJavaProject;
 import org.eclipse.jdt.core.IMethod;
@@ -185,30 +188,18 @@ public class InitialSynthesisDialog extends SynthesisDialog {
 			
 			@Override
 			public String getToolTipText(Object element) {
-				try {
-					// TODO: Handle fields and expressions with multiple methods.
-					FullyEvaluatedExpression expr = (FullyEvaluatedExpression)element;
-					Method method = expressionMaker.getMethod(expr.getExpression());
-					if (method == null)
-						return null;
-					IMethod imethod = EclipseUtils.getIMethod(method, project);
-					if (imethod == null)
-						return null;
-					String javadoc = imethod.getAttachedJavadoc(null);
-					if (javadoc == null)
-						return null;
-					javadoc = javadoc.replaceAll("<H3>([^<]|\n)*</H3>\n?", "");
-					javadoc = javadoc.replaceAll("<DL>|<DD>|<DT>", "\n");
-					javadoc = javadoc.replaceAll("<[^>]*>", "");
-					javadoc = javadoc.replaceAll("&nbsp;", " ").replaceAll("&lt;", "<").replaceAll("&gt;", ">").replaceAll("&quot;", "\"");
-					javadoc = javadoc.replaceAll("[\n\r]{2,}", "\n\n");
-					javadoc = javadoc.trim();
-					return javadoc;
-				} catch (DebugException e) {
-					throw new RuntimeException(e);
-				} catch (JavaModelException e) {
-					throw new RuntimeException(e);
-				}
+				// TODO: Handle fields and expressions with multiple methods.
+				FullyEvaluatedExpression expr = (FullyEvaluatedExpression)element;
+				String javadoc = getJavadoc(expr);
+				if (javadoc == null)
+					return null;
+				javadoc = javadoc.replaceAll("<H3>([^<]|\n)*</H3>\n?", "");
+				javadoc = javadoc.replaceAll("<DL>|<DD>|<DT>", "\n");
+				javadoc = javadoc.replaceAll("<[^>]*>", "");
+				javadoc = javadoc.replaceAll("&nbsp;", " ").replaceAll("&lt;", "<").replaceAll("&gt;", ">").replaceAll("&quot;", "\"");
+				javadoc = javadoc.replaceAll("[\n\r]{2,}", "\n\n");
+				javadoc = javadoc.trim();
+				return javadoc;
 			}
 			
 			@Override
@@ -379,8 +370,35 @@ public class InitialSynthesisDialog extends SynthesisDialog {
     			numSearches++;
     			setSearchCancelButtonText("Continue search");
     		}
+    		// Prefetch the Javadocs to reduce the waiting time (which can be noticeable without this) when the user hovers over an expression.
+			Job job = new Job("Javadoc prefetch") {
+				@Override
+				protected IStatus run(IProgressMonitor monitor) {
+		    		for (FullyEvaluatedExpression expr: expressions)
+		    			getJavadoc(expr);
+		    		return Status.OK_STATUS;
+				}
+			};
+			job.setPriority(Job.DECORATE);
+			job.schedule();
     	}
     }
+	
+	private String getJavadoc(FullyEvaluatedExpression expr) {
+		try {
+			Method method = expressionMaker.getMethod(expr.getExpression());
+			if (method == null)
+				return null;
+			IMethod imethod = EclipseUtils.getIMethod(method, project);
+			if (imethod == null)
+				return null;
+			return imethod.getAttachedJavadoc(null);
+		} catch (JavaModelException e) {
+			throw new RuntimeException(e);
+		} catch (DebugException e) {
+			throw new RuntimeException(e);
+		}
+	}
 	
 	public enum SynthesisState { START, END, UNFINISHED };
 	
