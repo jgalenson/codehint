@@ -214,7 +214,7 @@ public final class EvaluationManager {
 		if (property instanceof StateProperty) {
 			StringBuilder expressionsStr = new StringBuilder();
 			for (String preVar: ((StateProperty)property).getPreVariables(stack))
-				expressionsStr.append(stack.findVariable(preVar).getJavaType().getName()).append(" ").append(StateProperty.getRenamedVar(preVar)).append(" = ").append(preVar).append(";\n");
+				expressionsStr.append(EclipseUtils.sanitizeTypename(stack.findVariable(preVar).getJavaType().getName())).append(" ").append(StateProperty.getRenamedVar(preVar)).append(" = ").append(preVar).append(";\n");
 			return expressionsStr.toString();
 		} else
 			return "";
