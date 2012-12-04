@@ -293,7 +293,7 @@ public class Synthesizer {
 	                IThread thread = (IThread) source;
 	                try {
 		                IJavaStackFrame frame = (IJavaStackFrame)thread.getTopStackFrame();
-	                   	if (frame == null)
+	                   	if (frame == null || frame.getLineNumber() == -1)
 	                   		continue;
 	                   	int line = frame.getLineNumber() - 1 ;
 	

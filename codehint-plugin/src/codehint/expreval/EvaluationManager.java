@@ -115,6 +115,10 @@ public final class EvaluationManager {
 		this.expressionMaker = expressionMaker;
 		this.subtypeChecker = subtypeChecker;
 		this.implType = (IJavaClassType)EclipseUtils.getTypeAndLoadIfNeeded(IMPL_NAME, stack, target, typeCache);
+		if (implType == null) {
+			EclipseUtils.showError("Missing library", "Please add the " + IMPL_NAME + " library to the project's classpath.", null);
+			throw new RuntimeException("Missing library " + IMPL_NAME);
+		}
 		try {
 			this.validField = implType.getField("valid");
 			this.toStringsField = implType.getField("toStrings");
