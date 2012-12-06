@@ -2,7 +2,7 @@ Feature requests
 ----------------
 When users write a pdspec in the code, make it easier to start the synthesis.  We could set the breakpoint and start the debugger automatically when the user does something (e.g., right-click menu).
 Make it easier to write pdspecs in the code.  It would be great if we could use auto-complete to make them easier to type, but Eclipse doesn't seem to let us do that.  I did make a Quick Fix, although it doesn't open on hover....
-Support auto-complete and error-highlighting in the dialog box when demonstrating.  See e.g. ChangeVariableValueInputDialog and ExpressionInputDialog.
+Support error-highlighting, Javadoc hovers, and autocomplete for primed variables in the dialog box when demonstrating.
 Improve the candidate selector dialog.  You should be able to browse values like in the variables view, hovering over a method should show its Javadoc, and hovering over a value should show the debug hover (like the variables view).  
 Allow searching over the heap.  In variables view window, should be able to search values, types, names for a string.  Leo's idea.
 Instead of generating, evaluating, then showing to the user, we could generate, show the user, and then evaluate.  This would let us explore a much larger space (since we don't have to evaluate it) and the user could tell us which expressions he likes.  We could cluster them so he has fewer choices.  We could estimate the strength of the pdspec and use that to guess how many expression will satisfy it.
@@ -15,7 +15,6 @@ Support anonymous classes better.  We currently cannot refer to variables in the
 We can use annotations to inform the expression generator.  @NotNull can tell it not to pass anything known to be null (and add non null as a precondition during evaluation).  @DoNotExplore could tell it not to try calling a specific method.  We could even allow custom annotations with expressions if Java allows them.  We could use this for things in the Java standard library.  We could infer these by parsing the Javadoc.
 Improve skeleton language.  Allow things like "a hole not using the variable x".
 Give the user a dropdown thing that lets them re-use their recently-entered properties.
-Allow undoing when demonstrating values/properties.
 Suggest corrections: if the user types "x instanceof String[]" say 'Did you mean, "x instanceof Collection<String>">' (see Wontae's RW.3).
 Allow sloppy searches: say something like "size of frame" and it should find things like frame.getSize().  Nicholas' idea.
 Give immediate feedback when the user types a property about how many expressions it will generate.  (This likely requires doing the expression generation as the user types optimization.)
@@ -51,7 +50,6 @@ Let specs in code work for variables that are field/array accesses (change the r
 Optimizations
 -------------
 Run a static/dataflow analysis to get some method preconditions.  Note that given an IMethod we can get an ICompilationUnit either directly or by getting an IClassFile and then using the ASTParser on it.  We can then get the desired MethodDeclaration.
-Begin expression generation when the user clicks demonstration, i.e., when we open the text box.  This way we can do the work while they're typing.
 Improve handling of equivalences and skeletons.  We should toss the equivalences in only at the very end, not after each call into ExprGen.
 Use our own AST rather than Eclipse's.  We could then cache the depth instead of re-computing it (e.g., in expandEquivalences) and avoid the performance bug in Eclipse's copying of NumberLiterals (which uses a Scanner).
 Investigate using IClassFileEvaluationEngine instead of ASTEvaluation.  See JavaSnippetEditor.evaluate().

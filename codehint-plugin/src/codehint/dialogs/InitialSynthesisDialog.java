@@ -28,6 +28,7 @@ import org.eclipse.jface.viewers.ViewerComparator;
 import org.eclipse.jface.window.ToolTip;
 import org.eclipse.jface.wizard.ProgressMonitorPart;
 import org.eclipse.swt.SWT;
+import org.eclipse.swt.custom.StyledText;
 import org.eclipse.swt.events.SelectionAdapter;
 import org.eclipse.swt.events.SelectionEvent;
 import org.eclipse.swt.graphics.Point;
@@ -43,9 +44,7 @@ import org.eclipse.swt.widgets.Shell;
 import org.eclipse.swt.widgets.Table;
 import org.eclipse.swt.widgets.TableColumn;
 import org.eclipse.swt.widgets.TableItem;
-import org.eclipse.swt.widgets.Text;
 import org.eclipse.ui.PlatformUI;
-
 import com.sun.jdi.Method;
 
 import codehint.Activator;
@@ -66,7 +65,7 @@ import codehint.utils.EclipseUtils;
 public class InitialSynthesisDialog extends SynthesisDialog {
 	
 	private final String initialSkeletonText;
-	private Text skeletonInput;
+	private StyledText skeletonInput;
 	private boolean skeletonIsValid;
 	private final IInputValidator skeletonValidator;
 	private String skeletonResult;
@@ -141,6 +140,7 @@ public class InitialSynthesisDialog extends SynthesisDialog {
 	@Override
 	protected Control createDialogArea(Composite parent) {
 		Composite composite = (Composite)super.createDialogArea(parent);
+		
 		
 		String message = "Give a skeleton describing the form of the desired expression, using " + ExpressionSkeleton.HOLE_SYNTAX + "s for unknown expressions and names and " + ExpressionSkeleton.LIST_HOLE_SYNTAX + "s for an unknown number of arguments.";
 		Composite skeletonComposite = makeChildComposite(composite, GridData.HORIZONTAL_ALIGN_FILL, 1);

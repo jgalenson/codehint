@@ -2,15 +2,46 @@ package codehint.dialogs;
 
 import java.util.ArrayList;
 
+import org.eclipse.core.commands.AbstractHandler;
+import org.eclipse.core.commands.ExecutionEvent;
+import org.eclipse.core.commands.IHandler;
 import org.eclipse.jdt.debug.core.IJavaStackFrame;
 import org.eclipse.jdt.debug.core.IJavaType;
+import org.eclipse.jdt.internal.debug.ui.JDIContentAssistPreference;
+import org.eclipse.jdt.internal.debug.ui.contentassist.CurrentFrameContext;
+import org.eclipse.jdt.internal.debug.ui.contentassist.JavaDebugContentAssistProcessor;
+import org.eclipse.jdt.ui.JavaUI;
+import org.eclipse.jdt.ui.PreferenceConstants;
+import org.eclipse.jdt.ui.text.IColorManager;
+import org.eclipse.jdt.ui.text.IJavaPartitions;
+import org.eclipse.jdt.ui.text.JavaSourceViewerConfiguration;
+import org.eclipse.jdt.ui.text.JavaTextTools;
+import org.eclipse.jface.bindings.TriggerSequence;
+import org.eclipse.jface.bindings.keys.KeyStroke;
 import org.eclipse.jface.dialogs.IDialogConstants;
 import org.eclipse.jface.dialogs.IInputValidator;
+import org.eclipse.jface.preference.IPreferenceStore;
+import org.eclipse.jface.text.Document;
+import org.eclipse.jface.text.DocumentEvent;
+import org.eclipse.jface.text.IDocument;
+import org.eclipse.jface.text.IDocumentListener;
+import org.eclipse.jface.text.ITextOperationTarget;
+import org.eclipse.jface.text.IUndoManager;
+import org.eclipse.jface.text.contentassist.ContentAssistant;
+import org.eclipse.jface.text.contentassist.IContentAssistProcessor;
+import org.eclipse.jface.text.contentassist.IContentAssistant;
+import org.eclipse.jface.text.source.ISourceViewer;
+import org.eclipse.jface.text.source.SourceViewer;
 import org.eclipse.swt.SWT;
-import org.eclipse.swt.events.ModifyEvent;
-import org.eclipse.swt.events.ModifyListener;
+import org.eclipse.swt.custom.StyledText;
+import org.eclipse.swt.events.FocusEvent;
+import org.eclipse.swt.events.FocusListener;
+import org.eclipse.swt.events.KeyEvent;
+import org.eclipse.swt.events.KeyListener;
 import org.eclipse.swt.events.SelectionAdapter;
 import org.eclipse.swt.events.SelectionEvent;
+import org.eclipse.swt.events.TraverseEvent;
+import org.eclipse.swt.events.TraverseListener;
 import org.eclipse.swt.layout.GridData;
 import org.eclipse.swt.layout.GridLayout;
 import org.eclipse.swt.widgets.Button;
@@ -21,6 +52,11 @@ import org.eclipse.swt.widgets.Label;
 import org.eclipse.swt.widgets.Shell;
 import org.eclipse.swt.widgets.Text;
 import org.eclipse.ui.PlatformUI;
+import org.eclipse.ui.handlers.IHandlerActivation;
+import org.eclipse.ui.handlers.IHandlerService;
+import org.eclipse.ui.keys.IBindingService;
+import org.eclipse.ui.texteditor.ITextEditor;
+import org.eclipse.ui.texteditor.ITextEditorActionDefinitionIds;
 
 import codehint.Activator;
 import codehint.expreval.FullyEvaluatedExpression;
@@ -37,8 +73,10 @@ public abstract class SynthesisDialog extends ModelessDialog {
     private static final int MESSAGE_WIDTH = 1000;
 	protected PropertyDialog propertyDialog;
 	private Composite pdspecComposite;
-	protected Text pdspecInput;
+	protected StyledText pdspecInput;
 	protected boolean pdspecIsValid;
+	private IHandlerService fService;
+	private IHandlerActivation fActivation;
 
     protected Button okButton;
 
@@ -101,7 +139,7 @@ public abstract class SynthesisDialog extends ModelessDialog {
 					else
 						propertyDialog = new PrimitiveValuePropertyDialog(propertyDialog.getVarName(), varTypeName, stack, curTextIsTypeName ? "" : curText, propertyDialog.getExtraMessage());
 				} else if (index == 1)
-					propertyDialog = new TypePropertyDialog(propertyDialog.getVarName(), varTypeName, stack, pdspecInput.getText().equals("") ? varTypeName : curText, propertyDialog.getExtraMessage());
+					propertyDialog = new TypePropertyDialog(propertyDialog.getVarName(), varTypeName, stack, curText.equals("") ? varTypeName : curText, propertyDialog.getExtraMessage());
 				else if (index == 2)
 					propertyDialog = new StatePropertyDialog(propertyDialog.getVarName(), stack, curTextIsTypeName ? "" : curText, propertyDialog.getExtraMessage());
 				/*else if (index == 3)
@@ -144,38 +182,167 @@ public abstract class SynthesisDialog extends ModelessDialog {
 		return composite;
 	}
 	
-	protected Text createInput(Composite composite, String message, String initialText, final IInputValidator validator, final ModifyHandler modifyListener, String helpID) {
+	private static class MySourceViewerConfiguration extends JavaSourceViewerConfiguration {
+		
+		private MyContentAssistant contentAssistant;
+
+		public MySourceViewerConfiguration(IColorManager colorManager, IPreferenceStore preferenceStore, ITextEditor editor, String partitioning) {
+			super(colorManager, preferenceStore, editor, partitioning);
+			this.contentAssistant = null;
+		}
+		
+		public MyContentAssistant getContentAssistant() {
+			return contentAssistant;
+		}
+
+        // The below code was mostly copied from DisplayViewerConfiguration.
+		// An alternative would be to subclass it, but I would still have to override getContentAssistant to have it use my class.
+
+		public IContentAssistProcessor getContentAssistantProcessor() {
+			return new JavaDebugContentAssistProcessor(new CurrentFrameContext());
+		}
+
+		@Override
+		public IContentAssistant getContentAssistant(ISourceViewer sourceViewer) {
+			MyContentAssistant assistant = new MyContentAssistant();
+			assistant.setContentAssistProcessor(getContentAssistantProcessor(), IDocument.DEFAULT_CONTENT_TYPE);
+			JDIContentAssistPreference.configure(assistant, getColorManager());
+			assistant.setContextInformationPopupOrientation(IContentAssistant.CONTEXT_INFO_ABOVE);
+			assistant.setInformationControlCreator(getInformationControlCreator(sourceViewer));
+			contentAssistant = assistant;
+			return assistant;
+		}
+	}
+
+	private static class MyContentAssistant extends ContentAssistant {
+
+		// Override the visibility to make this method public.
+		@Override
+		public boolean isProposalPopupActive(){
+			return super.isProposalPopupActive();
+		}
+		
+	}
+	
+	protected StyledText createInput(Composite composite, String message, String initialText, final IInputValidator validator, final ModifyHandler modifyListener, String helpID) {
 		Label label = new Label(composite, SWT.WRAP);
 		label.setText(message);
 		label.setFont(composite.getFont());
 		GridData gridData = new GridData();
 		gridData.widthHint = MESSAGE_WIDTH;
 		label.setLayoutData(gridData);
-		
-		final Text input = new Text(composite, SWT.SINGLE | SWT.BORDER);
-		input.setLayoutData(new GridData(SWT.FILL, SWT.BEGINNING, true, false));
-		input.setText(initialText);
-        PlatformUI.getWorkbench().getHelpSystem().setHelp(input, Activator.PLUGIN_ID + "." + helpID);
+
+		// This code was adapted from ExpressionInputDialog.
+		final SourceViewer sv = new SourceViewer(composite, null, SWT.SINGLE | SWT.BORDER);
+		JavaTextTools tools = new JavaTextTools(PreferenceConstants.getPreferenceStore());
+		Document doc = new Document(initialText);
+		sv.setDocument(doc);
+        tools.setupJavaDocumentPartitioner(doc, IJavaPartitions.JAVA_PARTITIONING);
+        MySourceViewerConfiguration config = new MySourceViewerConfiguration(JavaUI.getColorManager(), PreferenceConstants.getPreferenceStore(), null, null);
+		sv.configure(config);
+		// Regiser content assist.  Without this it comes up automatically but not when the user presses ctrl-space.
+		final IHandler handler = new AbstractHandler() {
+			@Override
+			public Object execute(ExecutionEvent event) {
+				sv.doOperation(ISourceViewer.CONTENTASSIST_PROPOSALS);
+				return null;
+			}
+		};
+		sv.getControl().addFocusListener(new FocusListener() {
+			@Override
+			public void focusLost(FocusEvent e) {
+		    	deactivateHandler();
+			}
+			@Override
+			public void focusGained(FocusEvent e) {
+		    	deactivateHandler();
+				fService = (IHandlerService)PlatformUI.getWorkbench().getAdapter(IHandlerService.class);
+				fActivation = fService.activateHandler(ITextEditorActionDefinitionIds.CONTENT_ASSIST_PROPOSALS, handler);
+			}
+		});
+		// Ensure that pressing enter when there is an autocomplete popup open does not start the search.
+		final MyContentAssistant contentAssistant = config.getContentAssistant();
+		sv.getControl().addTraverseListener(new TraverseListener() {
+			@Override
+			public void keyTraversed(TraverseEvent e) {
+				if (e.detail == SWT.TRAVERSE_RETURN && contentAssistant.isProposalPopupActive()) {
+					e.doit = false;
+					e.detail = SWT.TRAVERSE_NONE;
+				}
+			}
+			
+		});
+		// Enable undo/redo.
+		final KeyStroke undoTrigger = getKeyStrokeForCommand("org.eclipse.ui.edit.undo");
+		final KeyStroke redoTrigger = getKeyStrokeForCommand("org.eclipse.ui.edit.redo");
+		sv.getControl().addKeyListener(new KeyListener() {
+			@Override
+			public void keyPressed(KeyEvent e) {
+				if (matches(e, undoTrigger))
+					sv.doOperation(ITextOperationTarget.UNDO);
+				else if (matches(e, redoTrigger))
+					sv.doOperation(ITextOperationTarget.REDO);
+			}
+			@Override
+			public void keyReleased(KeyEvent e) {
+			}
+			
+		});
+		IUndoManager undoManager = config.getUndoManager(sv);
+		sv.setUndoManager(undoManager);
+		undoManager.connect(sv);
+		// Miscellaneous.
+		sv.getControl().setLayoutData(new GridData(SWT.FILL, SWT.BEGINNING, true, false));
+        PlatformUI.getWorkbench().getHelpSystem().setHelp(sv.getControl(), Activator.PLUGIN_ID + "." + helpID);
 		
 		final Text errorText = new Text(composite, SWT.READ_ONLY | SWT.WRAP);
 		errorText.setLayoutData(new GridData(GridData.GRAB_HORIZONTAL | GridData.HORIZONTAL_ALIGN_FILL));
 		errorText.setBackground(errorText.getDisplay().getSystemColor(SWT.COLOR_WIDGET_BACKGROUND));
 		
-		input.addModifyListener(new ModifyListener() {
+		sv.getDocument().addDocumentListener(new IDocumentListener() {
             @Override
-			public void modifyText(ModifyEvent e) {
-            	modifyListener.handle(input, validator, errorText);
+			public void documentAboutToBeChanged(DocumentEvent event) { }
+            @Override
+			public void documentChanged(DocumentEvent event) {
+            	modifyListener.handle(sv.getDocument().get(), validator, errorText);
             }
         });
-    	modifyListener.handle(input, validator, errorText);
+    	modifyListener.handle(initialText, validator, errorText);
         
-		return input;
+		return sv.getTextWidget();
+	}
+	
+	/**
+	 * Gets the KeyStroke that triggers the command with the
+	 * given id, if any.
+	 * @param id The id of the command.
+	 * @return The KeyStroke that triggers the command with the
+	 * given id.
+	 */
+	private static KeyStroke getKeyStrokeForCommand(String id) {
+		IBindingService bindingService = (IBindingService)PlatformUI.getWorkbench().getAdapter(IBindingService.class);
+		TriggerSequence seq = bindingService.getBestActiveBindingFor(id);
+		if (seq.getTriggers().length == 1 && seq.getTriggers()[0] instanceof KeyStroke)
+			return (KeyStroke)seq.getTriggers()[0];
+		else
+			return null;
+	}
+	
+	/**
+	 * Checks whether the given KeyEvent matches the given KeyStroke.
+	 * @param e The KeyEvent.
+	 * @param trigger The KeyStroke
+	 * @return Whether the given event matches the given trigger.
+	 */
+	private static boolean matches(KeyEvent e, KeyStroke trigger) {
+		return trigger != null && trigger.getModifierKeys() == e.stateMask
+				&& Character.toLowerCase((char)trigger.getNaturalKey()) == Character.toLowerCase((char)e.keyCode);
 	}
 	
 	protected abstract class ModifyHandler {
 
-		public void handle(Text input, IInputValidator validator, Text errorText) {
-			boolean hasError = setErrorMessage(errorText, validator.isValid(input.getText()));
+		public void handle(String curText, IInputValidator validator, Text errorText) {
+			boolean hasError = setErrorMessage(errorText, validator.isValid(curText));
             inputChanged(hasError);
 		}
         
@@ -242,11 +409,24 @@ public abstract class SynthesisDialog extends ModelessDialog {
      }
 
 	public void cleanup() {
+    	deactivateHandler();
 		propertyDialog = null;
 		pdspecComposite = null;
 		pdspecInput = null;
+		fService = null;
+		fActivation = null;
 		results = null;
 		property = null;
+	}
+
+	/**
+	 * Deactivates the handler.  If there is more than one
+	 * copy activated at any time, there is an error and
+	 * neither is triggered.
+	 */
+	private void deactivateHandler() {
+		if (fService != null && fActivation != null)
+    		fService.deactivateHandler(fActivation);
 	}
 
 }
