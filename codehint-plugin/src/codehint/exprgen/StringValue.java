@@ -16,15 +16,15 @@ public class StringValue extends Value {
 
 	public StringValue(IJavaValue value, IJavaThread thread) {
 		super(value, thread);
+	}
+	
+	@Override
+	protected int getMyHashCode() {
 		try {
 			stringValue = value.getValueString();  // toString returns it with the quotes, getValueString returns it without them.
 		} catch (DebugException e) {
 			throw new RuntimeException(e);
 		}
-	}
-
-	@Override
-	public int hashCode() {
 		return stringValue.hashCode();
 	}
 	

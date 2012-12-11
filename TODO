@@ -46,6 +46,7 @@ Add "import codehint.CodeHint;" and add codehint-lib.jar to the classpath if nec
 Don't allow assigning to the this variable.
 Do a better job of adding a keystroke for starting the synthesis (e.g., integrate with existing keys).
 Let specs in code work for variables that are field/array accesses (change the regexes in Demonstrate*Handler and also write code so they can get the variable).
+SubtypeChecker does not say that interfaces are subtypes of Object.  E.g., "Demonstrate type" will not accept being given an interface when the variable has type Object.
 
 Optimizations
 -------------

@@ -190,7 +190,7 @@ public class InitialSynthesisDialog extends SynthesisDialog {
 			public String getToolTipText(Object element) {
 				// TODO: Handle fields and expressions with multiple methods.
 				FullyEvaluatedExpression expr = (FullyEvaluatedExpression)element;
-				String javadoc = getJavadoc(expr);
+				String javadoc = getJavadoc(expr, expressionMaker);
 				if (javadoc == null)
 					return null;
 				javadoc = javadoc.replaceAll("<H3>([^<]|\n)*</H3>\n?", "");
@@ -322,7 +322,7 @@ public class InitialSynthesisDialog extends SynthesisDialog {
 	protected void buttonPressed(int buttonId) {
         if (buttonId == searchCancelButtonID) {
         	if (!amSearching)
-        		startSearch(propertyDialog.computeProperty(pdspecInput.getText(), typeCache));
+        		startSearch(propertyDialog.computeProperty(pdspecInput.getText(), typeCache), false);
         	else
         		monitor.setCanceled(true);
         } else if (buttonId == IDialogConstants.OK_ID) {
@@ -334,15 +334,15 @@ public class InitialSynthesisDialog extends SynthesisDialog {
         super.buttonPressed(buttonId);
     }
 
-	private void startSearch(Property prop) {
+	private void startSearch(Property prop, boolean isAutomatic) {
 		property = prop;
 		skeletonResult = skeletonInput.getText();
 		skeleton = ExpressionSkeleton.fromString(skeletonResult, target, stack, expressionMaker, evaluationEngine, subtypeChecker, typeCache, valueCache, evalManager, staticEvaluator, expressionGenerator);
-		startEndSynthesis(SynthesisState.START);
+		startEndSynthesis(isAutomatic ? SynthesisState.AUTO_START : SynthesisState.START);
 		expressions = new ArrayList<FullyEvaluatedExpression>();
 		showResults();  // Clears any existing results.
 		valueCache.allowCollectionOfNewStrings();  // Allow collection of strings from previous search.
-		shouldContinue = true;
+		this.shouldContinue = !isAutomatic;
 		// Reset column sort indicators.
 		tableViewer.setComparator(null);  // We want to use the order in which we add elements as the initial sort.
 		table.setSortDirection(SWT.NONE);
@@ -359,11 +359,12 @@ public class InitialSynthesisDialog extends SynthesisDialog {
 	}
 
 	public void startEndSynthesis(SynthesisState state) {
-        getButton(IDialogConstants.CANCEL_ID).setEnabled(state != SynthesisState.START);
+		boolean isStarting = isStart(state);
+        getButton(IDialogConstants.CANCEL_ID).setEnabled(!isStarting);
     	searchCancelButton.setEnabled(state != SynthesisState.START || (pdspecIsValid && skeletonIsValid));
-    	amSearching = state == SynthesisState.START;
+    	amSearching = isStarting;
     	setSearchCancelButtonText(amSearching ? "Cancel" : "Search");
-    	if (state != SynthesisState.START) {
+    	if (!isStarting) {
     		monitor.dispose();
     		monitorComposite.getParent().layout(true);
     		if (state == SynthesisState.END && shouldContinue) {
@@ -371,11 +372,14 @@ public class InitialSynthesisDialog extends SynthesisDialog {
     			setSearchCancelButtonText("Continue search");
     		}
     		// Prefetch the Javadocs to reduce the waiting time (which can be noticeable without this) when the user hovers over an expression.
-			Job job = new Job("Javadoc prefetch") {
+    		// Copy fields used to avoid a race with closing the dialog.
+			final ArrayList<FullyEvaluatedExpression> expressions = this.expressions;
+    		final ExpressionMaker expressionMaker = this.expressionMaker;
+    		Job job = new Job("Javadoc prefetch") {
 				@Override
 				protected IStatus run(IProgressMonitor monitor) {
 		    		for (FullyEvaluatedExpression expr: expressions)
-		    			getJavadoc(expr);
+		    			getJavadoc(expr, expressionMaker);
 		    		return Status.OK_STATUS;
 				}
 			};
@@ -384,7 +388,7 @@ public class InitialSynthesisDialog extends SynthesisDialog {
     	}
     }
 	
-	private String getJavadoc(FullyEvaluatedExpression expr) {
+	private String getJavadoc(FullyEvaluatedExpression expr, ExpressionMaker expressionMaker) {
 		try {
 			Method method = expressionMaker.getMethod(expr.getExpression());
 			if (method == null)
@@ -400,7 +404,11 @@ public class InitialSynthesisDialog extends SynthesisDialog {
 		}
 	}
 	
-	public enum SynthesisState { START, END, UNFINISHED };
+	public enum SynthesisState { START, END, UNFINISHED, AUTO_START };
+	
+	private boolean isStart(SynthesisState state) {
+		return state == SynthesisState.START || state == SynthesisState.AUTO_START;
+	}
 	
 	private void setSearchCancelButtonText(String text) {
 		if (!text.equals(searchCancelButton.getText())) {
@@ -603,7 +611,7 @@ public class InitialSynthesisDialog extends SynthesisDialog {
 	
 	private void automaticallyStartSynthesisIfPossible() {
 		if (expressions == null)
-			startSearch(StateProperty.fromPropertyString(propertyDialog.getVarName(), "true"));
+			startSearch(StateProperty.fromPropertyString(propertyDialog.getVarName(), "true"), true);
 	}
 	
 	@Override

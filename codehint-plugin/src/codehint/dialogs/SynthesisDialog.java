@@ -240,7 +240,7 @@ public abstract class SynthesisDialog extends ModelessDialog {
         tools.setupJavaDocumentPartitioner(doc, IJavaPartitions.JAVA_PARTITIONING);
         MySourceViewerConfiguration config = new MySourceViewerConfiguration(JavaUI.getColorManager(), PreferenceConstants.getPreferenceStore(), null, null);
 		sv.configure(config);
-		// Regiser content assist.  Without this it comes up automatically but not when the user presses ctrl-space.
+		// Register content assist.  Without this it comes up automatically but not when the user presses ctrl-space.
 		final IHandler handler = new AbstractHandler() {
 			@Override
 			public Object execute(ExecutionEvent event) {

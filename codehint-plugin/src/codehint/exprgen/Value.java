@@ -16,18 +16,14 @@ import org.eclipse.jdt.debug.core.IJavaValue;
  */
 public class Value {
 	
-	private final IJavaValue value;
+	protected final IJavaValue value;
 	private final int hashCode;
 	private final IJavaThread thread;
 
 	protected Value(IJavaValue value, IJavaThread thread) {
 		this.value = value;
 		this.thread = thread;
-		try {
-			this.hashCode = getHashCode(value);
-		} catch (DebugException e) {
-			throw new RuntimeException(e);
-		}
+		this.hashCode = getMyHashCode();
 	}
 	
 	public static Value makeValue(IJavaValue value, ValueCache valueCache, IJavaThread thread) {
@@ -45,8 +41,16 @@ public class Value {
 			throw new RuntimeException(e);
 		}
 	}
+	
+	protected int getMyHashCode() {
+		try {
+			return getHashCode(value);
+		} catch (DebugException e) {
+			return Integer.MIN_VALUE + 42;
+		}
+	}
 
-	private int getHashCode(IJavaValue value) throws DebugException {
+	protected int getHashCode(IJavaValue value) throws DebugException {
 		if (value == null || value.isNull())
 			return -37;
 		else if (value instanceof IJavaPrimitiveValue)
