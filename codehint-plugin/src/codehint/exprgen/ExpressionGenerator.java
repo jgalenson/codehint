@@ -949,6 +949,9 @@ public final class ExpressionGenerator {
 								//System.out.println("Adding cast to type " + argType.toString() + " to argument " + a.getExpression().toString() + " at index "+ curArgIndex + " of method " + method.declaringType() + "." + method.name() + " with " + method.argumentTypeNames().size() + " arguments.");
 								a = (EvaluatedExpression)expressionMaker.makeCast(a, argType, a.getValue(), valueCache, thread);
 							}
+							// Cast the null literal when passed as a vararg to the component type.
+							if (a.getExpression() instanceof NullLiteral && method.isVarArgs() && allPossibleActuals.size() == argumentTypeNames.size() - 1)
+								a = (EvaluatedExpression)expressionMaker.makeCast(a, ((IJavaArrayType)argType).getComponentType(), a.getValue(), valueCache, thread);
 							curPossibleActuals.add(a);
 						}
 					allPossibleActuals.add(curPossibleActuals);
@@ -1582,6 +1585,8 @@ public final class ExpressionGenerator {
 				if (getDepth(arg.getExpression()) < curDepth) {
 					if (overloadChecker.needsCast(argType, arg.getType(), newArguments.size()))  // If the method is overloaded, when executing the expression we might get "Ambiguous call" compile errors, so we put in a cast to remove the ambiguity.
 						arg = expressionMaker.makeCast(arg, argType, arg.getValue(), valueCache, thread);
+					if (arg.getExpression() instanceof NullLiteral && method.isVarArgs() && newArguments.size() == arguments.size() - 1)
+						arg = expressionMaker.makeCast(arg, ((IJavaArrayType)argType).getComponentType(), arg.getValue(), valueCache, thread);
 					allCurArgPossibilities.add(arg);
 				}
 			newArguments.add(allCurArgPossibilities);
