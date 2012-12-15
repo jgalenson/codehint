@@ -376,7 +376,7 @@ public final class ExpressionGenerator {
 		//System.out.println("Took " + (System.currentTimeMillis() - startTime) + " milliseconds pre-expansion.");
 		
 		// Expand equivalences.
-    	final ArrayList<FullyEvaluatedExpression> extraResults = expandEquivalences(results, monitor);
+		final ArrayList<FullyEvaluatedExpression> extraResults = expandEquivalences(results, monitor);
     	if (synthesisDialog != null) {
 			Display.getDefault().asyncExec(new Runnable(){
 				@Override
@@ -415,8 +415,7 @@ public final class ExpressionGenerator {
     		else
     			unevaluatedExprs.add(e);
     	
-    	//System.out.println("Generated " + exprs.size() + " potential expressions at depth " + depth + ", of which " + evaluatedExprs.size() + " already have values and " + unevaluatedExprs.size() + " still need to be evaluated.");
-    	//System.out.println("Generated " + (Utils.getNumValues(equivalences) + unevaluatedExprs.size() + evalManager.getNumCrashes() + staticEvaluator.getNumCrashes()) + " total expressions at depth " + depth + ", of which " + unevaluatedExprs.size() + " still need to be evaluated and " + (evalManager.getNumCrashes() + staticEvaluator.getNumCrashes()) + " crashed.");
+    	//System.out.println("Generated " + (Utils.getNumValues(equivalences) + unevaluatedExprs.size() + evalManager.getNumCrashes() + staticEvaluator.getNumCrashes() + expressionMaker.getNumCrashes()) + " total expressions at depth " + depth + ", of which " + unevaluatedExprs.size() + " still need to be evaluated and " + (evalManager.getNumCrashes() + staticEvaluator.getNumCrashes() + expressionMaker.getNumCrashes()) + " crashed.");
 
 		/*for (EvaluatedExpression e: evaluatedExprs)
 			System.out.println(Utils.truncate(e.toString(), 100));*/
@@ -950,8 +949,9 @@ public final class ExpressionGenerator {
 								a = (EvaluatedExpression)expressionMaker.makeCast(a, argType, a.getValue(), valueCache, thread);
 							}
 							// Cast the null literal when passed as a vararg to the component type.
+							// TODO: Bug: Eclipse's sendMessage interface takes ain a value and so ignores this cast and calls the wrong one.  I thus do not generate such expressions.
 							if (a.getExpression() instanceof NullLiteral && method.isVarArgs() && allPossibleActuals.size() == argumentTypeNames.size() - 1)
-								a = (EvaluatedExpression)expressionMaker.makeCast(a, ((IJavaArrayType)argType).getComponentType(), a.getValue(), valueCache, thread);
+								continue;//a = (EvaluatedExpression)expressionMaker.makeCast(a, ((IJavaArrayType)argType).getComponentType(), a.getValue(), valueCache, thread);
 							curPossibleActuals.add(a);
 						}
 					allPossibleActuals.add(curPossibleActuals);
@@ -1586,7 +1586,7 @@ public final class ExpressionGenerator {
 					if (overloadChecker.needsCast(argType, arg.getType(), newArguments.size()))  // If the method is overloaded, when executing the expression we might get "Ambiguous call" compile errors, so we put in a cast to remove the ambiguity.
 						arg = expressionMaker.makeCast(arg, argType, arg.getValue(), valueCache, thread);
 					if (arg.getExpression() instanceof NullLiteral && method.isVarArgs() && newArguments.size() == arguments.size() - 1)
-						arg = expressionMaker.makeCast(arg, ((IJavaArrayType)argType).getComponentType(), arg.getValue(), valueCache, thread);
+						continue;//arg = expressionMaker.makeCast(arg, ((IJavaArrayType)argType).getComponentType(), arg.getValue(), valueCache, thread);
 					allCurArgPossibilities.add(arg);
 				}
 			newArguments.add(allCurArgPossibilities);

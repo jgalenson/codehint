@@ -18,6 +18,7 @@ import org.eclipse.core.runtime.NullProgressMonitor;
 import org.eclipse.core.runtime.OperationCanceledException;
 import org.eclipse.core.runtime.Status;
 import org.eclipse.core.runtime.jobs.Job;
+import org.eclipse.core.runtime.preferences.InstanceScope;
 import org.eclipse.debug.core.DebugEvent;
 import org.eclipse.debug.core.DebugException;
 import org.eclipse.debug.core.DebugPlugin;
@@ -43,10 +44,12 @@ import org.eclipse.jdt.debug.core.IJavaType;
 import org.eclipse.jdt.debug.core.IJavaValue;
 import org.eclipse.jdt.debug.core.IJavaVariable;
 import org.eclipse.jdt.debug.core.JDIDebugModel;
+import org.eclipse.jface.preference.IPreferenceStore;
 import org.eclipse.jface.text.BadLocationException;
 import org.eclipse.jface.text.IDocument;
 import org.eclipse.swt.widgets.Display;
 import org.eclipse.swt.widgets.Shell;
+import org.eclipse.ui.preferences.ScopedPreferenceStore;
 import org.eclipse.ui.texteditor.ITextEditor;
 
 import codehint.dialogs.InitialSynthesisDialog;
@@ -82,6 +85,9 @@ import codehint.utils.EclipseUtils;
 import codehint.utils.Utils;
 
 public class Synthesizer {
+
+	private static final String PHANTOM_BREAKPOINT_QUALIFIER = "org.eclipse.jdt.debug.ui";
+	private static final String PHANTOM_BREAKPOINT_PREFNAME = "org.eclipse.jdt.debug.ui.javaDebug.SuspendOnUncaughtExceptions";
 	
 	private static Map<String, Property> initialDemonstrations;
 	
@@ -199,6 +205,11 @@ public class Synthesizer {
 				protected IStatus run(IProgressMonitor monitor) {
 					EclipseUtils.log("Beginning synthesis for " + varName + " with property " + property.toString() + " and skeleton " + skeleton.toString() + " with extra depth " + extraDepth + ".");
 					boolean unfinished = false;
+					// Ensure that our evaluations do not hit "phantom" breakpoints when they crash.
+					IPreferenceStore prefStore = new ScopedPreferenceStore(InstanceScope.INSTANCE, PHANTOM_BREAKPOINT_QUALIFIER);
+					boolean oldPrefValue = prefStore.getBoolean(PHANTOM_BREAKPOINT_PREFNAME);
+					if (oldPrefValue)
+						prefStore.setValue(PHANTOM_BREAKPOINT_PREFNAME, false);
 					try {
 						evalManager.init();
 						skeleton.synthesize(property, varName, varStaticType, extraDepth, searchConstructors, searchOperators, synthesisDialog, synthesisDialog.getProgressMonitor());
@@ -223,6 +234,8 @@ public class Synthesizer {
 							}
 			        	});
 						evalManager.resetFields();
+						if (oldPrefValue)
+							prefStore.setValue(PHANTOM_BREAKPOINT_PREFNAME, oldPrefValue);
 					}
 				}
 			};

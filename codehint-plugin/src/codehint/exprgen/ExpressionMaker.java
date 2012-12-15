@@ -31,6 +31,7 @@ import org.eclipse.jdt.core.dom.ThisExpression;
 import org.eclipse.jdt.core.dom.Type;
 import org.eclipse.jdt.core.dom.TypeLiteral;
 import org.eclipse.jdt.debug.core.IJavaArrayType;
+import org.eclipse.jdt.debug.core.IJavaClassObject;
 import org.eclipse.jdt.debug.core.IJavaClassType;
 import org.eclipse.jdt.debug.core.IJavaDebugTarget;
 import org.eclipse.jdt.debug.core.IJavaInterfaceType;
@@ -45,6 +46,7 @@ import codehint.expreval.StaticEvaluator;
 import codehint.utils.EclipseUtils;
 
 import com.sun.jdi.ClassNotLoadedException;
+import com.sun.jdi.ClassType;
 import com.sun.jdi.Method;
 
 public class ExpressionMaker {
@@ -57,6 +59,7 @@ public class ExpressionMaker {
 	private final Set<Integer> statics;
 	private final Map<Integer, Integer> depths;
 	private final ValueCache valueCache;
+	private int numCrashes;
 	
 	public ExpressionMaker(ValueCache valueCache) {
 		id = 0;
@@ -65,6 +68,7 @@ public class ExpressionMaker {
 		statics = new HashSet<Integer>();
 		depths = new HashMap<Integer, Integer>();
 		this.valueCache = valueCache;
+		numCrashes = 0;
 	}
 
 	public static boolean isInt(IJavaType type) throws DebugException {
@@ -204,34 +208,31 @@ public class ExpressionMaker {
 			return e;
 	}
 
-	/*
-	 * If we call this code, things that crash trigger breakpoints for some reason.
-	 * Some things work when I modify the ChoiceBreakpointListener to resume the
-	 * thread rather than handle things normally, but some things break....
-	 */
-	/*private static IJavaValue computeCall(final Method method, final IJavaValue receiver, ArrayList<TypedExpression> args, final IJavaThread thread, IJavaDebugTarget target, final JDIType receiverType) {
-		final IJavaValue[] argValues = new IJavaValue[args.size()];
-		for (int i = 0; i < args.size(); i++) {
+	private IJavaValue computeCall(Method method, TypedExpression receiver, ArrayList<? extends TypedExpression> args, IJavaThread thread, IJavaDebugTarget target) {
+		IJavaValue receiverValue = receiver.getValue();
+		IJavaValue[] argValues = new IJavaValue[args.size()];
+		for (int i = 0; i < argValues.length; i++) {
 			if (args.get(i).getValue() == null)
 				return null;
 			argValues[i] = args.get(i).getValue();
 		}
 		try {
-			//System.out.println("Calling " + (receiver != null ? receiver : receiverType) + "." + method.name() + " with args " + Arrays.toString(argValues));
+			//System.out.println("Calling " + (receiver.getValue() != null ? receiver.getExpression() : receiver.getType()).toString().replace("\n", "\\n") + "." + method.name() + " with args " + args.toString());
 			IJavaValue value = null;
-			if (receiver == null && "<init>".equals(method.name()))
-				value = ((IJavaClassType)receiverType).newInstance(method.signature(), argValues, thread);
-			else if (receiver == null)
-				value = ((IJavaClassType)receiverType).sendMessage(method.name(), method.signature(), argValues, thread);
+			if (receiverValue == null && "<init>".equals(method.name()))
+				value = ((IJavaClassType)receiver.getType()).newInstance(method.signature(), argValues, thread);
+			else if (receiverValue instanceof IJavaClassObject)
+				value = ((IJavaClassType)((IJavaClassObject)receiverValue).getInstanceType()).sendMessage(method.name(), method.signature(), argValues, thread);
 			else
-				value = ((IJavaObject)receiver).sendMessage(method.name(), method.signature(), argValues, thread, !method.declaringType().equals(receiverType.getUnderlyingType()));
+				value = ((IJavaObject)receiverValue).sendMessage(method.name(), method.signature(), argValues, thread, method.declaringType() instanceof ClassType && !((ClassType)method.declaringType()).isAbstract() ? method.declaringType().signature() : null);
 			//System.out.println("Got " + value);
 			return value;
 		} catch (DebugException e) {
-			//System.out.println("Crashed.");
+			//System.out.println("Crashed on " + (receiver.getValue() != null ? receiver.getExpression() : receiver.getType()).toString().replace("\n", "\\n") + "." + method.name() + " with args " + java.util.Arrays.toString(argValues).replace("\n", "\\n"));
+			numCrashes++;
 			return target.voidValue();
 		}
-	}*/
+	}
 
 	// Helper methods to create AST nodes, as they don't seem to have useful constructors.
 
@@ -380,8 +381,9 @@ public class ExpressionMaker {
 	}
 
 	public TypedExpression makeCall(String name, TypedExpression receiver, ArrayList<? extends TypedExpression> args, IJavaType returnType, IJavaType thisType, Method method, IJavaDebugTarget target, ValueCache valueCache, IJavaThread thread, StaticEvaluator staticEvaluator) {
-		//IJavaValue value = computeCall(method, receiver.getValue(), args, thread, target, ((JDIType)receiver.getType()));
 		IJavaValue value = staticEvaluator.evaluateCall(receiver, args, method, target);
+		if (value == null)
+			value = computeCall(method, receiver, args, thread, target);
 		TypedExpression result = null;
 		if (receiver.getExpression() == null) {
 			assert "<init>".equals(name);
@@ -687,6 +689,10 @@ public class ExpressionMaker {
 	 */
 	public static ASTNode resetAST(ASTNode node) {
 		return ASTNode.copySubtree(ast, node);
+	}
+	
+	public int getNumCrashes() {
+		return numCrashes;
 	}
 
 }

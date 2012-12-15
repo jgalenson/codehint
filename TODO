@@ -2,7 +2,7 @@ Feature requests
 ----------------
 When users write a pdspec in the code, make it easier to start the synthesis.  We could set the breakpoint and start the debugger automatically when the user does something (e.g., right-click menu).
 Make it easier to write pdspecs in the code.  It would be great if we could use auto-complete to make them easier to type, but Eclipse doesn't seem to let us do that.  I did make a Quick Fix, although it doesn't open on hover....
-Support error-highlighting, Javadoc hovers, and autocomplete for primed variables in the dialog box when demonstrating.
+Support error-highlighting, Javadoc hovers, and autocomplete for primed variables in the dialog box when demonstrating.  I might be able to do the autocomplete for priming by overriding CurrentFrameContext.getSnippet to remove the primes and JavaDebugContentAssistProcessor.computeCompletionProposals to decrement the documentOffset, but that doesn't work for incremental auto-complete. 
 Improve the candidate selector dialog.  You should be able to browse values like in the variables view, hovering over a method should show its Javadoc, and hovering over a value should show the debug hover (like the variables view).  
 Allow searching over the heap.  In variables view window, should be able to search values, types, names for a string.  Leo's idea.
 Instead of generating, evaluating, then showing to the user, we could generate, show the user, and then evaluate.  This would let us explore a much larger space (since we don't have to evaluate it) and the user could tell us which expressions he likes.  We could cluster them so he has fewer choices.  We could estimate the strength of the pdspec and use that to guess how many expression will satisfy it.
@@ -56,6 +56,7 @@ Use our own AST rather than Eclipse's.  We could then cache the depth instead of
 Investigate using IClassFileEvaluationEngine instead of ASTEvaluation.  See JavaSnippetEditor.evaluate().
 Optimize evaluation string: when given a property with a type (x: Foo => ...) don't insert the casts if the variable has static type Foo.
 I could cache expression string -> result.  This would help when re-evaluating expressions, or when iteratively increasing depth (e.g., try 1, see no results, then try 2). 
+My new sendMessage-based evaluation lacks some of the EvaluationManager's optimizations.  Specifically, it does not cache crashed expressions or skip likely crashes.
 
 Research questions
 ------------------

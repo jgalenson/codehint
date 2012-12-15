@@ -129,6 +129,7 @@ public final class EvaluationManager {
 			throw new RuntimeException(e);
 		}
 		this.crashingExpressions = new HashSet<String>();
+		this.skipped = 0;
 	}
 
 	/**
@@ -149,7 +150,6 @@ public final class EvaluationManager {
 	 */
 	public ArrayList<FullyEvaluatedExpression> evaluateExpressions(ArrayList<? extends TypedExpression> exprs, Property property, IJavaType varType, InitialSynthesisDialog synthesisDialog, IProgressMonitor monitor) {
 		try {
-			this.skipped = 0;
 			this.synthesisDialog = synthesisDialog;
 			validVal = property == null ? "true" : property.getReplacedString("_$curValue", stack);
 			preVarsString = getPreVarsString(stack, property);
@@ -627,7 +627,7 @@ public final class EvaluationManager {
 						break;
 				}
 			}
-		} else if (crashedMethod != null && ("java.lang.IllegalArgumentException".equals(errorName) || "java.lang.ClassCastException".equals(errorName))) {
+		} else if (crashedMethod != null && (/*"java.lang.IllegalArgumentException".equals(errorName) || */"java.lang.ClassCastException".equals(errorName))) {
 			// Skip wrong type exceptions if the arguments have the same type.
 			List<?> args = getArguments(crashedExpr);
 			String[] argTypes = new String[args.size()];

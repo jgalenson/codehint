@@ -80,9 +80,10 @@ public class StaticEvaluator {
 		} catch (DebugException ex) {
 			throw new RuntimeException(ex);
 		} catch (Exception ex) {
-			//System.out.println("Unexpected crash on " + receiver.getExpression().toString().replace("\n", "\\n") + "." + method.name() + args.toString().replace("\n", "\\n") + " with exception " + ex.getClass().toString());
 			result = handleCrash(target);
 		}
+		/*if (target.voidValue().equals(result))
+			System.out.println("Unexpected crash on " + receiver.getExpression().toString().replace("\n", "\\n") + "." + method.name() + args.toString().replace("\n", "\\n"));*/
 		//System.out.println("Evaluating " + receiver.getExpression().toString().replaceAll("[\n]", "\\\\n") + "." + method.name() + args.toString().replaceAll("[\n]", "\\\\n") + " and got " + (result == null ? "null" : result.toString().replaceAll("[\n]", "\\\\n")));
 		return result;
 	}
