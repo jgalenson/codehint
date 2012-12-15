@@ -205,6 +205,19 @@ public class Synthesizer {
 				protected IStatus run(IProgressMonitor monitor) {
 					EclipseUtils.log("Beginning synthesis for " + varName + " with property " + property.toString() + " and skeleton " + skeleton.toString() + " with extra depth " + extraDepth + ".");
 					boolean unfinished = false;
+					// Disable existing breakpoints
+					IBreakpoint[] breakpoints = DebugPlugin.getDefault().getBreakpointManager().getBreakpoints();
+					boolean[] breakpointsEnabled = new boolean[breakpoints.length];
+					for (int i = 0; i < breakpoints.length; i++) {
+						try {
+							boolean isEnabled = breakpoints[i].isEnabled();
+							breakpointsEnabled[i] = isEnabled;
+							if (isEnabled)
+								breakpoints[i].setEnabled(false);
+						} catch (CoreException e) {
+							e.printStackTrace();
+						}
+					}
 					// Ensure that our evaluations do not hit "phantom" breakpoints when they crash.
 					IPreferenceStore prefStore = new ScopedPreferenceStore(InstanceScope.INSTANCE, PHANTOM_BREAKPOINT_QUALIFIER);
 					boolean oldPrefValue = prefStore.getBoolean(PHANTOM_BREAKPOINT_PREFNAME);
@@ -234,6 +247,14 @@ public class Synthesizer {
 							}
 			        	});
 						evalManager.resetFields();
+						for (int i = 0; i < breakpoints.length; i++) {
+							try {
+								if (breakpointsEnabled[i])
+									breakpoints[i].setEnabled(true);
+							} catch (CoreException e) {
+								e.printStackTrace();
+							}
+						}
 						if (oldPrefValue)
 							prefStore.setValue(PHANTOM_BREAKPOINT_PREFNAME, oldPrefValue);
 					}

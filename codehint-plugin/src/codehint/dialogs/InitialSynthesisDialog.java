@@ -378,8 +378,8 @@ public class InitialSynthesisDialog extends SynthesisDialog {
     		Job job = new Job("Javadoc prefetch") {
 				@Override
 				protected IStatus run(IProgressMonitor monitor) {
-		    		for (FullyEvaluatedExpression expr: expressions)
-		    			getJavadoc(expr, expressionMaker);
+					for (int i = 0; i < expressions.size() && i < 100; i++)
+						getJavadoc(expressions.get(i), expressionMaker);
 		    		return Status.OK_STATUS;
 				}
 			};
