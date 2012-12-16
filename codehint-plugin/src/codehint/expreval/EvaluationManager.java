@@ -85,6 +85,7 @@ public final class EvaluationManager {
 	private final IJavaStackFrame stack;
 	private final IAstEvaluationEngine engine;
     private final ValueCache valueCache;
+    private final TimeoutChecker timeoutChecker;
 	private final IJavaDebugTarget target;
 	private final IJavaThread thread;
 	private final ExpressionMaker expressionMaker;
@@ -106,10 +107,11 @@ public final class EvaluationManager {
 	private Map<String, Integer> methodResultsMap;
 	private int skipped;
 	
-	public EvaluationManager(IJavaStackFrame stack, ExpressionMaker expressionMaker, SubtypeChecker subtypeChecker, TypeCache typeCache, ValueCache valueCache) {
+	public EvaluationManager(IJavaStackFrame stack, ExpressionMaker expressionMaker, SubtypeChecker subtypeChecker, TypeCache typeCache, ValueCache valueCache, TimeoutChecker timeoutChecker) {
 		this.stack = stack;
 		this.engine = EclipseUtils.getASTEvaluationEngine(stack);
 		this.valueCache = valueCache;
+		this.timeoutChecker = timeoutChecker;
 		this.target = (IJavaDebugTarget)stack.getDebugTarget();
 		this.thread = (IJavaThread)stack.getThread();
 		this.expressionMaker = expressionMaker;
@@ -278,7 +280,9 @@ public final class EvaluationManager {
 			    		handleCompileFailure(exprs, startIndex, i, compiled);
 			    		continue;
 			    	}
+			    	timeoutChecker.startEvaluating(fullCountField);
 			    	IEvaluationResult result = Evaluator.evaluateExpression(compiled, engine, stack);
+			    	timeoutChecker.stopEvaluating();
 			    	error = result.getException();
 		    	}
 	

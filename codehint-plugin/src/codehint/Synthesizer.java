@@ -40,6 +40,7 @@ import org.eclipse.jdt.debug.core.IJavaArray;
 import org.eclipse.jdt.debug.core.IJavaDebugTarget;
 import org.eclipse.jdt.debug.core.IJavaObject;
 import org.eclipse.jdt.debug.core.IJavaStackFrame;
+import org.eclipse.jdt.debug.core.IJavaThread;
 import org.eclipse.jdt.debug.core.IJavaType;
 import org.eclipse.jdt.debug.core.IJavaValue;
 import org.eclipse.jdt.debug.core.IJavaVariable;
@@ -61,6 +62,7 @@ import codehint.dialogs.StatePropertyDialog;
 import codehint.dialogs.SynthesisDialog;
 import codehint.dialogs.TypePropertyDialog;
 import codehint.expreval.EvaluationManager;
+import codehint.expreval.TimeoutChecker;
 import codehint.expreval.EvaluationManager.EvaluationError;
 import codehint.expreval.FullyEvaluatedExpression;
 import codehint.exprgen.ExpressionGenerator;
@@ -194,8 +196,9 @@ public class Synthesizer {
 		 * @param synthesisDialog The dialog controlling the synthesis.
 		 * @param evalManager The evaluation manager.
 		 * @param extraDepth Extra depth to search.
+		 * @param timeoutChecker The job that times out long evaluations.
 		 */
-		public void synthesize(final InitialSynthesisDialog synthesisDialog, final EvaluationManager evalManager, final int extraDepth) {
+		public void synthesize(final InitialSynthesisDialog synthesisDialog, final EvaluationManager evalManager, final int extraDepth, final TimeoutChecker timeoutChecker) {
 			final Property property = synthesisDialog.getProperty();
 			final ExpressionSkeleton skeleton = synthesisDialog.getSkeleton();
 			final boolean searchConstructors = synthesisDialog.searchConstructors();
@@ -239,6 +242,7 @@ public class Synthesizer {
 						unfinished = true;
 						return Status.CANCEL_STATUS;
 					} finally {
+						timeoutChecker.stop();
 						final InitialSynthesisDialog.SynthesisState state = unfinished ? InitialSynthesisDialog.SynthesisState.UNFINISHED : InitialSynthesisDialog.SynthesisState.END;
 						Display.getDefault().asyncExec(new Runnable(){
 							@Override
@@ -263,6 +267,7 @@ public class Synthesizer {
 			job.setPriority(Job.LONG);
 			//job.setUser(true);
 			job.schedule();
+			timeoutChecker.start();
 		}
 		
 	}
@@ -373,6 +378,7 @@ public class Synthesizer {
 	     */
 		private static void refineExpressions(IJavaStackFrame frame, Matcher matcher, IThread thread, int lineNumber) throws DebugException {
 	    	String curLine = matcher.group(0).trim();
+   			IBreakpoint[] breakpoints = thread.getBreakpoints();  // Cache this, since some things I do befor eI use it might reset it.
    			
 	    	EclipseUtils.log("Beginning refinement for " + curLine + ".");
 	    	
@@ -391,11 +397,14 @@ public class Synthesizer {
    			while (it.hasNext())
    				initialExprs.add(new TypedExpression((Expression)it.next(), varStaticType));
         	assert initialExprs.size() > 0;  // We must have at least one expression.
+        	IJavaDebugTarget target = (IJavaDebugTarget)frame.getDebugTarget();
         	TypeCache typeCache = new TypeCache();
-        	ValueCache valueCache = new ValueCache((IJavaDebugTarget)frame.getDebugTarget());
+			ValueCache valueCache = new ValueCache(target);
         	// TODO: Run the following off the UI thread like above when we do the first synthesis.
-        	EvaluationManager evalManager = new EvaluationManager(frame, new ExpressionMaker(valueCache), new SubtypeChecker(), typeCache, valueCache);
+        	TimeoutChecker timeoutChecker = new TimeoutChecker((IJavaThread)thread, frame, target, typeCache);
+        	EvaluationManager evalManager = new EvaluationManager(frame, new ExpressionMaker(valueCache, timeoutChecker), new SubtypeChecker(), typeCache, valueCache, timeoutChecker);
         	evalManager.init();
+        	timeoutChecker.start();
    			ArrayList<FullyEvaluatedExpression> exprs = evalManager.evaluateExpressions(initialExprs, null, null, null, new NullProgressMonitor());
    			if (exprs.isEmpty()) {
    				EclipseUtils.showError("No valid expressions", "No valid expressions were found.", null);
@@ -454,9 +463,9 @@ public class Synthesizer {
 
        			if (validExprs.size() == 1) {
            			// If there's only a single possibility remaining, remove the breakpoint.
-           			assert thread.getBreakpoints().length > 0 : thread.getBreakpoints().length;
+					assert breakpoints.length > 0 : breakpoints.length;
            			// If there are multiple breakpoints at this line, only remove one (presumably the user added the others).
-           			IBreakpoint curBreakpoint = thread.getBreakpoints()[0];
+           			IBreakpoint curBreakpoint = breakpoints[0];
            			try {
 						DebugPlugin.getDefault().getBreakpointManager().removeBreakpoint(curBreakpoint, true);
 					} catch (CoreException e) {
@@ -473,6 +482,8 @@ public class Synthesizer {
    			if (lhsVar != null)
    				lhsVar.setValue(value);
 
+   			timeoutChecker.stop();
+   			
    			EclipseUtils.log("Ending refinement for " + curLine + (automatic ? " automatically" : "") + ".  " + (newLine == null ? "Statement unchanged." : "Went from " + initialExprs.size() + " expressions to " + finalExprs.size() + ".  New statement: " + newLine));
         	
    			// Immediately continue the execution.

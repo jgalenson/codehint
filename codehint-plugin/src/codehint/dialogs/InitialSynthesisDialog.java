@@ -13,6 +13,7 @@ import org.eclipse.jdt.core.JavaModelException;
 import org.eclipse.jdt.debug.core.IJavaDebugTarget;
 import org.eclipse.jdt.debug.core.IJavaPrimitiveValue;
 import org.eclipse.jdt.debug.core.IJavaStackFrame;
+import org.eclipse.jdt.debug.core.IJavaThread;
 import org.eclipse.jdt.debug.core.IJavaType;
 import org.eclipse.jdt.debug.eval.IAstEvaluationEngine;
 import org.eclipse.jface.dialogs.IDialogConstants;
@@ -52,6 +53,7 @@ import codehint.Synthesizer.SynthesisWorker;
 import codehint.expreval.EvaluationManager;
 import codehint.expreval.FullyEvaluatedExpression;
 import codehint.expreval.StaticEvaluator;
+import codehint.expreval.TimeoutChecker;
 import codehint.exprgen.ExpressionGenerator;
 import codehint.exprgen.ExpressionMaker;
 import codehint.exprgen.ExpressionSkeleton;
@@ -101,6 +103,7 @@ public class InitialSynthesisDialog extends SynthesisDialog {
     private SubtypeChecker subtypeChecker;
     private TypeCache typeCache;
     private ValueCache valueCache;
+    private TimeoutChecker timeoutChecker;
     private ExpressionMaker expressionMaker;
     private EvaluationManager evalManager;
     private StaticEvaluator staticEvaluator;
@@ -130,8 +133,9 @@ public class InitialSynthesisDialog extends SynthesisDialog {
 		this.subtypeChecker = new SubtypeChecker();
 		this.typeCache = new TypeCache();
 		this.valueCache = new ValueCache(target);
-		this.expressionMaker = new ExpressionMaker(valueCache);
-		this.evalManager = new EvaluationManager(stack, expressionMaker, subtypeChecker, typeCache, valueCache);
+		this.timeoutChecker = new TimeoutChecker((IJavaThread)stack.getThread(), stack, target, typeCache);
+		this.expressionMaker = new ExpressionMaker(valueCache, timeoutChecker);
+		this.evalManager = new EvaluationManager(stack, expressionMaker, subtypeChecker, typeCache, valueCache, timeoutChecker);
 		this.staticEvaluator = new StaticEvaluator(stack, typeCache, valueCache);
 		this.expressionGenerator = new ExpressionGenerator(target, stack, expressionMaker, subtypeChecker, typeCache, valueCache, evalManager, staticEvaluator);
 		this.skeleton = null;
@@ -355,7 +359,7 @@ public class InitialSynthesisDialog extends SynthesisDialog {
 		monitor.setLayoutData(gridData);
 		monitorComposite.getParent().layout(true);
 		// Start the synthesis
-		worker.synthesize(this, evalManager, numSearches);
+		worker.synthesize(this, evalManager, numSearches, timeoutChecker);
 	}
 
 	public void startEndSynthesis(SynthesisState state) {
@@ -406,7 +410,7 @@ public class InitialSynthesisDialog extends SynthesisDialog {
 	
 	public enum SynthesisState { START, END, UNFINISHED, AUTO_START };
 	
-	private boolean isStart(SynthesisState state) {
+	private static boolean isStart(SynthesisState state) {
 		return state == SynthesisState.START || state == SynthesisState.AUTO_START;
 	}
 	
@@ -643,6 +647,7 @@ public class InitialSynthesisDialog extends SynthesisDialog {
 		subtypeChecker = null;
 		typeCache = null;
 		valueCache = null;
+		timeoutChecker = null;
 		expressionMaker = null;
 		evalManager = null;
 		staticEvaluator = null;

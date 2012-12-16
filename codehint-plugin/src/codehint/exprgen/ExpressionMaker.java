@@ -43,6 +43,7 @@ import org.eclipse.jdt.debug.core.IJavaValue;
 
 import codehint.expreval.EvaluatedExpression;
 import codehint.expreval.StaticEvaluator;
+import codehint.expreval.TimeoutChecker;
 import codehint.utils.EclipseUtils;
 
 import com.sun.jdi.ClassNotLoadedException;
@@ -60,8 +61,9 @@ public class ExpressionMaker {
 	private final Map<Integer, Integer> depths;
 	private final ValueCache valueCache;
 	private int numCrashes;
+	private final TimeoutChecker timeoutChecker;
 	
-	public ExpressionMaker(ValueCache valueCache) {
+	public ExpressionMaker(ValueCache valueCache, TimeoutChecker timeoutChecker) {
 		id = 0;
 		values = new HashMap<Integer, IJavaValue>();
 		methods = new HashMap<Integer, Method>();
@@ -69,6 +71,7 @@ public class ExpressionMaker {
 		depths = new HashMap<Integer, Integer>();
 		this.valueCache = valueCache;
 		numCrashes = 0;
+		this.timeoutChecker = timeoutChecker;
 	}
 
 	public static boolean isInt(IJavaType type) throws DebugException {
@@ -218,6 +221,7 @@ public class ExpressionMaker {
 		}
 		try {
 			//System.out.println("Calling " + (receiver.getValue() != null ? receiver.getExpression() : receiver.getType()).toString().replace("\n", "\\n") + "." + method.name() + " with args " + args.toString());
+			timeoutChecker.startEvaluating(null);
 			IJavaValue value = null;
 			if (receiverValue == null && "<init>".equals(method.name()))
 				value = ((IJavaClassType)receiver.getType()).newInstance(method.signature(), argValues, thread);
@@ -228,9 +232,11 @@ public class ExpressionMaker {
 			//System.out.println("Got " + value);
 			return value;
 		} catch (DebugException e) {
-			//System.out.println("Crashed on " + (receiver.getValue() != null ? receiver.getExpression() : receiver.getType()).toString().replace("\n", "\\n") + "." + method.name() + " with args " + java.util.Arrays.toString(argValues).replace("\n", "\\n"));
+			//System.out.println("Crashed on " + (receiver.getValue() != null ? receiver.getExpression() : receiver.getType()).toString().replace("\n", "\\n") + "." + method.name() + " with args " + java.util.Arrays.toString(argValues).replace("\n", "\\n") + " got " + EclipseUtils.getExceptionMessage(e));
 			numCrashes++;
 			return target.voidValue();
+		} finally {
+			timeoutChecker.stopEvaluating();
 		}
 	}
 
