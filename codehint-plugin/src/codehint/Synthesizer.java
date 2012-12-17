@@ -340,7 +340,15 @@ public class Synthesizer {
 	               		
 	               		Matcher matcher = choosePattern.matcher(fullCurLine);
 	               		if(matcher.matches()) {
-	               			refineExpressions(frame, matcher, thread, line);
+	               			IBreakpoint[] breakpoints = thread.getBreakpoints();  // Cache this, since some things I do before I use it might reset it.
+	                    	TypeCache typeCache = new TypeCache();
+	                    	TimeoutChecker timeoutChecker = new TimeoutChecker((IJavaThread)thread, frame, (IJavaDebugTarget)frame.getDebugTarget(), typeCache);
+	                    	timeoutChecker.start();
+	                    	try {
+	                    		refineExpressions(frame, matcher, thread, line, breakpoints, typeCache, timeoutChecker);
+	                    	} finally {
+	                    		timeoutChecker.stop();
+	                    	}
 	               			return;  // We often get duplicate events that would trigger this, but they must all be equivalent, so only handle the first. 
 	               		}
 	               		
@@ -374,11 +382,12 @@ public class Synthesizer {
 	     * @param matcher A Matcher that has parsed the current line.
 	     * @param thread The current thread.
 	     * @param lineNumber The source code line that is being refined.
+	     * @param breakpoints The breakpoints that caused this thread
+	     * to suspend.
 	     * @throws DebugException
 	     */
-		private static void refineExpressions(IJavaStackFrame frame, Matcher matcher, IThread thread, int lineNumber) throws DebugException {
+		private static void refineExpressions(IJavaStackFrame frame, Matcher matcher, IThread thread, int lineNumber, IBreakpoint[] breakpoints, TypeCache typeCache, TimeoutChecker timeoutChecker) throws DebugException {
 	    	String curLine = matcher.group(0).trim();
-   			IBreakpoint[] breakpoints = thread.getBreakpoints();  // Cache this, since some things I do befor eI use it might reset it.
    			
 	    	EclipseUtils.log("Beginning refinement for " + curLine + ".");
 	    	
@@ -397,14 +406,10 @@ public class Synthesizer {
    			while (it.hasNext())
    				initialExprs.add(new TypedExpression((Expression)it.next(), varStaticType));
         	assert initialExprs.size() > 0;  // We must have at least one expression.
-        	IJavaDebugTarget target = (IJavaDebugTarget)frame.getDebugTarget();
-        	TypeCache typeCache = new TypeCache();
-			ValueCache valueCache = new ValueCache(target);
+			ValueCache valueCache = new ValueCache((IJavaDebugTarget)frame.getDebugTarget());
         	// TODO: Run the following off the UI thread like above when we do the first synthesis.
-        	TimeoutChecker timeoutChecker = new TimeoutChecker((IJavaThread)thread, frame, target, typeCache);
         	EvaluationManager evalManager = new EvaluationManager(frame, new ExpressionMaker(valueCache, timeoutChecker), new SubtypeChecker(), typeCache, valueCache, timeoutChecker);
         	evalManager.init();
-        	timeoutChecker.start();
    			ArrayList<FullyEvaluatedExpression> exprs = evalManager.evaluateExpressions(initialExprs, null, null, null, new NullProgressMonitor());
    			if (exprs.isEmpty()) {
    				EclipseUtils.showError("No valid expressions", "No valid expressions were found.", null);
@@ -482,7 +487,6 @@ public class Synthesizer {
    			if (lhsVar != null)
    				lhsVar.setValue(value);
 
-   			timeoutChecker.stop();
    			
    			EclipseUtils.log("Ending refinement for " + curLine + (automatic ? " automatically" : "") + ".  " + (newLine == null ? "Statement unchanged." : "Went from " + initialExprs.size() + " expressions to " + finalExprs.size() + ".  New statement: " + newLine));
         	
