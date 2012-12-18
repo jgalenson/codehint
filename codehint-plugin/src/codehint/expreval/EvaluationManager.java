@@ -158,7 +158,7 @@ public final class EvaluationManager {
 			PropertyPreconditionFinder pf = new PropertyPreconditionFinder();
     		EclipseUtils.parseExpr(parser, validVal).accept(pf);
     		propertyPreconditions = property instanceof ValueProperty ? "" : pf.getPreconditions();  // TODO: This will presumably fail if the user does their own null check.
-    		boolean validateStatically = property == null || property instanceof PrimitiveValueProperty || property instanceof TypeProperty || (property instanceof ValueProperty && ((ValueProperty)property).getValue().isNull()) || (property instanceof ObjectValueProperty && "java.lang.String".equals(((ObjectValueProperty)property).getValue().getJavaType().getName())) || (property instanceof StateProperty && "true".equals(((StateProperty)property).getPropertyString()));
+    		boolean validateStatically = canEvaluateStatically(property);
 			Map<String, ArrayList<TypedExpression>> expressionsByType = getNonKnownCrashingExpressionByType(exprs);
 			int numExpressions = Utils.getNumValues(expressionsByType);
 			this.monitor = SubMonitor.convert(monitor, "Expression evaluation", numExpressions);
@@ -176,6 +176,10 @@ public final class EvaluationManager {
 		} catch (DebugException e) {
 			throw new RuntimeException(e);
 		}
+	}
+
+	public static boolean canEvaluateStatically(Property property) throws DebugException {
+		return property == null || property instanceof PrimitiveValueProperty || property instanceof TypeProperty || (property instanceof ValueProperty && ((ValueProperty)property).getValue().isNull()) || (property instanceof ObjectValueProperty && "java.lang.String".equals(((ObjectValueProperty)property).getValue().getJavaType().getName())) || (property instanceof StateProperty && "true".equals(((StateProperty)property).getPropertyString()));
 	}
 	
 	/**
@@ -339,7 +343,7 @@ public final class EvaluationManager {
 	 * @param valuesArrayName The name of the field that will store the output
 	 * values.
 	 * @return The number of expressions that the potentially-modified
-	 * expressionsStr qill evaluate.
+	 * expressionsStr will evaluate.
 	 * @throws DebugException
 	 */
 	private int buildStringForExpression(TypedExpression curTypedExpr, int i, StringBuilder expressionsStr, boolean isPrimitive, boolean validateStatically, boolean hasPropertyPrecondition, ArrayList<Integer> evalExprIndices, int numEvaluated, Map<String, Integer> temporaries, String valuesArrayName) throws DebugException {
@@ -718,10 +722,10 @@ public final class EvaluationManager {
      * we currently want to evaluate.
      * @throws DebugException
      */
-    public void cacheMethodResults(ArrayList<FullyEvaluatedExpression> exprs) throws DebugException {
+    public void cacheMethodResults(ArrayList<? extends EvaluatedExpression> exprs) throws DebugException {
     	// Find the non-inlined method calls.
-    	ArrayList<FullyEvaluatedExpression> calls = new ArrayList<FullyEvaluatedExpression>();
-    	for (FullyEvaluatedExpression expr: exprs) {
+    	ArrayList<EvaluatedExpression> calls = new ArrayList<EvaluatedExpression>();
+    	for (EvaluatedExpression expr: exprs) {
     		Expression e = expr.getExpression();
     		IJavaValue value = expr.getValue();
     		if ((e instanceof MethodInvocation || e instanceof ClassInstanceCreation || e instanceof SuperMethodInvocation)

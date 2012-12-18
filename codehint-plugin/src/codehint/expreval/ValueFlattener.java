@@ -101,26 +101,24 @@ public class ValueFlattener extends ASTFlattener {
 
 	@Override
 	protected void flatten(MethodInvocation node, StringBuilder sb) {
-		if (node.getParent() != null) {  // Do not replace a top-level call with a temporary.
-			String toString = node.toString();
-			if (temporaries.containsKey(toString)) {
-				sb.append("_$tmp").append(temporaries.get(toString));
+		String toString = node.toString();
+		if (temporaries.containsKey(toString)) {
+			sb.append("_$tmp").append(temporaries.get(toString));
+			return;
+		} else if (newTemporaries.containsKey(toString)) {
+			sb.append("_$tmp").append(newTemporaries.get(toString).first);
+			return;
+		} else {
+			Method method = null;
+			Object idObj = ExpressionMaker.getIDOpt(node);
+			if (idObj != null)
+				method = expressionMaker.getMethod((Integer)idObj);
+			if (method != null) {  // The method should only be null during refinement.
+				String typeStr = EclipseUtils.sanitizeTypename(method.returnTypeName());
+				int newIndex = temporaries.size() + newTemporaries.size();
+				sb.append("_$tmp").append(newIndex);
+				newTemporaries.put(toString, new Pair<Integer, String>(newIndex, typeStr));
 				return;
-			} else if (newTemporaries.containsKey(toString)) {
-				sb.append("_$tmp").append(newTemporaries.get(toString).first);
-				return;
-			} else {
-				Method method = null;
-				Object idObj = ExpressionMaker.getIDOpt(node);
-				if (idObj != null)
-					method = expressionMaker.getMethod((Integer)idObj);
-				if (method != null) {  // The method should only be null during refinement.
-					String typeStr = EclipseUtils.sanitizeTypename(method.returnTypeName());
-					int newIndex = temporaries.size() + newTemporaries.size();
-					sb.append("_$tmp").append(newIndex);
-					newTemporaries.put(toString, new Pair<Integer, String>(newIndex, typeStr));
-					return;
-				}
 			}
 		}
 		super.flatten(node, sb);

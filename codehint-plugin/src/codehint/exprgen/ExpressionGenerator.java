@@ -366,9 +366,10 @@ public final class ExpressionGenerator {
 			for (FullyEvaluatedExpression e: nextLevel)
 				System.out.println(Utils.truncate(e.toString(), 100));*/
 			curLevel = genOneLevel(nextLevel, depth, maxDepth, property, searchConstructors, searchOperators, monitor);
-			evalManager.cacheMethodResults(nextLevel);
-			if (depth < maxDepth)
+			if (depth < maxDepth) {
+				evalManager.cacheMethodResults(nextLevel);
 				nextLevel = evaluateExpressions(curLevel, null, null, monitor, depth);
+			}
 		}
 		ArrayList<FullyEvaluatedExpression> results = evaluateExpressions(curLevel, property, synthesisDialog, monitor, maxDepth);
 		
@@ -420,6 +421,8 @@ public final class ExpressionGenerator {
 		/*for (EvaluatedExpression e: evaluatedExprs)
 			System.out.println(Utils.truncate(e.toString(), 100));*/
     	
+    	if (property != null && unevaluatedExprs.isEmpty() && !EvaluationManager.canEvaluateStatically(property))
+			evalManager.cacheMethodResults(evaluatedExprs);
 		ArrayList<FullyEvaluatedExpression> results = evalManager.evaluateExpressions(evaluatedExprs, property, getVarType(), synthesisDialog, monitor);
     	if (unevaluatedExprs.size() > 0) {
 
