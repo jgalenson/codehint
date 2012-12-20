@@ -57,6 +57,7 @@ Investigate using IClassFileEvaluationEngine instead of ASTEvaluation.  See Java
 Optimize evaluation string: when given a property with a type (x: Foo => ...) don't insert the casts if the variable has static type Foo.
 I could cache expression string -> result.  This would help when re-evaluating expressions, or when iteratively increasing depth (e.g., try 1, see no results, then try 2). 
 My new sendMessage-based evaluation lacks some of the EvaluationManager's optimizations.  Specifically, it does not cache crashed expressions or skip likely crashes.
+Optimize the native call blocker by discovering when it isn't needed (e.g., no non-standard native methods loaded with check on class load events).
 
 Research questions
 ------------------

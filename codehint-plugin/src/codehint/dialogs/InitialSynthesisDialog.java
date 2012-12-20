@@ -52,6 +52,7 @@ import codehint.Activator;
 import codehint.Synthesizer.SynthesisWorker;
 import codehint.expreval.EvaluationManager;
 import codehint.expreval.FullyEvaluatedExpression;
+import codehint.expreval.NativeHandler;
 import codehint.expreval.StaticEvaluator;
 import codehint.expreval.TimeoutChecker;
 import codehint.exprgen.ExpressionGenerator;
@@ -73,6 +74,7 @@ public class InitialSynthesisDialog extends SynthesisDialog {
 	private String skeletonResult;
 	private Button searchConstructorsButton;
 	private Button searchOperatorsButton;
+	private Button searchNativeCalls;
 
     private static final int searchCancelButtonID = IDialogConstants.CLIENT_ID;
     private Button searchCancelButton;
@@ -104,6 +106,7 @@ public class InitialSynthesisDialog extends SynthesisDialog {
     private TypeCache typeCache;
     private ValueCache valueCache;
     private TimeoutChecker timeoutChecker;
+    private NativeHandler nativeHandler;
     private ExpressionMaker expressionMaker;
     private EvaluationManager evalManager;
     private StaticEvaluator staticEvaluator;
@@ -133,8 +136,10 @@ public class InitialSynthesisDialog extends SynthesisDialog {
 		this.subtypeChecker = new SubtypeChecker();
 		this.typeCache = new TypeCache();
 		this.valueCache = new ValueCache(target);
-		this.timeoutChecker = new TimeoutChecker((IJavaThread)stack.getThread(), stack, target, typeCache);
-		this.expressionMaker = new ExpressionMaker(valueCache, timeoutChecker);
+		IJavaThread thread = (IJavaThread)stack.getThread();
+		this.timeoutChecker = new TimeoutChecker(thread, stack, target, typeCache);
+		this.nativeHandler = new NativeHandler(thread, stack, target, typeCache);
+		this.expressionMaker = new ExpressionMaker(valueCache, timeoutChecker, nativeHandler);
 		this.evalManager = new EvaluationManager(stack, expressionMaker, subtypeChecker, typeCache, valueCache, timeoutChecker);
 		this.staticEvaluator = new StaticEvaluator(stack, typeCache, valueCache);
 		this.expressionGenerator = new ExpressionGenerator(target, stack, expressionMaker, subtypeChecker, typeCache, valueCache, evalManager, staticEvaluator);
@@ -145,15 +150,20 @@ public class InitialSynthesisDialog extends SynthesisDialog {
 	protected Control createDialogArea(Composite parent) {
 		Composite composite = (Composite)super.createDialogArea(parent);
 		
-		
 		String message = "Give a skeleton describing the form of the desired expression, using " + ExpressionSkeleton.HOLE_SYNTAX + "s for unknown expressions and names and " + ExpressionSkeleton.LIST_HOLE_SYNTAX + "s for an unknown number of arguments.";
 		Composite skeletonComposite = makeChildComposite(composite, GridData.HORIZONTAL_ALIGN_FILL, 1);
 		skeletonInput = createInput(skeletonComposite, message, initialSkeletonText, skeletonValidator, new SkeletonModifyHandler(), "skeleton");
+		
 		Composite skeletonButtonComposite = makeChildComposite(skeletonComposite, GridData.HORIZONTAL_ALIGN_CENTER, 0);
 		searchConstructorsButton = createCheckBoxButton(skeletonButtonComposite, "Search constructors");
 		if (!EclipseUtils.isObject(varType))
 			searchConstructorsButton.setEnabled(false);
 		searchOperatorsButton = createCheckBoxButton(skeletonButtonComposite, "Search operators");
+		
+		Composite searchOptionsComposite = makeChildComposite(skeletonComposite, GridData.HORIZONTAL_ALIGN_CENTER, 0);
+		searchNativeCalls = createCheckBoxButton(searchOptionsComposite, "Call non-standard native methods (fast but dangerous)");
+		searchNativeCalls.setSelection(true);
+        PlatformUI.getWorkbench().getHelpSystem().setHelp(searchNativeCalls, Activator.PLUGIN_ID + "." + "search-native-calls");
 		
 		Composite topButtonComposite = makeChildComposite(composite, GridData.HORIZONTAL_ALIGN_CENTER, 0);
 		searchCancelButton = createButton(topButtonComposite, searchCancelButtonID, "Search", true);
@@ -359,13 +369,14 @@ public class InitialSynthesisDialog extends SynthesisDialog {
 		monitor.setLayoutData(gridData);
 		monitorComposite.getParent().layout(true);
 		// Start the synthesis
+		nativeHandler.enable(isAutomatic || !searchNativeCalls.getSelection());
 		worker.synthesize(this, evalManager, numSearches, timeoutChecker);
 	}
 
 	public void startEndSynthesis(SynthesisState state) {
 		boolean isStarting = isStart(state);
         getButton(IDialogConstants.CANCEL_ID).setEnabled(!isStarting);
-    	searchCancelButton.setEnabled(state != SynthesisState.START || (pdspecIsValid && skeletonIsValid));
+    	searchCancelButton.setEnabled(isStarting || (pdspecIsValid && skeletonIsValid));
     	amSearching = isStarting;
     	setSearchCancelButtonText(amSearching ? "Cancel" : "Search");
     	if (!isStarting) {
@@ -614,8 +625,8 @@ public class InitialSynthesisDialog extends SynthesisDialog {
 	}
 	
 	private void automaticallyStartSynthesisIfPossible() {
-		if (expressions == null)
-			startSearch(StateProperty.fromPropertyString(propertyDialog.getVarName(), "true"), true);
+		/*if (expressions == null)
+			startSearch(StateProperty.fromPropertyString(propertyDialog.getVarName(), "true"), true);*/
 	}
 	
 	@Override
@@ -648,6 +659,7 @@ public class InitialSynthesisDialog extends SynthesisDialog {
 		typeCache = null;
 		valueCache = null;
 		timeoutChecker = null;
+		nativeHandler = null;
 		expressionMaker = null;
 		evalManager = null;
 		staticEvaluator = null;

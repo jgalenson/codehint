@@ -324,7 +324,6 @@ public class Synthesizer {
 	    
 	    @Override
 		public void handleDebugEvents(DebugEvent[] events) {
-       		IDocument document = getDocument();
 	    	for (DebugEvent event : events) {
 	            Object source= event.getSource();
 	            if (source instanceof IThread && event.getKind() == DebugEvent.SUSPEND &&
@@ -335,7 +334,8 @@ public class Synthesizer {
 	                   	if (frame == null || frame.getLineNumber() == -1)
 	                   		continue;
 	                   	int line = frame.getLineNumber() - 1 ;
-	
+
+	               		IDocument document = getDocument();
 	               		String fullCurLine = EclipseUtils.getTextAtLine(document, line);
 	               		
 	               		Matcher matcher = choosePattern.matcher(fullCurLine);
@@ -408,7 +408,7 @@ public class Synthesizer {
         	assert initialExprs.size() > 0;  // We must have at least one expression.
 			ValueCache valueCache = new ValueCache((IJavaDebugTarget)frame.getDebugTarget());
         	// TODO: Run the following off the UI thread like above when we do the first synthesis.
-        	EvaluationManager evalManager = new EvaluationManager(frame, new ExpressionMaker(valueCache, timeoutChecker), new SubtypeChecker(), typeCache, valueCache, timeoutChecker);
+        	EvaluationManager evalManager = new EvaluationManager(frame, new ExpressionMaker(valueCache, timeoutChecker, null), new SubtypeChecker(), typeCache, valueCache, timeoutChecker);
         	evalManager.init();
    			ArrayList<FullyEvaluatedExpression> exprs = evalManager.evaluateExpressions(initialExprs, null, null, null, new NullProgressMonitor());
    			if (exprs.isEmpty()) {

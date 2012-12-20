@@ -42,6 +42,7 @@ import org.eclipse.jdt.debug.core.IJavaType;
 import org.eclipse.jdt.debug.core.IJavaValue;
 
 import codehint.expreval.EvaluatedExpression;
+import codehint.expreval.NativeHandler;
 import codehint.expreval.StaticEvaluator;
 import codehint.expreval.TimeoutChecker;
 import codehint.utils.EclipseUtils;
@@ -62,8 +63,9 @@ public class ExpressionMaker {
 	private final ValueCache valueCache;
 	private int numCrashes;
 	private final TimeoutChecker timeoutChecker;
+	private final NativeHandler nativeHandler;
 	
-	public ExpressionMaker(ValueCache valueCache, TimeoutChecker timeoutChecker) {
+	public ExpressionMaker(ValueCache valueCache, TimeoutChecker timeoutChecker, NativeHandler nativeHandler) {
 		id = 0;
 		values = new HashMap<Integer, IJavaValue>();
 		methods = new HashMap<Integer, Method>();
@@ -72,6 +74,7 @@ public class ExpressionMaker {
 		this.valueCache = valueCache;
 		numCrashes = 0;
 		this.timeoutChecker = timeoutChecker;
+		this.nativeHandler = nativeHandler;
 	}
 
 	public static boolean isInt(IJavaType type) throws DebugException {
@@ -222,6 +225,7 @@ public class ExpressionMaker {
 		try {
 			//System.out.println("Calling " + (receiver.getValue() != null ? receiver.getExpression() : receiver.getType()).toString().replace("\n", "\\n") + "." + method.name() + " with args " + args.toString());
 			timeoutChecker.startEvaluating(null);
+			nativeHandler.blockNativeCalls();
 			IJavaValue value = null;
 			if (receiverValue == null && "<init>".equals(method.name()))
 				value = ((IJavaClassType)receiver.getType()).newInstance(method.signature(), argValues, thread);
@@ -236,6 +240,7 @@ public class ExpressionMaker {
 			numCrashes++;
 			return target.voidValue();
 		} finally {
+			nativeHandler.allowNativeCalls();
 			timeoutChecker.stopEvaluating();
 		}
 	}

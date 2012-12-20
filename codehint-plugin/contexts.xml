@@ -17,4 +17,7 @@
 	<context id="candidate-selector" title="Synthesis">
 		<description>Check the expressions that you would like to insert into the document.  If you choose more than one expression, then if some have different values when we later encounter this statement, we will ask you for a new pdspec.</description>
 	</context>
+	<context id="search-native-calls" title="Synthesis">
+		<description>Allow the synthesis search to call native methods outside the standard library (i.e., outside the "java." and "sun." packages).  These method calls might not respect the security manager and so might have external side effects, such as deleting a file.  However, disallowing them greatly slows the search.</description>
+	</context>
 </contexts>

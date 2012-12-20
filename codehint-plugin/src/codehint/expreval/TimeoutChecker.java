@@ -32,6 +32,10 @@ public class TimeoutChecker extends Job {
 		this.thread = thread;
 		try {
 			IJavaClassType exceptionType = (IJavaClassType)EclipseUtils.getTypeAndLoadIfNeeded("codehint.Timeout", stack, target, typeCache);
+			if (exceptionType == null) {
+				EclipseUtils.showError("Missing library", "Please add the codehint.CodeHintImpl library to the project's classpath.", null);
+				throw new RuntimeException("Missing library codehint.CodeHintImpl");
+			}
 			this.exceptionObj = exceptionType.newInstance("()V", new IJavaValue[0], thread);
 		} catch (DebugException e) {
 			throw new RuntimeException(e);
@@ -58,6 +62,7 @@ public class TimeoutChecker extends Job {
 
 	@Override
 	protected IStatus run(IProgressMonitor monitor) {
+		//System.out.println("Checking for timeout");
 		if (!monitor.isCanceled()) {
 			synchronized (this) {
 				int count = 1;
@@ -78,8 +83,9 @@ public class TimeoutChecker extends Job {
 		return Status.OK_STATUS;
 	}
 	
-	// TODO: This does not stop a thread if it's stick in a loop.  But this is true of Java's Thread.stop, so I don't think the VM can actually stop a thread.
+	// TODO: This does not stop a thread if it's stuck in a loop.  But this is true of Java's Thread.stop, so I don't think the VM can actually stop a thread.
 	private void stopThread() {
+		//System.out.println("Timeout");
 		try {
 			thread.stop(exceptionObj);
 		} catch (DebugException e) {

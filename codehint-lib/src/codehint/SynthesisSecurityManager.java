@@ -57,4 +57,12 @@ class SynthesisSecurityManager extends SecurityManager {
     	throw new SynthesisSecurityException();
     }
 
+    /*
+    // Users can do dangerous things with Unsafe, but they need to get it through reflection, so block that.
+    @Override
+    public void checkMemberAccess(Class<?> clazz, int which) {
+    	if (clazz.getName().equals("sun.misc.Unsafe"))
+    		throw new SynthesisSecurityException();
+    }*/
+
 }
