@@ -54,6 +54,7 @@ import com.sun.jdi.ObjectReference;
 
 import codehint.Activator;
 import codehint.expreval.EvaluationManager;
+import codehint.expreval.TimeoutChecker;
 import codehint.expreval.EvaluationManager.EvaluationError;
 import codehint.exprgen.TypeCache;
 
@@ -753,9 +754,11 @@ public final class EclipseUtils {
             }
         };
 		synchronized(stack) {
+			if (stack.isTerminated())  // If the stack is terminated the wait below will hang forever, so abort in that case.
+				return null;
             engine.evaluate(stringValue, stack, listener, DebugEvent.EVALUATION_IMPLICIT, false);
 			try {
-				stack.wait();
+				stack.wait(TimeoutChecker.TIMEOUT_TIME_MS);  // Timeout the execution.
 			} catch (InterruptedException e) {
 				if (results[0] == null)
 					throw new RuntimeException(e);

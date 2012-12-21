@@ -19,7 +19,7 @@ import codehint.utils.EclipseUtils;
 
 public class TimeoutChecker extends Job {
 	
-	private static final long TIMEOUT_TIME_MS = 1000l;
+	public static final long TIMEOUT_TIME_MS = 1000l;
 	
 	private final IJavaThread thread;
 	private final IJavaObject exceptionObj;

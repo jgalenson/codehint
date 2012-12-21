@@ -758,9 +758,12 @@ public final class EvaluationManager {
 	 * Nulls out the CodeHintImpl fields used during evaluation
 	 * to free up memory.
 	 */
-	public void resetFields() {
+	public boolean resetFields() {
 		try {
+			if (stack.isTerminated())
+				return false;
 			EclipseUtils.evaluate(IMPL_QUALIFIER + "reset()", stack);
+			return true;
 		} catch (DebugException e) {
 			throw new RuntimeException(e);
 		}

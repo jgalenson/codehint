@@ -250,7 +250,6 @@ public class Synthesizer {
 			                	synthesisDialog.startEndSynthesis(state);
 							}
 			        	});
-						evalManager.resetFields();
 						for (int i = 0; i < breakpoints.length; i++) {
 							try {
 								if (breakpointsEnabled[i])
@@ -261,6 +260,13 @@ public class Synthesizer {
 						}
 						if (oldPrefValue)
 							prefStore.setValue(PHANTOM_BREAKPOINT_PREFNAME, oldPrefValue);
+						if (!evalManager.resetFields())
+							Display.getDefault().asyncExec(new Runnable(){
+								@Override
+								public void run() {
+									synthesisDialog.close();
+								}
+				        	});
 					}
 				}
 			};

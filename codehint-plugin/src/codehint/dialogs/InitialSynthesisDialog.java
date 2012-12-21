@@ -62,7 +62,6 @@ import codehint.exprgen.SubtypeChecker;
 import codehint.exprgen.TypeCache;
 import codehint.exprgen.ValueCache;
 import codehint.property.Property;
-import codehint.property.StateProperty;
 import codehint.utils.EclipseUtils;
 
 public class InitialSynthesisDialog extends SynthesisDialog {
@@ -84,6 +83,7 @@ public class InitialSynthesisDialog extends SynthesisDialog {
     private Composite monitorComposite;
     private ProgressMonitorPart monitor;
     private static final int MONITOR_WIDTH = 300;
+    private JavadocPrefetcher javadocPrefetcher;
 
     private static final int TABLE_WIDTH = 500;
     private static final int TABLE_HEIGHT = 300;
@@ -269,7 +269,7 @@ public class InitialSynthesisDialog extends SynthesisDialog {
 		
 		return composite;
 	}
-	
+
 	private class SkeletonModifyHandler extends ModifyHandler {
 
         @Override
@@ -386,22 +386,36 @@ public class InitialSynthesisDialog extends SynthesisDialog {
     			numSearches++;
     			setSearchCancelButtonText("Continue search");
     		}
-    		// Prefetch the Javadocs to reduce the waiting time (which can be noticeable without this) when the user hovers over an expression.
-    		// Copy fields used to avoid a race with closing the dialog.
-			final ArrayList<FullyEvaluatedExpression> expressions = this.expressions;
-    		final ExpressionMaker expressionMaker = this.expressionMaker;
-    		Job job = new Job("Javadoc prefetch") {
-				@Override
-				protected IStatus run(IProgressMonitor monitor) {
-					for (int i = 0; i < expressions.size() && i < 100; i++)
-						getJavadoc(expressions.get(i), expressionMaker);
-		    		return Status.OK_STATUS;
-				}
-			};
-			job.setPriority(Job.DECORATE);
-			job.schedule();
+    		javadocPrefetcher = new JavadocPrefetcher(this.expressions, this.expressionMaker);
+    		javadocPrefetcher.setPriority(Job.DECORATE);
+    		javadocPrefetcher.schedule();
     	}
     }
+
+	// Prefetch the Javadocs to reduce the waiting time (which can be noticeable without this) when the user hovers over an expression.
+	// Copy fields used to avoid a race with closing the dialog.
+	private final class JavadocPrefetcher extends Job {
+		
+		private final ArrayList<FullyEvaluatedExpression> expressions;
+		private final ExpressionMaker expressionMaker;
+
+		private JavadocPrefetcher(ArrayList<FullyEvaluatedExpression> expressions, ExpressionMaker expressionMaker) {
+			super("Javadoc prefetch");
+			this.expressions = expressions;
+			this.expressionMaker = expressionMaker;
+		}
+
+		@Override
+		protected IStatus run(IProgressMonitor monitor) {
+			for (int i = 0; i < expressions.size() && i < 100; i++) {
+				if (monitor.isCanceled())
+					return Status.CANCEL_STATUS;
+				getJavadoc(expressions.get(i), expressionMaker);
+			}
+			return Status.OK_STATUS;
+		}
+		
+	}
 	
 	private String getJavadoc(FullyEvaluatedExpression expr, ExpressionMaker expressionMaker) {
 		try {
@@ -417,6 +431,13 @@ public class InitialSynthesisDialog extends SynthesisDialog {
 		} catch (DebugException e) {
 			throw new RuntimeException(e);
 		}
+	}
+
+	@Override
+	protected void cancelPressed() {
+		if (javadocPrefetcher != null)
+			javadocPrefetcher.cancel();
+		super.cancelPressed();
 	}
 	
 	public enum SynthesisState { START, END, UNFINISHED, AUTO_START };
