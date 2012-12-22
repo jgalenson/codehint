@@ -229,7 +229,7 @@ public class ExpressionMaker {
 			IJavaValue value = null;
 			if (receiverValue == null && "<init>".equals(method.name()))
 				value = ((IJavaClassType)receiver.getType()).newInstance(method.signature(), argValues, thread);
-			else if (receiverValue instanceof IJavaClassObject)
+			else if (receiverValue instanceof IJavaClassObject && method.isStatic())
 				value = ((IJavaClassType)((IJavaClassObject)receiverValue).getInstanceType()).sendMessage(method.name(), method.signature(), argValues, thread);
 			else
 				value = ((IJavaObject)receiverValue).sendMessage(method.name(), method.signature(), argValues, thread, method.declaringType() instanceof ClassType && !((ClassType)method.declaringType()).isAbstract() ? method.declaringType().signature() : null);

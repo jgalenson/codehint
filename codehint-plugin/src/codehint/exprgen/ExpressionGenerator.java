@@ -819,7 +819,7 @@ public final class ExpressionGenerator {
 				if (e.getExpression() instanceof ThisExpression || e.getType().equals(thisType))
 					receiver = null;  // Don't use a receiver if it is null or the this type.
 				else if (field.isStatic())
-						receiver = expressionMaker.makeStaticName(getShortestTypename(field.declaringType().name()), (IJavaReferenceType)EclipseUtils.getTypeAndLoadIfNeeded(field.declaringType().name(), stack, target, typeCache), valueCache, thread);
+						receiver = expressionMaker.makeStaticName(EclipseUtils.sanitizeTypename(getShortestTypename(field.declaringType().name())), (IJavaReferenceType)EclipseUtils.getTypeAndLoadIfNeeded(field.declaringType().name(), stack, target, typeCache), valueCache, thread);
 				IJavaValue fieldValue = null;
 				if (field.isStatic())
 					fieldValue = (IJavaValue)((IJavaReferenceType)e.getType()).getField(field.name()).getValue();
