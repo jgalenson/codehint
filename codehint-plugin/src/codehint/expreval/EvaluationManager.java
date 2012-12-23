@@ -116,11 +116,7 @@ public final class EvaluationManager {
 		this.thread = (IJavaThread)stack.getThread();
 		this.expressionMaker = expressionMaker;
 		this.subtypeChecker = subtypeChecker;
-		this.implType = (IJavaClassType)EclipseUtils.getTypeAndLoadIfNeeded(IMPL_NAME, stack, target, typeCache);
-		if (implType == null) {
-			EclipseUtils.showError("Missing library", "Please add the " + IMPL_NAME + " library to the project's classpath.", null);
-			throw new RuntimeException("Missing library " + IMPL_NAME);
-		}
+		this.implType = EclipseUtils.loadLibrary(IMPL_NAME, stack, target, typeCache);
 		try {
 			this.validField = implType.getField("valid");
 			this.toStringsField = implType.getField("toStrings");
@@ -748,7 +744,7 @@ public final class EvaluationManager {
 	 */
 	public void init() {
 		try {
-			EclipseUtils.evaluate(IMPL_QUALIFIER + "init()", stack);
+			implType.sendMessage("init", "()V", new IJavaValue[] { }, thread);
 		} catch (DebugException e) {
 			throw new RuntimeException(e);
 		}
@@ -757,12 +753,14 @@ public final class EvaluationManager {
 	/**
 	 * Nulls out the CodeHintImpl fields used during evaluation
 	 * to free up memory.
+	 * @return True if the fields were reset and false if the
+	 * evaluation has already terminated.
 	 */
 	public boolean resetFields() {
 		try {
 			if (stack.isTerminated())
 				return false;
-			EclipseUtils.evaluate(IMPL_QUALIFIER + "reset()", stack);
+			implType.sendMessage("reset", "()V", new IJavaValue[] { }, thread);
 			return true;
 		} catch (DebugException e) {
 			throw new RuntimeException(e);

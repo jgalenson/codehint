@@ -31,11 +31,7 @@ public class TimeoutChecker extends Job {
 		super("Timeout checker");
 		this.thread = thread;
 		try {
-			IJavaClassType exceptionType = (IJavaClassType)EclipseUtils.getTypeAndLoadIfNeeded("codehint.Timeout", stack, target, typeCache);
-			if (exceptionType == null) {
-				EclipseUtils.showError("Missing library", "Please add the codehint.CodeHintImpl library to the project's classpath.", null);
-				throw new RuntimeException("Missing library codehint.CodeHintImpl");
-			}
+			IJavaClassType exceptionType = EclipseUtils.loadLibrary("codehint.Timeout", stack, target, typeCache);
 			this.exceptionObj = exceptionType.newInstance("()V", new IJavaValue[0], thread);
 		} catch (DebugException e) {
 			throw new RuntimeException(e);

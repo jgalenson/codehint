@@ -1,12 +1,19 @@
 package codehint.utils;
 
+import java.io.File;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 
 import org.eclipse.core.runtime.CoreException;
+import org.eclipse.core.runtime.FileLocator;
 import org.eclipse.core.runtime.IAdaptable;
 import org.eclipse.core.runtime.IStatus;
+import org.eclipse.core.runtime.Path;
+import org.eclipse.core.runtime.Platform;
 import org.eclipse.core.runtime.Status;
 import org.eclipse.debug.core.DebugEvent;
 import org.eclipse.debug.core.DebugException;
@@ -26,6 +33,7 @@ import org.eclipse.jdt.core.Signature;
 import org.eclipse.jdt.core.dom.ASTNode;
 import org.eclipse.jdt.core.dom.ASTParser;
 import org.eclipse.jdt.debug.core.IJavaArray;
+import org.eclipse.jdt.debug.core.IJavaClassType;
 import org.eclipse.jdt.debug.core.IJavaDebugTarget;
 import org.eclipse.jdt.debug.core.IJavaObject;
 import org.eclipse.jdt.debug.core.IJavaStackFrame;
@@ -239,6 +247,68 @@ public final class EclipseUtils {
     	ITextEditor editor = (ITextEditor) editorPart.getAdapter(ITextEditor.class);
     	assert editor != null;
     	return editor;
+    }
+    
+    /**
+     * Gets the working location of the CodeHint plugin.
+     * @param project The Java project.
+     * @return The working location of the plugin.
+     */
+    private static String getPluginWorkingLocation(IJavaProject project) {
+    	return project.getProject().getWorkingLocation(Activator.PLUGIN_ID).toOSString();
+    }
+    
+    /**
+     * Extracts the codehint-library.jar file from the plugin's
+     * jar file into the plugin's working directory, if it is not
+     * already there.
+     * @param stack The stack frame.
+     */
+    private static File extractLibrary(IJavaStackFrame stack) {
+		IJavaProject project = getProject(stack);
+		String fileSep = System.getProperty("file.separator");
+		File outFile = new File(getPluginWorkingLocation(project) + fileSep + "codehint-lib.jar");
+    	if (!outFile.exists()) {
+        	try {
+	    		InputStream is = FileLocator.openStream(Platform.getBundle(Activator.PLUGIN_ID), new Path("lib" + fileSep + "codehint-lib.jar"), false);
+		    	FileOutputStream os = new FileOutputStream(outFile);
+		    	int c;
+		    	while ((c = is.read()) != -1)
+		    		os.write(c);
+		    	is.close();
+		    	os.close();
+    		} catch (IOException e) {
+    			outFile.delete();
+    			throw new RuntimeException(e);
+    		}
+    	}
+    	return outFile;
+    }
+    
+    /**
+     * Loads the class with the given name from the library jar file
+     * in the plugin.
+     * @param className The name of the class to load from the library.
+     * @param stack The stack frame.
+     * @param target The debug target.
+     * @param typeCache The type cache.
+     * @return The IJavaClassType of the given class.
+     */
+    public static IJavaClassType loadLibrary(String className, IJavaStackFrame stack, IJavaDebugTarget target, TypeCache typeCache) {
+    	try {
+    		IJavaClassType type = (IJavaClassType)getFullyQualifiedTypeIfExistsUnchecked(className, target, typeCache);
+	    	if (type != null)
+	    		return type;
+	    	if (getASTEvaluationEngine(stack).getCompiledExpression(className + ".class", stack).hasErrors()) {
+		    	File libFile = extractLibrary(stack);
+		    	String evalStr = "Class.forName(\"" + className + "\", true, java.net.URLClassLoader.newInstance(new java.net.URL[] { new java.net.URL(\"file://" + libFile.getAbsolutePath() + "\") }))";
+	    		EclipseUtils.evaluate(evalStr, stack);
+		    	return (IJavaClassType)getFullyQualifiedTypeIfExistsUnchecked(className, target, typeCache);
+	    	} else
+	    		return (IJavaClassType)loadAndGetType(className, stack, target, typeCache);
+		} catch (DebugException e) {
+			throw new RuntimeException(e);
+		}
     }
     
     /**
@@ -546,18 +616,32 @@ public final class EclipseUtils {
     			typeCache.markIllegal(fullTypeName);
     			return null;
 			}
-			IJavaType[] curTypes = target.getJavaTypes(fullTypeName);
-			if (curTypes == null || curTypes.length != 1)
-				return null;
-			else {
-				IJavaType curType = curTypes[0];
-    			typeCache.add(fullTypeName, curType);
-    			return curType;
-			}
+			return getFullyQualifiedTypeIfExistsUnchecked(fullTypeName, target, typeCache);
     	} catch (DebugException e) {
 			throw new RuntimeException(e);
 		}
     }
+
+    /**
+     * Gets the type with the given fully-qualified name if one exists.
+     * This version does not either read from or write to the type cache
+     * and so should be used carefully to avoid slowdowns.
+     * @param fullTypeName The fully-qualified name of a type.
+     * @param stack The stack frame.
+     * @param target The debug target.
+     * @param typeCache The type cache.
+     * @return The type with the given name, or null.
+     */
+	private static IJavaType getFullyQualifiedTypeIfExistsUnchecked(String fullTypeName, IJavaDebugTarget target, TypeCache typeCache) throws DebugException {
+		IJavaType[] curTypes = target.getJavaTypes(fullTypeName);
+		if (curTypes == null || curTypes.length != 1)
+			return null;
+		else {
+			IJavaType curType = curTypes[0];
+			typeCache.add(fullTypeName, curType);
+			return curType;
+		}
+	}
 
     /**
      * Checks whether the type with the given is legal.

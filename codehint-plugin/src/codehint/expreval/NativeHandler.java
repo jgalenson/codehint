@@ -32,7 +32,7 @@ public class NativeHandler {
 	public NativeHandler(IJavaThread thread, IJavaStackFrame stack, IJavaDebugTarget target, TypeCache typeCache) {
 		try {
 			this.enabled = true;
-			IJavaClassType exceptionType = (IJavaClassType)EclipseUtils.getTypeAndLoadIfNeeded("codehint.NativeCall", stack, target, typeCache);
+			IJavaClassType exceptionType = EclipseUtils.loadLibrary("codehint.NativeCall", stack, target, typeCache);
 			exceptionObj = exceptionType.newInstance("()V", new IJavaValue[0], thread);
 		} catch (DebugException e) {
 			throw new RuntimeException(e);
