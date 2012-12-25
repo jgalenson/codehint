@@ -167,5 +167,19 @@
             sequence="M1+F9">
       </key>
    </extension>
+   <extension
+         point="org.eclipse.ui.preferencePages">
+      <page
+            class="codehint.PreferencePage"
+            id="codehint.preferencesPage"
+            name="CodeHint">
+      </page>
+   </extension>
+   <extension
+         point="org.eclipse.core.runtime.preferences">
+      <initializer
+            class="codehint.PreferenceInitializer">
+      </initializer>
+   </extension>
 
 </plugin>

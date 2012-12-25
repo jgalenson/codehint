@@ -58,7 +58,7 @@ public class SynthesisStarter extends AbstractHandler {
 				EclipseUtils.showError("Error", "Please select a line in the editor.", null);
 				return null;
 			}
-			IFile file = getFile(editor);
+			IFile file = EclipseUtils.getEditorFile(editor);
 			ILaunchConfiguration config = getLaunchConfiguration(file);
 			if (config == null) {
 				EclipseUtils.showError("Error", "I cannot find a unique launch configuration for this file.", null);
@@ -168,15 +168,6 @@ public class SynthesisStarter extends AbstractHandler {
 			return textSelection.getStartLine() + 1;
 		}
 		throw new RuntimeException("Cannot get line number.");
-	}
-
-	/**
-	 * Gets the file being edited by the given text editor.
-	 * @param editor The text editor.
-	 * @return The file being edited by the text editor.
-	 */
-	private static IFile getFile(ITextEditor editor) {
-		return ((IFileEditorInput)((IEditorPart)editor.getAdapter(IEditorPart.class)).getEditorInput()).getFile();
 	}
 	
 	/*private static String getTypeName(IFile file) {

@@ -369,8 +369,9 @@ public class InitialSynthesisDialog extends SynthesisDialog {
 		monitor.setLayoutData(gridData);
 		monitorComposite.getParent().layout(true);
 		// Start the synthesis
-		nativeHandler.enable(isAutomatic || !searchNativeCalls.getSelection());
-		worker.synthesize(this, evalManager, numSearches, timeoutChecker);
+		boolean blockNatives = isAutomatic || !searchNativeCalls.getSelection();
+		nativeHandler.enable(blockNatives);
+		worker.synthesize(this, evalManager, numSearches, timeoutChecker, blockNatives);
 	}
 
 	public void startEndSynthesis(SynthesisState state) {

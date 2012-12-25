@@ -8,6 +8,7 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 
+import org.eclipse.core.resources.IFile;
 import org.eclipse.core.runtime.CoreException;
 import org.eclipse.core.runtime.FileLocator;
 import org.eclipse.core.runtime.IAdaptable;
@@ -51,6 +52,7 @@ import org.eclipse.jface.text.IDocument;
 import org.eclipse.swt.widgets.Display;
 import org.eclipse.swt.widgets.Shell;
 import org.eclipse.ui.IEditorPart;
+import org.eclipse.ui.IFileEditorInput;
 import org.eclipse.ui.IWorkbench;
 import org.eclipse.ui.IWorkbenchPage;
 import org.eclipse.ui.PlatformUI;
@@ -248,13 +250,22 @@ public final class EclipseUtils {
     	assert editor != null;
     	return editor;
     }
+
+	/**
+	 * Gets the file being edited by the given text editor.
+	 * @param editor The text editor.
+	 * @return The file being edited by the text editor.
+	 */
+	public static IFile getEditorFile(ITextEditor editor) {
+		return ((IFileEditorInput)((IEditorPart)editor.getAdapter(IEditorPart.class)).getEditorInput()).getFile();
+	}
     
     /**
      * Gets the working location of the CodeHint plugin.
      * @param project The Java project.
      * @return The working location of the plugin.
      */
-    private static String getPluginWorkingLocation(IJavaProject project) {
+    public static String getPluginWorkingLocation(IJavaProject project) {
     	return project.getProject().getWorkingLocation(Activator.PLUGIN_ID).toOSString();
     }
     

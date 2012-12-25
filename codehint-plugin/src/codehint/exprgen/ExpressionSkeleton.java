@@ -59,6 +59,7 @@ import org.eclipse.jdt.debug.eval.IAstEvaluationEngine;
 import com.sun.jdi.Field;
 import com.sun.jdi.Method;
 
+import codehint.DataCollector;
 import codehint.dialogs.InitialSynthesisDialog;
 import codehint.expreval.EvaluatedExpression;
 import codehint.expreval.EvaluationManager;
@@ -428,8 +429,11 @@ public final class ExpressionSkeleton {
 				monitor.beginTask("Skeleton generation", holeInfos.size() + 2);
 				ArrayList<TypedExpression> exprs = SkeletonFiller.fillSkeleton(expression, typeConstraint, extraDepth, searchConstructors, searchOperators, holeInfos, stack, target, expressionMaker, evalManager, staticEvaluator, expressionGenerator, subtypeChecker, typeCache, valueCache, monitor);
 				EclipseUtils.log("Fitting " + exprs.size() + " potential expressions with extra depth " + extraDepth + " into skeleton " + sugaredString + ".");
+				DataCollector.log("skel-start", "spec=" + property.toString(), "skel=" + sugaredString, "exdep=" + extraDepth, "num=" + exprs.size());
 				results = evalManager.evaluateExpressions(exprs, property, varStaticType, synthesisDialog, monitor);
-				EclipseUtils.log("Synthesis found " + exprs.size() + " expressions of which " + results.size() + " were valid and took " + (System.currentTimeMillis() - startTime) + " milliseconds.");
+				long time = System.currentTimeMillis() - startTime;
+				EclipseUtils.log("Synthesis found " + exprs.size() + " expressions of which " + results.size() + " were valid and took " + time + " milliseconds.");
+				DataCollector.log("skel-finish", "spec=" + property.toString(), "skel=" + sugaredString, "exdep=" + extraDepth, "num=" + exprs.size(), "valid=" + results.size(), "time=" + time);
 		    	monitor.done();
 			}
 			return results;

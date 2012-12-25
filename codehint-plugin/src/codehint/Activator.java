@@ -29,6 +29,7 @@ public class Activator extends AbstractUIPlugin {
 		super.start(context);
 		plugin = this;
 		Synthesizer.start();
+		DataCollector.start();
 	}
 
 	/*
@@ -40,6 +41,7 @@ public class Activator extends AbstractUIPlugin {
 		plugin = null;
 		super.stop(context);
 		Synthesizer.stop();
+		DataCollector.sendSavedReports();
 	}
 
 	/**

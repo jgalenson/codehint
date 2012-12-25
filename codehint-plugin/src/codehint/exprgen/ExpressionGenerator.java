@@ -58,6 +58,7 @@ import org.eclipse.jdt.internal.debug.core.model.JDIStackFrame;
 import org.eclipse.jdt.internal.debug.core.model.JDIType;
 import org.eclipse.swt.widgets.Display;
 
+import codehint.DataCollector;
 import codehint.dialogs.InitialSynthesisDialog;
 import codehint.expreval.EvaluatedExpression;
 import codehint.expreval.EvaluationManager;
@@ -388,7 +389,10 @@ public final class ExpressionGenerator {
     	}
 		results.addAll(extraResults);
 		
-		EclipseUtils.log("Generated " + curLevel.size() + " expressions at depth " + maxDepth + " and found " + results.size() + " valid expressions and took " + (System.currentTimeMillis() - startTime) + " milliseconds.");
+		long time = System.currentTimeMillis() - startTime; 
+		int numSearched = getNumExprsSearched();
+		EclipseUtils.log("Generated " + numSearched + " expressions at depth " + maxDepth + " and found " + results.size() + " valid expressions and took " + time + " milliseconds.");
+		DataCollector.log("gen", "spec=" + (property == null ? "" : property.toString()), "depth=" + maxDepth, "gen=" + numSearched, "valid=" + results.size(), "time=" + time);
 		
     	return results;
 	}
@@ -416,7 +420,7 @@ public final class ExpressionGenerator {
     		else
     			unevaluatedExprs.add(e);
     	
-    	//System.out.println("Generated " + (Utils.getNumValues(equivalences) + unevaluatedExprs.size() + evalManager.getNumCrashes() + staticEvaluator.getNumCrashes() + expressionMaker.getNumCrashes()) + " total expressions at depth " + depth + ", of which " + unevaluatedExprs.size() + " still need to be evaluated and " + (evalManager.getNumCrashes() + staticEvaluator.getNumCrashes() + expressionMaker.getNumCrashes()) + " crashed.");
+    	//System.out.println("Generated " + (unevaluatedExprs.size() + getNumExprsSearched()) + " total expressions at depth " + depth + ", of which " + unevaluatedExprs.size() + " still need to be evaluated and " + (evalManager.getNumCrashes() + staticEvaluator.getNumCrashes() + expressionMaker.getNumCrashes()) + " crashed.");
 
 		/*for (EvaluatedExpression e: evaluatedExprs)
 			System.out.println(Utils.truncate(e.toString(), 100));*/
@@ -462,6 +466,18 @@ public final class ExpressionGenerator {
     		results.addAll(result);
     	}
     	return results;
+	}
+	
+	/**
+	 * Returns the number of expressions that have currently
+	 * been searched.  Note that this does not contain things
+	 * that did not crash but have not been stored in an
+	 * equivalence class.
+	 * @return The number of expressions that have currently
+	 * been searched.
+	 */
+	private int getNumExprsSearched() {
+		return Utils.getNumValues(equivalences) + evalManager.getNumCrashes() + staticEvaluator.getNumCrashes() + expressionMaker.getNumCrashes();
 	}
 	
 	/**

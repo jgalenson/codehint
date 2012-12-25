@@ -117,8 +117,10 @@ public class Synthesizer {
 			List<FullyEvaluatedExpression> finalExpressions = synthesisDialog.getExpressions();
 			synthesisDialog.cleanup();
 	        if (finalExpressions == null) {
-		    	if (property != null && skeleton != null)
+		    	if (property != null && skeleton != null) {
 		    		EclipseUtils.log("Cancelling synthesis for " + variable.toString() + " with property " + property.toString() + " and skeleton " + skeleton.toString() + ".");
+		    		DataCollector.log("cancel", "spec=" + property.toString(), "skel=" + skeleton.toString());
+		    	}
 				return;
 	        } else if (finalExpressions.isEmpty())
 				return;
@@ -168,7 +170,8 @@ public class Synthesizer {
 			// code gets ignored for this invocation.  Should we force a save and restart?
 
 	    	EclipseUtils.log("Finishing synthesis for " + variable.toString() + " with property " + property.toString() + " and skeleton " + skeleton.toString() + ".  Found " + finalExpressions.size() + " user-approved expressions and inserted " + statement);
-			return;
+	    	DataCollector.log("finish", "spec=" + property.toString(), "skel=" + skeleton.toString(), "found=" + finalExpressions.size());
+	    	return;
 		} catch (DebugException e) {
 			e.printStackTrace();
 			EclipseUtils.showError("Error", "An error occurred processing your demonstration.", e);
@@ -197,8 +200,9 @@ public class Synthesizer {
 		 * @param evalManager The evaluation manager.
 		 * @param extraDepth Extra depth to search.
 		 * @param timeoutChecker The job that times out long evaluations.
+		 * @param blockNatives Whether we are block native calls.
 		 */
-		public void synthesize(final InitialSynthesisDialog synthesisDialog, final EvaluationManager evalManager, final int extraDepth, final TimeoutChecker timeoutChecker) {
+		public void synthesize(final InitialSynthesisDialog synthesisDialog, final EvaluationManager evalManager, final int extraDepth, final TimeoutChecker timeoutChecker, final boolean blockNatives) {
 			final Property property = synthesisDialog.getProperty();
 			final ExpressionSkeleton skeleton = synthesisDialog.getSkeleton();
 			final boolean searchConstructors = synthesisDialog.searchConstructors();
@@ -207,6 +211,7 @@ public class Synthesizer {
 				@Override
 				protected IStatus run(IProgressMonitor monitor) {
 					EclipseUtils.log("Beginning synthesis for " + varName + " with property " + property.toString() + " and skeleton " + skeleton.toString() + " with extra depth " + extraDepth + ".");
+					DataCollector.log("start", "spec=" + property.toString(), "skel=" + skeleton.toString(), "exdep=" + extraDepth, "cons=" + searchConstructors, "ops=" + searchOperators, "block-natives=" + blockNatives);
 					boolean unfinished = false;
 					// Disable existing breakpoints
 					IBreakpoint[] breakpoints = DebugPlugin.getDefault().getBreakpointManager().getBreakpoints();
@@ -235,6 +240,7 @@ public class Synthesizer {
 						return new Status(IStatus.ERROR, Activator.PLUGIN_ID, e.getMessage());
 					} catch (OperationCanceledException e) {
 						EclipseUtils.log("Cancelling synthesis for " + varName + " with property " + property.toString() + " and skeleton " + skeleton.toString() + ".");
+						DataCollector.log("cancel", "spec=" + property.toString(), "skel=" + skeleton.toString(), "exdep=" + extraDepth, "cons=" + searchConstructors, "ops=" + searchOperators, "block-natives=" + blockNatives);
 						unfinished = true;
 						return Status.CANCEL_STATUS;
 					} catch (TypeError e) {
@@ -396,6 +402,7 @@ public class Synthesizer {
 	    	String curLine = matcher.group(0).trim();
    			
 	    	EclipseUtils.log("Beginning refinement for " + curLine + ".");
+	    	DataCollector.log("refine-start");
 	    	
    			final String varname = matcher.group(2);
    			// TODO: Ensure lhsVar is always non-null by using JDIPlaceholderVariable if necessary?
@@ -461,6 +468,7 @@ public class Synthesizer {
        				//use do what they want.  Attempting to execute the line will result
        				//in a crash anyway, so they can't screw anything up
        				EclipseUtils.log("Ending refinement for " + curLine + " because the user told us to cancel.");
+       				DataCollector.log("refine-cancel");
        				return;
        			}
        			
@@ -495,7 +503,8 @@ public class Synthesizer {
 
    			
    			EclipseUtils.log("Ending refinement for " + curLine + (automatic ? " automatically" : "") + ".  " + (newLine == null ? "Statement unchanged." : "Went from " + initialExprs.size() + " expressions to " + finalExprs.size() + ".  New statement: " + newLine));
-        	
+   			DataCollector.log("refine-finish", "pre=" + initialExprs.size(), "post=" + finalExprs.size());
+   			
    			// Immediately continue the execution.
    			thread.resume();
 	    }
