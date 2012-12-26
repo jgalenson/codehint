@@ -11,12 +11,9 @@ import codehint.property.Property;
 import codehint.utils.EclipseUtils;
 
 public class PrimitiveValuePropertyDialog extends ValuePropertyDialog {
-	
-	private final IJavaStackFrame stack;
 
 	public PrimitiveValuePropertyDialog(String varName, String varTypeName, IJavaStackFrame stack, String initialValue, String extraMessage) {
 		super(varName, varTypeName, stack, initialValue, extraMessage);
-		this.stack = stack;
 	}
 
 	@Override

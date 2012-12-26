@@ -70,6 +70,18 @@
                   id="codehint.synthesizeVarInToolbar"
                   style="push">
             </command>
+            <command
+                  commandId="codehint.synthesizeFree"
+                  id="codehint.synthesizeFreeInToolbar"
+                  style="push">
+               <visibleWhen
+                     checkEnabled="false">
+                  <systemTest
+                        property="org.eclipse.jdt.debug.ui.debuggerActive"
+                        value="true">
+                  </systemTest>
+               </visibleWhen>
+            </command>
          </toolbar>
       </menuContribution>
    </extension>
@@ -114,6 +126,12 @@
             id="codehint.codehintCategory"
             name="CodeHint">
       </category>
+      <command
+            categoryId="codehint.codehintCategory"
+            defaultHandler="codehint.handler.DemonstrateFreeHandler"
+            id="codehint.synthesizeFree"
+            name="Synthesize">
+      </command>
    </extension>
    
    <extension
@@ -152,6 +170,10 @@
       <image
             commandId="codehint.synthesizeVar"
             icon="icons/synthesis-var.png">
+      </image>
+      <image
+            commandId="codehint.synthesizeFree"
+            icon="icons/synthesis-free.png">
       </image>
    </extension>
    <extension

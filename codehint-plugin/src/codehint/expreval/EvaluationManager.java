@@ -82,6 +82,7 @@ public final class EvaluationManager {
 		
 	}
 	
+	private final boolean isFreeSearch;
 	private final IJavaStackFrame stack;
 	private final IAstEvaluationEngine engine;
     private final ValueCache valueCache;
@@ -107,7 +108,8 @@ public final class EvaluationManager {
 	private Map<String, Integer> methodResultsMap;
 	private int skipped;
 	
-	public EvaluationManager(IJavaStackFrame stack, ExpressionMaker expressionMaker, SubtypeChecker subtypeChecker, TypeCache typeCache, ValueCache valueCache, TimeoutChecker timeoutChecker) {
+	public EvaluationManager(boolean isFreeSearch, IJavaStackFrame stack, ExpressionMaker expressionMaker, SubtypeChecker subtypeChecker, TypeCache typeCache, ValueCache valueCache, TimeoutChecker timeoutChecker) {
+		this.isFreeSearch = isFreeSearch;
 		this.stack = stack;
 		this.engine = EclipseUtils.getASTEvaluationEngine(stack);
 		this.valueCache = valueCache;
@@ -277,7 +279,7 @@ public final class EvaluationManager {
 			    	String finalStr = expressionsStr.toString();
 			    	ICompiledExpression compiled = engine.getCompiledExpression(finalStr, stack);
 			    	if (compiled.hasErrors()) {
-			    		handleCompileFailure(exprs, startIndex, i, compiled);
+			    		handleCompileFailure(exprs, startIndex, i, compiled, type);
 			    		continue;
 			    	}
 			    	timeoutChecker.startEvaluating(fullCountField);
@@ -441,9 +443,29 @@ public final class EvaluationManager {
 	 * to check.
 	 * @param i The number of expressions to check.
 	 * @param compiled The result of the compilation.
+	 * @param type The type of the expressions being evaluated.
 	 * @throws DebugException
 	 */
-	private void handleCompileFailure(ArrayList<TypedExpression> exprs, int startIndex, int i, ICompiledExpression compiled) throws DebugException {
+	private void handleCompileFailure(ArrayList<TypedExpression> exprs, int startIndex, int i, ICompiledExpression compiled, String type) throws DebugException {
+		// If we are doing a search with an unconstrained type, the pdspec might crash on certain types, so filter those.
+		if (isFreeSearch) {
+			String initValue;
+			if ("boolean".equals(type))
+				initValue = "false";
+			else if ("char".equals(type))
+				initValue = "' '";
+			else if ("byte".equals(type) || "short".equals(type) || "int".equals(type) || "long".equals(type) || "float".equals(type) || "double".equals(type))
+				initValue = "0";
+			else
+				initValue = "null";
+			if (engine.getCompiledExpression(type + " _$curValue = " + initValue + ";  boolean _$curValid = " + validVal + ";", stack).hasErrors()) {
+				// The pdspec crashed on all things of this type.
+				for (int j = i - 1; j >= startIndex; j--)
+					exprs.remove(j);
+				monitor.worked(exprs.size());
+				return;
+			}
+		}
 		// Check the expressions one-by-one and remove those that crash.
 		// We can crash thanks to generics and erasure (e.g., by passing an Object to List<String>.set).
 		int numDeleted = 0;

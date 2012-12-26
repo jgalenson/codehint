@@ -130,9 +130,11 @@ public abstract class SynthesisDialog extends ModelessDialog {
 				if (index == comboIndex)
 					return;
 				String curText = pdspecInput.getText();
-				boolean curTextIsTypeName = curText.equals(varTypeName) || curText.equals(EclipseUtils.getUnqualifiedName(varTypeName));
+				boolean curTextIsTypeName = varTypeName != null && (curText.equals(varTypeName) || curText.equals(EclipseUtils.getUnqualifiedName(varTypeName)));
 				if (index == 0) {
-					if (EclipseUtils.isObject(varType))
+					if (varType == null)
+						propertyDialog = new ValuePropertyDialog(propertyDialog.getVarName(), varTypeName, stack, curTextIsTypeName ? "" : curText, propertyDialog.getExtraMessage());
+					else if (EclipseUtils.isObject(varType))
 						propertyDialog = new ObjectValuePropertyDialog(propertyDialog.getVarName(), varTypeName, stack, curTextIsTypeName ? "" : curText, propertyDialog.getExtraMessage());
 					else if (EclipseUtils.isArray(varType))
 						propertyDialog = new ArrayValuePropertyDialog(propertyDialog.getVarName(), varTypeName, stack, curTextIsTypeName ? "" : curText, propertyDialog.getExtraMessage());

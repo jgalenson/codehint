@@ -477,7 +477,8 @@ public final class EclipseUtils {
      * Gets the string representation of an error when trying
      * to use the given string as a subtype of the variable's type.
      * @param project The current project.
-     * @param varTypeName The name of the type of the variable.
+     * @param varTypeName The name of the type of the variable,
+     * or null if it can be any type.
      * @param thisType The type of the this object.
      * @param newTypeName A string that should be the name of a
      * subtype of the variable type name.
@@ -488,18 +489,20 @@ public final class EclipseUtils {
     	try {
     		if (thisType == null)
     			return null;
-    		if (varTypeName.equals(newTypeName))  // ITypes dislike primitive types, so this handles them.
+    		if (newTypeName.equals("byte") || newTypeName.equals("short") || newTypeName.equals("int") || newTypeName.equals("long") || newTypeName.equals("float") || newTypeName.equals("double") || newTypeName.equals("char") || newTypeName.equals("boolean"))  // ITypes dislike primitive types, so this handles them.
     			return null;
     		if (newTypeName.contains("<"))
     			return "Please enter an unparameterized type";
-    		int firstArrayVar = varTypeName.indexOf("[]");
-    		if (firstArrayVar != -1) {
-        		int firstArrayNew = newTypeName.indexOf("[]");
-    			if (firstArrayNew == -1 || varTypeName.length() - firstArrayVar != newTypeName.length() - firstArrayNew) {
-    				int count = (varTypeName.length() - firstArrayVar) / 2;
-    				return "Please enter a type with " + count + " array " + Utils.plural("dimension", "s", count) + ".";
-    			} else  // Recursively check the component types since there seem to be no ITypes for arrays....
-    				return getValidTypeError(project, varTypeName.substring(0, firstArrayVar), thisType, newTypeName.substring(0, firstArrayNew));
+    		if (varTypeName != null) {
+	    		int firstArrayVar = varTypeName.indexOf("[]");
+	    		if (firstArrayVar != -1) {
+	        		int firstArrayNew = newTypeName.indexOf("[]");
+	    			if (firstArrayNew == -1 || varTypeName.length() - firstArrayVar != newTypeName.length() - firstArrayNew) {
+	    				int count = (varTypeName.length() - firstArrayVar) / 2;
+	    				return "Please enter a type with " + count + " array " + Utils.plural("dimension", "s", count) + ".";
+	    			} else  // Recursively check the component types since there seem to be no ITypes for arrays....
+	    				return getValidTypeError(project, varTypeName.substring(0, firstArrayVar), thisType, newTypeName.substring(0, firstArrayNew));
+	    		}
     		}
 			String[][] allTypes;
     		try {
@@ -518,13 +521,16 @@ public final class EclipseUtils {
 					fullTypeName += ".";
 				fullTypeName += typeParts[i];
 			}
-        	IType curType = project.findType(fullTypeName);
-        	if (curType.getFullyQualifiedName('.').equals(varTypeName))  // The supertype hierarchy doesn't contain the type itself....
-        		return null;
-        	for (IType supertype: curType.newSupertypeHierarchy(null).getAllSupertypes(curType))
-        		if (supertype.getFullyQualifiedName('.').equals(varTypeName))
-        			return null;
-			return "Please enter a subtype of " + varTypeName + ".";
+    		if (varTypeName != null) {
+	        	IType curType = project.findType(fullTypeName);
+	        	if (curType.getFullyQualifiedName('.').equals(varTypeName))  // The supertype hierarchy doesn't contain the type itself....
+	        		return null;
+	        	for (IType supertype: curType.newSupertypeHierarchy(null).getAllSupertypes(curType))
+	        		if (supertype.getFullyQualifiedName('.').equals(varTypeName))
+	        			return null;
+				return "Please enter a subtype of " + varTypeName + ".";
+    		} else
+    			return null;
     	} catch (JavaModelException e) {
 			throw new RuntimeException(e);
 		}

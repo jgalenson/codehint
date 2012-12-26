@@ -111,6 +111,7 @@ public class Synthesizer {
 	 */
 	public static void synthesizeAndInsertExpressions(final IVariable variable, final String fullVarName, final InitialSynthesisDialog synthesisDialog, final IJavaStackFrame stack, final boolean replaceCurLine) {
 		try {
+			String varString = variable == null ? "" : variable.toString();
 			synthesisDialog.open();
 			Property property = synthesisDialog.getProperty();
 			ExpressionSkeleton skeleton = synthesisDialog.getSkeleton();
@@ -118,7 +119,7 @@ public class Synthesizer {
 			synthesisDialog.cleanup();
 	        if (finalExpressions == null) {
 		    	if (property != null && skeleton != null) {
-		    		EclipseUtils.log("Cancelling synthesis for " + variable.toString() + " with property " + property.toString() + " and skeleton " + skeleton.toString() + ".");
+		    		EclipseUtils.log("Cancelling synthesis for " + varString + " with property " + property.toString() + " and skeleton " + skeleton.toString() + ".");
 		    		DataCollector.log("cancel", "spec=" + property.toString(), "skel=" + skeleton.toString());
 		    	}
 				return;
@@ -163,13 +164,13 @@ public class Synthesizer {
 				initialDemonstrations.put(statement, property);
 
 			IJavaValue value = property instanceof ValueProperty ? ((ValueProperty)property).getValue() : finalExpressions.get(0).getValue();
-			if (value != null)
+			if (variable != null && value != null)
 				variable.setValue(value);
 			
 			//NOTE: Our current implementation does not save.  Without a manual save, our added 
 			// code gets ignored for this invocation.  Should we force a save and restart?
 
-	    	EclipseUtils.log("Finishing synthesis for " + variable.toString() + " with property " + property.toString() + " and skeleton " + skeleton.toString() + ".  Found " + finalExpressions.size() + " user-approved expressions and inserted " + statement);
+	    	EclipseUtils.log("Finishing synthesis for " + varString + " with property " + property.toString() + " and skeleton " + skeleton.toString() + ".  Found " + finalExpressions.size() + " user-approved expressions and inserted " + statement);
 	    	DataCollector.log("finish", "spec=" + property.toString(), "skel=" + skeleton.toString(), "found=" + finalExpressions.size());
 	    	return;
 		} catch (DebugException e) {
@@ -421,7 +422,7 @@ public class Synthesizer {
         	assert initialExprs.size() > 0;  // We must have at least one expression.
 			ValueCache valueCache = new ValueCache((IJavaDebugTarget)frame.getDebugTarget());
         	// TODO: Run the following off the UI thread like above when we do the first synthesis.
-        	EvaluationManager evalManager = new EvaluationManager(frame, new ExpressionMaker(valueCache, timeoutChecker, null), new SubtypeChecker(), typeCache, valueCache, timeoutChecker);
+        	EvaluationManager evalManager = new EvaluationManager(false, frame, new ExpressionMaker(valueCache, timeoutChecker, null), new SubtypeChecker(), typeCache, valueCache, timeoutChecker);
         	evalManager.init();
    			ArrayList<FullyEvaluatedExpression> exprs = evalManager.evaluateExpressions(initialExprs, null, null, null, new NullProgressMonitor());
    			if (exprs.isEmpty()) {
@@ -731,7 +732,7 @@ public class Synthesizer {
 	 */
     private static String generateChooseOrChosenStmt(String varname, List<String> expressions) {
     	String functionName = "CodeHint." + (expressions.size() == 1 ? "chosen" : "choose");
-		String statement = varname + " = " + functionName + "(";
+		String statement = (varname == null ? "" : varname + " = ") + functionName + "(";
 		String newExprsString = expressions.toString();
 		newExprsString = newExprsString.substring(1, newExprsString.length() - 1);
 		statement += newExprsString;

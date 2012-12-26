@@ -1,23 +1,35 @@
 package codehint.dialogs;
 
+import org.eclipse.debug.core.DebugException;
 import org.eclipse.jdt.core.dom.AST;
 import org.eclipse.jdt.core.dom.ASTNode;
 import org.eclipse.jdt.core.dom.ASTParser;
 import org.eclipse.jdt.core.dom.CompilationUnit;
+import org.eclipse.jdt.debug.core.IJavaArray;
+import org.eclipse.jdt.debug.core.IJavaPrimitiveValue;
 import org.eclipse.jdt.debug.core.IJavaStackFrame;
+import org.eclipse.jdt.debug.core.IJavaValue;
 import org.eclipse.jdt.debug.eval.IAstEvaluationEngine;
 import org.eclipse.jface.dialogs.IInputValidator;
 
+import codehint.expreval.EvaluationManager.EvaluationError;
+import codehint.exprgen.TypeCache;
+import codehint.property.ArrayValueProperty;
+import codehint.property.ObjectValueProperty;
+import codehint.property.PrimitiveValueProperty;
+import codehint.property.Property;
 import codehint.utils.EclipseUtils;
 
-public abstract class ValuePropertyDialog extends PropertyDialog {
-	
+public class ValuePropertyDialog extends PropertyDialog {
+
+	protected final IJavaStackFrame stack;
 	private final String pdspecMessage;
 	private final String initialPdspecText;
 	private final IInputValidator pdspecValidator;
     
     public ValuePropertyDialog(String varName, String varTypeName, IJavaStackFrame stack, String initialValue, String extraMessage) {
     	super(varName, extraMessage);
+    	this.stack = stack;
     	String pdspecMessage = "Demonstrate an expression for " + varName + ".  We will find expressions that evaluate to the same value.";
     	this.pdspecMessage = getFullMessage(pdspecMessage, extraMessage);
     	this.initialPdspecText = initialValue;
@@ -63,6 +75,27 @@ public abstract class ValuePropertyDialog extends PropertyDialog {
         	return null;
         }
     }
+
+	@Override
+	public Property computeProperty(String propertyText, TypeCache typeCache) {
+		if (propertyText == null)
+			return null;
+		else {
+    		try {
+		    	IJavaValue demonstrationValue = EclipseUtils.evaluate(propertyText, stack);
+		    	if (demonstrationValue instanceof IJavaPrimitiveValue)
+		    		return PrimitiveValueProperty.fromPrimitive(EclipseUtils.javaStringOfValue(demonstrationValue, stack), demonstrationValue);
+		    	else if (demonstrationValue instanceof IJavaArray)
+	    			return ArrayValueProperty.fromArray(propertyText, demonstrationValue);
+		    	else
+		    		return ObjectValueProperty.fromObject(propertyText, demonstrationValue);
+    		} catch (EvaluationError e) {
+				throw e;
+			} catch (DebugException e) {
+				throw new RuntimeException(e);
+			}
+		}
+	}
 
 	@Override
 	public String getHelpID() {

@@ -460,7 +460,10 @@ public final class ExpressionSkeleton {
 			if (typeName != null)  // We want the type specified in the lambda expression.
 				return new SupertypeBound(EclipseUtils.getType(typeName, stack, target, typeCache));
 		}
-		return new SupertypeBound(varStaticType);  // Just use the variable's static type.
+		if (varStaticType == null)
+			return UnknownConstraint.getUnknownConstraint();
+		else
+			return new SupertypeBound(varStaticType);  // Just use the variable's static type.
 	}
 	
 	/**

@@ -140,7 +140,7 @@ public class InitialSynthesisDialog extends SynthesisDialog {
 		this.timeoutChecker = new TimeoutChecker(thread, stack, target, typeCache);
 		this.nativeHandler = new NativeHandler(thread, stack, target, typeCache);
 		this.expressionMaker = new ExpressionMaker(valueCache, timeoutChecker, nativeHandler);
-		this.evalManager = new EvaluationManager(stack, expressionMaker, subtypeChecker, typeCache, valueCache, timeoutChecker);
+		this.evalManager = new EvaluationManager(varType == null, stack, expressionMaker, subtypeChecker, typeCache, valueCache, timeoutChecker);
 		this.staticEvaluator = new StaticEvaluator(stack, typeCache, valueCache);
 		this.expressionGenerator = new ExpressionGenerator(target, stack, expressionMaker, subtypeChecker, typeCache, valueCache, evalManager, staticEvaluator);
 		this.skeleton = null;
