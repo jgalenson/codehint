@@ -1376,6 +1376,7 @@ public final class ExpressionGenerator {
 			}
 		}
 		curMonitor = SubMonitor.convert(monitor, "Equivalence expansions", totalWork);
+		Set<FullyEvaluatedExpression> exprsSet = new HashSet<FullyEvaluatedExpression>(exprs);
 		ArrayList<FullyEvaluatedExpression> results = new ArrayList<FullyEvaluatedExpression>();
 		for (Value value: values) {
 			for (TypedExpression expr : new ArrayList<TypedExpression>(equivalences.get(value))) {  // Make a copy since we'll probably add expressions to this.
@@ -1386,10 +1387,12 @@ public final class ExpressionGenerator {
 			}
 			String valueString = toStrings.get(value);
 			for (EvaluatedExpression expr: getEquivalentExpressions(value, null, typeConstraint))
-				if (typeConstraint.isFulfilledBy(expr.getType(), subtypeChecker, typeCache, stack, target))
-					results.add(new FullyEvaluatedExpression(expr.getExpression(), expr.getType(), expr.getWrapperValue(), valueString));
-		}
-		results.removeAll(exprs);
+				if (typeConstraint.isFulfilledBy(expr.getType(), subtypeChecker, typeCache, stack, target)) {
+					FullyEvaluatedExpression newExpr = new FullyEvaluatedExpression(expr.getExpression(), expr.getType(), expr.getWrapperValue(), valueString);
+					if (!exprsSet.contains(newExpr))
+						results.add(newExpr);
+				}
+		}	
 		return results;
 	}
 	
