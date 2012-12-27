@@ -112,12 +112,14 @@
       <command
             categoryId="codehint.codehintCategory"
             defaultHandler="codehint.handler.SynthesisStarter"
+            description="Synthesize an expression at the current line"
             id="codehint.synthesizeLine"
             name="Synthesize line">
       </command>
       <command
             categoryId="codehint.codehintCategory"
             defaultHandler="codehint.handler.SynthesisStarter"
+            description="Synthesize the variable declared on the current line"
             id="codehint.synthesizeVar"
             name="Synthesize variable">
       </command>
@@ -129,6 +131,7 @@
       <command
             categoryId="codehint.codehintCategory"
             defaultHandler="codehint.handler.DemonstrateFreeHandler"
+            description="Synthesize an expression"
             id="codehint.synthesizeFree"
             name="Synthesize">
       </command>
