@@ -1,6 +1,8 @@
 package codehint.dialogs;
 
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
 
 import org.eclipse.core.runtime.IProgressMonitor;
 import org.eclipse.core.runtime.IStatus;
@@ -19,13 +21,10 @@ import org.eclipse.jdt.debug.eval.IAstEvaluationEngine;
 import org.eclipse.jface.dialogs.IDialogConstants;
 import org.eclipse.jface.dialogs.IInputValidator;
 import org.eclipse.jface.resource.JFaceResources;
-import org.eclipse.jface.viewers.ArrayContentProvider;
 import org.eclipse.jface.viewers.ColumnLabelProvider;
 import org.eclipse.jface.viewers.ColumnViewerToolTipSupport;
 import org.eclipse.jface.viewers.TableViewer;
 import org.eclipse.jface.viewers.TableViewerColumn;
-import org.eclipse.jface.viewers.Viewer;
-import org.eclipse.jface.viewers.ViewerComparator;
 import org.eclipse.jface.window.ToolTip;
 import org.eclipse.jface.wizard.ProgressMonitorPart;
 import org.eclipse.swt.SWT;
@@ -40,7 +39,9 @@ import org.eclipse.swt.widgets.Button;
 import org.eclipse.swt.widgets.Composite;
 import org.eclipse.swt.widgets.Control;
 import org.eclipse.swt.widgets.Display;
+import org.eclipse.swt.widgets.Event;
 import org.eclipse.swt.widgets.Layout;
+import org.eclipse.swt.widgets.Listener;
 import org.eclipse.swt.widgets.Shell;
 import org.eclipse.swt.widgets.Table;
 import org.eclipse.swt.widgets.TableColumn;
@@ -85,11 +86,9 @@ public class InitialSynthesisDialog extends SynthesisDialog {
     private static final int MONITOR_WIDTH = 300;
     private JavadocPrefetcher javadocPrefetcher;
 
-    private static final int TABLE_WIDTH = 500;
+    private static final int TABLE_WIDTH = MESSAGE_WIDTH;
     private static final int TABLE_HEIGHT = 300;
-    private TableViewer tableViewer;
     private Table table;
-    private SynthesisResultComparator synthesisResultComparator;
     private ArrayList<FullyEvaluatedExpression> expressions;  // This does not reflect the sort order of the expressions in the table, so get items from the table directly.
     private Button checkAllButton;
     private Button uncheckAllButton;
@@ -125,9 +124,7 @@ public class InitialSynthesisDialog extends SynthesisDialog {
 		this.numSearches = 0;
 		this.shouldContinue = true;
 		this.monitor = null;
-		this.tableViewer = null;
 		this.table = null;
-		this.synthesisResultComparator = null;
 		this.expressions = null;
 		this.worker = worker;
 		this.project = EclipseUtils.getProject(stack);
@@ -171,8 +168,18 @@ public class InitialSynthesisDialog extends SynthesisDialog {
 		
 		monitorComposite = makeChildComposite(composite, GridData.HORIZONTAL_ALIGN_CENTER, 1);
 		
-		tableViewer = new TableViewer(composite, SWT.BORDER | SWT.CHECK | SWT.MULTI);
-		table = tableViewer.getTable();
+		table = new Table(composite, SWT.BORDER | SWT.CHECK | SWT.MULTI | SWT.VIRTUAL);
+		TableViewer tableViewer = new TableViewer(table);
+		table.addListener(SWT.SetData, new Listener() {
+			@Override
+			public void handleEvent(Event event) {
+				TableItem item = (TableItem)event.item;
+				int index = event.index;
+				FullyEvaluatedExpression expr = expressions.get(index);
+				item.setData(expr);
+				item.setText(new String[] { getExpressionLabel(expr), getValueLabel(expr) });
+			}
+		});
         GridData tableData = new GridData(GridData.FILL_BOTH);
         tableData.widthHint = TABLE_WIDTH;
         tableData.heightHint = TABLE_HEIGHT;
@@ -193,13 +200,8 @@ public class InitialSynthesisDialog extends SynthesisDialog {
                 }
             }
         });
-    	TableViewerColumn column1 = addColumn("Expression", 0);
-    	column1.setLabelProvider(new ColumnLabelProvider() {
-			@Override
-			public String getText(Object element) {
-				return getExpressionLabel((FullyEvaluatedExpression)element);
-			}
-			
+    	TableColumn column1 = addColumn("Expression", 0, TABLE_WIDTH / 2);
+    	(new TableViewerColumn(tableViewer, column1)).setLabelProvider(new ColumnLabelProvider() {
 			@Override
 			public String getToolTipText(Object element) {
 				// TODO: Handle fields and expressions with multiple methods.
@@ -221,17 +223,10 @@ public class InitialSynthesisDialog extends SynthesisDialog {
 				return 100;
 			}
 		});
-    	TableViewerColumn column2 = addColumn("Value", 1);
-    	column2.setLabelProvider(new ColumnLabelProvider() {
-			@Override
-			public String getText(Object element) {
-				return getValueLabel((FullyEvaluatedExpression)element);
-			}
-		});
-    	tableViewer.setContentProvider(ArrayContentProvider.getInstance());
-    	synthesisResultComparator = new SynthesisResultComparator();
+    	addColumn("Value", 1, TABLE_WIDTH / 2);
     	ColumnViewerToolTipSupport.enableFor(tableViewer, ToolTip.NO_RECREATE);
         PlatformUI.getWorkbench().getHelpSystem().setHelp(table, Activator.PLUGIN_ID + "." + "candidate-selector");
+        table.setItemCount(0);
 
 		Composite bottomButtonComposite = makeChildComposite(composite, GridData.HORIZONTAL_ALIGN_CENTER, 0);
         checkAllButton = createButton(bottomButtonComposite, IDialogConstants.SELECT_ALL_ID, "Check All", false);
@@ -358,7 +353,6 @@ public class InitialSynthesisDialog extends SynthesisDialog {
 		valueCache.allowCollectionOfNewStrings();  // Allow collection of strings from previous search.
 		this.shouldContinue = !isAutomatic;
 		// Reset column sort indicators.
-		tableViewer.setComparator(null);  // We want to use the order in which we add elements as the initial sort.
 		table.setSortDirection(SWT.NONE);
 		table.setSortColumn(null);
 		// Set up progress monitor
@@ -530,9 +524,8 @@ public class InitialSynthesisDialog extends SynthesisDialog {
     
     private void showResults() {
 		// Set and show the results.
-    	tableViewer.setInput(expressions);
-    	table.getColumn(0).pack();  // For some reason I need these two lines to update the screen.
-    	table.getColumn(1).pack();
+    	table.setItemCount(expressions.size());
+    	//table.clearAll();
     	// Enable/Disable check/selection buttons.
     	boolean haveResults = !expressions.isEmpty();
     	checkAllButton.setEnabled(haveResults);
@@ -541,21 +534,39 @@ public class InitialSynthesisDialog extends SynthesisDialog {
     	uncheckSelectedButton.setEnabled(haveResults);
     }
     
-    private TableViewerColumn addColumn(String label, final int index) {
-    	TableViewerColumn columnViewer = new TableViewerColumn(tableViewer, SWT.NONE);
-    	final TableColumn column = columnViewer.getColumn();
+    private TableColumn addColumn(String label, final int index, int width) {
+    	final TableColumn column = new TableColumn(table, SWT.NONE);
     	column.setText(label);
+    	column.setWidth(width);
     	column.addSelectionListener(new SelectionAdapter() {
             @Override
 			public void widgetSelected(SelectionEvent e) {
-				synthesisResultComparator.setColumn(index);
-				table.setSortDirection(synthesisResultComparator.getDirection());
+            	final int direction = table.getSortColumn() == column ? (table.getSortDirection() == SWT.DOWN ? SWT.UP : SWT.DOWN) : SWT.DOWN;
+            	Collections.sort(expressions, new Comparator<FullyEvaluatedExpression>() {
+					@Override
+					public int compare(FullyEvaluatedExpression e1, FullyEvaluatedExpression e2) {
+			    		int result;
+			    		if (index == 0)
+			    			result = getExpressionLabel(e1).compareTo(getExpressionLabel(e2));
+			    		else if (index == 1) {
+			    			if (e1.getValue() instanceof IJavaPrimitiveValue && e2.getValue() instanceof IJavaPrimitiveValue)
+			    				result = (int)(((IJavaPrimitiveValue)e1.getValue()).getDoubleValue() - ((IJavaPrimitiveValue)e2.getValue()).getDoubleValue());
+			    			else
+			    				result = getValueLabel(e1).compareTo(getValueLabel(e2));
+			    		} else
+			    			throw new RuntimeException("Unexpected column: " + index);
+			    		if (direction == SWT.UP)
+			    			result = -result;
+			    		return result;
+					}
+            		
+            	});
+				table.setSortDirection(direction);
 				table.setSortColumn(column);
-            	tableViewer.setComparator(synthesisResultComparator);
-				tableViewer.refresh();
+            	table.clearAll();
             }
         });
-    	return columnViewer;
+    	return column;
     }
     
     private static String getExpressionLabel(FullyEvaluatedExpression e) {
@@ -564,50 +575,6 @@ public class InitialSynthesisDialog extends SynthesisDialog {
     
     private static String getValueLabel(FullyEvaluatedExpression e) {
     	return e.getResultString();
-    }
-    
-    private class SynthesisResultComparator extends ViewerComparator {
-
-    	private int column;
-    	private int direction;
-
-    	public SynthesisResultComparator() {
-    		this.column = -1;
-    		this.direction = SWT.DOWN;
-    	}
-
-    	public int getDirection() {
-    		return direction;
-    	}
-
-    	public void setColumn(int column) {
-    		if (column == this.column)
-    			direction = direction == SWT.DOWN ? SWT.UP : SWT.DOWN;
-    		else {
-    			this.column = column;
-    			direction = SWT.DOWN;
-    		}
-    	}
-
-    	@Override
-    	public int compare(Viewer viewer, Object o1, Object o2) {
-    		FullyEvaluatedExpression e1 = (FullyEvaluatedExpression)o1;
-    		FullyEvaluatedExpression e2 = (FullyEvaluatedExpression)o2;
-    		int result;
-    		if (column == 0)
-    			result = getExpressionLabel(e1).compareTo(getExpressionLabel(e2));
-    		else if (column == 1) {
-    			if (e1.getValue() instanceof IJavaPrimitiveValue && e2.getValue() instanceof IJavaPrimitiveValue)
-    				result = (int)(((IJavaPrimitiveValue)e1.getValue()).getDoubleValue() - ((IJavaPrimitiveValue)e2.getValue()).getDoubleValue());
-    			else
-    				result = getValueLabel(e1).compareTo(getValueLabel(e2));
-    		} else
-    			throw new RuntimeException("Unexpected column: " + column);
-    		if (direction == SWT.UP)
-    			result = -result;
-    		return result;
-    	}
-    	
     }
     
 	private void setAllChecked(boolean state) {
@@ -669,9 +636,7 @@ public class InitialSynthesisDialog extends SynthesisDialog {
 		searchCancelButton = null;
 		monitorComposite = null;
 		monitor = null;
-		tableViewer = null;
 		table = null;
-		synthesisResultComparator = null;
 		expressions = null;
 		checkAllButton = null;
 		uncheckAllButton = null;

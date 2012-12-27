@@ -70,7 +70,7 @@ public abstract class SynthesisDialog extends ModelessDialog {
 	
 	private int comboIndex;
 
-    private static final int MESSAGE_WIDTH = 1000;
+    protected static final int MESSAGE_WIDTH = 1000;
 	protected PropertyDialog propertyDialog;
 	private Composite pdspecComposite;
 	protected StyledText pdspecInput;
