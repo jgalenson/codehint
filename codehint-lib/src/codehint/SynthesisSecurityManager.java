@@ -56,6 +56,17 @@ class SynthesisSecurityManager extends SecurityManager {
     public void checkPrintJobAccess() {
     	throw new SynthesisSecurityException();
     }
+    
+    @Override
+	public void checkConnect(String host, int port) {
+    	throw new SynthesisSecurityException();
+    }
+    
+    @Override
+	public void checkListen(int port) {
+    	throw new SynthesisSecurityException();
+    }
+    
 
     /*
     // Users can do dangerous things with Unsafe, but they need to get it through reflection, so block that.

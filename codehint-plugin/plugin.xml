@@ -44,7 +44,7 @@
          </command>
          <command
                commandId="codehint.handler.demonstrateStateProperty"
-               label="Demonstrate state property"
+               label="Demonstrate property"
                style="push">
             <visibleWhen>
                <with variable="activeMenuSelection">
@@ -60,6 +60,7 @@
          <toolbar
                id="codehint.toolbar"
                label="CodeHint">
+      		<!--
             <command
                   commandId="codehint.synthesizeLine"
                   id="codehint.synthesizeLineInToolbar"
@@ -70,6 +71,7 @@
                   id="codehint.synthesizeVarInToolbar"
                   style="push">
             </command>
+            -->
             <command
                   commandId="codehint.synthesizeFree"
                   id="codehint.synthesizeFreeInToolbar"
@@ -109,6 +111,7 @@
             id="codehint.handler.demonstrateStateProperty"
             name="Demonstrate state property">
       </command>
+      <!--
       <command
             categoryId="codehint.codehintCategory"
             defaultHandler="codehint.handler.SynthesisStarter"
@@ -123,6 +126,7 @@
             id="codehint.synthesizeVar"
             name="Synthesize variable">
       </command>
+      -->
       <category
             description="CodeHint"
             id="codehint.codehintCategory"
@@ -181,6 +185,7 @@
    </extension>
    <extension
          point="org.eclipse.ui.bindings">
+      <!--
       <key
             commandId="codehint.synthesizeLine"
             schemeId="org.eclipse.ui.defaultAcceleratorConfiguration"
@@ -191,6 +196,7 @@
             schemeId="org.eclipse.ui.defaultAcceleratorConfiguration"
             sequence="M1+F9">
       </key>
+      -->
    </extension>
    <extension
          point="org.eclipse.ui.preferencePages">
