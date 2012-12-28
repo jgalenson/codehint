@@ -36,6 +36,7 @@ public class DataCollector {
 
 	private static final String UUID_PREFNAME = "codehint.uuid";
 	private static final String REPORT_URL = "http://potus.cs.berkeley.edu/~joel/codehint/";
+	private static final int TIMEOUT = 1000;
 	
 	public static void start() {
 		IPreferenceStore store = Activator.getDefault().getPreferenceStore();
@@ -101,6 +102,7 @@ public class DataCollector {
 		try {
 			URL url = new URL(REPORT_URL + query);
 			URLConnection connection = url.openConnection();
+			connection.setConnectTimeout(TIMEOUT);
 			connection.connect();
 			response = connection.getInputStream();
 			return true;
@@ -164,13 +166,17 @@ public class DataCollector {
 		if (!file.exists())
 			return;
 		String unsentReports = "";  // The reports that fail to be sent.
+		boolean somethingSent = false;
 		BufferedReader in = null;
 		try {
 			in = new BufferedReader(new FileReader(file));
 		    String line;
-		    while ((line = in.readLine()) != null)
-		    	if (!sendHTTPRequest(line))
+		    while ((line = in.readLine()) != null) {
+		    	if (sendHTTPRequest(line))
+		    		somethingSent = true;
+		    	else
 		    		unsentReports += (unsentReports.isEmpty() ? "" : System.getProperty("line.separator")) + line;
+		    }
 		} catch (FileNotFoundException e) {
 			// Do nothing if there is no file, i.e., nothing has been saved.
 		} catch (IOException e) {
@@ -184,9 +190,11 @@ public class DataCollector {
 				}
 		}
 		// Delete the file of saved reports and write out any reports that we could not send.
-		file.delete();
-		if (!unsentReports.isEmpty())
-			saveReport(unsentReports);
+		if (somethingSent) {
+			file.delete();
+			if (!unsentReports.isEmpty())
+				saveReport(unsentReports);
+		}
 	}
 
 	/**
@@ -207,9 +215,13 @@ public class DataCollector {
 	 * @return The current project.
 	 */
 	private static IJavaProject getProject() {
-		IJavaStackFrame stack = EclipseUtils.getStackFrame();
-		if (stack != null)
-			return EclipseUtils.getProject(stack);
+		try {
+			IJavaStackFrame stack = EclipseUtils.getStackFrame();
+			if (stack != null)
+				return EclipseUtils.getProject(stack);
+		} catch (Exception e) {
+			// This can throw an exception when run at shutdown, so ignore that and try the other approach.
+		}
 		return JavaCore.create(EclipseUtils.getEditorFile(EclipseUtils.getActiveTextEditor()).getProject());
 	}
 
