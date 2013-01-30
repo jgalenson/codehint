@@ -1,6 +1,7 @@
 package codehint.expreval;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -44,11 +45,12 @@ import org.eclipse.swt.widgets.Display;
 import com.sun.jdi.Method;
 
 import codehint.dialogs.InitialSynthesisDialog;
+import codehint.effects.Effect;
 import codehint.exprgen.ExpressionMaker;
+import codehint.exprgen.Result;
 import codehint.exprgen.SubtypeChecker;
 import codehint.exprgen.TypeCache;
 import codehint.exprgen.TypedExpression;
-import codehint.exprgen.Value;
 import codehint.exprgen.ValueCache;
 import codehint.property.ObjectValueProperty;
 import codehint.property.PrimitiveValueProperty;
@@ -537,28 +539,28 @@ public final class EvaluationManager {
 			String resultString = null;
 			if (property == null) {
 				valid = true;
-				resultString = getResultString(curValue, toStrings, evalIndex);
+				resultString = getResultString(typedExpr, curValue, toStrings, evalIndex);
 			} else if (property instanceof PrimitiveValueProperty) {
 				valid = curValue.toString().equals(((PrimitiveValueProperty)property).getValue().toString());
-				resultString = EclipseUtils.javaStringOfValue(curValue, stack);
+				resultString = getJavaString(typedExpr, curValue);
     		} else if (property instanceof TypeProperty) {
 				valid = !curValue.isNull() && subtypeChecker.isSubtypeOf(curValue.getJavaType(), ((TypeProperty)property).getType());  // null is not instanceof Object
-				resultString = EclipseUtils.javaStringOfValue(curValue, stack);
+				resultString = getJavaString(typedExpr, curValue);
     		} else if (property instanceof ValueProperty && ((ValueProperty)property).getValue().isNull()) {
     			valid = curValue.isNull();
     			resultString = "null";
     		} else if (property instanceof ObjectValueProperty && "java.lang.String".equals(((ObjectValueProperty)property).getValue().getJavaType().getName())) {  // The property's value cannot be null because of the previous special case.
     			valid = ((ObjectValueProperty)property).getValue().toString().equals(curValue.toString());
-    			resultString = EclipseUtils.javaStringOfValue(curValue, stack);
+    			resultString = getJavaString(typedExpr, curValue);
     		} else if (property instanceof StateProperty && "true".equals(((StateProperty)property).getPropertyString())) {
     			valid = true;
-				resultString = getResultString(curValue, toStrings, evalIndex);
+				resultString = getResultString(typedExpr, curValue, toStrings, evalIndex);
     		} else {
     			valid = "true".equals(valids[evalIndex].toString());
-				resultString = getResultString(curValue, toStrings, evalIndex);
+				resultString = getResultString(typedExpr, curValue, toStrings, evalIndex);
     		}
 			if (valid)
-				validExprs.add(new FullyEvaluatedExpression(typedExpr.getExpression(), typedExpr.getType(), Value.makeValue(curValue, valueCache, thread), resultString));
+				validExprs.add(new FullyEvaluatedExpression(typedExpr.getExpression(), typedExpr.getType(), new Result(curValue, typedExpr.getResult() == null ? null : typedExpr.getResult().getEffects(), valueCache, thread), resultString));
 			if (typedExpr.getValue() == null || !validateStatically)
 				evalIndex++;
 		}
@@ -566,26 +568,38 @@ public final class EvaluationManager {
 	}
 	
 	/**
-	 * Gets a String representing the given value.  We use the
-	 * given array of computed toStrings if it is non-null,
+	 * Gets a String representing the given expression and value.  We
+	 * use the given array of computed toStrings if it is non-null,
 	 * and we enclose Strings in quotes when necessary.
+	 * @param expr The expression.
 	 * @param curValue The value whose String representation we want.
 	 * @param toStrings An array of the computed toStrings of value,
 	 * or null if we did not compute anything.
 	 * @param evalIndex The index of the current value in the toStrings
 	 * array if it is non-null.
-	 * @return A String representation of the given value.
+	 * @return A String representation of the given expression and value.
 	 * @throws DebugException
 	 */
-	private String getResultString(IJavaValue curValue, IJavaValue[] toStrings, int evalIndex) throws DebugException {
+	private String getResultString(TypedExpression expr, IJavaValue curValue, IJavaValue[] toStrings, int evalIndex) throws DebugException {
 		if (toStrings == null)
-			return EclipseUtils.javaStringOfValue(curValue, stack);
+			return getJavaString(expr, curValue);
 		else {
 			String result = toStrings[evalIndex].getValueString();
 			if (!curValue.isNull() && "java.lang.String".equals(curValue.getJavaType().getName()))
 				result = "\"" + result + "\"";
 			return result;
 		}
+	}
+	
+	/**
+	 * Gets a String representation of the given expression and value.
+	 * @param expr The expression.
+	 * @param curValue The value of the expression.
+	 * @return A string representation of the given expression and value.
+	 * @throws DebugException
+	 */
+	private String getJavaString(TypedExpression expr, IJavaValue curValue) throws DebugException {
+		return expressionMaker.getToStringWithEffects(expr, curValue);
 	}
 
 	/**
@@ -637,13 +651,13 @@ public final class EvaluationManager {
 			}
 		} else if (crashedMethod != null && ("java.lang.ArrayIndexOutOfBoundsException".equals(errorName) || "java.lang.IndexOutOfBoundsException".equals(errorName)) && crashedMethod.argumentTypeNames().size() == 1) {
 			// Skip methods that throw out-of-bounds exception if the new value is further from 0.
-			IJavaValue argValue = expressionMaker.getExpressionValue((Expression)getArguments(crashedExpr).get(0));
+			IJavaValue argValue = expressionMaker.getExpressionValue((Expression)getArguments(crashedExpr).get(0), getReceiverEffects(crashedExpr));
 			if ("int".equals(argValue.getJavaType().getName())) {
 				int argVal = ((IJavaPrimitiveValue)argValue).getIntValue();
 				while (crashingIndex + numToSkip < exprs.size()) {
 					Expression newExpr = exprs.get(crashingIndex + numToSkip).getExpression();
 					if (crashedMethod.equals(expressionMaker.getMethod(newExpr))) {
-						int curVal = ((IJavaPrimitiveValue)expressionMaker.getExpressionValue((Expression)getArguments(newExpr).get(0))).getIntValue();
+						int curVal = ((IJavaPrimitiveValue)expressionMaker.getExpressionValue((Expression)getArguments(newExpr).get(0), getReceiverEffects(newExpr))).getIntValue();
 						if ((argVal < 0 && curVal < 0) || (argVal >= 0 && curVal > argVal)) {
 							//System.out.println("Skipping " + newExpr.toString() + ".");
 							numToSkip++;
@@ -655,16 +669,17 @@ public final class EvaluationManager {
 			}
 		} else if (crashedMethod != null && (/*"java.lang.IllegalArgumentException".equals(errorName) || */"java.lang.ClassCastException".equals(errorName))) {
 			// Skip wrong type exceptions if the arguments have the same type.
+			// Note that I don't need to get the correct effects here because I only care about the type of the arguments.
 			List<?> args = getArguments(crashedExpr);
 			String[] argTypes = new String[args.size()];
 			for (int i = 0; i < argTypes.length; i++)
-				argTypes[i] = String.valueOf(expressionMaker.getExpressionValue((Expression)args.get(i)).getJavaType());
+				argTypes[i] = String.valueOf(expressionMaker.getExpressionValue((Expression)args.get(i), Collections.<Effect>emptySet()).getJavaType());
 			exprLoop: while (crashingIndex + numToSkip < exprs.size()) {
 				Expression newExpr = exprs.get(crashingIndex + numToSkip).getExpression();
 				if (crashedMethod.equals(expressionMaker.getMethod(newExpr))) {
 					List<?> curArgs = getArguments(newExpr);
 					for (int i = 0; i < argTypes.length; i++)
-						if (!argTypes[i].equals(String.valueOf(expressionMaker.getExpressionValue((Expression)curArgs.get(i)).getJavaType())))
+						if (!argTypes[i].equals(String.valueOf(expressionMaker.getExpressionValue((Expression)curArgs.get(i), Collections.<Effect>emptySet()).getJavaType())))
 							break exprLoop;
 					//System.out.println("Skipping " + newExpr.toString() + ".");
 					numToSkip++;
@@ -702,6 +717,21 @@ public final class EvaluationManager {
 			return ((ClassInstanceCreation)expr).arguments();
 		throw new RuntimeException("Unexpected expression type: " + expr.getClass());
 	}
+
+	/**
+	 * Gets the effects of the receiver of the expression
+	 * or the empty effect if there is no receiver.
+	 * @param crashedExpr
+	 * @return
+	 */
+	private Set<Effect> getReceiverEffects(Expression crashedExpr) {
+		if (crashedExpr instanceof MethodInvocation) {
+			Expression receiver = ((MethodInvocation)crashedExpr).getExpression();
+			if (receiver != null)
+				return expressionMaker.getExpressionResult(receiver, Collections.<Effect>emptySet()).getEffects();
+		}
+		return Collections.<Effect>emptySet();
+	}
     
     /**
      * Finds the number of subexpressions of the
@@ -713,15 +743,20 @@ public final class EvaluationManager {
     private int getNumNulls(Expression expr) {
     	final int[] numNulls = new int[] { 0 };
     	expr.accept(new ASTVisitor() {
+    		private Set<Effect> curEffects = Collections.<Effect>emptySet();
     		@Override
     		public void postVisit(ASTNode node) {
     			if (node instanceof Expression) {
     				if (node instanceof NullLiteral)
     					numNulls[0]++;
     				else {
-    					IJavaValue value = expressionMaker.getExpressionValue((Expression)node);
+    					Result result = expressionMaker.getExpressionResult((Expression)node, curEffects);
+    					if (result == null && node instanceof SimpleName)  // TODO: result is null for method names, but we should have a better check for that
+    						return;
+    					IJavaValue value = result.getValue().getValue();
     					if (value != null && value.isNull())
         					numNulls[0]++;
+    					curEffects = result.getEffects();
     				}
     			}
     		}

@@ -60,7 +60,7 @@ public class MethodNameConstraint extends NameConstraint {
     			String typeName = receiverType.getName();
 	    		for (Method method: ExpressionGenerator.getMethods(receiverType))
 					if (ExpressionGenerator.isLegalMethod(method, stack.getReferenceType(), false) && methodFulfills(method, stack, target, subtypeChecker, typeCache))
-						Utils.addToMap(methodsByType, typeName, method);
+						Utils.addToListMap(methodsByType, typeName, method);
     		}
     		return methodsByType;
 		} catch (DebugException e) {

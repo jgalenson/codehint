@@ -372,6 +372,16 @@ public final class EclipseUtils {
     	else
     		return value.getValueString();
     }
+
+	/**
+	 * Gets the name of the given type.
+	 * @param type The type.
+	 * @return The name of the type, or "null" if it is null.
+	 * @throws DebugException
+	 */
+	public static String getTypeName(IJavaType type) throws DebugException {
+		return type == null ? "null" : type.getName();
+	}
     
     /**
      * Gets an AST evaluation engine.

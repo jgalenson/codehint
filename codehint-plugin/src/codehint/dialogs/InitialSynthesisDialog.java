@@ -51,6 +51,7 @@ import com.sun.jdi.Method;
 
 import codehint.Activator;
 import codehint.Synthesizer.SynthesisWorker;
+import codehint.effects.SideEffectHandler;
 import codehint.expreval.EvaluationManager;
 import codehint.expreval.FullyEvaluatedExpression;
 import codehint.expreval.NativeHandler;
@@ -75,6 +76,7 @@ public class InitialSynthesisDialog extends SynthesisDialog {
 	private Button searchConstructorsButton;
 	private Button searchOperatorsButton;
 	private Button searchNativeCalls;
+	private Button handleSideEffects;
 
     private static final int searchCancelButtonID = IDialogConstants.CLIENT_ID;
     private Button searchCancelButton;
@@ -106,6 +108,7 @@ public class InitialSynthesisDialog extends SynthesisDialog {
     private ValueCache valueCache;
     private TimeoutChecker timeoutChecker;
     private NativeHandler nativeHandler;
+    private SideEffectHandler sideEffectHandler;
     private ExpressionMaker expressionMaker;
     private EvaluationManager evalManager;
     private StaticEvaluator staticEvaluator;
@@ -136,10 +139,11 @@ public class InitialSynthesisDialog extends SynthesisDialog {
 		IJavaThread thread = (IJavaThread)stack.getThread();
 		this.timeoutChecker = new TimeoutChecker(thread, stack, target, typeCache);
 		this.nativeHandler = new NativeHandler(thread, stack, target, typeCache);
-		this.expressionMaker = new ExpressionMaker(valueCache, timeoutChecker, nativeHandler);
+		this.sideEffectHandler = new SideEffectHandler(stack, project);
+		this.expressionMaker = new ExpressionMaker(stack, valueCache, timeoutChecker, nativeHandler, sideEffectHandler);
 		this.evalManager = new EvaluationManager(varType == null, stack, expressionMaker, subtypeChecker, typeCache, valueCache, timeoutChecker);
 		this.staticEvaluator = new StaticEvaluator(stack, typeCache, valueCache);
-		this.expressionGenerator = new ExpressionGenerator(target, stack, expressionMaker, subtypeChecker, typeCache, valueCache, evalManager, staticEvaluator);
+		this.expressionGenerator = new ExpressionGenerator(target, stack, sideEffectHandler, expressionMaker, subtypeChecker, typeCache, valueCache, evalManager, staticEvaluator);
 		this.skeleton = null;
 	}
 
@@ -161,6 +165,9 @@ public class InitialSynthesisDialog extends SynthesisDialog {
 		searchNativeCalls = createCheckBoxButton(searchOptionsComposite, "Call non-standard native methods (fast but dangerous)");
 		searchNativeCalls.setSelection(true);
         PlatformUI.getWorkbench().getHelpSystem().setHelp(searchNativeCalls, Activator.PLUGIN_ID + "." + "search-native-calls");
+		handleSideEffects = createCheckBoxButton(searchOptionsComposite, "Log and undo side effects (sound but slow)");
+		handleSideEffects.setSelection(false);
+        PlatformUI.getWorkbench().getHelpSystem().setHelp(handleSideEffects, Activator.PLUGIN_ID + "." + "handle-side-effects");
 		
 		Composite topButtonComposite = makeChildComposite(composite, GridData.HORIZONTAL_ALIGN_CENTER, 0);
 		searchCancelButton = createButton(topButtonComposite, searchCancelButtonID, "Search", true);
@@ -178,6 +185,8 @@ public class InitialSynthesisDialog extends SynthesisDialog {
 				FullyEvaluatedExpression expr = expressions.get(index);
 				item.setData(expr);
 				item.setText(new String[] { getExpressionLabel(expr), getValueLabel(expr) });
+				table.getColumn(0).pack();
+				table.getColumn(1).pack();
 			}
 		});
         GridData tableData = new GridData(GridData.FILL_BOTH);
@@ -223,7 +232,7 @@ public class InitialSynthesisDialog extends SynthesisDialog {
 				return 100;
 			}
 		});
-    	addColumn("Value", 1, TABLE_WIDTH / 2);
+    	addColumn("Result", 1, TABLE_WIDTH / 2);
     	ColumnViewerToolTipSupport.enableFor(tableViewer, ToolTip.NO_RECREATE);
         PlatformUI.getWorkbench().getHelpSystem().setHelp(table, Activator.PLUGIN_ID + "." + "candidate-selector");
         table.setItemCount(0);
@@ -365,7 +374,8 @@ public class InitialSynthesisDialog extends SynthesisDialog {
 		// Start the synthesis
 		boolean blockNatives = isAutomatic || !searchNativeCalls.getSelection();
 		nativeHandler.enable(blockNatives);
-		worker.synthesize(this, evalManager, numSearches, timeoutChecker, blockNatives);
+		sideEffectHandler.enable(handleSideEffects.getSelection());
+		worker.synthesize(this, evalManager, numSearches, timeoutChecker, blockNatives, sideEffectHandler);
 	}
 
 	public void startEndSynthesis(SynthesisState state) {
@@ -574,7 +584,7 @@ public class InitialSynthesisDialog extends SynthesisDialog {
     }
     
     private static String getValueLabel(FullyEvaluatedExpression e) {
-    	return e.getResultString();
+    	return e.getResult().getResultString(e.getResultString());
     }
     
 	private void setAllChecked(boolean state) {
@@ -647,6 +657,7 @@ public class InitialSynthesisDialog extends SynthesisDialog {
 		valueCache = null;
 		timeoutChecker = null;
 		nativeHandler = null;
+		sideEffectHandler = null;
 		expressionMaker = null;
 		evalManager = null;
 		staticEvaluator = null;

@@ -26,11 +26,17 @@ public class TypedExpression {
 		return type;
 	}
 	
+	// TODO: I should get rid of get{Value,Result} now that I have effects.  You should only be able to get a value or result given the current effects to be sure you don't accidentally forget to use it.
+	
 	public IJavaValue getValue() {
 		return null;
 	}
 	
 	public Value getWrapperValue() {
+		return null;
+	}
+	
+	public Result getResult() {
 		return null;
 	}
 	

@@ -6,7 +6,7 @@ import java.util.List;
 import org.eclipse.jdt.core.dom.Expression;
 import org.eclipse.jdt.debug.core.IJavaType;
 
-import codehint.exprgen.Value;
+import codehint.exprgen.Result;
 
 /**
  * A class that stores an expression, its type,
@@ -16,8 +16,8 @@ public class FullyEvaluatedExpression extends EvaluatedExpression {
 	
 	private final String resultString;
 	
-	public FullyEvaluatedExpression(Expression expression, IJavaType type, Value value, String resultString) {
-		super(expression, type, value);
+	public FullyEvaluatedExpression(Expression expression, IJavaType type, Result result, String resultString) {
+		super(expression, type, result);
 		this.resultString = resultString;
 	}
 	

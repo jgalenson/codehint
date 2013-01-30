@@ -47,7 +47,6 @@ import org.eclipse.jdt.debug.core.IJavaArrayType;
 import org.eclipse.jdt.debug.core.IJavaClassObject;
 import org.eclipse.jdt.debug.core.IJavaClassType;
 import org.eclipse.jdt.debug.core.IJavaDebugTarget;
-import org.eclipse.jdt.debug.core.IJavaObject;
 import org.eclipse.jdt.debug.core.IJavaReferenceType;
 import org.eclipse.jdt.debug.core.IJavaStackFrame;
 import org.eclipse.jdt.debug.core.IJavaThread;
@@ -502,9 +501,22 @@ public final class ExpressionSkeleton {
 	}
 	
 	/**
+	 * A class that represents an error in the skeleton.
+	 */
+	public static class SkeletonError extends RuntimeException {
+		
+		private static final long serialVersionUID = 1L;
+
+		public SkeletonError(String msg) {
+			super(msg);
+		}
+		
+	}
+	
+	/**
 	 * A class that represents a type error in the skeleton.
 	 */
-	public static class TypeError extends RuntimeException {
+	private static class TypeError extends SkeletonError {
 		
 		private static final long serialVersionUID = 1L;
 
@@ -635,12 +647,14 @@ public final class ExpressionSkeleton {
 			if (node instanceof ArrayAccess) {
 				return fillArrayAccess((ArrayAccess)node, curConstraint, parentsOfHoles);
 			} else if (node instanceof BooleanLiteral) {
-	    		return new ExpressionsAndTypeConstraints(new EvaluatedExpression(node, booleanType, Value.makeValue(target.newValue(((BooleanLiteral)node).booleanValue()), valueCache, thread)), new SupertypeBound(booleanType));
+				boolean value = ((BooleanLiteral)node).booleanValue();
+				return new ExpressionsAndTypeConstraints(expressionMaker.makeBoolean(value, target.newValue(value), booleanType, valueCache, thread), new SupertypeBound(booleanType));
 			} else if (node instanceof CastExpression) {
 				return fillCast((CastExpression)node, curConstraint, parentsOfHoles);
 			} else if (node instanceof CharacterLiteral) {
 				IJavaType type = EclipseUtils.getFullyQualifiedType("char", stack, target, typeCache);
-	    		return new ExpressionsAndTypeConstraints(new EvaluatedExpression(node, type, Value.makeValue(target.newValue(((CharacterLiteral)node).charValue()), valueCache, thread)), new SupertypeBound(type));
+				char value = ((CharacterLiteral)node).charValue();
+	    		return new ExpressionsAndTypeConstraints(expressionMaker.makeChar(value, target.newValue(value), type, valueCache, thread), new SupertypeBound(type));
 			} else if (node instanceof ClassInstanceCreation) {
 				return fillClassInstanceCreation(node, parentsOfHoles);
 			} else if (node instanceof ConditionalExpression) {
@@ -663,9 +677,9 @@ public final class ExpressionSkeleton {
 					receiverResult = new ExpressionsAndTypeConstraints(new SupertypeBound(getThisType()));
 				return fillMethod(call, call.getName(), call.arguments(), parentsOfHoles, curConstraint, argTypes, receiverResult);
 			} else if (node instanceof NullLiteral) {
-	    		return new ExpressionsAndTypeConstraints(new EvaluatedExpression(node, null, Value.makeValue(target.nullValue(), valueCache, thread)), new SupertypeBound(EclipseUtils.getFullyQualifiedType("java.lang.Object", stack, target, typeCache)));
+	    		return new ExpressionsAndTypeConstraints(expressionMaker.makeNull(target, valueCache, thread), new SupertypeBound(EclipseUtils.getFullyQualifiedType("java.lang.Object", stack, target, typeCache)));
 			} else if (node instanceof NumberLiteral) {
-	    		return fillNumberLiteral(node);
+	    		return fillNumberLiteral(node, valueCache, thread);
 			} else if (node instanceof ParenthesizedExpression) {
 				return fillParenthesized((ParenthesizedExpression)node, curConstraint, parentsOfHoles);
 			} else if (node instanceof PostfixExpression) {
@@ -684,7 +698,8 @@ public final class ExpressionSkeleton {
 				return fillSimpleName(node, curConstraint);
 			} else if (node instanceof StringLiteral) {
 				IJavaType type = EclipseUtils.getFullyQualifiedType("java.lang.String", stack, target, typeCache);
-				return new ExpressionsAndTypeConstraints(new EvaluatedExpression(node, type, Value.makeValue(target.newValue(((StringLiteral)node).getLiteralValue()), valueCache, thread)), new SupertypeBound(type));
+				String value = ((StringLiteral)node).getLiteralValue();
+				return new ExpressionsAndTypeConstraints(expressionMaker.makeString(value, target.newValue(value), type, valueCache, thread), new SupertypeBound(type));
 			} else if (node instanceof SuperFieldAccess) {
 				SuperFieldAccess superAccess = (SuperFieldAccess)node;
 				IJavaType superType = getSuperType(superAccess.getQualifier());
@@ -696,7 +711,7 @@ public final class ExpressionSkeleton {
 				return fillMethod(superAccess, superAccess.getName(), superAccess.arguments(), parentsOfHoles, curConstraint, argTypes, new ExpressionsAndTypeConstraints(new TypedExpression(null, superType), new SupertypeBound(superType)));
 			} else if (node instanceof ThisExpression) {
 				IJavaType type = getThisType();
-				return new ExpressionsAndTypeConstraints(new EvaluatedExpression(node, type, Value.makeValue(getThis(), valueCache, thread)), new SupertypeBound(type)); 
+				return new ExpressionsAndTypeConstraints(expressionMaker.makeThis(getThis(), type, valueCache, thread), new SupertypeBound(type)); 
 			} else if (node instanceof TypeLiteral) {
 				return fillTypeLiteral(node);
 			} else
@@ -734,8 +749,12 @@ public final class ExpressionSkeleton {
 					for (TypedExpression arrExpr: a.getValue())
 						if (arrExpr.getType() != null) {  // TODO: This should really be part of my constraint when I search for this in the first place above.
 							String componentType = a.getKey().substring(0, a.getKey().length() - 2);  // Get the component type of the array.
-							for (TypedExpression indexExpr: Utils.singleton(indexResult.getExprs().values()))
-								Utils.addToMap(resultExprs, componentType, expressionMaker.makeArrayAccess(arrExpr, indexExpr, null, valueCache, thread));
+							for (TypedExpression indexExpr: Utils.singleton(indexResult.getExprs().values())) {
+								TypedExpression accessExpr = expressionMaker.makeArrayAccess(arrExpr, indexExpr, valueCache, thread, target);
+								if (accessExpr == null)
+									throw new SkeletonError("Array access crashes.");
+								Utils.addToListMap(resultExprs, componentType, accessExpr);
+							}
 						}
 				return new ExpressionsAndTypeConstraints(resultExprs, getSupertypeConstraintForTypes(resultTypes));
 			} catch (DebugException e) {
@@ -759,7 +778,7 @@ public final class ExpressionSkeleton {
 			Map<String, ArrayList<TypedExpression>> resultExprs = new HashMap<String, ArrayList<TypedExpression>>(exprResult.getExprs().size());
 			for (Map.Entry<String, ArrayList<TypedExpression>> res: exprResult.getExprs().entrySet())
 				for (TypedExpression expr: res.getValue())
-					Utils.addToMap(resultExprs, res.getKey(), expressionMaker.makeCast(expr, castType, null, valueCache, thread));
+					Utils.addToListMap(resultExprs, res.getKey(), expressionMaker.makeCast(expr, castType, null, valueCache, thread));
 			return new ExpressionsAndTypeConstraints(resultExprs, new SupertypeBound(castType));
 		}
 
@@ -809,7 +828,7 @@ public final class ExpressionSkeleton {
 						if ((thenType == null && EclipseUtils.isObject(elseType)) || (elseType == null && EclipseUtils.isObject(thenType)) || subtypeChecker.isSubtypeOf(thenType, elseType) || subtypeChecker.isSubtypeOf(elseType, thenType))
 							for (TypedExpression thenExpr: thenExprs.getValue())
 								for (TypedExpression elseExpr: elseExprs.getValue())
-									Utils.addToMap(resultExprs, thenExprs.getKey(), expressionMaker.makeConditional(condExpr, thenExpr, elseExpr, thenExpr.getType(), valueCache, thread));
+									Utils.addToListMap(resultExprs, thenExprs.getKey(), expressionMaker.makeConditional(condExpr, thenExpr, elseExpr, thenExpr.getType()));
 					}
 				}
 			return new ExpressionsAndTypeConstraints(resultExprs, thenResult.getTypeConstraint());
@@ -855,7 +874,7 @@ public final class ExpressionSkeleton {
 									for (TypedExpression rightExpr: rightExprs.getValue())
 										if (leftExpr.getValue() == null || !leftExpr.getValue().isNull() || rightExpr.getValue() == null || !rightExpr.getValue().isNull()) {  // TODO: These two checks should be part of my constraint when I search for the child holes above.
 											IJavaType resultType = isBooleanResult ? booleanType : leftExpr.getValue() == null || !leftExpr.getValue().isNull() ? leftExpr.getType() : rightExpr.getType();
-											Utils.addToMap(resultExprs, leftExprs.getKey(), expressionMaker.makeInfix(leftExpr, infix.getOperator(), rightExpr, resultType, valueCache, thread));
+											Utils.addToListMap(resultExprs, leftExprs.getKey(), expressionMaker.makeInfix(leftExpr, infix.getOperator(), rightExpr, resultType, valueCache, thread, target));
 										}
 					}
 				}
@@ -879,7 +898,7 @@ public final class ExpressionSkeleton {
 			Map<String, ArrayList<TypedExpression>> resultExprs = new HashMap<String, ArrayList<TypedExpression>>(exprResult.getExprs().size());
 			for (Map.Entry<String, ArrayList<TypedExpression>> res: exprResult.getExprs().entrySet())
 				for (TypedExpression expr: res.getValue())
-					Utils.addToMap(resultExprs, res.getKey(), expressionMaker.makeInstanceOf(expr, (Type)ExpressionMaker.resetAST(instance.getRightOperand()), booleanType, null, valueCache, thread));
+					Utils.addToListMap(resultExprs, res.getKey(), expressionMaker.makeInstanceOf(expr, (Type)ExpressionMaker.resetAST(instance.getRightOperand()), booleanType, null, valueCache, thread));
 			return new ExpressionsAndTypeConstraints(resultExprs, new SupertypeBound(booleanType));
 		}
 
@@ -889,20 +908,26 @@ public final class ExpressionSkeleton {
 		 * @return The synthesized expressions corresponding to this
 		 * skeleton piece and the type constraint representing their types.
 		 */
-		private ExpressionsAndTypeConstraints fillNumberLiteral(Expression node) {
+		private ExpressionsAndTypeConstraints fillNumberLiteral(Expression node, ValueCache valueCache, IJavaThread thread) {
 			String str = ((NumberLiteral)node).getToken();
 			int lastChar = str.charAt(str.length() - 1);
 			// Rules taken from: http://docs.oracle.com/javase/tutorial/java/nutsandbolts/datatypes.html.
 			IJavaType resultType = null;
-			if (lastChar == 'l' || lastChar == 'L')
+			IJavaValue value = null;
+			if (lastChar == 'l' || lastChar == 'L') {
 				resultType = EclipseUtils.getFullyQualifiedType("long", stack, target, typeCache);
-			else if (lastChar == 'f' || lastChar == 'f')
+				value = target.newValue(Long.parseLong(str));
+			} else if (lastChar == 'f' || lastChar == 'f') {
 				resultType = EclipseUtils.getFullyQualifiedType("float", stack, target, typeCache);
-			else if (lastChar == 'd' || lastChar == 'd' || str.indexOf('.') != -1)
+				value = target.newValue(Float.parseFloat(str));
+			} else if (lastChar == 'd' || lastChar == 'd' || str.indexOf('.') != -1) {
 				resultType = EclipseUtils.getFullyQualifiedType("double", stack, target, typeCache);
-			else
+				value = target.newValue(Double.parseDouble(str));
+			} else {
 				resultType = intType;
-			return new ExpressionsAndTypeConstraints(new TypedExpression(node, resultType), new SupertypeBound(resultType));
+				value = target.newValue(Integer.parseInt(str));
+			}
+			return new ExpressionsAndTypeConstraints(expressionMaker.makeNumber(str, value, resultType, valueCache, thread), new SupertypeBound(resultType));
 		}
 
 		/**
@@ -919,7 +944,7 @@ public final class ExpressionSkeleton {
 			Map<String, ArrayList<TypedExpression>> resultExprs = new HashMap<String, ArrayList<TypedExpression>>(exprResult.getExprs().size());
 			for (Map.Entry<String, ArrayList<TypedExpression>> res: exprResult.getExprs().entrySet())
 				for (TypedExpression expr: res.getValue())
-					Utils.addToMap(resultExprs, res.getKey(), expressionMaker.makeParenthesized(expr, valueCache, thread));
+					Utils.addToListMap(resultExprs, res.getKey(), expressionMaker.makeParenthesized(expr));
 			return new ExpressionsAndTypeConstraints(resultExprs, exprResult.getTypeConstraint());
 		}
 
@@ -940,7 +965,7 @@ public final class ExpressionSkeleton {
 			Map<String, ArrayList<TypedExpression>> resultExprs = new HashMap<String, ArrayList<TypedExpression>>(exprResult.getExprs().size());
 			for (Map.Entry<String, ArrayList<TypedExpression>> res: exprResult.getExprs().entrySet())
 				for (TypedExpression expr: res.getValue())
-					Utils.addToMap(resultExprs, res.getKey(), expressionMaker.makePostfix(target, expr, postfix.getOperator(), expr.getType(), valueCache, thread));
+					Utils.addToListMap(resultExprs, res.getKey(), expressionMaker.makePostfix(target, expr, postfix.getOperator(), expr.getType(), valueCache, thread));
 			return new ExpressionsAndTypeConstraints(resultExprs, curConstraint);
 		}
 
@@ -958,7 +983,7 @@ public final class ExpressionSkeleton {
 			Map<String, ArrayList<TypedExpression>> resultExprs = new HashMap<String, ArrayList<TypedExpression>>(exprResult.getExprs().size());
 			for (Map.Entry<String, ArrayList<TypedExpression>> res: exprResult.getExprs().entrySet())
 				for (TypedExpression expr: res.getValue())
-					Utils.addToMap(resultExprs, res.getKey(), expressionMaker.makePrefix(expr, prefix.getOperator(), expr.getType(), valueCache, thread));
+					Utils.addToListMap(resultExprs, res.getKey(), expressionMaker.makePrefix(expr, prefix.getOperator(), expr.getType(), valueCache, thread));
 			return new ExpressionsAndTypeConstraints(resultExprs, curConstraint);
 		}
 
@@ -1008,8 +1033,7 @@ public final class ExpressionSkeleton {
 						List<IJavaType> resultTypes = new ArrayList<IJavaType>(values.size());
 						for (EvaluatedExpression e: values) {
 							resultTypes.add(e.getType());
-							String typeName = e.getType() == null ? "null" : e.getType().getName();
-							Utils.addToMap(valuesByType, typeName, e);
+							Utils.addToListMap(valuesByType, EclipseUtils.getTypeName(e.getType()), e);
 						}
 						// Group the expressions by the constraints they satisfy.
 						TypeConstraint resultConstraint = getSupertypeConstraintForTypes(resultTypes);
@@ -1029,7 +1053,7 @@ public final class ExpressionSkeleton {
 								// Add the results.
 								String typeName = exprs.getKey();
 								for (EvaluatedExpression e: exprs.getValue())
-									Utils.addToMap(typedValuesForType, typeName, e);
+									Utils.addToListMap(typedValuesForType, typeName, e);
 							}
 						}
 						return new ExpressionsAndTypeConstraints(typedValuesForType, resultConstraint);
@@ -1041,7 +1065,7 @@ public final class ExpressionSkeleton {
 				} else {
 					IJavaVariable var = stack.findVariable(name.getIdentifier());
 					if (var != null)
-						return new ExpressionsAndTypeConstraints(new EvaluatedExpression(name, var.getJavaType(), Value.makeValue((IJavaValue)var.getValue(), valueCache, thread)), new SupertypeBound(var.getJavaType()));
+						return new ExpressionsAndTypeConstraints(new EvaluatedExpression(name, var.getJavaType(), new Result((IJavaValue)var.getValue(), valueCache, thread)), new SupertypeBound(var.getJavaType()));
 					IJavaType type = EclipseUtils.getTypeAndLoadIfNeeded(name.getIdentifier(), stack, target, typeCache);
 					assert type != null : name.getIdentifier();
 					return new ExpressionsAndTypeConstraints(expressionMaker.makeStaticName(name.getIdentifier(), (IJavaReferenceType)type, valueCache, thread), new SupertypeBound(type));
@@ -1062,7 +1086,7 @@ public final class ExpressionSkeleton {
 				IJavaType type = EclipseUtils.getType(((TypeLiteral)node).getType().toString(), stack, target, typeCache);
 				IJavaClassObject classObj = ((IJavaReferenceType)type).getClassObject();
 				IJavaType classObjType = classObj.getJavaType();
-				return new ExpressionsAndTypeConstraints(new EvaluatedExpression(node, classObjType, Value.makeValue(classObj, valueCache, thread)), new SupertypeBound(classObjType));
+				return new ExpressionsAndTypeConstraints(new EvaluatedExpression(node, classObjType, new Result(classObj, valueCache, thread)), new SupertypeBound(classObjType));
 			} catch (DebugException e) {
 				throw new RuntimeException(e);
 			}
@@ -1159,21 +1183,12 @@ public final class ExpressionSkeleton {
 							for (Field field: fields.get(receiverExprs.getKey())) {
 								if (!expressionMaker.isStatic(receiverExpr.getExpression()) || field.isStatic()) {
 									String fieldTypeName = field.typeName();
-									IJavaValue fieldValue = null;
-									try {
-										if (field.isStatic())
-											fieldValue = (IJavaValue)((IJavaReferenceType)receiverExpr.getType()).getField(field.name()).getValue();
-										else if (receiverExpr.getValue() != null)
-											fieldValue = (IJavaValue)((IJavaObject)receiverExpr.getValue()).getField(field.name(), !field.declaringType().name().equals(receiverExpr.getType().getName())).getValue();
-									} catch (DebugException e) {
-										e.printStackTrace();
-									}
 									TypedExpression newExpr = null;
 									if (receiverExpr.getExpression() == null)
-										newExpr = expressionMaker.makeSuperFieldAccess(superQualifier, field.name(), EclipseUtils.getTypeAndLoadIfNeeded(fieldTypeName, stack, target, typeCache), fieldValue, valueCache, thread);
+										newExpr = expressionMaker.makeSuperFieldAccess(superQualifier, receiverExpr, field.name(), EclipseUtils.getTypeAndLoadIfNeeded(fieldTypeName, stack, target, typeCache), field, valueCache, thread);
 									else
-										newExpr = expressionMaker.makeFieldAccess(receiverExpr, field.name(), EclipseUtils.getTypeAndLoadIfNeeded(fieldTypeName, stack, target, typeCache), fieldValue, valueCache, thread);
-									Utils.addToMap(resultExprs, fieldTypeName, newExpr);
+										newExpr = expressionMaker.makeFieldAccess(receiverExpr, field.name(), EclipseUtils.getTypeAndLoadIfNeeded(fieldTypeName, stack, target, typeCache), field, valueCache, thread, target);
+									Utils.addToListMap(resultExprs, fieldTypeName, newExpr);
 								}
 							}
 				}
@@ -1219,11 +1234,17 @@ public final class ExpressionSkeleton {
 										buildCalls(method, receiverExpr, node, argResults, isListHole, resultExprs, overloadChecker);
 							}
 			} else {  // No receiver (implicit this).
-				IJavaType thisType = getThisType();
+				IJavaReferenceType thisType = getThisType();
+				TypedExpression receiver;
+				try {
+					receiver = stack.isStatic() ? expressionMaker.makeStaticName(thisType.getName(), thisType, valueCache, thread) : expressionMaker.makeThis(getThis(), thisType, valueCache, thread);
+				} catch (DebugException e) {
+					throw new RuntimeException(e);
+				}
 				OverloadChecker overloadChecker = new OverloadChecker(thisType, stack, target, typeCache, subtypeChecker);
 				if (!methods.isEmpty())
 					for (Method method: Utils.singleton(methods.values()))
-						buildCalls(method, expressionMaker.makeThis(getThis(), thisType, valueCache, thread), node, argResults, isListHole, resultExprs, overloadChecker);
+						buildCalls(method, receiver, node, argResults, isListHole, resultExprs, overloadChecker);
 			}
 			return new ExpressionsAndTypeConstraints(resultExprs, methodResult.getTypeConstraint());
 		}
@@ -1359,11 +1380,11 @@ public final class ExpressionSkeleton {
 			if (curActuals.size() == possibleActuals.size()) {
 				TypedExpression callExpr = null;
 				if (callNode instanceof SuperMethodInvocation)
-					callExpr = expressionMaker.makeSuperCall(name, ((SuperMethodInvocation)callNode).getQualifier(), curActuals, returnType, null, method, valueCache, thread);
+					callExpr = expressionMaker.makeSuperCall(name, ((SuperMethodInvocation)callNode).getQualifier(), curActuals, returnType, null, method);
 				else
 					callExpr = expressionMaker.makeCall(name, receiver, curActuals, returnType, thisType, method, target, valueCache, thread, staticEvaluator);
 				if (callExpr.getValue() == null || !"V".equals(callExpr.getValue().getSignature()))
-					Utils.addToMap(resultExprs, constraintName, callExpr);
+					Utils.addToListMap(resultExprs, constraintName, callExpr);
 			}
 			else {
 				int argNum = curActuals.size();
@@ -1386,7 +1407,7 @@ public final class ExpressionSkeleton {
 		 */
 		private static TypeConstraint getSupertypeConstraintForTypes(Collection<IJavaType> types) {
 			try {
-				// Putting IJavaTypes into a Set doesn't remove duplicates, so I need to map them based on their names.
+				// Putting IJavaTypes into a Set doesn't remove duplicates of primitive types, so I need to map them based on their names.
 				Map<String, IJavaType> typesMap = new HashMap<String, IJavaType>();
 				for (IJavaType type: types) {
 					if (type != null) {  // Ignore nulls.
@@ -1420,7 +1441,7 @@ public final class ExpressionSkeleton {
 		 * Gets the type of the this object.
 		 * @return The type of the this object.
 		 */
-		private IJavaType getThisType() {
+		private IJavaReferenceType getThisType() {
 			try {
 				return stack.getReferenceType();
 			} catch (DebugException e) {
@@ -1472,7 +1493,7 @@ public final class ExpressionSkeleton {
 				String typeName = type.getName();
 	    		for (Method method: ExpressionGenerator.getMethods(type))
 					if (ExpressionGenerator.isLegalMethod(method, stack.getReferenceType(), true) && MethodNameConstraint.fulfillsArgConstraints(method, argConstraints, stack, target, subtypeChecker, typeCache))
-						Utils.addToMap(methodsByType, typeName, method);
+						Utils.addToListMap(methodsByType, typeName, method);
 	    		return methodsByType;
 			} catch (DebugException e) {
 				throw new RuntimeException(e);
@@ -1498,7 +1519,7 @@ public final class ExpressionSkeleton {
 		public ExpressionsAndTypeConstraints(TypedExpression expr, TypeConstraint typeConstraint) {
 			this.exprs = new HashMap<String, ArrayList<TypedExpression>>(1);
 			try {
-				Utils.addToMap(this.exprs, expr.getType() == null ? "null" : expr.getType().getName(), expr);
+				Utils.addToListMap(this.exprs, EclipseUtils.getTypeName(expr.getType()), expr);
 			} catch (DebugException e) {
 				throw new RuntimeException(e);
 			}

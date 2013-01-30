@@ -2,6 +2,7 @@ package codehint.utils;
 
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -25,10 +26,23 @@ public class Utils {
 	 * @param key The key.
 	 * @param value The value.
 	 */
-	public static <K, V> void addToMap(Map<K, ArrayList<V>> map, K key, V value) {
+	public static <K, V> void addToListMap(Map<K, ArrayList<V>> map, K key, V value) {
 		if (!map.containsKey(key))
 			map.put(key, new ArrayList<V>());
 		map.get(key).add(value);
+	}
+	
+	/**
+	 * Adds the given key-value mapping to the given map.
+	 * @param map The map.
+	 * @param key1 The outer key.
+	 * @param key2 The inner key.
+	 * @param value The value.
+	 */
+	public static <K1, K2, V> void addToMapMap(Map<K1, Map<K2, V>> map, K1 key1, K2 key2, V value) {
+		if (!map.containsKey(key1))
+			map.put(key1, new HashMap<K2, V>());
+		map.get(key1).put(key2, value);
 	}
 	
 	public static String plural(String str, String suffix, int count) {

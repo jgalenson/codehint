@@ -1,7 +1,9 @@
 package codehint.expreval;
 
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Set;
 
 import org.eclipse.debug.core.DebugException;
 import org.eclipse.jdt.core.dom.CastExpression;
@@ -13,7 +15,9 @@ import org.eclipse.jdt.debug.core.IJavaValue;
 
 import com.sun.jdi.Method;
 
+import codehint.effects.Effect;
 import codehint.exprgen.ExpressionMaker;
+import codehint.exprgen.Result;
 import codehint.exprgen.StringValue;
 import codehint.exprgen.Value;
 import codehint.exprgen.ValueCache;
@@ -31,22 +35,25 @@ public class ValueFlattener extends ASTFlattener {
 	private final Map<String, Pair<Integer, String>> newTemporaries;
 	private final ExpressionMaker expressionMaker;
 	private final ValueCache valueCache;
+	private Set<Effect> curEffects;
 	
 	public ValueFlattener(Map<String, Integer> temporaries, ExpressionMaker expressionMaker, ValueCache valueCache) {
 		this.temporaries = temporaries;
 		this.newTemporaries = new HashMap<String, Pair<Integer, String>>();
 		this.expressionMaker = expressionMaker;
 		this.valueCache = valueCache;
+		this.curEffects = Collections.<Effect>emptySet();
 	}
 	
 	@Override
 	protected void flatten(Expression node, StringBuilder sb) {
 		try {
-			IJavaValue value = null;
+			Result result = null;
 			Object idObj = ExpressionMaker.getIDOpt(node);
 			if (idObj != null)
-				value = expressionMaker.getExpressionValue((Integer)idObj);
-			if (value != null) {
+				result = expressionMaker.getExpressionResult((Integer)idObj, curEffects);
+			if (result != null) {
+				IJavaValue value = result.getValue().getValue();
 				if (value instanceof IJavaPrimitiveValue) {
 					String str = value.toString();
 					String sig = value.getSignature();
@@ -72,6 +79,8 @@ public class ValueFlattener extends ASTFlattener {
 				}
 			}
 			super.flatten(node, sb);
+			if (result != null)
+				curEffects = result.getEffects();
 		} catch (DebugException ex) {
 			throw new RuntimeException(ex);
 		}

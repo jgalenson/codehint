@@ -20,4 +20,7 @@
 	<context id="search-native-calls" title="Synthesis">
 		<description>Allow the synthesis search to call native methods outside the standard library (i.e., outside the "java." and "sun." packages).  These method calls might not respect the security manager and so might have external side effects, such as deleting a file.  However, disallowing them greatly slows the search.</description>
 	</context>
+	<context id="handle-side-effects" title="Synthesis">
+		<description>Log and undo all side effects during execution.  This makes the search sound (unless it also searches native calls) but is slower.</description>
+	</context>
 </contexts>

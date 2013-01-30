@@ -1,13 +1,12 @@
 package codehint.expreval;
 
 import org.eclipse.jdt.core.dom.Expression;
-import org.eclipse.jdt.debug.core.IJavaThread;
 import org.eclipse.jdt.debug.core.IJavaType;
 import org.eclipse.jdt.debug.core.IJavaValue;
 
+import codehint.exprgen.Result;
 import codehint.exprgen.TypedExpression;
 import codehint.exprgen.Value;
-import codehint.exprgen.ValueCache;
 
 /**
  * A class that stores an expression, its type,
@@ -15,12 +14,12 @@ import codehint.exprgen.ValueCache;
  */
 public class EvaluatedExpression extends TypedExpression {
 	
-	protected final Value value;
+	protected final Result result;
 	
-	public EvaluatedExpression(Expression expression, IJavaType type, Value value) {
+	public EvaluatedExpression(Expression expression, IJavaType type, Result result) {
 		super(expression, type);
-		assert value != null;
-		this.value = value;
+		assert result != null;
+		this.result = result;
 	}
 	
 	public String getSnippet() {
@@ -29,27 +28,32 @@ public class EvaluatedExpression extends TypedExpression {
 	
 	@Override
 	public IJavaValue getValue() {
-		return value.getValue();
+		return result.getValue().getValue();
 	}
 	
 	@Override
 	public Value getWrapperValue() {
-		return value;
+		return result.getValue();
 	}
 	
-	public static TypedExpression makeTypedOrEvaluatedExpression(Expression expression, IJavaType type, IJavaValue value, ValueCache valueCache, IJavaThread thread) {
-		if (value == null)
+	@Override
+	public Result getResult() {
+		return result;
+	}
+	
+	public static TypedExpression makeTypedOrEvaluatedExpression(Expression expression, IJavaType type, Result result) {
+		if (result == null)
 			return new TypedExpression(expression, type);
 		else
-			return new EvaluatedExpression(expression, type, Value.makeValue(value, valueCache, thread));
+			return new EvaluatedExpression(expression, type, result);
 	}
 
 	@Override
 	public String toString() {
-		if (value == null)
+		if (result == null)
 			return getSnippet();
 		else
-			return getSnippet() + " (= " + value.toString().replace("\n", "\\n") + ")";
+			return getSnippet() + " (= " + result + ")";
 	}
 	
 }

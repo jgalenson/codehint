@@ -67,6 +67,11 @@ class SynthesisSecurityManager extends SecurityManager {
     	throw new SynthesisSecurityException();
     }
     
+    @Override
+    public void checkMemberAccess(Class<?> clazz, int which) {
+    	// Our Side Effect handler needs this to be called to handle reflection, since it cannot execute methods within an evaluation and without this the name is not cached.
+    	clazz.getName();
+    }
 
     /*
     // Users can do dangerous things with Unsafe, but they need to get it through reflection, so block that.

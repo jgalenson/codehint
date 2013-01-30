@@ -61,6 +61,7 @@ import codehint.dialogs.RefinementSynthesisDialog;
 import codehint.dialogs.StatePropertyDialog;
 import codehint.dialogs.SynthesisDialog;
 import codehint.dialogs.TypePropertyDialog;
+import codehint.effects.SideEffectHandler;
 import codehint.expreval.EvaluationManager;
 import codehint.expreval.TimeoutChecker;
 import codehint.expreval.EvaluationManager.EvaluationError;
@@ -68,7 +69,7 @@ import codehint.expreval.FullyEvaluatedExpression;
 import codehint.exprgen.ExpressionGenerator;
 import codehint.exprgen.ExpressionMaker;
 import codehint.exprgen.ExpressionSkeleton;
-import codehint.exprgen.ExpressionSkeleton.TypeError;
+import codehint.exprgen.ExpressionSkeleton.SkeletonError;
 import codehint.exprgen.SubtypeChecker;
 import codehint.exprgen.TypeCache;
 import codehint.exprgen.TypedExpression;
@@ -202,8 +203,9 @@ public class Synthesizer {
 		 * @param extraDepth Extra depth to search.
 		 * @param timeoutChecker The job that times out long evaluations.
 		 * @param blockNatives Whether we are block native calls.
+		 * @param sideEffectHandler Class that records and undoes side effects.
 		 */
-		public void synthesize(final InitialSynthesisDialog synthesisDialog, final EvaluationManager evalManager, final int extraDepth, final TimeoutChecker timeoutChecker, final boolean blockNatives) {
+		public void synthesize(final InitialSynthesisDialog synthesisDialog, final EvaluationManager evalManager, final int extraDepth, final TimeoutChecker timeoutChecker, final boolean blockNatives, final SideEffectHandler sideEffectHandler) {
 			final Property property = synthesisDialog.getProperty();
 			final ExpressionSkeleton skeleton = synthesisDialog.getSkeleton();
 			final boolean searchConstructors = synthesisDialog.searchConstructors();
@@ -234,22 +236,31 @@ public class Synthesizer {
 						prefStore.setValue(PHANTOM_BREAKPOINT_PREFNAME, false);
 					try {
 						evalManager.init();
+						sideEffectHandler.start(synthesisDialog.getProgressMonitor());
 						skeleton.synthesize(property, varName, varStaticType, extraDepth, searchConstructors, searchOperators, synthesisDialog, synthesisDialog.getProgressMonitor());
 			        	return Status.OK_STATUS;
 					} catch (EvaluationError e) {
 						unfinished = true;
+						e.printStackTrace();
 						return new Status(IStatus.ERROR, Activator.PLUGIN_ID, e.getMessage());
 					} catch (OperationCanceledException e) {
 						EclipseUtils.log("Cancelling synthesis for " + varName + " with property " + property.toString() + " and skeleton " + skeleton.toString() + ".");
 						DataCollector.log("cancel", "spec=" + property.toString(), "skel=" + skeleton.toString(), "exdep=" + extraDepth, "cons=" + searchConstructors, "ops=" + searchOperators, "block-natives=" + blockNatives);
 						unfinished = true;
 						return Status.CANCEL_STATUS;
-					} catch (TypeError e) {
+					} catch (SkeletonError e) {
 						EclipseUtils.showError("Error", e.getMessage(), null);
 						unfinished = true;
 						return Status.CANCEL_STATUS;
+					} catch (RuntimeException e) {
+						unfinished = true;
+						throw e;
+					} catch (Exception e) {
+						unfinished = true;
+						throw new RuntimeException(e);
 					} finally {
 						timeoutChecker.stop();
+						sideEffectHandler.stop(synthesisDialog.getProgressMonitor());
 						final InitialSynthesisDialog.SynthesisState state = unfinished ? InitialSynthesisDialog.SynthesisState.UNFINISHED : InitialSynthesisDialog.SynthesisState.END;
 						Display.getDefault().asyncExec(new Runnable(){
 							@Override
@@ -422,7 +433,7 @@ public class Synthesizer {
         	assert initialExprs.size() > 0;  // We must have at least one expression.
 			ValueCache valueCache = new ValueCache((IJavaDebugTarget)frame.getDebugTarget());
         	// TODO: Run the following off the UI thread like above when we do the first synthesis.
-        	EvaluationManager evalManager = new EvaluationManager(false, frame, new ExpressionMaker(valueCache, timeoutChecker, null), new SubtypeChecker(), typeCache, valueCache, timeoutChecker);
+        	EvaluationManager evalManager = new EvaluationManager(false, frame, new ExpressionMaker(frame, valueCache, timeoutChecker, null, null), new SubtypeChecker(), typeCache, valueCache, timeoutChecker);
         	evalManager.init();
    			ArrayList<FullyEvaluatedExpression> exprs = evalManager.evaluateExpressions(initialExprs, null, null, null, new NullProgressMonitor());
    			if (exprs.isEmpty()) {

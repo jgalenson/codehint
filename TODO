@@ -34,7 +34,6 @@ If the user saves a document with a choose statement and then executes it, the d
 We don't handle generics well due to erasure (although we no longer crash).  See Parse and RandomWriter examples.
 Our evaluation timeout does not currently interrupt things stuck in loops.  Although I don't think the JVM can do better than this....
 When demonstrating values, we do not allow implicit conversions like int->double (e.g., must type 5.0 and not 5 for Intro.hypotenuse).
-I think our evaluations do change memory.  We could re-launch a new debugger, I think with ILaunchConfiguration.launch().
 Improve method blacklist.  Also, it should work for subclasses of the given type, not just that exact type.
 We currently use the string of the inserted text as the key to store information about a choose statement.  We should at least also use the filename and line number, if not just use a tag like before.
 Show a better popup during refinement (instead of just displaying a list of values).
