@@ -361,6 +361,7 @@ public final class ExpressionGenerator {
 	 */
 	private ArrayList<FullyEvaluatedExpression> genAllExprs(int maxDepth, Property property, boolean searchConstructors, boolean searchOperators, final InitialSynthesisDialog synthesisDialog, IProgressMonitor monitor) throws DebugException {
 		long startTime = System.currentTimeMillis();
+		int initNumCrashes = getNumCrashes();
 		
 		ArrayList<TypedExpression> curLevel = null;
 		ArrayList<FullyEvaluatedExpression> nextLevel = new ArrayList<FullyEvaluatedExpression>(0);
@@ -376,6 +377,7 @@ public final class ExpressionGenerator {
 			}
 		}
 		ArrayList<FullyEvaluatedExpression> results = evaluateExpressions(curLevel, property, synthesisDialog, monitor, maxDepth);
+		int numEvaled = getNumExprsSearched() - initNumCrashes;
 		
 		//printEquivalenceInfo();
 		//System.out.println("Took " + (System.currentTimeMillis() - startTime) + " milliseconds pre-expansion.");
@@ -393,9 +395,9 @@ public final class ExpressionGenerator {
 		results.addAll(extraResults);
 		
 		long time = System.currentTimeMillis() - startTime; 
-		int numSearched = getNumExprsSearched();
-		EclipseUtils.log("Generated " + numSearched + " expressions at depth " + maxDepth + " and found " + results.size() + " valid expressions and took " + time + " milliseconds.");
-		DataCollector.log("gen", "spec=" + (property == null ? "" : property.toString()), "depth=" + maxDepth, "gen=" + numSearched, "valid=" + results.size(), "time=" + time);
+		int numSearched = getNumExprsSearched() - initNumCrashes;
+		EclipseUtils.log("Generated " + numSearched + " expressions (of which " + numEvaled + " were evaluated) at depth " + maxDepth + " and found " + results.size() + " valid expressions and took " + time + " milliseconds.");
+		DataCollector.log("gen", "spec=" + (property == null ? "" : property.toString()), "depth=" + maxDepth, "evaled=" + numEvaled, "gen=" + numSearched, "valid=" + results.size(), "time=" + time);
 		
     	return results;
 	}
@@ -480,7 +482,15 @@ public final class ExpressionGenerator {
 	 * been searched.
 	 */
 	private int getNumExprsSearched() {
-		return Utils.getNumValues(equivalences.get(Collections.emptySet())) + evalManager.getNumCrashes() + staticEvaluator.getNumCrashes() + expressionMaker.getNumCrashes();
+		return Utils.getNumValues(equivalences.get(Collections.emptySet())) + getNumCrashes();
+	}
+	
+	/**
+	 * Returns the number of expressions that have crashed.
+	 * @return The number of expressions that have crashed.
+	 */
+	private int getNumCrashes() {
+		return evalManager.getNumCrashes() + staticEvaluator.getNumCrashes() + expressionMaker.getNumCrashes();
 	}
 	
 	/**
@@ -2018,16 +2028,22 @@ public final class ExpressionGenerator {
     	return depth;
     }
     
-	/*private void printEquivalenceInfo() {
-    	for (Map.Entry<Value, ArrayList<EvaluatedExpression>> equivClass: equivalences.entrySet()) {
+	private void printEquivalenceInfo() {
+		System.out.println("Exprs:");
+    	for (ArrayList<EvaluatedExpression> equivClass: equivalences.get(Collections.<Effect>emptySet()).values()) {
+    		for (EvaluatedExpression expr: equivClass)
+    			System.out.println(expr);
+    	}
+		System.out.println("Equivalences:");
+    	for (Map.Entry<Result, ArrayList<EvaluatedExpression>> equivClass: equivalences.get(Collections.<Effect>emptySet()).entrySet()) {
     		System.out.println(equivClass.getKey().toString().replace("\n", "\\n") + " -> " + equivClass.getValue().size() + " (" + equivClass.getValue().toString().replace("\n", "\\n") + ")");
     	}
     	System.out.println("Buckets: ");
-    	Map<Integer, ArrayList<Value>> buckets = new HashMap<Integer, ArrayList<Value>>();
-    	for (Map.Entry<Value, ArrayList<EvaluatedExpression>> equivClass: equivalences.entrySet())
-    		Utils.addToMap(buckets, equivClass.getValue().size(), equivClass.getKey());
+    	Map<Integer, ArrayList<Result>> buckets = new HashMap<Integer, ArrayList<Result>>();
+    	for (Map.Entry<Result, ArrayList<EvaluatedExpression>> equivClass: equivalences.get(Collections.<Effect>emptySet()).entrySet())
+    		Utils.addToListMap(buckets, equivClass.getValue().size(), equivClass.getKey());
     	for (Integer bucket: new java.util.TreeSet<Integer>(buckets.keySet()))
     		System.out.println(bucket + " -> " + buckets.get(bucket).size() + " (" + buckets.get(bucket).toString().replace("\n", "\\n") + ")");
-    }*/
+    }
 
 }
