@@ -58,7 +58,7 @@ public class Value {
 		else if (value instanceof IJavaArray) {  // Heuristically only look at the array's length and its first ten elements.
 			IJavaArray array = (IJavaArray)value;
 			int length = array.getLength();
-			int hashCode = length * 5;
+			int hashCode = length * 5 + array.getSignature().hashCode() * 7;
 			for (int i = 0; i < 10 && i < length; i++)
 				hashCode = 31 * hashCode + getHashCode(array.getValue(i));
 			return hashCode;
@@ -102,9 +102,11 @@ public class Value {
 		try {
 			if (x == y || (x.isNull() && y.isNull()))
 				return true;
-			if (x == null || y == null || x.isNull() || y.isNull())
+			if (x.isNull() || y.isNull())
 				return false;
 			if (x instanceof IJavaArray && y instanceof IJavaArray) {
+				if (!x.getSignature().equals(y.getSignature()))
+					return false;  // Even though arrays are covariant, using the subtype could crash when the supertype does not (e.g., normal Java array covariange bug).
 				IJavaArray a = (IJavaArray)x;
 				IJavaArray b = (IJavaArray)y;
 				if (a.getLength() != b.getLength())
