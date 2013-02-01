@@ -157,7 +157,7 @@ public final class EclipseUtils {
      * @param signature The signature to check.
      * @return Whether the given signature represents a primitive.
      */
-    private static boolean isPrimitive(String signature) {
+    public static boolean isPrimitive(String signature) {
     	return Signature.getTypeSignatureKind(signature) == Signature.BASE_TYPE_SIGNATURE;
     }
 

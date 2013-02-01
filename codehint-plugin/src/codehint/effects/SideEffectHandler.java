@@ -36,25 +36,18 @@ import org.eclipse.jdt.internal.debug.core.model.JDIDebugTarget;
 import org.eclipse.jdt.internal.debug.core.model.JDIObjectValue;
 import org.eclipse.jdt.internal.debug.ui.BreakpointUtils;
 
+import codehint.utils.EclipseUtils;
 import codehint.utils.MutablePair;
 import codehint.utils.Pair;
 
 import com.sun.jdi.ArrayReference;
-import com.sun.jdi.BooleanValue;
-import com.sun.jdi.ByteValue;
-import com.sun.jdi.CharValue;
 import com.sun.jdi.ClassNotLoadedException;
 import com.sun.jdi.ClassType;
-import com.sun.jdi.DoubleValue;
 import com.sun.jdi.Field;
-import com.sun.jdi.FloatValue;
 import com.sun.jdi.IncompatibleThreadStateException;
-import com.sun.jdi.IntegerValue;
 import com.sun.jdi.InvalidTypeException;
-import com.sun.jdi.LongValue;
 import com.sun.jdi.ObjectReference;
 import com.sun.jdi.ReferenceType;
-import com.sun.jdi.ShortValue;
 import com.sun.jdi.StackFrame;
 import com.sun.jdi.StringReference;
 import com.sun.jdi.ThreadReference;
@@ -594,14 +587,7 @@ public class SideEffectHandler {
 				Value oldValue = field.isStatic() ? fieldType.getValue(field) : obj.getValue(field);
 				if (argValues.size() == 2) {  // We're setting the value of a field.
 					Value newValue = argValues.get(1);
-					if ((field.signature().equals("I") && newValue instanceof ObjectReference)  // Unbox primitive values.
-							|| (field.signature().equals("Z") && newValue instanceof ObjectReference)
-							|| (field.signature().equals("J") && newValue instanceof ObjectReference)
-							|| (field.signature().equals("B") && newValue instanceof ObjectReference)
-							|| (field.signature().equals("C") && newValue instanceof ObjectReference)
-							|| (field.signature().equals("S") && newValue instanceof ObjectReference)
-							|| (field.signature().equals("F") && newValue instanceof ObjectReference)
-							|| (field.signature().equals("D") && newValue instanceof ObjectReference))
+					if (newValue instanceof ObjectReference && EclipseUtils.isPrimitive(field.signature()))  // Unbox primitive values.
 						newValue = ((ObjectReference)newValue).getValue(((ReferenceType)newValue.type()).fieldByName("value"));
 					recordEffect(FieldLVal.makeFieldLVal(obj, field), oldValue, newValue);
 				} else if (oldValue instanceof ArrayReference)  // We're reading the value of an array.

@@ -552,7 +552,7 @@ public final class ExpressionGenerator {
     			curMonitor = SubMonitor.convert(monitor, "Expression generation", IProgressMonitor.UNKNOWN);
     			for (IJavaType type: constraintTypes)
     				if (type instanceof IJavaClassType)
-    					addMethodCalls(new TypedExpression(null, type), nextLevel, curLevel, depth, maxDepth);
+    					addMethodCalls(new TypedExpression(null, type), nextLevel, curLevel, depth, maxDepth, null);
     			curMonitor.done();
     		}
     		
@@ -656,7 +656,7 @@ public final class ExpressionGenerator {
     				// Field accesses to non-static fields from non-static scope.
     				if (e.getType() instanceof IJavaClassType
     						&& (e.getValue() == null || !e.getValue().isNull()))  // Skip things we know are null dereferences.
-    					addFieldAccesses(e, curLevel, depth, maxDepth);
+    					addFieldAccesses(e, curLevel, depth, maxDepth, null);
     				// Boolean negation.
     				if (searchOperators && ExpressionMaker.isBoolean(e.getType()) && isHelpfulType(booleanType, depth, maxDepth)
     						&& !(e.getExpression() instanceof PrefixExpression) && !(e.getExpression() instanceof InfixExpression)
@@ -674,7 +674,7 @@ public final class ExpressionGenerator {
     				// Method calls to non-static methods from non-static scope.
     				if (ExpressionMaker.isObjectOrInterface(e.getType())
     						&& (e.getValue() == null || !e.getValue().isNull()))  // Skip things we know are null dereferences.
-    					addMethodCalls(e, nextLevel, curLevel, depth, maxDepth);
+    					addMethodCalls(e, nextLevel, curLevel, depth, maxDepth, null);
     				// Collect the class and interface types we've seen.
     				if (ExpressionMaker.isObjectOrInterface(e.getType()))
     					objectInterfaceTypes.add((IJavaReferenceType)e.getType());
@@ -684,10 +684,10 @@ public final class ExpressionGenerator {
     			{
     				// Field accesses from static scope.
     				if (stack.isStatic() && !stack.getReceivingTypeName().contains("<"))  // TODO: Allow referring to generic classes (and below).
-    					addFieldAccesses(expressionMaker.makeStaticName(stack.getReceivingTypeName(), thisType, valueCache, thread), curLevel, depth, maxDepth);
+    					addFieldAccesses(expressionMaker.makeStaticName(stack.getReceivingTypeName(), thisType, valueCache, thread), curLevel, depth, maxDepth, null);
     				// Method calls from static scope.
     				if (stack.isStatic() && !stack.getReceivingTypeName().contains("<"))
-    					addMethodCalls(expressionMaker.makeStaticName(stack.getReceivingTypeName(), thisType, valueCache, thread), nextLevel, curLevel, depth, maxDepth);
+    					addMethodCalls(expressionMaker.makeStaticName(stack.getReceivingTypeName(), thisType, valueCache, thread), nextLevel, curLevel, depth, maxDepth, null);
     				// Accesses/calls to static fields/methods.
     				for (IJavaReferenceType type : objectInterfaceTypes) {
     					String typeName = type.getName();
@@ -696,22 +696,33 @@ public final class ExpressionGenerator {
     						typeName = EclipseUtils.getUnqualifiedName(EclipseUtils.sanitizeTypename(typeName));
     					else
     						typeName = getShortestTypename(typeName);
-    					addFieldAccesses(expressionMaker.makeStaticName(typeName, type, valueCache, thread), curLevel, depth, maxDepth);
-    					addMethodCalls(expressionMaker.makeStaticName(typeName, type, valueCache, thread), nextLevel, curLevel, depth, maxDepth);
+    					addFieldAccesses(expressionMaker.makeStaticName(typeName, type, valueCache, thread), curLevel, depth, maxDepth, null);
+    					addMethodCalls(expressionMaker.makeStaticName(typeName, type, valueCache, thread), nextLevel, curLevel, depth, maxDepth, null);
     				}
     				// Calls to static methods and fields of imported classes.
     				for (IImportDeclaration imp : imports) {
     					String fullName = imp.getElementName();
     					String shortName = EclipseUtils.getUnqualifiedName(fullName);  // Use the unqualified typename for brevity.
     					if (!imp.isOnDemand()) {  // TODO: What should we do with import *s?  It might be too expensive to try all static methods.  This ignores them.
-    						IJavaReferenceType importedType = (IJavaReferenceType)EclipseUtils.getTypeAndLoadIfNeeded(fullName, stack, target, typeCache);
-    						if (importedType != null) {
-    							if (!objectInterfaceTypes.contains(importedType)) {  // We've already handled these above.
-    								addFieldAccesses(expressionMaker.makeStaticName(shortName, importedType, valueCache, thread), curLevel, depth, maxDepth);
-    								addMethodCalls(expressionMaker.makeStaticName(shortName, importedType, valueCache, thread), nextLevel, curLevel, depth, maxDepth);
-    							}
-    						} else
-    							;//System.err.println("I cannot get the class of the import " + fullName);
+    						if (Flags.isStatic(imp.getFlags())) {
+    							String typeName = fullName.substring(0, fullName.lastIndexOf('.'));
+								IJavaReferenceType importedType = (IJavaReferenceType)EclipseUtils.getTypeAndLoadIfNeeded(typeName, stack, target, typeCache);
+    							if (importedType != null) {
+    								// TODO: I'm currently using the full name of the type, while because of the import I could simply use the name and forego the type completely.
+    								addFieldAccesses(expressionMaker.makeStaticName(typeName, importedType, valueCache, thread), curLevel, depth, maxDepth, shortName);
+    								addMethodCalls(expressionMaker.makeStaticName(typeName, importedType, valueCache, thread), nextLevel, curLevel, depth, maxDepth, shortName);
+    							} else
+	    							;//System.err.println("I cannot get the class of the import " + fullName);
+    						} else {
+	    						IJavaReferenceType importedType = (IJavaReferenceType)EclipseUtils.getTypeAndLoadIfNeeded(fullName, stack, target, typeCache);
+	    						if (importedType != null) {
+	    							if (!objectInterfaceTypes.contains(importedType)) {  // We've already handled these above.
+	    								addFieldAccesses(expressionMaker.makeStaticName(shortName, importedType, valueCache, thread), curLevel, depth, maxDepth, null);
+	    								addMethodCalls(expressionMaker.makeStaticName(shortName, importedType, valueCache, thread), nextLevel, curLevel, depth, maxDepth, null);
+	    							}
+	    						} else
+	    							;//System.err.println("I cannot get the class of the import " + fullName);
+    						}
     					}
     					curMonitor.worked(1);
     				}
@@ -788,10 +799,12 @@ public final class ExpressionGenerator {
 	 * the newly-generated expressions.
 	 * @param depth The current search depth.
 	 * @param maxDepth The maximum search depth.
+	 * @param targetName The name of the field access
+	 * to add, or null if we should add any access.
 	 * @throws DebugException
 	 * @throws JavaModelException 
 	 */
-	private void addFieldAccesses(TypedExpression e, List<TypedExpression> ops, int depth, int maxDepth) throws DebugException, JavaModelException {
+	private void addFieldAccesses(TypedExpression e, List<TypedExpression> ops, int depth, int maxDepth, String targetName) throws DebugException, JavaModelException {
 		// We could use the public Eclipse API here, but it isn't as clean and works on objects not types, so wouldn't work with our static accesses, which we give a null value.  Note that as below with methods, we must now be careful converting between jdi types and Eclipse types. 
 		//IJavaObject obj = e.getValue() != null ? (IJavaObject)e.getValue() : null;
 		//Type objTypeImpl = ((JDIType)e.getType()).getUnderlyingType();
@@ -802,6 +815,8 @@ public final class ExpressionGenerator {
 			if (!isLegalField(field, thisType) || (isStatic != field.isStatic()) || field.isSynthetic())
 				continue;
 			if (field.isStatic() && staticAccesses.contains(field.declaringType().name() + " " + field.name()))
+				continue;
+			if (targetName != null && !targetName.equals(field.name()))
 				continue;
             IField ifield = getIField(field);
             if (ifield != null && Flags.isDeprecated(ifield.getFlags()))
@@ -882,10 +897,12 @@ public final class ExpressionGenerator {
 	 * the newly-generated expressions.
 	 * @param depth The current search depth.
 	 * @param maxDepth The maximum search depth.
+	 * @param targetName The name of the method to
+	 * call, or null if we can call any method.
 	 * @throws DebugException
 	 * @throws JavaModelException 
 	 */
-	private void addMethodCalls(TypedExpression e, List<FullyEvaluatedExpression> nextLevel, List<TypedExpression> ops, int depth, int maxDepth) throws DebugException, JavaModelException {
+	private void addMethodCalls(TypedExpression e, List<FullyEvaluatedExpression> nextLevel, List<TypedExpression> ops, int depth, int maxDepth, String targetName) throws DebugException, JavaModelException {
 		// The public API doesn't tell us the methods of a class, so we need to use the jdi.  Note that we must now be careful converting between jdi types and Eclipse types.
 		//Type objTypeImpl = ((JDIType)e.getType()).getUnderlyingType();
 		if (classBlacklist.contains(e.getType().getName()))
@@ -905,6 +922,8 @@ public final class ExpressionGenerator {
 				continue;
             if (method.isStatic() && staticAccesses.contains(method.declaringType().name() + " " + method.name() + " " + method.signature()))
                 continue;
+			if (targetName != null && !targetName.equals(method.name()))
+				continue;
             if (!(e.getType() instanceof IJavaInterfaceType)) {  // Skip interface methods called on non-interface objects, as the object method will also be in the list.  Without this, we duplicate calls to interface methods when the static type is a non-interface.
 				IJavaType declaringType = EclipseUtils.getTypeAndLoadIfNeeded(method.declaringType().name(), stack, target, typeCache);
 				if (declaringType instanceof IJavaInterfaceType)
