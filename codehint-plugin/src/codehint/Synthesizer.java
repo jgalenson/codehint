@@ -214,7 +214,7 @@ public class Synthesizer {
 				@Override
 				protected IStatus run(IProgressMonitor monitor) {
 					EclipseUtils.log("Beginning synthesis for " + varName + " with property " + property.toString() + " and skeleton " + skeleton.toString() + " with extra depth " + extraDepth + ".");
-					DataCollector.log("start", "spec=" + property.toString(), "skel=" + skeleton.toString(), "exdep=" + extraDepth, "cons=" + searchConstructors, "ops=" + searchOperators, "block-natives=" + blockNatives);
+					DataCollector.log("start", "spec=" + property.toString(), "skel=" + skeleton.toString(), "exdep=" + extraDepth, "cons=" + searchConstructors, "ops=" + searchOperators, "block-natives=" + blockNatives, "handle-effects=" + sideEffectHandler.isEnabled());
 					boolean unfinished = false;
 					// Disable existing breakpoints
 					IBreakpoint[] breakpoints = DebugPlugin.getDefault().getBreakpointManager().getBreakpoints();
@@ -245,7 +245,7 @@ public class Synthesizer {
 						return new Status(IStatus.ERROR, Activator.PLUGIN_ID, e.getMessage());
 					} catch (OperationCanceledException e) {
 						EclipseUtils.log("Cancelling synthesis for " + varName + " with property " + property.toString() + " and skeleton " + skeleton.toString() + ".");
-						DataCollector.log("cancel", "spec=" + property.toString(), "skel=" + skeleton.toString(), "exdep=" + extraDepth, "cons=" + searchConstructors, "ops=" + searchOperators, "block-natives=" + blockNatives);
+						DataCollector.log("cancel", "spec=" + property.toString(), "skel=" + skeleton.toString(), "exdep=" + extraDepth, "cons=" + searchConstructors, "ops=" + searchOperators, "block-natives=" + blockNatives, "handle-effects=" + sideEffectHandler.isEnabled());
 						unfinished = true;
 						return Status.CANCEL_STATUS;
 					} catch (SkeletonError e) {
