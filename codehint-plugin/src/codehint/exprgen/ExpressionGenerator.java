@@ -934,6 +934,8 @@ public final class ExpressionGenerator {
                 continue;
 			if (targetName != null && !targetName.equals(method.name()))
 				continue;
+			if (e.getType().getName().equals("java.lang.String") && method.name().equals("toString"))
+				continue;  // Don't call toString on Strings.
             if (!(e.getType() instanceof IJavaInterfaceType)) {  // Skip interface methods called on non-interface objects, as the object method will also be in the list.  Without this, we duplicate calls to interface methods when the static type is a non-interface.
 				IJavaType declaringType = EclipseUtils.getTypeAndLoadIfNeeded(method.declaringType().name(), stack, target, typeCache);
 				if (declaringType instanceof IJavaInterfaceType)
@@ -986,8 +988,9 @@ public final class ExpressionGenerator {
 	 * @param curArgIndex The index of the current argument.
 	 * @param maxArgDepth The maximum depth of the arguments.
 	 * @return The expressions to use for the given argument.
+	 * @throws DebugException 
 	 */
-	private ArrayList<EvaluatedExpression> getArgs(List<? extends EvaluatedExpression> possibleArgs, TypedExpression receiver, Method method, OverloadChecker overloadChecker, IJavaType argType, int curArgIndex, int maxArgDepth) {
+	private ArrayList<EvaluatedExpression> getArgs(List<? extends EvaluatedExpression> possibleArgs, TypedExpression receiver, Method method, OverloadChecker overloadChecker, IJavaType argType, int curArgIndex, int maxArgDepth) throws DebugException {
 		SupertypeBound argBound = new SupertypeBound(argType);
 		int numArgs = method.argumentTypeNames().size();
 		ArrayList<EvaluatedExpression> curPossibleActuals = new ArrayList<EvaluatedExpression>();
@@ -997,6 +1000,8 @@ public final class ExpressionGenerator {
 					&& meetsNonNullPreconditions(method, curArgIndex + 1, a)
 					// Avoid calling equals with things the same element, things of incomparable type, or null.
 					&& !("equals".equals(method.name()) && "(Ljava/lang/Object;)Z".equals(method.signature()) && (a == receiver || isConstant(a.getExpression()) || (!subtypeChecker.isSubtypeOf(a.getType(), receiver.getType()) && !subtypeChecker.isSubtypeOf(receiver.getType(), a.getType()))))) {
+				if (method.name().equals("valueOf") && method.declaringType().name().equals("java.lang.String") && a.getType() != null && a.getType().getName().equals("java.lang.String"))
+					continue;  // Don't call valueOf on a String.
 				if (overloadChecker.needsCast(argType, a.getType(), curArgIndex)) {  // If the method is overloaded, when executing the expression we might get "Ambiguous call" compile errors, so we put in a cast to remove the ambiguity.
 					//System.out.println("Adding cast to type " + argType.toString() + " to argument " + a.getExpression().toString() + " at index "+ curArgIndex + " of method " + method.declaringType() + "." + method.name() + " with " + method.argumentTypeNames().size() + " arguments.");
 					a = (EvaluatedExpression)expressionMaker.makeCast(a, argType, a.getValue(), valueCache, thread);
