@@ -428,7 +428,9 @@ public class ExpressionMaker {
 		return result;
 	}
 	
-	public String getToStringWithEffects(TypedExpression expr, IJavaValue value) {
+	public String getToStringWithEffects(TypedExpression expr, IJavaValue value) throws DebugException {
+		if (sideEffectHandler == null)  // This should only be null during refinement, in which case we just get the toString without worrying about side effects.
+			return EclipseUtils.javaStringOfValue(value, stack);
 		Set<Effect> effects = expr.getResult().getEffects();
 		try {
 			//System.out.println("Getting toString of " + expr.getExpression() + " with effects " + effects);
