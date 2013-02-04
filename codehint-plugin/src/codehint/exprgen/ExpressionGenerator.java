@@ -393,6 +393,8 @@ public final class ExpressionGenerator {
 			});
     	}
 		results.addAll(extraResults);
+
+		//getMaxLineInfo();
 		
 		long time = System.currentTimeMillis() - startTime; 
 		int numSearched = getNumExprsSearched() - initNumCrashes;
@@ -1997,7 +1999,7 @@ public final class ExpressionGenerator {
     		depth = getDepthImpl(((ParenthesizedExpression)expr).getExpression());
 		else if (expr instanceof InfixExpression) {
 			InfixExpression infix = (InfixExpression)expr;
-			return Math.max(getDepthImpl(infix.getLeftOperand()), getDepthImpl(infix.getRightOperand())) + 1;
+			depth = Math.max(getDepthImpl(infix.getLeftOperand()), getDepthImpl(infix.getRightOperand())) + 1;
 		} else if (expr instanceof ArrayAccess) {
 			ArrayAccess array = (ArrayAccess)expr;
 			depth = Math.max(getDepthImpl(array.getArray()), getDepthImpl(array.getIndex())) + 1;
@@ -2028,11 +2030,14 @@ public final class ExpressionGenerator {
 		} else if (expr instanceof CastExpression) {
 			depth = getDepthImpl(((CastExpression)expr).getExpression());
 		} else
-			throw new RuntimeException("Unexpected Expression " + expr.toString());
+			throw new RuntimeException("Unexpected expression " + expr.toString());
     	expressionMaker.setDepth(expr, depth);
     	return depth;
     }
     
+    // Informative utility methods.
+    
+	@SuppressWarnings("unused")
 	private void printEquivalenceInfo() {
 		System.out.println("Exprs:");
     	for (ArrayList<EvaluatedExpression> equivClass: equivalences.get(Collections.<Effect>emptySet()).values()) {
@@ -2050,5 +2055,50 @@ public final class ExpressionGenerator {
     	for (Integer bucket: new java.util.TreeSet<Integer>(buckets.keySet()))
     		System.out.println(bucket + " -> " + buckets.get(bucket).size() + " (" + buckets.get(bucket).toString().replace("\n", "\\n") + ")");
     }
+
+	@SuppressWarnings("unused")
+	private void getMaxLineInfo() {
+    	Map<Integer, ArrayList<Expression>> buckets = new HashMap<Integer, ArrayList<Expression>>();
+		for (ArrayList<EvaluatedExpression> exprs: equivalences.get(Collections.<Effect>emptySet()).values())
+			for (EvaluatedExpression e: exprs)
+				Utils.addToListMap(buckets, getMaxLines(e.getExpression()), e.getExpression());
+    	for (Integer bucket: new java.util.TreeSet<Integer>(buckets.keySet()))
+    		System.out.println(bucket + " -> " + buckets.get(bucket).size() + " (e.g., " + buckets.get(bucket).get(0) + ")");
+	}
+	
+	private int getMaxLines(Expression expr) {
+		if (expr == null)
+			return 0;
+    	if (expr instanceof NumberLiteral || expr instanceof BooleanLiteral || expr instanceof Name || expr instanceof ThisExpression || expr instanceof NullLiteral || expr instanceof TypeLiteral)
+			return expr.getParent() == null ? 1 : 0;
+    	else if (expr instanceof ParenthesizedExpression)
+    		return getMaxLines(((ParenthesizedExpression)expr).getExpression());
+		else if (expr instanceof InfixExpression) {
+			InfixExpression infix = (InfixExpression)expr;
+			return getMaxLines(infix.getLeftOperand()) + getMaxLines(infix.getRightOperand()) + 1;
+		} else if (expr instanceof ArrayAccess) {
+			ArrayAccess array = (ArrayAccess)expr;
+			return getMaxLines(array.getArray()) + getMaxLines(array.getIndex()) + 1;
+		} else if (expr instanceof FieldAccess) {
+			return getMaxLines(((FieldAccess)expr).getExpression()) + 1;
+		} else if (expr instanceof PrefixExpression) {
+			return getMaxLines(((PrefixExpression)expr).getOperand()) + 1;
+		} else if (expr instanceof MethodInvocation) {
+			MethodInvocation call = (MethodInvocation)expr;
+			int curNumLines = getMaxLines(call.getExpression());
+			for (int i = 0; i < call.arguments().size(); i++)
+				curNumLines += getMaxLines((Expression)call.arguments().get(i));
+			return curNumLines + 1;
+		} else if (expr instanceof ClassInstanceCreation) {
+			ClassInstanceCreation call = (ClassInstanceCreation)expr;
+			int curNumLines = getMaxLines(call.getExpression());
+			for (int i = 0; i < call.arguments().size(); i++)
+				curNumLines += getMaxLines((Expression)call.arguments().get(i));
+			return curNumLines + 1;
+		} else if (expr instanceof CastExpression) {
+			return getMaxLines(((CastExpression)expr).getExpression());
+		} else
+			throw new RuntimeException("Unexpected expression " + expr.toString());
+	}
 
 }
