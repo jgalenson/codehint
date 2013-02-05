@@ -1,3 +1,4 @@
+import java.awt.Dimension;
 import java.awt.Window;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
@@ -20,8 +21,17 @@ public class OSQJTree {
 	 */
 	private static void configureTree(final JTree jtree) {
 		
+		Window window = null;
+		// TO WRITE: Get the window in which the JTree is contained.
+		configureWindow(window);
+		
+		
+		Dimension size = null;
+		// TO WRITE: Get the size of the window.
+		System.out.println(size);
+		
 		/*
-		 * This adds a mouse handler that triggers whenever the use clicks on the tree.
+		 * This adds a mouse handler that triggers whenever the user clicks on the tree.
 		 */
 		jtree.addMouseListener(new MouseAdapter() {
 			public void mousePressed(MouseEvent e) {
@@ -29,7 +39,7 @@ public class OSQJTree {
 				int mouseX = e.getX();
 				int mouseY = e.getY();
 				
-				int clickedRow = -1;
+				int clickedRow = 0;
 				// TO WRITE: Set clickedRow to the index of the clicked element.
 				System.out.println(clickedRow);
 				
@@ -40,7 +50,7 @@ public class OSQJTree {
 			}
 		});
 	}
-	
+
 	public static void main(String[] args) {
         SwingUtilities.invokeLater(new Runnable() {
             public void run() {
@@ -66,6 +76,11 @@ public class OSQJTree {
 		frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
 		frame.pack();
 		frame.setVisible(true);
+	}
+	
+	private static void configureWindow(Window window) {
+		if (window != null)
+			window.setAlwaysOnTop(true);
 	}
 
 }

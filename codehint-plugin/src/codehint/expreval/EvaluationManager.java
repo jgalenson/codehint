@@ -536,31 +536,35 @@ public final class EvaluationManager {
 			TypedExpression typedExpr = exprs.get(startIndex + i);
 			IJavaValue curValue = typedExpr.getValue() != null ? typedExpr.getValue() : values[evalIndex];
 			boolean valid = false;
-			String resultString = null;
+			String validResultString = null;
 			if (property == null) {
 				valid = true;
-				resultString = getResultString(typedExpr, curValue, toStrings, evalIndex);
+				validResultString = getResultString(typedExpr, curValue, toStrings, evalIndex);
 			} else if (property instanceof PrimitiveValueProperty) {
 				valid = curValue.toString().equals(((PrimitiveValueProperty)property).getValue().toString());
-				resultString = getJavaString(typedExpr, curValue);
+				if (valid)
+					validResultString = getJavaString(typedExpr, curValue);
     		} else if (property instanceof TypeProperty) {
 				valid = !curValue.isNull() && subtypeChecker.isSubtypeOf(curValue.getJavaType(), ((TypeProperty)property).getType());  // null is not instanceof Object
-				resultString = getJavaString(typedExpr, curValue);
+				if (valid)
+					validResultString = getJavaString(typedExpr, curValue);
     		} else if (property instanceof ValueProperty && ((ValueProperty)property).getValue().isNull()) {
     			valid = curValue.isNull();
-    			resultString = "null";
+    			validResultString = "null";
     		} else if (property instanceof ObjectValueProperty && "java.lang.String".equals(((ObjectValueProperty)property).getValue().getJavaType().getName())) {  // The property's value cannot be null because of the previous special case.
     			valid = ((ObjectValueProperty)property).getValue().toString().equals(curValue.toString());
-    			resultString = getJavaString(typedExpr, curValue);
+    			if (valid)
+    				validResultString = getJavaString(typedExpr, curValue);
     		} else if (property instanceof StateProperty && "true".equals(((StateProperty)property).getPropertyString())) {
     			valid = true;
-				resultString = getResultString(typedExpr, curValue, toStrings, evalIndex);
+				validResultString = getResultString(typedExpr, curValue, toStrings, evalIndex);
     		} else {
     			valid = "true".equals(valids[evalIndex].toString());
-				resultString = getResultString(typedExpr, curValue, toStrings, evalIndex);
+    			if (valid)
+    				validResultString = getResultString(typedExpr, curValue, toStrings, evalIndex);
     		}
 			if (valid)
-				validExprs.add(new FullyEvaluatedExpression(typedExpr.getExpression(), typedExpr.getType(), new Result(curValue, typedExpr.getResult() == null ? null : typedExpr.getResult().getEffects(), valueCache, thread), resultString));
+				validExprs.add(new FullyEvaluatedExpression(typedExpr.getExpression(), typedExpr.getType(), new Result(curValue, typedExpr.getResult() == null ? null : typedExpr.getResult().getEffects(), valueCache, thread), validResultString));
 			if (typedExpr.getValue() == null || !validateStatically)
 				evalIndex++;
 		}
