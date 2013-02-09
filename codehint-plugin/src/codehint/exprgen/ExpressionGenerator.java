@@ -936,8 +936,8 @@ public final class ExpressionGenerator {
                 continue;
 			if (targetName != null && !targetName.equals(method.name()))
 				continue;
-			if (e.getType().getName().equals("java.lang.String") && method.name().equals("toString"))
-				continue;  // Don't call toString on Strings.
+			if (e.getType().getName().equals("java.lang.String") && (method.name().equals("toString") || method.name().equals("subSequence")))
+				continue;  // Don't call toString on Strings.  Also don't call subSequence because it's the same as substring.
             if (!(e.getType() instanceof IJavaInterfaceType)) {  // Skip interface methods called on non-interface objects, as the object method will also be in the list.  Without this, we duplicate calls to interface methods when the static type is a non-interface.
 				IJavaType declaringType = EclipseUtils.getTypeAndLoadIfNeeded(method.declaringType().name(), stack, target, typeCache);
 				if (declaringType instanceof IJavaInterfaceType)
