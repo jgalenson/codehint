@@ -91,6 +91,8 @@ public class InitialSynthesisDialog extends SynthesisDialog {
     private static final int TABLE_WIDTH = MESSAGE_WIDTH;
     private static final int TABLE_HEIGHT = 300;
     private Table table;
+    private int maxExprLen;
+    private int maxResultLen;
     private ArrayList<FullyEvaluatedExpression> expressions;  // This does not reflect the sort order of the expressions in the table, so get items from the table directly.
     private Button checkAllButton;
     private Button uncheckAllButton;
@@ -128,6 +130,8 @@ public class InitialSynthesisDialog extends SynthesisDialog {
 		this.shouldContinue = true;
 		this.monitor = null;
 		this.table = null;
+		this.maxExprLen = 0;
+		this.maxResultLen = 0;
 		this.expressions = null;
 		this.worker = worker;
 		this.project = EclipseUtils.getProject(stack);
@@ -184,9 +188,17 @@ public class InitialSynthesisDialog extends SynthesisDialog {
 				int index = event.index;
 				FullyEvaluatedExpression expr = expressions.get(index);
 				item.setData(expr);
-				item.setText(new String[] { getExpressionLabel(expr), getValueLabel(expr) });
-				table.getColumn(0).pack();
-				table.getColumn(1).pack();
+				String exprLabel = getExpressionLabel(expr);
+				String resultLabel = getValueLabel(expr);
+				item.setText(new String[] { exprLabel, resultLabel });
+				if (exprLabel.length() > maxExprLen) {
+					table.getColumn(0).pack();
+					maxExprLen = exprLabel.length();
+				}
+				if (resultLabel.length() > maxResultLen) {
+					table.getColumn(1).pack();
+					maxResultLen = resultLabel.length();
+				}
 			}
 		});
         GridData tableData = new GridData(GridData.FILL_BOTH);
