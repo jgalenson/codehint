@@ -971,7 +971,8 @@ public final class ExpressionGenerator {
 					if (method.isStatic())
 						receiver = expressionMaker.makeStaticName(EclipseUtils.sanitizeTypename(getShortestTypename(method.declaringType().name())), (IJavaReferenceType)EclipseUtils.getTypeAndLoadIfNeeded(method.declaringType().name(), stack, target, typeCache), valueCache, thread);
 					int maxArgDepth = pruneManyArgCalls(method, allPossibleActuals, depth, depth - 1, receiver.getType() + "." + method.name());
-					makeAllCalls(method, method.name(), receiver, returnType, ops, e.getResult().getEffects(), argTypes, allPossibleActuals, new ArrayList<EvaluatedExpression>(allPossibleActuals.size()), depth, maxArgDepth, overloadChecker);
+					Set<Effect> receiverEffects = isConstructor ? Collections.<Effect>emptySet() : e.getResult().getEffects();
+					makeAllCalls(method, method.name(), receiver, returnType, ops, receiverEffects, argTypes, allPossibleActuals, new ArrayList<EvaluatedExpression>(allPossibleActuals.size()), depth, maxArgDepth, overloadChecker);
                     if (method.isStatic())
                         staticAccesses.add(method.declaringType().name() + " " + method.name() + " " + method.signature());
 				}
@@ -1357,26 +1358,28 @@ public final class ExpressionGenerator {
 	 * @param name The method name.
 	 * @param receiver The receiving object for method calls or a type
 	 * literal representing the type being created for creations.
-	 * @param result The list to add the unique calls created. 
+	 * @param results The list to add the unique calls created. 
 	 * @param possibleActuals A list of all the possible actuals for each argument.
 	 * @param curActuals The current list of actuals, which is built
 	 * up through recursion.
+	 * @param effects The current side effects.
+	 * @param The result of all these calls.
 	 */
-	private void makeAllCalls(Method method, String name, Expression receiver, List<Expression> result, ArrayList<ArrayList<TypedExpression>> possibleActuals, ArrayList<TypedExpression> curActuals, int targetDepth) {
+	private void makeAllCalls(Method method, String name, Expression receiver, List<Expression> results, ArrayList<ArrayList<TypedExpression>> possibleActuals, ArrayList<TypedExpression> curActuals, int targetDepth, Set<Effect> effects, Result result) {
 		if (curMonitor.isCanceled())
 			throw new OperationCanceledException();
 		if (curActuals.size() == possibleActuals.size()) {
 			if (getDepthOfCall(receiver, curActuals, method.name()) <= targetDepth) {
 				if ("<init>".equals(name))
-					result.add(expressionMaker.makeClassInstanceCreation(((TypeLiteral)receiver).getType(), curActuals, method));
+					results.add(expressionMaker.makeClassInstanceCreation(((TypeLiteral)receiver).getType(), curActuals, method, effects, result));
 				else
-					result.add(expressionMaker.makeCall(name, receiver, curActuals, method));
+					results.add(expressionMaker.makeCall(name, receiver, curActuals, method, effects, result));
 			}
 		} else {
 			int depth = curActuals.size();
 			for (TypedExpression e : possibleActuals.get(depth)) {
 				curActuals.add(e);
-				makeAllCalls(method, name, receiver, result, possibleActuals, curActuals, targetDepth);
+				makeAllCalls(method, name, receiver, results, possibleActuals, curActuals, targetDepth, effects, result);
 				curActuals.remove(depth);
 			}
 		}
@@ -1742,7 +1745,7 @@ public final class ExpressionGenerator {
 		overloadChecker.setMethod(method);
 		ArrayList<ArrayList<TypedExpression>> newArguments = new ArrayList<ArrayList<TypedExpression>>(arguments.size());
 		ArrayList<TypeConstraint> argConstraints = new ArrayList<TypeConstraint>(arguments.size());
-		Set<Effect> curArgEffects = expression == null ? Collections.<Effect>emptySet() : expressionMaker.getExpressionResult(expression, curEffects).getEffects();
+		Set<Effect> curArgEffects = expression == null || method.isConstructor() ? Collections.<Effect>emptySet() : expressionMaker.getExpressionResult(expression, curEffects).getEffects();
 		for (int i = 0; i < arguments.size(); i++) {
 			Expression curArg = (Expression)arguments.get(i);
 			expandEquivalencesRec(curArg, newlyExpanded, curArgEffects);
@@ -1765,7 +1768,7 @@ public final class ExpressionGenerator {
 		List<Expression> newCalls = new ArrayList<Expression>();
 		for (Expression e : getEquivalentExpressionsOrGiven(expression, new MethodConstraint(name, UnknownConstraint.getUnknownConstraint(), argConstraints), curEffects))
 			if (e instanceof TypeLiteral || getDepth(e) < curDepth)
-				makeAllCalls(method, name, e, newCalls, newArguments, new ArrayList<TypedExpression>(newArguments.size()), curDepth);
+				makeAllCalls(method, name, e, newCalls, newArguments, new ArrayList<TypedExpression>(newArguments.size()), curDepth, curEffects, result);
 		for (Expression newCall : newCalls)
 			addIfNew(curEquivalences, new EvaluatedExpression(newCall, type, result), valued);
 	}

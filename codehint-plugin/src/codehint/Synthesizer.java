@@ -433,7 +433,7 @@ public class Synthesizer {
         	assert initialExprs.size() > 0;  // We must have at least one expression.
 			ValueCache valueCache = new ValueCache((IJavaDebugTarget)frame.getDebugTarget());
         	// TODO: Run the following off the UI thread like above when we do the first synthesis.
-        	EvaluationManager evalManager = new EvaluationManager(false, frame, new ExpressionMaker(frame, valueCache, timeoutChecker, null, null), new SubtypeChecker(), typeCache, valueCache, timeoutChecker);
+        	EvaluationManager evalManager = new EvaluationManager(false, frame, new ExpressionMaker(frame, valueCache, typeCache, timeoutChecker, null, null), new SubtypeChecker(), typeCache, valueCache, timeoutChecker);
         	evalManager.init();
    			ArrayList<FullyEvaluatedExpression> exprs = evalManager.evaluateExpressions(initialExprs, null, null, null, new NullProgressMonitor());
    			if (exprs.isEmpty()) {

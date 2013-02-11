@@ -75,12 +75,13 @@ public class ExpressionMaker {
 	private final Map<Integer, IJavaReferenceType> statics;
 	private final Map<Integer, Integer> depths;
 	private final ValueCache valueCache;
+	private final TypeCache typeCache;
 	private int numCrashes;
 	private final TimeoutChecker timeoutChecker;
 	private final NativeHandler nativeHandler;
 	private final SideEffectHandler sideEffectHandler;
 	
-	public ExpressionMaker(IJavaStackFrame stack, ValueCache valueCache, TimeoutChecker timeoutChecker, NativeHandler nativeHandler, SideEffectHandler sideEffectHandler) {
+	public ExpressionMaker(IJavaStackFrame stack, ValueCache valueCache, TypeCache typeCache, TimeoutChecker timeoutChecker, NativeHandler nativeHandler, SideEffectHandler sideEffectHandler) {
 		this.stack = stack;
 		id = 0;
 		results = new HashMap<Set<Effect>, Map<Integer, Result>>();
@@ -89,6 +90,7 @@ public class ExpressionMaker {
 		statics = new HashMap<Integer, IJavaReferenceType>();
 		depths = new HashMap<Integer, Integer>();
 		this.valueCache = valueCache;
+		this.typeCache = typeCache;
 		numCrashes = 0;
 		this.timeoutChecker = timeoutChecker;
 		this.nativeHandler = nativeHandler;
@@ -268,7 +270,7 @@ public class ExpressionMaker {
 			timeoutChecker.startEvaluating(null);
 			nativeHandler.blockNativeCalls();
 			sideEffectHandler.startHandlingSideEffects();
-			IJavaValue[] argValues = getArgValues(receiver, args, thread, target);
+			IJavaValue[] argValues = getArgValues(method, receiver, args, thread, target);
 			sideEffectHandler.checkArguments(argValues);
 			if (receiverValue == null && "<init>".equals(method.name()))
 				value = ((IJavaClassType)receiver.getType()).newInstance(method.signature(), argValues, thread);
@@ -289,9 +291,9 @@ public class ExpressionMaker {
 		return new Result(value, effects, valueCache, thread);
 	}
 	
-	private IJavaValue[] getArgValues(TypedExpression receiver, ArrayList<? extends TypedExpression> args, IJavaThread thread, IJavaDebugTarget target) throws DebugException {
+	private IJavaValue[] getArgValues(Method method, TypedExpression receiver, ArrayList<? extends TypedExpression> args, IJavaThread thread, IJavaDebugTarget target) throws DebugException {
 		IJavaValue[] argValues = new IJavaValue[args.size()];
-		Set<Effect> effects = receiver.getResult().getEffects();
+		Set<Effect> effects = method.isConstructor() ? Collections.<Effect>emptySet() : receiver.getResult().getEffects();
 		boolean seenEffects = !effects.isEmpty();
 		if (seenEffects) {
 			//System.out.println("Replaying/re-evaluating starting at receiver: " + receiver + ", " + args.toString());
@@ -404,13 +406,13 @@ public class ExpressionMaker {
 				curArgEffects = receiverResult.getEffects();
 			} else {
 				ClassInstanceCreation call = (ClassInstanceCreation)e;
-				receiver = new TypedExpression(null, getExpressionValue(e, effects).getJavaType());
+				receiver = new TypedExpression(null, EclipseUtils.getType(call.getType().toString(), stack, target, typeCache));
 				argExprs = call.arguments();
 				curArgEffects = Collections.<Effect>emptySet();
 			}
 			// TODO: I think the work below (and some of the receiver stuff above) duplicates getArgValues (e.g., re-computing results).
 			ArrayList<EvaluatedExpression> args = new ArrayList<EvaluatedExpression>(argExprs.size());
-			boolean hasCrash = "V".equals(receiver.getValue().getSignature());
+			boolean hasCrash = receiver.getValue() != null && "V".equals(receiver.getValue().getSignature());
 			for (int i = 0; i < argExprs.size(); i++) {
 				Expression arg = (Expression)argExprs.get(i);
 				Result argResult = reEvaluateExpression(arg, curArgEffects, thread, target);
@@ -666,7 +668,7 @@ public class ExpressionMaker {
 		return EvaluatedExpression.makeTypedOrEvaluatedExpression(e, returnType, result);
 	}
 	@SuppressWarnings("unchecked")
-	public Expression makeCall(String name, Expression receiver, ArrayList<TypedExpression> args, Method method) {
+	public Expression makeCall(String name, Expression receiver, ArrayList<TypedExpression> args, Method method, Set<Effect> effects, Result result) {
     	MethodInvocation e = ast.newMethodInvocation();
     	e.setName(makeSimpleName(name));
     	e.setExpression(ASTCopyer.copy(receiver));
@@ -674,6 +676,7 @@ public class ExpressionMaker {
     		e.arguments().add(ASTCopyer.copy(ex.getExpression()));
 		setID(e);
 		setMethod(e, method);
+		setExpressionResult(e, result, effects);
     	return e;
     }
 
@@ -739,13 +742,14 @@ public class ExpressionMaker {
 	}
 
 	@SuppressWarnings("unchecked")
-	public ClassInstanceCreation makeClassInstanceCreation(Type type, ArrayList<TypedExpression> args, Method method) {
+	public ClassInstanceCreation makeClassInstanceCreation(Type type, ArrayList<TypedExpression> args, Method method, Set<Effect> effects, Result result) {
     	ClassInstanceCreation e = ast.newClassInstanceCreation();
     	e.setType(ASTCopyer.copy(type));
     	for (TypedExpression ex: args)
     		e.arguments().add(ASTCopyer.copy(ex.getExpression()));
 		setID(e);
 		setMethod(e, method);
+		setExpressionResult(e, result, effects);
     	return e;
 	}
 
