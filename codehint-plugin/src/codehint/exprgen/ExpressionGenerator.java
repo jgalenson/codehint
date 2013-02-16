@@ -55,8 +55,6 @@ import org.eclipse.jdt.debug.core.IJavaValue;
 import org.eclipse.jdt.debug.core.IJavaVariable;
 import org.eclipse.jdt.internal.debug.core.model.JDIStackFrame;
 import org.eclipse.jdt.internal.debug.core.model.JDIType;
-import org.eclipse.swt.widgets.Display;
-
 import codehint.DataCollector;
 import codehint.dialogs.InitialSynthesisDialog;
 import codehint.effects.Effect;
@@ -245,6 +243,7 @@ public final class ExpressionGenerator {
 	private final ValueCache valueCache;
 	private final EvaluationManager evalManager;
     private final StaticEvaluator staticEvaluator;
+    private final Weights weights;
 	private final IJavaReferenceType thisType;
 	private final IJavaProject project;
 	private final IJavaType intType;
@@ -254,7 +253,7 @@ public final class ExpressionGenerator {
 	private final TypedExpression one;
 	private final TypedExpression two;
 	private final Map<Integer, Integer> realDepths;
-	private final Map<Integer, Boolean> hasNamedMethods;
+	private final Map<Integer, Boolean> hasBads;
 	// Cache the generated expressions
 	//private final Map<Pair<TypeConstraint, Integer>, Pair<ArrayList<FullyEvaluatedExpression>, ArrayList<TypedExpression>>> cachedExprs;
 
@@ -268,7 +267,7 @@ public final class ExpressionGenerator {
 	private Set<String> importsSet;
 	private Set<String> staticAccesses;
 	
-	public ExpressionGenerator(IJavaDebugTarget target, IJavaStackFrame stack, SideEffectHandler sideEffectHandler, ExpressionMaker expressionMaker, SubtypeChecker subtypeChecker, TypeCache typeCache, ValueCache valueCache, EvaluationManager evalManager, StaticEvaluator staticEvaluator) {
+	public ExpressionGenerator(IJavaDebugTarget target, IJavaStackFrame stack, SideEffectHandler sideEffectHandler, ExpressionMaker expressionMaker, SubtypeChecker subtypeChecker, TypeCache typeCache, ValueCache valueCache, EvaluationManager evalManager, StaticEvaluator staticEvaluator, Weights weights) {
 		this.target = target;
 		this.stack = stack;
 		this.thread = (IJavaThread)stack.getThread();
@@ -279,6 +278,7 @@ public final class ExpressionGenerator {
 		this.valueCache = valueCache;
 		this.evalManager = evalManager;
 		this.staticEvaluator = staticEvaluator;
+		this.weights = weights;
 		try {
 			this.thisType = stack.getReferenceType();
 		} catch (DebugException e) {
@@ -292,7 +292,7 @@ public final class ExpressionGenerator {
 		this.one = expressionMaker.makeNumber("1", target.newValue(1), intType, valueCache, thread);
 		this.two = expressionMaker.makeNumber("2", target.newValue(2), intType, valueCache, thread);
 		this.realDepths = new HashMap<Integer, Integer>();
-		this.hasNamedMethods = new HashMap<Integer, Boolean>();
+		this.hasBads = new HashMap<Integer, Boolean>();
 		//this.cachedExprs = new HashMap<Pair<TypeConstraint, Integer>, Pair<ArrayList<FullyEvaluatedExpression>, ArrayList<TypedExpression>>>();
 	}
 	
@@ -384,14 +384,8 @@ public final class ExpressionGenerator {
 		
 		// Expand equivalences.
 		final ArrayList<FullyEvaluatedExpression> extraResults = expandEquivalences(results, monitor);
-    	if (synthesisDialog != null) {
-			Display.getDefault().asyncExec(new Runnable(){
-				@Override
-				public void run() {
-					synthesisDialog.addExpressions(extraResults);
-				}
-			});
-    	}
+    	if (synthesisDialog != null)
+    		synthesisDialog.addExpressions(extraResults);
 		results.addAll(extraResults);
 
 		//getMaxLineInfo();
@@ -1337,8 +1331,8 @@ public final class ExpressionGenerator {
 		if (curActuals.size() == actualTypes.length) {
 			if (meetsPreconditions(method, receiver, curActuals))
 				  // We might evaluate the call when we create it (e.g., StringEvaluator), so first ensure it has the proper depth to avoid re-evaluating some calls.
-				if (method.isConstructor() || getDepthOfCall(receiver.getExpression(), curActuals, method.name()) == depth
-						|| (newlyUnpruneds.contains(method) && getDepthOfCall(receiver.getExpression(), curActuals, method.name()) >= prunedDepths.get(method)))
+				if (method.isConstructor() || getDepthOfCall(receiver.getExpression(), curActuals, method) == depth
+						|| (newlyUnpruneds.contains(method) && getDepthOfCall(receiver.getExpression(), curActuals, method) >= prunedDepths.get(method)))
 					addUniqueExpressionToList(ops, expressionMaker.makeCall(name, receiver, curActuals, returnType, thisType, method, target, valueCache, thread, staticEvaluator), depth);
 		} else {
 			int argNum = curActuals.size();
@@ -1369,7 +1363,7 @@ public final class ExpressionGenerator {
 		if (curMonitor.isCanceled())
 			throw new OperationCanceledException();
 		if (curActuals.size() == possibleActuals.size()) {
-			if (getDepthOfCall(receiver, curActuals, method.name()) <= targetDepth) {
+			if (getDepthOfCall(receiver, curActuals, method) <= targetDepth) {
 				if ("<init>".equals(name))
 					results.add(expressionMaker.makeClassInstanceCreation(((TypeLiteral)receiver).getType(), curActuals, method, effects, result));
 				else
@@ -1861,27 +1855,43 @@ public final class ExpressionGenerator {
     }
     
     /**
-     * Class that checks whether a method contains a call to
-     * one of a few specified methods.
+     * Class that checks whether an expression contains a call/access to
+     * one of a few specified methods or methods/fields that we did
+     * not see in real-world code.
      */
-    private static class NamedMethodChecker extends ASTVisitor {
+    private static class BadMethodFieldChecker extends ASTVisitor {
     	
-    	private boolean hasNamedMethod;
+    	private final ExpressionMaker expressionMaker;
+    	private final Weights weights;
+    	private boolean hasBad;
     	
-    	public NamedMethodChecker() {
-    		hasNamedMethod = false;
+    	public BadMethodFieldChecker(ExpressionMaker expressionMaker, Weights weights) {
+    		this.expressionMaker = expressionMaker;
+    		this.weights = weights;
+    		hasBad = false;
     	}
 
 		@Override
 		public boolean visit(MethodInvocation node) {
-			String name = node.getName().getIdentifier();
-			if (isNamedMethod(name, node.getExpression()))
-				hasNamedMethod = true;
-			return !hasNamedMethod;
+			if (isBadMethod(expressionMaker.getMethod(node), node.getExpression(), weights))
+				hasBad = true;
+			return !hasBad;
+		}
+
+		@Override
+		public boolean visit(FieldAccess node) {
+			Field field = expressionMaker.getField(node);
+			if (field != null && weights.isRare(field.declaringType().name(), field.name()))
+				hasBad = true;
+			return !hasBad;
 		}
 		
-		public static boolean isNamedMethod(String name, Expression receiver) {
-			// We do want to include Integer.valueOf and friends.
+		public static boolean isBadMethod(Method method, Expression receiver, Weights weights) {
+			return isNamedMethod(method.name(), receiver) || weights.isRare(method.declaringType().name(), Weights.getMethodKey(method));
+		}
+		
+		private static boolean isNamedMethod(String name, Expression receiver) {
+			// We do not want to include Integer.valueOf and friends.
 			return name.equals("toString") || (name.equals("valueOf") && "String".equals(receiver.toString()))
 					|| (name.equals("format") && "String".equals(receiver.toString()))
 					|| name.equals("deepToString") || name.equals("compareTo") || name.equals("compareToIgnoreCase") || name.equals("compare");
@@ -1889,39 +1899,43 @@ public final class ExpressionGenerator {
 		
 		/**
 		 * Checks whether the given expression contains a call to
-		 * one of a few specified methods.
+		 * one of a few specified methods or methods/fields that we did
+		 * not see in real-world code.
 		 * @param e The expression to check.
-		 * @param hasNamedMethods Result cache to avoid recomputation
+		 * @param expressionMaker The expression maker.
+		 * @param weights Weight data about methods and fields.
+		 * @param hasBadMethods Result cache to avoid recomputation
 		 * when possible.
 		 * @return Whether the given expression contains a call
 		 * to one of a few specified methods.
 		 */
-		public static boolean hasNamedMethod(Expression e, Map<Integer, Boolean> hasNamedMethods) {
-			return hasNamedMethod(e, new NamedMethodChecker(), hasNamedMethods);
+		public static boolean hasBad(Expression e, ExpressionMaker expressionMaker, Weights weights, Map<Integer, Boolean> hasBadMethods) {
+			return hasBad(e, new BadMethodFieldChecker(expressionMaker, weights), hasBadMethods);
 		}
 		
 		/**
 		 * Checks whether the given expression contains a call to
-		 * one of a few specified methods.
+		 * one of a few specified methods or methods/fields that we did
+		 * not see in real-world code.
 		 * @param e The expression to check.
 		 * @param checker The checker to use.
-		 * @param hasNamedMethods Result cache to avoid recomputation
+		 * @param hasBadMethods Result cache to avoid recomputation
 		 * when possible.
 		 * @return Whether the given expression contains a call
 		 * to one of a few specified methods.
 		 */
-		public static boolean hasNamedMethod(Expression e, NamedMethodChecker checker, Map<Integer, Boolean> hasNamedMethods) {
-			if (checker.hasNamedMethod)
+		public static boolean hasBad(Expression e, BadMethodFieldChecker checker, Map<Integer, Boolean> hasBadMethods) {
+			if (checker.hasBad)
 				return true;
 	    	int id = ExpressionMaker.getID(e);
-	    	Object hasNamedMethodOpt = hasNamedMethods.get(id);
+	    	Object hasNamedMethodOpt = hasBadMethods.get(id);
 	    	if (hasNamedMethodOpt != null) {
-	    		checker.hasNamedMethod = ((Boolean)hasNamedMethodOpt).booleanValue();
-	    		return checker.hasNamedMethod;
+	    		checker.hasBad = ((Boolean)hasNamedMethodOpt).booleanValue();
+	    		return checker.hasBad;
 	    	}
 	    	e.accept(checker);
-	    	hasNamedMethods.put(id, checker.hasNamedMethod);
-	    	return checker.hasNamedMethod;
+	    	hasBadMethods.put(id, checker.hasBad);
+	    	return checker.hasBad;
 		}
 		
     }
@@ -1949,37 +1963,37 @@ public final class ExpressionGenerator {
     	Object depthOpt = realDepths.get(id);
     	if (depthOpt != null)
     		return ((Integer)depthOpt).intValue();
-		int depth = getDepthImpl(expr) + (UniqueASTChecker.isUnique(expr, varName) ? 0 : 1) + (NamedMethodChecker.hasNamedMethod(expr, hasNamedMethods) ? 1 : 0);
+		int depth = getDepthImpl(expr) + (UniqueASTChecker.isUnique(expr, varName) ? 0 : 1) + (BadMethodFieldChecker.hasBad(expr, expressionMaker, weights, hasBads) ? 1 : 0);
 		realDepths.put(id, depth);
 		return depth;
     }
     
     /**
      * Gets the depth of a call with the given receiver,
-     * arguments, and method name.  We special case this
+     * arguments, and method.  We special case this
      * because constructing a new expression can be
      * expensive.
      * @param receiver The receiver of the call.
      * @param args The arguments to the call.
-     * @param methodName The name of the method being called.
+     * @param method The method being called.
      * @return The depth of a call with the given receiver,
      * arguments, and method name.
      */
-    private int getDepthOfCall(Expression receiver, ArrayList<? extends TypedExpression> args, String methodName) {
+    private int getDepthOfCall(Expression receiver, ArrayList<? extends TypedExpression> args, Method method) {
     	int depth = getDepthImpl(receiver);
     	for (TypedExpression arg: args)
     		depth = Math.max(depth, getDepthImpl(arg.getExpression()));
     	UniqueASTChecker uniqueChecker = new UniqueASTChecker(varName);
-    	NamedMethodChecker namedMethodChecker = new NamedMethodChecker();
+    	BadMethodFieldChecker badChecker = new BadMethodFieldChecker(expressionMaker, weights);
     	if (receiver != null) {
     		UniqueASTChecker.isUnique(receiver, uniqueChecker);
-			NamedMethodChecker.hasNamedMethod(receiver, namedMethodChecker, hasNamedMethods);
+			BadMethodFieldChecker.hasBad(receiver, badChecker, hasBads);
     	}
     	for (TypedExpression arg: args) {
     		UniqueASTChecker.isUnique(arg.getExpression(), uniqueChecker);
-			NamedMethodChecker.hasNamedMethod(arg.getExpression(), namedMethodChecker, hasNamedMethods);
+			BadMethodFieldChecker.hasBad(arg.getExpression(), badChecker, hasBads);
     	}
-    	return depth + 1 + (uniqueChecker.isUnique ? 0 : 1) + (namedMethodChecker.hasNamedMethod || NamedMethodChecker.isNamedMethod(methodName, receiver) ? 1 : 0);
+    	return depth + 1 + (uniqueChecker.isUnique ? 0 : 1) + (badChecker.hasBad || BadMethodFieldChecker.isBadMethod(method, receiver, weights) ? 1 : 0);
     }
 
     /**

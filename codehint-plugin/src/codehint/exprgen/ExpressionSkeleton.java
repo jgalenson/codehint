@@ -1065,7 +1065,7 @@ public final class ExpressionSkeleton {
 				} else {
 					IJavaVariable var = stack.findVariable(name.getIdentifier());
 					if (var != null)
-						return new ExpressionsAndTypeConstraints(new EvaluatedExpression(name, var.getJavaType(), new Result((IJavaValue)var.getValue(), valueCache, thread)), new SupertypeBound(var.getJavaType()));
+						return new ExpressionsAndTypeConstraints(expressionMaker.makeVar(name.getIdentifier(), (IJavaValue)var.getValue(), var.getJavaType(), valueCache, thread), new SupertypeBound(var.getJavaType()));
 					IJavaType type = EclipseUtils.getTypeAndLoadIfNeeded(name.getIdentifier(), stack, target, typeCache);
 					assert type != null : name.getIdentifier();
 					return new ExpressionsAndTypeConstraints(expressionMaker.makeStaticName(name.getIdentifier(), (IJavaReferenceType)type, valueCache, thread), new SupertypeBound(type));

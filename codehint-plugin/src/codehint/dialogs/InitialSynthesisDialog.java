@@ -7,6 +7,7 @@ import java.util.Comparator;
 import org.eclipse.core.runtime.IProgressMonitor;
 import org.eclipse.core.runtime.IStatus;
 import org.eclipse.core.runtime.Status;
+import org.eclipse.core.runtime.SubMonitor;
 import org.eclipse.core.runtime.jobs.Job;
 import org.eclipse.debug.core.DebugException;
 import org.eclipse.jdt.core.IJavaProject;
@@ -60,9 +61,11 @@ import codehint.expreval.TimeoutChecker;
 import codehint.exprgen.ExpressionGenerator;
 import codehint.exprgen.ExpressionMaker;
 import codehint.exprgen.ExpressionSkeleton;
+import codehint.exprgen.ExpressionSorter;
 import codehint.exprgen.SubtypeChecker;
 import codehint.exprgen.TypeCache;
 import codehint.exprgen.ValueCache;
+import codehint.exprgen.Weights;
 import codehint.property.Property;
 import codehint.utils.EclipseUtils;
 
@@ -87,6 +90,7 @@ public class InitialSynthesisDialog extends SynthesisDialog {
     private ProgressMonitorPart monitor;
     private static final int MONITOR_WIDTH = 300;
     private JavadocPrefetcher javadocPrefetcher;
+    private SorterWorker sorterWorker;
 
     private static final int TABLE_WIDTH = MESSAGE_WIDTH;
     private static final int TABLE_HEIGHT = 300;
@@ -116,6 +120,7 @@ public class InitialSynthesisDialog extends SynthesisDialog {
     private StaticEvaluator staticEvaluator;
     private ExpressionGenerator expressionGenerator;
     private ExpressionSkeleton skeleton;
+    private ExpressionSorter expressionSorter;
 
 	public InitialSynthesisDialog(Shell parentShell, String varTypeName, IJavaType varType, IJavaStackFrame stack, PropertyDialog propertyDialog, SynthesisWorker worker) {
 		super(parentShell, varTypeName, varType, stack, propertyDialog);
@@ -147,8 +152,10 @@ public class InitialSynthesisDialog extends SynthesisDialog {
 		this.expressionMaker = new ExpressionMaker(stack, valueCache, typeCache, timeoutChecker, nativeHandler, sideEffectHandler);
 		this.evalManager = new EvaluationManager(varType == null, stack, expressionMaker, subtypeChecker, typeCache, valueCache, timeoutChecker);
 		this.staticEvaluator = new StaticEvaluator(stack, typeCache, valueCache);
-		this.expressionGenerator = new ExpressionGenerator(target, stack, sideEffectHandler, expressionMaker, subtypeChecker, typeCache, valueCache, evalManager, staticEvaluator);
+		Weights weights = new Weights();
+		this.expressionGenerator = new ExpressionGenerator(target, stack, sideEffectHandler, expressionMaker, subtypeChecker, typeCache, valueCache, evalManager, staticEvaluator, weights);
 		this.skeleton = null;
+		this.expressionSorter = new ExpressionSorter(expressionMaker, weights);
 	}
 
 	@Override
@@ -389,8 +396,27 @@ public class InitialSynthesisDialog extends SynthesisDialog {
 		sideEffectHandler.enable(handleSideEffects.getSelection());
 		worker.synthesize(this, evalManager, numSearches, timeoutChecker, blockNatives, sideEffectHandler);
 	}
+	
+	public void endSynthesis(final SynthesisState state) {
+		if (state == SynthesisState.END) {
+			IProgressMonitor curMonitor = SubMonitor.convert(monitor, "Sorting results", IProgressMonitor.UNKNOWN);
+			try {
+				sorterWorker.join();
+			} catch (InterruptedException e) {
+				throw new RuntimeException(e);
+			} finally {
+				curMonitor.done();
+			}
+		}
+		Display.getDefault().asyncExec(new Runnable(){
+			@Override
+			public void run() {
+				startEndSynthesis(state);
+			}
+    	});
+	}
 
-	public void startEndSynthesis(SynthesisState state) {
+	private void startEndSynthesis(SynthesisState state) {
 		boolean isStarting = isStart(state);
         getButton(IDialogConstants.CANCEL_ID).setEnabled(!isStarting);
     	searchCancelButton.setEnabled(isStarting || (pdspecIsValid && skeletonIsValid));
@@ -406,6 +432,9 @@ public class InitialSynthesisDialog extends SynthesisDialog {
     		javadocPrefetcher = new JavadocPrefetcher(this.expressions, this.expressionMaker);
     		javadocPrefetcher.setPriority(Job.DECORATE);
     		javadocPrefetcher.schedule();
+    		if (state == SynthesisState.UNFINISHED && sorterWorker != null)
+    			sorterWorker.cancel();
+			sorterWorker = null;
     	}
     }
 
@@ -452,8 +481,10 @@ public class InitialSynthesisDialog extends SynthesisDialog {
 
 	@Override
 	protected void cancelPressed() {
-		if (javadocPrefetcher != null)
+		if (javadocPrefetcher != null) {
 			javadocPrefetcher.cancel();
+			javadocPrefetcher = null;
+		}
 		super.cancelPressed();
 	}
 	
@@ -525,8 +556,37 @@ public class InitialSynthesisDialog extends SynthesisDialog {
     
     public void addExpressions(ArrayList<FullyEvaluatedExpression> foundExprs) {
     	expressions.addAll(foundExprs);
-		showResults();
+    	if (sorterWorker != null)
+    		sorterWorker.cancel();
+		sorterWorker = new SorterWorker(expressions);
+		sorterWorker.setPriority(Job.LONG);
+		sorterWorker.schedule();
     }
+
+	private final class SorterWorker extends Job {
+		
+		private final ArrayList<FullyEvaluatedExpression> expressions;
+
+		private SorterWorker(ArrayList<FullyEvaluatedExpression> expressions) {
+			super("Result sorter");
+			this.expressions = expressions;
+		}
+
+		@Override
+		protected IStatus run(IProgressMonitor monitor) {
+	    	Collections.sort(expressions, expressionSorter);
+	    	if (monitor.isCanceled())
+	    		return Status.CANCEL_STATUS;
+	    	Display.getDefault().asyncExec(new Runnable(){
+				@Override
+				public void run() {
+					showResults();
+				}
+	    	});
+			return Status.OK_STATUS;
+		}
+		
+	}
 	
 	// Logic code
     
@@ -547,7 +607,7 @@ public class InitialSynthesisDialog extends SynthesisDialog {
     private void showResults() {
 		// Set and show the results.
     	table.setItemCount(expressions.size());
-    	//table.clearAll();
+    	table.clearAll();
     	// Enable/Disable check/selection buttons.
     	boolean haveResults = !expressions.isEmpty();
     	checkAllButton.setEnabled(haveResults);
@@ -675,6 +735,7 @@ public class InitialSynthesisDialog extends SynthesisDialog {
 		staticEvaluator = null;
 		expressionGenerator = null;
 		skeleton = null;
+		expressionSorter = null;
 		super.cleanup();
 	}
     

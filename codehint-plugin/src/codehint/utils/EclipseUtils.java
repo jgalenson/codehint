@@ -281,7 +281,7 @@ public final class EclipseUtils {
 		File outFile = new File(getPluginWorkingLocation(project) + fileSep + "codehint-lib.jar");
     	if (!outFile.exists()) {
         	try {
-	    		InputStream is = FileLocator.openStream(Platform.getBundle(Activator.PLUGIN_ID), new Path("lib" + fileSep + "codehint-lib.jar"), false);
+	    		InputStream is = getFileFromBundle("lib" + fileSep + "codehint-lib.jar");
 		    	FileOutputStream os = new FileOutputStream(outFile);
 		    	int c;
 		    	while ((c = is.read()) != -1)
@@ -295,6 +295,18 @@ public final class EclipseUtils {
     	}
     	return outFile;
     }
+
+    /**
+     * Gets an input stream to a file stored in the plugin's
+     * jar file.
+     * @param filename The path to the file in the jar.
+     * @return An InputStream containing the data of the
+     * given filename.
+     * @throws IOException
+     */
+	public static InputStream getFileFromBundle(String filename) throws IOException {
+		return FileLocator.openStream(Platform.getBundle(Activator.PLUGIN_ID), new Path(filename), false);
+	}
     
     /**
      * Loads the class with the given name from the library jar file

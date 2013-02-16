@@ -917,7 +917,7 @@ public class ExpressionMaker {
 		statics.put(getID(e), type);
 	}
 
-	private IJavaReferenceType getStaticType(Expression e) {
+	public IJavaReferenceType getStaticType(Expression e) {
 		return statics.get(getID(e));
 	}
 

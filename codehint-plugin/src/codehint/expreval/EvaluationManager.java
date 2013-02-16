@@ -40,8 +40,6 @@ import org.eclipse.jdt.debug.eval.IAstEvaluationEngine;
 import org.eclipse.jdt.debug.eval.ICompiledExpression;
 import org.eclipse.jdt.debug.eval.IEvaluationListener;
 import org.eclipse.jdt.debug.eval.IEvaluationResult;
-import org.eclipse.swt.widgets.Display;
-
 import com.sun.jdi.Method;
 
 import codehint.dialogs.InitialSynthesisDialog;
@@ -612,15 +610,8 @@ public final class EvaluationManager {
 	 * @param results The expressions to record.
 	 */
 	private void reportResults(final ArrayList<FullyEvaluatedExpression> results) {
-		if (synthesisDialog != null && !results.isEmpty()) {
-			final InitialSynthesisDialog dialog = synthesisDialog;  // We make a copy of the reference to avoid a race condition if someone later does an evaluation where it is null.
-			Display.getDefault().asyncExec(new Runnable(){
-				@Override
-				public void run() {
-					dialog.addExpressions(results);
-				}
-			});
-		}
+		if (synthesisDialog != null && !results.isEmpty())
+			synthesisDialog.addExpressions(results);
 	}
 
 	/**
