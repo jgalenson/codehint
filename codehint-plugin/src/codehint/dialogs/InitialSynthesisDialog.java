@@ -374,7 +374,7 @@ public class InitialSynthesisDialog extends SynthesisDialog {
 	private void startSearch(Property prop, boolean isAutomatic) {
 		property = prop;
 		skeletonResult = skeletonInput.getText();
-		skeleton = ExpressionSkeleton.fromString(skeletonResult, target, stack, expressionMaker, evaluationEngine, subtypeChecker, typeCache, valueCache, evalManager, staticEvaluator, expressionGenerator);
+		skeleton = ExpressionSkeleton.fromString(skeletonResult, target, stack, expressionMaker, evaluationEngine, subtypeChecker, typeCache, valueCache, evalManager, staticEvaluator, expressionGenerator, sideEffectHandler);
 		startEndSynthesis(isAutomatic ? SynthesisState.AUTO_START : SynthesisState.START);
 		expressions = new ArrayList<FullyEvaluatedExpression>();
 		showResults();  // Clears any existing results.
@@ -398,7 +398,7 @@ public class InitialSynthesisDialog extends SynthesisDialog {
 	}
 	
 	public void endSynthesis(final SynthesisState state) {
-		if (state == SynthesisState.END) {
+		if (state == SynthesisState.END && sorterWorker != null) {
 			IProgressMonitor curMonitor = SubMonitor.convert(monitor, "Sorting results", IProgressMonitor.UNKNOWN);
 			try {
 				sorterWorker.join();

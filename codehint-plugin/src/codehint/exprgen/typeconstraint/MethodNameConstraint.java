@@ -25,6 +25,7 @@ public class MethodNameConstraint extends NameConstraint {
 	private final TypeConstraint expressionConstraint;
 	private final TypeConstraint methodConstraint;
 	private final ArrayList<TypeConstraint> argConstraints;
+	private final boolean isHandlingSideEffects;
 
 	/**
 	 * Creates a constraint that ensures that the given type fulfills
@@ -36,11 +37,13 @@ public class MethodNameConstraint extends NameConstraint {
 	 * @param argConstraints The constraints on the method's arguments.
 	 * This can be null, in which case the constraint accepts methods
 	 * with any number and type of arguments.
+	 * @param isHandlingSideEffects Whether we are handling side effects.
 	 */
-	public MethodNameConstraint(TypeConstraint expressionConstraint, TypeConstraint methodConstraint, ArrayList<TypeConstraint> argConstraints) {
+	public MethodNameConstraint(TypeConstraint expressionConstraint, TypeConstraint methodConstraint, ArrayList<TypeConstraint> argConstraints, boolean isHandlingSideEffects) {
 		this.expressionConstraint = expressionConstraint;
 		this.methodConstraint = methodConstraint;
 		this.argConstraints = argConstraints;
+		this.isHandlingSideEffects = isHandlingSideEffects;
 	}
 
 	/**
@@ -58,7 +61,7 @@ public class MethodNameConstraint extends NameConstraint {
 			Map<String, ArrayList<Method>> methodsByType = new HashMap<String, ArrayList<Method>>(receiverTypes.length);
     		for (IJavaType receiverType: receiverTypes) {
     			String typeName = receiverType.getName();
-	    		for (Method method: ExpressionGenerator.getMethods(receiverType))
+	    		for (Method method: ExpressionGenerator.getMethods(receiverType, isHandlingSideEffects))
 					if (ExpressionGenerator.isLegalMethod(method, stack.getReferenceType(), false) && methodFulfills(method, stack, target, subtypeChecker, typeCache))
 						Utils.addToListMap(methodsByType, typeName, method);
     		}
@@ -72,7 +75,7 @@ public class MethodNameConstraint extends NameConstraint {
 	public boolean isFulfilledBy(IJavaType type, SubtypeChecker subtypeChecker, TypeCache typeCache, IJavaStackFrame stack, IJavaDebugTarget target) {
 		if (!expressionConstraint.isFulfilledBy(type, subtypeChecker, typeCache, stack, target))
 			return false;
-		for (Method method: ExpressionGenerator.getMethods(type))
+		for (Method method: ExpressionGenerator.getMethods(type, isHandlingSideEffects))
 			if (methodFulfills(method, stack, target, subtypeChecker, typeCache))
 				return true;
 		return false;

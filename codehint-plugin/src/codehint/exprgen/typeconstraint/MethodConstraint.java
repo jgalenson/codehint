@@ -23,6 +23,7 @@ public class MethodConstraint extends TypeConstraint {
 	private final String methodName;
 	private final TypeConstraint methodConstraint;
 	private final ArrayList<TypeConstraint> argConstraints;
+	private final boolean isHandlingSideEffects;
 
 	/**
 	 * Creates a constraint that matches types that have methods
@@ -33,17 +34,19 @@ public class MethodConstraint extends TypeConstraint {
 	 * @param argConstraints The type constraints of the method's arguments.
 	 * This can be null, in which case the constraint accepts methods
 	 * with any number and type of arguments.
+	 * @param isHandlingSideEffects Whether we are handling side effects.
 	 */
-	public MethodConstraint(String methodName, TypeConstraint methodConstraint, ArrayList<TypeConstraint> argConstraints) {
+	public MethodConstraint(String methodName, TypeConstraint methodConstraint, ArrayList<TypeConstraint> argConstraints, boolean isHandlingSideEffects) {
 		this.methodName = methodName;
 		this.methodConstraint = methodConstraint;
 		this.argConstraints = argConstraints;
+		this.isHandlingSideEffects = isHandlingSideEffects;
 	}
 
 	@Override
 	public boolean isFulfilledBy(IJavaType type, SubtypeChecker subtypeChecker, TypeCache typeCache, IJavaStackFrame stack, IJavaDebugTarget target) {
 		// Check each method of the given type to see if it has the desired name and meets the desired constraints.
-		for (Method method: ExpressionGenerator.getMethods(type))
+		for (Method method: ExpressionGenerator.getMethods(type, isHandlingSideEffects))
 			if ((methodName == null || method.name().equals(methodName))
 					&& MethodNameConstraint.fulfillsArgConstraints(method, argConstraints, stack, target, subtypeChecker, typeCache)
 					&& (!"void".equals(method.returnTypeName()) && methodConstraint.isFulfilledBy(EclipseUtils.getTypeAndLoadIfNeededAndExists(method.returnTypeName(), stack, target, typeCache), subtypeChecker, typeCache, stack, target)))

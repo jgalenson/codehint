@@ -857,20 +857,33 @@ public final class ExpressionGenerator {
 			return null;
 		return itype.getField(field.name());
 	}
-
+	
 	/**
 	 * Gets all the visible methods of the given type.
 	 * @param type The type whose methods we want to get.
+	 * @param sideEffectHandler The side effect handler.
 	 * @return All of the visible methods of the given type.
 	 */
-	public static List<Method> getMethods(IJavaType type) {
+	public static List<Method> getMethods(IJavaType type, SideEffectHandler sideEffectHandler) {
+		return getMethods(type, sideEffectHandler.isHandlingSideEffects());
+	}
+	
+	/**
+	 * Gets all the visible methods of the given type.
+	 * @param type The type whose methods we want to get.
+	 * @param ignoreMethodBlacklist Whether we should ignore
+	 * blacklisted methods.  This is usually true when we are
+	 * handling side effects.
+	 * @return All of the visible methods of the given type.
+	 */
+	public static List<Method> getMethods(IJavaType type, boolean ignoreMethodBlacklist) {
 		try {
 			if (type != null && EclipseUtils.isObject(type)) {
 				List<?> untypedMethods = ((ReferenceType)((JDIType)type).getUnderlyingType()).visibleMethods();
 				ArrayList<Method> methods = new ArrayList<Method>(untypedMethods.size());
 				for (Object o: untypedMethods) {
 					Method method = (Method)o;
-					if (!methodBlacklist.containsKey(type.getName()) || !methodBlacklist.get(type.getName()).contains(method.name() + " " + method.signature()))
+					if (ignoreMethodBlacklist || (!methodBlacklist.containsKey(type.getName()) || !methodBlacklist.get(type.getName()).contains(method.name() + " " + method.signature())))
 						methods.add(method);
 				}
 				return methods;
@@ -917,7 +930,7 @@ public final class ExpressionGenerator {
 		boolean isStatic = !isConstructor && expressionMaker.isStatic(e.getExpression());
 		//String objTypeName = isStatic ? e.getExpression().toString() : objTypeImpl.name();
 		Method stackMethod = ((JDIStackFrame)stack).getUnderlyingMethod();
-		List<Method> legalMethods = getMethods(e.getType());
+		List<Method> legalMethods = getMethods(e.getType(), sideEffectHandler);
 		OverloadChecker overloadChecker = new OverloadChecker(e.getType(), stack, target, typeCache, subtypeChecker);
 		for (Method method : legalMethods) {
 			// Filter out java.lang.Object methods and fake methods like "<init>".  Note that if we don't filter out Object's methods we do getClass() and then call reflective methods, which is bad times.
@@ -1161,7 +1174,7 @@ public final class ExpressionGenerator {
 	 * the type names.
 	 */
 	private void checkMethods(IJavaType receiverType, Set<String> typeNames) {
-		for (Method method : getMethods(receiverType)) {
+		for (Method method : getMethods(receiverType, sideEffectHandler)) {
 			if (isLegalMethod(method, thisType, false) && !method.returnTypeName().equals("void")) {
 				addTypeName(method.returnTypeName(), typeNames);
 				if (method.isStatic())
@@ -1760,7 +1773,7 @@ public final class ExpressionGenerator {
 		}
 		pruneManyArgCalls(newArguments, curDepth, curDepth - 1, method.name());
 		List<Expression> newCalls = new ArrayList<Expression>();
-		for (Expression e : getEquivalentExpressionsOrGiven(expression, new MethodConstraint(name, UnknownConstraint.getUnknownConstraint(), argConstraints), curEffects))
+		for (Expression e : getEquivalentExpressionsOrGiven(expression, new MethodConstraint(name, UnknownConstraint.getUnknownConstraint(), argConstraints, sideEffectHandler.isHandlingSideEffects()), curEffects))
 			if (e instanceof TypeLiteral || getDepth(e) < curDepth)
 				makeAllCalls(method, name, e, newCalls, newArguments, new ArrayList<TypedExpression>(newArguments.size()), curDepth, curEffects, result);
 		for (Expression newCall : newCalls)

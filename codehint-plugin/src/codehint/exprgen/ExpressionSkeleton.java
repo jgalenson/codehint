@@ -60,6 +60,7 @@ import com.sun.jdi.Method;
 
 import codehint.DataCollector;
 import codehint.dialogs.InitialSynthesisDialog;
+import codehint.effects.SideEffectHandler;
 import codehint.expreval.EvaluatedExpression;
 import codehint.expreval.EvaluationManager;
 import codehint.expreval.FullyEvaluatedExpression;
@@ -105,6 +106,7 @@ public final class ExpressionSkeleton {
     private final EvaluationManager evalManager;
     private final StaticEvaluator staticEvaluator;
     private final ExpressionGenerator expressionGenerator;
+    private final SideEffectHandler sideEffectHandler;
 	
     /**
      * Creates a new ExpressionSkeleton.
@@ -120,8 +122,9 @@ public final class ExpressionSkeleton {
      * @param evalManager The evaluation manager.
 	 * @param staticEvaluator Evaluator of String method calls.
      * @param expressionGenerator The expression generator.
+	 * @param sideEffectHandler The side effect handler.
      */
-	private ExpressionSkeleton(String sugaredString, Expression node, Map<String, HoleInfo> holeInfos, IJavaDebugTarget target, IJavaStackFrame stack, ExpressionMaker expressionMaker, SubtypeChecker subtypeChecker, TypeCache typeCache, ValueCache valueCache, EvaluationManager evalManager, StaticEvaluator staticEvaluator, ExpressionGenerator expressionGenerator) {
+	private ExpressionSkeleton(String sugaredString, Expression node, Map<String, HoleInfo> holeInfos, IJavaDebugTarget target, IJavaStackFrame stack, ExpressionMaker expressionMaker, SubtypeChecker subtypeChecker, TypeCache typeCache, ValueCache valueCache, EvaluationManager evalManager, StaticEvaluator staticEvaluator, ExpressionGenerator expressionGenerator, SideEffectHandler sideEffectHandler) {
 		this.sugaredString = sugaredString;
 		this.expression = node;
 		this.holeInfos = holeInfos;
@@ -134,6 +137,7 @@ public final class ExpressionSkeleton {
 		this.evalManager = evalManager;
 		this.staticEvaluator = staticEvaluator;
 		this.expressionGenerator = expressionGenerator;
+		this.sideEffectHandler = sideEffectHandler;
 	}
 
 	/**
@@ -149,10 +153,11 @@ public final class ExpressionSkeleton {
      * @param evalManager The evaluation manager.
 	 * @param staticEvaluator Evaluator of String method calls.
      * @param expressionGenerator The expression generator.
+	 * @param sideEffectHandler The side effect handler.
 	 * @return The ExpressionSkeleton representing the given sugared string.
 	 */
-	public static ExpressionSkeleton fromString(String skeletonStr, IJavaDebugTarget target, IJavaStackFrame stack, ExpressionMaker expressionMaker, IAstEvaluationEngine evaluationEngine, SubtypeChecker subtypeChecker, TypeCache typeCache, ValueCache valueCache, EvaluationManager evalManager, StaticEvaluator staticEvaluator, ExpressionGenerator expressionGenerator) {
-		return SkeletonParser.rewriteHoleSyntax(skeletonStr, target, stack, expressionMaker, evaluationEngine, subtypeChecker, typeCache, valueCache, evalManager, staticEvaluator, expressionGenerator);
+	public static ExpressionSkeleton fromString(String skeletonStr, IJavaDebugTarget target, IJavaStackFrame stack, ExpressionMaker expressionMaker, IAstEvaluationEngine evaluationEngine, SubtypeChecker subtypeChecker, TypeCache typeCache, ValueCache valueCache, EvaluationManager evalManager, StaticEvaluator staticEvaluator, ExpressionGenerator expressionGenerator, SideEffectHandler sideEffectHandler) {
+		return SkeletonParser.rewriteHoleSyntax(skeletonStr, target, stack, expressionMaker, evaluationEngine, subtypeChecker, typeCache, valueCache, evalManager, staticEvaluator, expressionGenerator, sideEffectHandler);
 	}
 	
 	/**
@@ -254,7 +259,7 @@ public final class ExpressionSkeleton {
 		 * @param sugaredString The sugared string from which to create the skeleton.
 		 * @param target The debug target.
 		 * @param stack The stack frame.
-	 * @param expressionMaker The expression maker.
+		 * @param expressionMaker The expression maker.
 		 * @param evaluationEngine The AST evaluation engine.
 	     * @param subtypeChecker The subtype checker.
 	     * @param typeCache The type cache.
@@ -262,12 +267,13 @@ public final class ExpressionSkeleton {
 	     * @param evalManager The evaluation manager.
 		 * @param staticEvaluator Evaluator of String method calls.
 	     * @param expressionGenerator The expression generator.
+	     * @param sideEffectHandler The side effect handler.
 		 * @return The ExpressionSkeleton representing the given sugared string.
 		 */
-		private static ExpressionSkeleton rewriteHoleSyntax(String sugaredString, IJavaDebugTarget target, IJavaStackFrame stack, ExpressionMaker expressionMaker, IAstEvaluationEngine evaluationEngine, SubtypeChecker subtypeChecker, TypeCache typeCache, ValueCache valueCache, EvaluationManager evalManager, StaticEvaluator staticEvaluator, ExpressionGenerator expressionGenerator) {
+		private static ExpressionSkeleton rewriteHoleSyntax(String sugaredString, IJavaDebugTarget target, IJavaStackFrame stack, ExpressionMaker expressionMaker, IAstEvaluationEngine evaluationEngine, SubtypeChecker subtypeChecker, TypeCache typeCache, ValueCache valueCache, EvaluationManager evalManager, StaticEvaluator staticEvaluator, ExpressionGenerator expressionGenerator, SideEffectHandler sideEffectHandler) {
 			Map<String, HoleInfo> holeInfos = new HashMap<String, HoleInfo>();
 			Expression expr = rewriteHoleSyntax(sugaredString, holeInfos, stack, evaluationEngine);
-			return new ExpressionSkeleton(sugaredString, (Expression)ExpressionMaker.resetAST(expr), holeInfos, target, stack, expressionMaker, subtypeChecker, typeCache, valueCache, evalManager, staticEvaluator, expressionGenerator);
+			return new ExpressionSkeleton(sugaredString, (Expression)ExpressionMaker.resetAST(expr), holeInfos, target, stack, expressionMaker, subtypeChecker, typeCache, valueCache, evalManager, staticEvaluator, expressionGenerator, sideEffectHandler);
 		}
 	
 		/**
@@ -426,7 +432,7 @@ public final class ExpressionSkeleton {
 				results = expressionGenerator.generateExpression(property, typeConstraint, varName, searchConstructors, searchOperators, synthesisDialog, monitor, SEARCH_DEPTH + extraDepth);
 			else {
 				monitor.beginTask("Skeleton generation", holeInfos.size() + 2);
-				ArrayList<TypedExpression> exprs = SkeletonFiller.fillSkeleton(expression, typeConstraint, extraDepth, searchConstructors, searchOperators, holeInfos, stack, target, expressionMaker, evalManager, staticEvaluator, expressionGenerator, subtypeChecker, typeCache, valueCache, monitor);
+				ArrayList<TypedExpression> exprs = SkeletonFiller.fillSkeleton(expression, typeConstraint, extraDepth, searchConstructors, searchOperators, holeInfos, stack, target, expressionMaker, evalManager, staticEvaluator, expressionGenerator, sideEffectHandler, subtypeChecker, typeCache, valueCache, monitor);
 				EclipseUtils.log("Fitting " + exprs.size() + " potential expressions with extra depth " + extraDepth + " into skeleton " + sugaredString + ".");
 				DataCollector.log("skel-start", "spec=" + property.toString(), "skel=" + sugaredString, "exdep=" + extraDepth, "num=" + exprs.size());
 				results = evalManager.evaluateExpressions(exprs, property, varStaticType, synthesisDialog, monitor);
@@ -542,6 +548,7 @@ public final class ExpressionSkeleton {
 		private final EvaluationManager evalManager;
 	    private final StaticEvaluator staticEvaluator;
 		private final ExpressionGenerator expressionGenerator;
+		private final SideEffectHandler sideEffectHandler;
 		private final SubtypeChecker subtypeChecker;
 		private final TypeCache typeCache;
 		private final ValueCache valueCache;
@@ -566,12 +573,13 @@ public final class ExpressionSkeleton {
 		 * @param evalManager The evaluation manager.
 		 * @param staticEvaluator Evaluator of String method calls.
 		 * @param expressionGenerator The expression generator.
+		 * @param sideEffectHandler The side effect handler.
 		 * @param subtypeChecker The subtype checker.
 		 * @param typeCache The type cache.
 		 * @param valueCache The value cache.
 		 * @param monitor The progress monitor.
 		 */
-		private SkeletonFiller(int extraDepth, boolean searchConstructors, boolean searchOperators, Map<String, HoleInfo> holeInfos, IJavaStackFrame stack, IJavaDebugTarget target, ExpressionMaker expressionMaker, EvaluationManager evalManager, StaticEvaluator staticEvaluator, ExpressionGenerator expressionGenerator, SubtypeChecker subtypeChecker, TypeCache typeCache, ValueCache valueCache, IProgressMonitor monitor) {
+		private SkeletonFiller(int extraDepth, boolean searchConstructors, boolean searchOperators, Map<String, HoleInfo> holeInfos, IJavaStackFrame stack, IJavaDebugTarget target, ExpressionMaker expressionMaker, EvaluationManager evalManager, StaticEvaluator staticEvaluator, ExpressionGenerator expressionGenerator, SideEffectHandler sideEffectHandler, SubtypeChecker subtypeChecker, TypeCache typeCache, ValueCache valueCache, IProgressMonitor monitor) {
 			this.extraDepth = extraDepth;
 			this.searchConstructors = searchConstructors;
 			this.searchOperators = searchOperators;
@@ -582,6 +590,7 @@ public final class ExpressionSkeleton {
 			this.evalManager = evalManager;
 			this.staticEvaluator = staticEvaluator;
 			this.expressionGenerator = expressionGenerator;
+			this.sideEffectHandler = sideEffectHandler;
 			this.subtypeChecker = subtypeChecker;
 			this.typeCache = typeCache;
 			this.valueCache = valueCache;
@@ -610,6 +619,7 @@ public final class ExpressionSkeleton {
 		 * @param evalManager The evaluation manager.
 		 * @param staticEvaluator Evaluator of String method calls.
 		 * @param expressionGenerator The expression generator.
+		 * @param sideEffectHandler The side effect handler.
 		 * @param subtypeChecker The subtype checker.
 		 * @param typeCache The type cache.
 		 * @param valueCache The value cache.
@@ -617,8 +627,8 @@ public final class ExpressionSkeleton {
 		 * @return Expressions that meet the skeleton (with the
 		 * holes filled in).
 		 */
-		public static ArrayList<TypedExpression> fillSkeleton(Expression skeleton, TypeConstraint initialTypeConstraint, int extraDepth, boolean searchConstructors, boolean searchOperators, Map<String, HoleInfo> holeInfos, IJavaStackFrame stack, IJavaDebugTarget target, ExpressionMaker expressionMaker, EvaluationManager evalManager, StaticEvaluator staticEvaluator, ExpressionGenerator expressionGenerator, SubtypeChecker subtypeChecker, TypeCache typeCache, ValueCache valueCache, IProgressMonitor monitor) {
-			SkeletonFiller filler = new SkeletonFiller(extraDepth, searchConstructors, searchOperators, holeInfos, stack, target, expressionMaker, evalManager, staticEvaluator, expressionGenerator, subtypeChecker, typeCache, valueCache, monitor);
+		public static ArrayList<TypedExpression> fillSkeleton(Expression skeleton, TypeConstraint initialTypeConstraint, int extraDepth, boolean searchConstructors, boolean searchOperators, Map<String, HoleInfo> holeInfos, IJavaStackFrame stack, IJavaDebugTarget target, ExpressionMaker expressionMaker, EvaluationManager evalManager, StaticEvaluator staticEvaluator, ExpressionGenerator expressionGenerator, SideEffectHandler sideEffectHandler, SubtypeChecker subtypeChecker, TypeCache typeCache, ValueCache valueCache, IProgressMonitor monitor) {
+			SkeletonFiller filler = new SkeletonFiller(extraDepth, searchConstructors, searchOperators, holeInfos, stack, target, expressionMaker, evalManager, staticEvaluator, expressionGenerator, sideEffectHandler, subtypeChecker, typeCache, valueCache, monitor);
 			ExpressionsAndTypeConstraints result = filler.fillSkeleton(skeleton, initialTypeConstraint, HoleParentSetter.getParentsOfHoles(holeInfos, skeleton));
 			ArrayList<TypedExpression> exprs = new ArrayList<TypedExpression>();
 			for (ArrayList<TypedExpression> curExprs: result.getExprs().values())
@@ -671,7 +681,7 @@ public final class ExpressionSkeleton {
 				ArrayList<TypeConstraint> argTypes = getArgTypes(call.arguments(), parentsOfHoles);
 				ExpressionsAndTypeConstraints receiverResult = null;
 				if (call.getExpression() != null) {
-					TypeConstraint expressionConstraint = new MethodConstraint(parentsOfHoles.contains(call.getName()) ? null : call.getName().getIdentifier(), curConstraint, argTypes);
+					TypeConstraint expressionConstraint = new MethodConstraint(parentsOfHoles.contains(call.getName()) ? null : call.getName().getIdentifier(), curConstraint, argTypes, sideEffectHandler.isHandlingSideEffects());
 					receiverResult = fillSkeleton(call.getExpression(), expressionConstraint, parentsOfHoles);
 				} else
 					receiverResult = new ExpressionsAndTypeConstraints(new SupertypeBound(getThisType()));
@@ -1211,7 +1221,7 @@ public final class ExpressionSkeleton {
 		 * skeleton piece and the type constraint representing their types.
 		 */
 		private ExpressionsAndTypeConstraints fillMethod(Expression node, SimpleName name, List<?> arguments, Set<ASTNode> parentsOfHoles, TypeConstraint curConstraint, ArrayList<TypeConstraint> argTypes, ExpressionsAndTypeConstraints receiverResult) {
-			MethodNameConstraint methodNameConstraint = new MethodNameConstraint(receiverResult.getTypeConstraint(), curConstraint, argTypes);
+			MethodNameConstraint methodNameConstraint = new MethodNameConstraint(receiverResult.getTypeConstraint(), curConstraint, argTypes, sideEffectHandler.isHandlingSideEffects());
 			if (!parentsOfHoles.contains(name))
 				methodNameConstraint.setLegalNames(new HashSet<String>(Arrays.asList(new String[] { name.toString() })));
 			ExpressionsAndTypeConstraints methodResult = fillSkeleton(name, methodNameConstraint, parentsOfHoles);
@@ -1491,7 +1501,7 @@ public final class ExpressionSkeleton {
 			try {
 				Map<String, ArrayList<Method>> methodsByType = new HashMap<String, ArrayList<Method>>(1);
 				String typeName = type.getName();
-	    		for (Method method: ExpressionGenerator.getMethods(type))
+	    		for (Method method: ExpressionGenerator.getMethods(type, sideEffectHandler))
 					if (ExpressionGenerator.isLegalMethod(method, stack.getReferenceType(), true) && MethodNameConstraint.fulfillsArgConstraints(method, argConstraints, stack, target, subtypeChecker, typeCache))
 						Utils.addToListMap(methodsByType, typeName, method);
 	    		return methodsByType;

@@ -47,7 +47,7 @@ public class OverloadChecker {
 		this.typeCache = typeCache;
 		this.subtypeChecker = subtypeChecker;
 		methodsByName = new HashMap<String, Map<Integer, List<Method>>>();
-		for (Method method: ExpressionGenerator.getMethods(receiverType)) {
+		for (Method method: ExpressionGenerator.getMethods(receiverType, true)) {
 			String name = method.name();
 			if (!methodsByName.containsKey(name))
 				methodsByName.put(name, new HashMap<Integer, List<Method>>());
