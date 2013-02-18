@@ -4,6 +4,7 @@ import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.ObjectInputStream;
 import java.util.Map;
+import java.util.zip.GZIPInputStream;
 
 import com.sun.jdi.Method;
 
@@ -27,7 +28,7 @@ public class Weights {
 
 	public Weights() {
 		try {
-			ObjectInputStream is = new ObjectInputStream(EclipseUtils.getFileFromBundle("data" + System.getProperty("file.separator") + "weights"));
+			ObjectInputStream is = new ObjectInputStream(new GZIPInputStream(EclipseUtils.getFileFromBundle("data" + System.getProperty("file.separator") + "weights.gz")));
 			weights = (Map<String, Map<String, Integer>>)is.readObject();
 			averageWeight = is.readDouble();
 			total = is.readLong();
