@@ -478,7 +478,8 @@ public final class ExpressionGenerator {
 	 * been searched.
 	 */
 	private int getNumExprsSearched() {
-		return Utils.getNumValues(equivalences.get(Collections.emptySet())) + getNumCrashes();
+		Map<Result, ArrayList<EvaluatedExpression>> equivs = equivalences.get(Collections.emptySet());
+		return (equivs == null ? 0 : Utils.getNumValues(equivs)) + getNumCrashes();
 	}
 	
 	/**

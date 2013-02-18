@@ -22,6 +22,7 @@ import org.eclipse.jdt.core.dom.ClassInstanceCreation;
 import org.eclipse.jdt.core.dom.Expression;
 import org.eclipse.jdt.core.dom.FieldAccess;
 import org.eclipse.jdt.core.dom.MethodInvocation;
+import org.eclipse.jdt.core.dom.Name;
 import org.eclipse.jdt.core.dom.NullLiteral;
 import org.eclipse.jdt.core.dom.SimpleName;
 import org.eclipse.jdt.core.dom.SuperMethodInvocation;
@@ -746,7 +747,7 @@ public final class EvaluationManager {
     					numNulls[0]++;
     				else {
     					Result result = expressionMaker.getExpressionResult((Expression)node, curEffects);
-    					if (result == null && node instanceof SimpleName)  // TODO: result is null for method names, but we should have a better check for that
+    					if (result == null && node instanceof Name)  // TODO: result is null for method/constructor names, but we should have a better check for that
     						return;
     					IJavaValue value = result.getValue().getValue();
     					if (value != null && value.isNull())
