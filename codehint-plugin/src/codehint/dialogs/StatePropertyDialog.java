@@ -20,7 +20,8 @@ public class StatePropertyDialog extends PropertyDialog {
     
     public StatePropertyDialog(String varName, IJavaStackFrame stack, String initialValue, String extraMessage) {
     	super(varName, extraMessage);
-    	String pdspecMessage = "Demonstrate a property that should hold for " + (varName == null ? FREE_VAR_NAME : varName) + " after this statement is executed.  You may refer to the values of variables after this statement is executed using the prime syntax, e.g., " + varName + "\'";
+    	String myVarName = varName == null ? FREE_VAR_NAME : varName;
+		String pdspecMessage = "Demonstrate a property that should hold for " + myVarName + " after this statement is executed.  You may refer to the values of variables after this statement is executed using the prime syntax, e.g., " + myVarName + "\'";
     	this.pdspecMessage = getFullMessage(pdspecMessage, extraMessage);
     	this.initialPdspecText = initialValue;
     	this.pdspecValidator = new StatePropertyValidator(stack, varName == null);
