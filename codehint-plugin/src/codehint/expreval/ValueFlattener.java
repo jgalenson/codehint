@@ -61,11 +61,25 @@ public class ValueFlattener extends ASTFlattener {
 						sb.append('\'').append(str).append('\'');
 					else if ("J".equals(sig))  // A long can be larger than an integer, so we must ensure that Java knows this is a long literal.
 						sb.append(str).append('L');
-					else if ("F".equals(sig))
-						sb.append(str).append('f');
-					else if ("D".equals(sig))
-						sb.append(str).append('d');
-					else
+					else if ("F".equals(sig)) {
+						if ("NaN".equals(str))
+				    		sb.append("Float.NaN");
+				    	else if ("Infinity".equals(str))
+				    		sb.append("Float.POSITIVE_INFINITY");
+				    	else if ("-Infinity".equals(str))
+				    		sb.append("Float.NEGATIVE_INFINITY");
+				    	else
+				    		sb.append(str).append('f');
+					} else if ("D".equals(sig)) {
+						if ("NaN".equals(str))
+				    		sb.append("Double.NaN");
+				    	else if ("Infinity".equals(str))
+				    		sb.append("Double.POSITIVE_INFINITY");
+				    	else if ("-Infinity".equals(str))
+				    		sb.append("Double.NEGATIVE_INFINITY");
+				    	else
+				    		sb.append(str).append('d');
+					} else
 						sb.append(str);
 					return;
 				} else if (value.isNull()) {

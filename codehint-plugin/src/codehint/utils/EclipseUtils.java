@@ -363,7 +363,8 @@ public final class EclipseUtils {
      * @throws DebugException if we cannot get the value.
      */
     public static String javaStringOfValue(IJavaValue value, IJavaStackFrame stack) throws DebugException {
-    	if (value.isNull())
+    	String sig = value.getSignature();
+		if (value.isNull())
     		return "null";
     	else if (value instanceof IJavaArray) {
     		StringBuilder sb = new StringBuilder();
@@ -375,14 +376,32 @@ public final class EclipseUtils {
     		}
     		sb.append("]");
     		return sb.toString();
-    	} else if ("C".equals(value.getSignature()))
+    	} else if ("C".equals(sig))
     		return "'" + value.getValueString() + "'";
-    	else if ("Ljava/lang/String;".equals(value.getSignature()))
+    	else if ("Ljava/lang/String;".equals(sig))
     		return "\"" + value.getValueString() + "\"";
     	else if (value instanceof IJavaObject)
     		return ((IJavaObject)value).sendMessage("toString", "()Ljava/lang/String;", new IJavaValue[] { }, (IJavaThread)stack.getThread(), null).getValueString();
-    	else
-    		return value.getValueString();
+    	String str = value.getValueString();
+    	if ("NaN".equals(str) && "F".equals(sig))
+    		return "Float.NaN";
+    	else if ("Infinity".equals(str) && "F".equals(sig))
+    		return "Float.POSITIVE_INFINITY";
+    	else if ("-Infinity".equals(str) && "F".equals(sig))
+    		return "Float.NEGATIVE_INFINITY";
+    	else if ("NaN".equals(str) && "D".equals(sig))
+    		return "Double.NaN";
+    	else if ("Infinity".equals(str) && "D".equals(sig))
+    		return "Double.POSITIVE_INFINITY";
+    	else if ("-Infinity".equals(str) && "D".equals(sig))
+    		return "Double.NEGATIVE_INFINITY";
+    	else if ("F".equals(sig))
+    		return str + "f";
+    	else if ("D".equals(sig))
+    		return str + "d";
+    	else if ("J".equals(sig))
+    		return str + "L";
+    	return str;
     }
 
 	/**
