@@ -1030,6 +1030,7 @@ public final class ExpressionSkeleton {
 							ArrayList<TypedExpression> fakeTypedHoleInfos = new ArrayList<TypedExpression>(holeInfo.getArgs().size());
 							for (String s: holeInfo.getArgs()) {
 								Expression e = (Expression)ExpressionMaker.resetAST(EclipseUtils.parseExpr(parser, s));
+								expressionMaker.setID(e);  //  Some later code will expect the expression to have an ID.
 								// The current evaluation manager needs to know the type of the expression, so we figure it out.
 								IJavaType type = curConstraint instanceof DesiredType ? ((DesiredType)curConstraint).getDesiredType() : ((SingleTypeConstraint)fillSkeleton(e, curConstraint, null).getTypeConstraint()).getTypeConstraint();
 								fakeTypedHoleInfos.add(new TypedExpression(e, type));
