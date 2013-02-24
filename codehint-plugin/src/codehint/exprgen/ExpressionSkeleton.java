@@ -687,7 +687,7 @@ public final class ExpressionSkeleton {
 					receiverResult = new ExpressionsAndTypeConstraints(new SupertypeBound(getThisType()));
 				return fillMethod(call, call.getName(), call.arguments(), parentsOfHoles, curConstraint, argTypes, receiverResult);
 			} else if (node instanceof NullLiteral) {
-	    		return new ExpressionsAndTypeConstraints(expressionMaker.makeNull(target, valueCache, thread), new SupertypeBound(EclipseUtils.getFullyQualifiedType("java.lang.Object", stack, target, typeCache)));
+	    		return new ExpressionsAndTypeConstraints(expressionMaker.makeNull(target, valueCache, thread), new SupertypeBound(null));
 			} else if (node instanceof NumberLiteral) {
 	    		return fillNumberLiteral(node, valueCache, thread);
 			} else if (node instanceof ParenthesizedExpression) {
@@ -699,7 +699,7 @@ public final class ExpressionSkeleton {
 			} else if (node instanceof QualifiedName) {
 				IJavaType type = EclipseUtils.getTypeAndLoadIfNeededAndExists(node.toString(), stack, target, typeCache);
 				if (type != null)
-					return new ExpressionsAndTypeConstraints(new TypedExpression(node, type), new SupertypeBound(type));
+					return new ExpressionsAndTypeConstraints(expressionMaker.makeStaticName(node.toString(), (IJavaReferenceType)type, valueCache, thread), new SupertypeBound(type));
 				else {
 					QualifiedName name = (QualifiedName)node;
 					return fillNormalField(name.getQualifier(), name.getName(), parentsOfHoles, curConstraint);
@@ -878,7 +878,7 @@ public final class ExpressionSkeleton {
 					IJavaType leftType = "null".equals(leftExprs.getKey()) ? null : EclipseUtils.getFullyQualifiedType(leftExprs.getKey(), stack, target, typeCache);
 					for (Map.Entry<String, ArrayList<TypedExpression>> rightExprs: rightResult.getExprs().entrySet()) {
 						IJavaType rightType = "null".equals(rightExprs.getKey()) ? null : EclipseUtils.getFullyQualifiedType(rightExprs.getKey(), stack, target, typeCache);
-						if ((leftType == null && EclipseUtils.isObject(rightType)) || (rightType == null && EclipseUtils.isObject(leftType)) || leftType.equals(rightType))
+						if ((leftType == null && EclipseUtils.isObject(rightType)) || (rightType == null && EclipseUtils.isObject(leftType)) || (leftType != null && leftType.equals(rightType)))
 							if (!(EclipseUtils.isObject(leftType) && EclipseUtils.isObject(rightType) && (leftType != null && !"java.lang.String".equals(leftType.getName())) && (rightType != null && !"java.lang.String".equals(rightType.getName()))))
 								for (TypedExpression leftExpr: leftExprs.getValue())
 									for (TypedExpression rightExpr: rightExprs.getValue())
@@ -1053,14 +1053,7 @@ public final class ExpressionSkeleton {
 						for (Entry<String, ArrayList<EvaluatedExpression>> exprs: valuesByType.entrySet()) {
 							// Ensure that the type of these expressions satisfies some constraint.
 							IJavaType curType = exprs.getValue().get(0).getType();
-							boolean satisfiesSomeConstraint = false;
-							for (IJavaType constraintType: constraintTypes) {
-								if (subtypeChecker.isSubtypeOf(curType, constraintType)) {
-									satisfiesSomeConstraint = true;
-									break;
-								}
-							}
-							if (satisfiesSomeConstraint) {
+							if (curConstraint.isFulfilledBy(curType, subtypeChecker, typeCache, stack, target)) {
 								// Add the results.
 								String typeName = exprs.getKey();
 								for (EvaluatedExpression e: exprs.getValue())
@@ -1559,6 +1552,11 @@ public final class ExpressionSkeleton {
 		 */
 		public TypeConstraint getTypeConstraint() {
 			return typeConstraint;
+		}
+		
+		@Override
+		public String toString() {
+			return typeConstraint.toString() + ": " + String.valueOf(exprs);
 		}
 		
 	}

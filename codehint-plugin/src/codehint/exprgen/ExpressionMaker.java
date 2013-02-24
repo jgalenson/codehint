@@ -280,7 +280,7 @@ public class ExpressionMaker {
 				value = ((IJavaObject)receiverValue).sendMessage(method.name(), method.signature(), argValues, thread, method.declaringType() instanceof ClassType && !((ClassType)method.declaringType()).isAbstract() ? method.declaringType().signature() : null);
 			//System.out.println("Got " + value);
 		} catch (DebugException e) {
-			//System.out.println("Crashed on " + (receiver.getValue() != null ? receiver.getExpression() : receiver.getType()).toString().replace("\n", "\\n") + "." + method.name() + " with args " + args.toString().replace("\n", "\\n") + " got " + EclipseUtils.getExceptionMessage(e));
+			//System.out.println("Crashed on " + receiver.toString().replace("\n", "\\n") + "." + method.name() + " with args " + args.toString().replace("\n", "\\n") + " got " + EclipseUtils.getExceptionMessage(e));
 			numCrashes++;
 			value = target.voidValue();
 		} finally {

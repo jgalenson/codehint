@@ -397,11 +397,15 @@ public class SideEffectHandler {
 			try {
 				IType itype = project.findType(event.referenceType().name());
 				List<IField> fields = new ArrayList<IField>();
-				for (IField field: itype.getFields())
-					if ((!Flags.isFinal(field.getFlags()) || field.getTypeSignature().contains("[")) && Flags.isStatic(field.getFlags()))
-						fields.add(field);
-				List<MyJavaWatchpoint> newWatchpoints = getFieldWatchpoints(fields);
-				addedWatchpoints.addAll(newWatchpoints);
+				if (itype == null) {
+					//System.out.println("Bad times on " + event.referenceType().name());
+				} else {
+					for (IField field: itype.getFields())
+						if ((!Flags.isFinal(field.getFlags()) || field.getTypeSignature().contains("[")) && Flags.isStatic(field.getFlags()))
+							fields.add(field);
+					List<MyJavaWatchpoint> newWatchpoints = getFieldWatchpoints(fields);
+					addedWatchpoints.addAll(newWatchpoints);
+				}
 			} catch (JavaModelException e) {
 				throw new RuntimeException(e);
 			}
