@@ -681,17 +681,21 @@ public class ExpressionMaker {
     }
 
 	public TypedExpression makeCast(TypedExpression obj, IJavaType targetType, IJavaValue value, ValueCache valueCache, IJavaThread thread) {
-		CastExpression e = makeCast(obj.getExpression(), targetType);
-		Result result = new Result(value, obj.getResult().getEffects(), valueCache, thread);
-		copyExpressionResults(obj.getExpression(), e);
-		return EvaluatedExpression.makeTypedOrEvaluatedExpression(e, targetType, result);
+		try {
+			CastExpression e = makeCast(obj.getExpression(), targetType.getName());
+			Result result = new Result(value, obj.getResult().getEffects(), valueCache, thread);
+			return EvaluatedExpression.makeTypedOrEvaluatedExpression(e, targetType, result);
+		} catch (DebugException ex) {
+			throw new RuntimeException(ex);
+		}
 	}
 
-	public CastExpression makeCast(Expression obj, IJavaType targetType) {
+	public CastExpression makeCast(Expression obj, String targetTypeName) {
 		CastExpression e = ast.newCastExpression();
 		e.setExpression(ASTCopyer.copy(obj));
-		e.setType(makeType(targetType));
+		e.setType(makeType(EclipseUtils.sanitizeTypename(targetTypeName)));
 		setID(e);
+		copyExpressionResults(obj, e);
 		return e;
 	}
 
@@ -807,33 +811,27 @@ public class ExpressionMaker {
 		return e;
 	}
 
-	private Type makeType(IJavaType type) {
-		try {
-			if (type instanceof IJavaArrayType)
-				return ast.newArrayType(makeType(((IJavaArrayType)type).getComponentType()));
-			else if (type instanceof IJavaReferenceType)
-				return ast.newSimpleType(makeName(type.getName()));
-			else if (isInt(type))
-				return ast.newPrimitiveType(PrimitiveType.INT);
-			else if (isBoolean(type))
-				return ast.newPrimitiveType(PrimitiveType.BOOLEAN);
-			else if (isLong(type))
-				return ast.newPrimitiveType(PrimitiveType.LONG);
-			else if (isByte(type))
-				return ast.newPrimitiveType(PrimitiveType.BYTE);
-			else if (isChar(type))
-				return ast.newPrimitiveType(PrimitiveType.CHAR);
-			else if (isShort(type))
-				return ast.newPrimitiveType(PrimitiveType.SHORT);
-			else if (isFloat(type))
-				return ast.newPrimitiveType(PrimitiveType.FLOAT);
-			else if (isDouble(type))
-				return ast.newPrimitiveType(PrimitiveType.DOUBLE);
-			else
-				throw new RuntimeException("Unexpected type " + type);
-		} catch (DebugException e) {
-			throw new RuntimeException(e);
-		}
+	private Type makeType(String typeName) {
+		if (typeName.endsWith("[]"))
+			return ast.newArrayType(makeType(typeName.substring(0, typeName.length() - 2)));
+		else if (typeName.equals("int"))
+			return ast.newPrimitiveType(PrimitiveType.INT);
+		else if (typeName.equals("boolean"))
+			return ast.newPrimitiveType(PrimitiveType.BOOLEAN);
+		else if (typeName.equals("long"))
+			return ast.newPrimitiveType(PrimitiveType.LONG);
+		else if (typeName.equals("byte"))
+			return ast.newPrimitiveType(PrimitiveType.BYTE);
+		else if (typeName.equals("char"))
+			return ast.newPrimitiveType(PrimitiveType.CHAR);
+		else if (typeName.equals("short"))
+			return ast.newPrimitiveType(PrimitiveType.SHORT);
+		else if (typeName.equals("float"))
+			return ast.newPrimitiveType(PrimitiveType.FLOAT);
+		else if (typeName.equals("double"))
+			return ast.newPrimitiveType(PrimitiveType.DOUBLE);
+		else
+			return ast.newSimpleType(makeName(EclipseUtils.sanitizeTypename(typeName)));
 	}
 	
 	private SimpleName makeSimpleName(String name) {

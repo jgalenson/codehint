@@ -266,6 +266,7 @@ public final class ExpressionGenerator {
 	private IImportDeclaration[] imports;
 	private Set<String> importsSet;
 	private Set<String> staticAccesses;
+	private int numFailedDowncasts;
 	
 	public ExpressionGenerator(IJavaDebugTarget target, IJavaStackFrame stack, SideEffectHandler sideEffectHandler, ExpressionMaker expressionMaker, SubtypeChecker subtypeChecker, TypeCache typeCache, ValueCache valueCache, EvaluationManager evalManager, StaticEvaluator staticEvaluator, Weights weights) {
 		this.target = target;
@@ -326,6 +327,7 @@ public final class ExpressionGenerator {
 			this.importsSet = new HashSet<String>(imports.length);
 			for (IImportDeclaration imp : imports)
 				this.importsSet.add(imp.getElementName());
+			this.numFailedDowncasts = 0;
 			
 			ArrayList<FullyEvaluatedExpression> results = genAllExprs(maxExprDepth, property, searchConstructors, searchOperators, synthesisDialog, monitor);
 
@@ -479,7 +481,7 @@ public final class ExpressionGenerator {
 	 */
 	private int getNumExprsSearched() {
 		Map<Result, ArrayList<EvaluatedExpression>> equivs = equivalences.get(Collections.emptySet());
-		return (equivs == null ? 0 : Utils.getNumValues(equivs)) + getNumCrashes();
+		return (equivs == null ? 0 : Utils.getNumValues(equivs)) + getNumCrashes() + numFailedDowncasts;
 	}
 	
 	/**
@@ -550,9 +552,12 @@ public final class ExpressionGenerator {
 			}
     		
     		// Copy over the stuff from the next level.
-    		for (TypedExpression e : nextLevel)
+    		for (TypedExpression e : nextLevel) {
     			if (depth < maxDepth || isHelpfulType(e.getType(), depth, maxDepth))  // Note that this relies on the fact that something helpful for depth>=2 will be helpful for depth>=1.  If this changes, we'll need to call it again.
     				curLevel.add(e);
+    			else if (isHelpfulWithDowncast(e.getValue()))  // If we're at the maximum depth and an expression is helpful with a downcast, downcast it.
+    				curLevel.add(downcast(e));
+    		}
     		
     		// Add calls to the desired type's constructors (but only at the top-level).
     		if (searchConstructors && depth == maxDepth) {
@@ -577,11 +582,11 @@ public final class ExpressionGenerator {
     			//if (depth < maxDepth || hasInt)
                 //    addUniqueExpressionToList(curLevel, zero, depth);
     			if (depth < maxDepth || (hasObject && !(typeConstraint instanceof MethodConstraint) && !(typeConstraint instanceof FieldConstraint)))  // If we have a method or field constraint, we can't have null.
-    				addUniqueExpressionToList(curLevel, expressionMaker.makeNull(target, valueCache, thread), depth);
+    				addUniqueExpressionToList(curLevel, expressionMaker.makeNull(target, valueCache, thread), depth, maxDepth);
 	    		addLocals(depth, maxDepth, curLevel);
 				// Add "this" if we're not in a static context.
 				if (isHelpfulType(thisType, depth, maxDepth) && !stack.isStatic())
-					addUniqueExpressionToList(curLevel, expressionMaker.makeThis(stack.getThis(), thisType, valueCache, thread), depth);
+					addUniqueExpressionToList(curLevel, expressionMaker.makeThis(stack.getThis(), thisType, valueCache, thread), depth, maxDepth);
     		} else {
     			Set<IJavaReferenceType> objectInterfaceTypes = new HashSet<IJavaReferenceType>();
 				if (!sideEffectHandler.isHandlingSideEffects())  // TODO: Without this, the below line makes us crash on S1 at depth 2 with effect handling on.  Why?  But it's still helpful when effects are off (speeds up S1 at depth 1 noticeably), so I'm keeping it.
@@ -599,29 +604,29 @@ public final class ExpressionGenerator {
     					if (searchOperators && ExpressionMaker.isInt(l.getType()) && ExpressionMaker.isInt(r.getType()) && isHelpfulType(intType, depth, maxDepth)
     							&& !isConstant(l.getExpression()) && !isConstant(r.getExpression())) {
     						if (mightNotCommute(l, r) || l.getExpression().toString().compareTo(r.getExpression().toString()) < 0)
-    							addUniqueExpressionToList(curLevel, expressionMaker.makeInfix(l, InfixExpression.Operator.PLUS, r, intType, valueCache, thread, target), depth);
+    							addUniqueExpressionToList(curLevel, expressionMaker.makeInfix(l, InfixExpression.Operator.PLUS, r, intType, valueCache, thread, target), depth, maxDepth);
     						if (mightNotCommute(l, r) || l.getExpression().toString().compareTo(r.getExpression().toString()) <= 0)
-    							addUniqueExpressionToList(curLevel, expressionMaker.makeInfix(l, InfixExpression.Operator.TIMES, r, intType, valueCache, thread, target), depth);
+    							addUniqueExpressionToList(curLevel, expressionMaker.makeInfix(l, InfixExpression.Operator.TIMES, r, intType, valueCache, thread, target), depth, maxDepth);
     						if (mightNotCommute(l, r) || l.getExpression().toString().compareTo(r.getExpression().toString()) != 0)
-    							addUniqueExpressionToList(curLevel, expressionMaker.makeInfix(l, InfixExpression.Operator.MINUS, r, intType, valueCache, thread, target), depth);
+    							addUniqueExpressionToList(curLevel, expressionMaker.makeInfix(l, InfixExpression.Operator.MINUS, r, intType, valueCache, thread, target), depth, maxDepth);
     						if ((mightNotCommute(l, r) || l.getExpression().toString().compareTo(r.getExpression().toString()) != 0)
     								&& (r.getValue() == null || !r.getValue().getValueString().equals("0")))  // Don't divide by things we know are 0.
-    							addUniqueExpressionToList(curLevel, expressionMaker.makeInfix(l, InfixExpression.Operator.DIVIDE, r, intType, valueCache, thread, target), depth);
+    							addUniqueExpressionToList(curLevel, expressionMaker.makeInfix(l, InfixExpression.Operator.DIVIDE, r, intType, valueCache, thread, target), depth, maxDepth);
     					}
     					// Integer comparisons, e.g., ==,<.
     					if (searchOperators && isHelpfulType(booleanType, depth, maxDepth) && ExpressionMaker.isInt(l.getType()) && ExpressionMaker.isInt(r.getType()))
     						if ((mightNotCommute(l, r) || l.getExpression().toString().compareTo(r.getExpression().toString()) < 0)
     								&& (!(l.getExpression() instanceof PrefixExpression) || !(r.getExpression() instanceof PrefixExpression)))
     							for (InfixExpression.Operator op : INT_COMPARE_OPS)
-    								addUniqueExpressionToList(curLevel, expressionMaker.makeInfix(l, op, r, booleanType, valueCache, thread, target), depth);
+    								addUniqueExpressionToList(curLevel, expressionMaker.makeInfix(l, op, r, booleanType, valueCache, thread, target), depth, maxDepth);
     					// Array access, a[i].
     					if (l.getType() instanceof IJavaArrayType && ExpressionMaker.isInt(r.getType())) {
     						IJavaType elemType = ExpressionMaker.getArrayElementType(l);
-    						if (elemType != null && isHelpfulType(ExpressionMaker.getArrayElementType(l), depth, maxDepth)) {
+    						if (elemType != null && (isHelpfulType(elemType, depth, maxDepth) || mightBeHelpfulWithDowncast(elemType))) {
     							// Get the value if we can and skip things with null arrays or out-of-bounds indices.
     							TypedExpression accessExpr = expressionMaker.makeArrayAccess(l, r, valueCache, thread, target);
     							if (accessExpr != null)
-    								addUniqueExpressionToList(curLevel, accessExpr, depth);
+    								addUniqueExpressionToList(curLevel, accessExpr, depth, maxDepth);
     						}
     					}
     				}
@@ -631,7 +636,7 @@ public final class ExpressionGenerator {
     						if (ExpressionMaker.isBoolean(r.getType()))
     							if (mightNotCommute(l, r) || l.getExpression().toString().compareTo(r.getExpression().toString()) < 0)
     								for (InfixExpression.Operator op : BOOLEAN_COMPARE_OPS)
-    									addUniqueExpressionToList(curLevel, expressionMaker.makeInfix(l, op, r, booleanType, valueCache, thread, target), depth);
+    									addUniqueExpressionToList(curLevel, expressionMaker.makeInfix(l, op, r, booleanType, valueCache, thread, target), depth, maxDepth);
 					// Object/array comparisons
     				if (searchOperators && isHelpfulType(booleanType, depth, maxDepth) && l.getType() instanceof IJavaReferenceType)
     					for (TypedExpression r: getUniqueExpressions(l, l.getResult().getEffects(), objectType, depth, nextLevel))
@@ -639,7 +644,7 @@ public final class ExpressionGenerator {
     								&& (subtypeChecker.isSubtypeOf(l.getType(), r.getType()) || subtypeChecker.isSubtypeOf(r.getType(), l.getType())))
     							if (mightNotCommute(l, r) || l.getExpression().toString().compareTo(r.getExpression().toString()) < 0)
     								for (InfixExpression.Operator op : REF_COMPARE_OPS)
-    									addUniqueExpressionToList(curLevel, expressionMaker.makeInfix(l, op, r, booleanType, valueCache, thread, target), depth);
+    									addUniqueExpressionToList(curLevel, expressionMaker.makeInfix(l, op, r, booleanType, valueCache, thread, target), depth, maxDepth);
     				curMonitor.worked(1);
     			}
     			// Get unary ops
@@ -649,16 +654,16 @@ public final class ExpressionGenerator {
     				// Arithmetic with constants.
     				if (searchOperators && ExpressionMaker.isInt(e.getType()) && isHelpfulType(intType, depth, maxDepth)
     						&& !isConstant(e.getExpression())) {
-    					addUniqueExpressionToList(curLevel, expressionMaker.makeInfix(e, InfixExpression.Operator.PLUS, one, intType, valueCache, thread, target), depth);
-    					addUniqueExpressionToList(curLevel, expressionMaker.makeInfix(e, InfixExpression.Operator.TIMES, two, intType, valueCache, thread, target), depth);
-    					addUniqueExpressionToList(curLevel, expressionMaker.makeInfix(e, InfixExpression.Operator.MINUS, one, intType, valueCache, thread, target), depth);
-    					addUniqueExpressionToList(curLevel, expressionMaker.makeInfix(e, InfixExpression.Operator.DIVIDE, two, intType, valueCache, thread, target), depth);
+    					addUniqueExpressionToList(curLevel, expressionMaker.makeInfix(e, InfixExpression.Operator.PLUS, one, intType, valueCache, thread, target), depth, maxDepth);
+    					addUniqueExpressionToList(curLevel, expressionMaker.makeInfix(e, InfixExpression.Operator.TIMES, two, intType, valueCache, thread, target), depth, maxDepth);
+    					addUniqueExpressionToList(curLevel, expressionMaker.makeInfix(e, InfixExpression.Operator.MINUS, one, intType, valueCache, thread, target), depth, maxDepth);
+    					addUniqueExpressionToList(curLevel, expressionMaker.makeInfix(e, InfixExpression.Operator.DIVIDE, two, intType, valueCache, thread, target), depth, maxDepth);
     				}
     				// Comparisons with constants.
     				if (searchOperators && ExpressionMaker.isInt(e.getType()) && isHelpfulType(booleanType, depth, maxDepth)
     						&& !isConstant(e.getExpression())) {
-    					addUniqueExpressionToList(curLevel, expressionMaker.makeInfix(e, InfixExpression.Operator.LESS, zero, booleanType, valueCache, thread, target), depth);
-    					addUniqueExpressionToList(curLevel, expressionMaker.makeInfix(e, InfixExpression.Operator.GREATER, zero, booleanType, valueCache, thread, target), depth);
+    					addUniqueExpressionToList(curLevel, expressionMaker.makeInfix(e, InfixExpression.Operator.LESS, zero, booleanType, valueCache, thread, target), depth, maxDepth);
+    					addUniqueExpressionToList(curLevel, expressionMaker.makeInfix(e, InfixExpression.Operator.GREATER, zero, booleanType, valueCache, thread, target), depth, maxDepth);
     				}
     				// Field accesses to non-static fields from non-static scope.
     				if (e.getType() instanceof IJavaClassType
@@ -668,16 +673,16 @@ public final class ExpressionGenerator {
     				if (searchOperators && ExpressionMaker.isBoolean(e.getType()) && isHelpfulType(booleanType, depth, maxDepth)
     						&& !(e.getExpression() instanceof PrefixExpression) && !(e.getExpression() instanceof InfixExpression)
     						&& !isConstant(e.getExpression()))  // Disallow things like !(x < y) and !(!x).
-    					addUniqueExpressionToList(curLevel, expressionMaker.makePrefix(e, PrefixExpression.Operator.NOT, booleanType, valueCache, thread), depth);
+    					addUniqueExpressionToList(curLevel, expressionMaker.makePrefix(e, PrefixExpression.Operator.NOT, booleanType, valueCache, thread), depth, maxDepth);
     				// Integer negation.
     				if (searchOperators && ExpressionMaker.isInt(e.getType()) && isHelpfulType(intType, depth, maxDepth)
     						&& !(e.getExpression() instanceof PrefixExpression) && !(e.getExpression() instanceof InfixExpression)
     						&& !isConstant(e.getExpression()))  // Disallow things like -(-x) and -(x + y).
-    					addUniqueExpressionToList(curLevel, expressionMaker.makePrefix(e, PrefixExpression.Operator.MINUS, intType, valueCache, thread), depth);
+    					addUniqueExpressionToList(curLevel, expressionMaker.makePrefix(e, PrefixExpression.Operator.MINUS, intType, valueCache, thread), depth, maxDepth);
     				// Array length (which uses the field access AST).
     				if (e.getType() instanceof IJavaArrayType && isHelpfulType(intType, depth, maxDepth)
     						&& (e.getValue() == null || !e.getValue().isNull()))  // Skip things we know are null dereferences.
-    					addUniqueExpressionToList(curLevel, expressionMaker.makeFieldAccess(e, "length", intType, null, valueCache, thread, target), depth);
+    					addUniqueExpressionToList(curLevel, expressionMaker.makeFieldAccess(e, "length", intType, null, valueCache, thread, target), depth, maxDepth);
     				// Method calls to non-static methods from non-static scope.
     				if (ExpressionMaker.isObjectOrInterface(e.getType())
     						&& (e.getValue() == null || !e.getValue().isNull()))  // Skip things we know are null dereferences.
@@ -766,12 +771,13 @@ public final class ExpressionGenerator {
 	private void addLocals(int depth, int maxDepth, ArrayList<TypedExpression> curLevel) throws DebugException {
 		for (IJavaVariable l : stack.getLocalVariables()) {
 			IJavaType lType = EclipseUtils.getTypeOfVariableAndLoadIfNeeded(l, stack);
-			if (isHelpfulType(lType, depth, maxDepth))
-				addUniqueExpressionToList(curLevel, expressionMaker.makeVar(l.getName(), (IJavaValue)l.getValue(), lType, valueCache, thread), depth);
+			if (isHelpfulType(lType, depth, maxDepth) || mightBeHelpfulWithDowncast(lType))
+				addUniqueExpressionToList(curLevel, expressionMaker.makeVar(l.getName(), (IJavaValue)l.getValue(), lType, valueCache, thread), depth, maxDepth);
 		}
 	}
 	
 	// TODO: Convert field/method code to use the public API?  I can use IType to get fields/methods (but they only get declared ones, so I'd have to walk the supertype chain), IType to get their signature, Signature.getSignature{Qualifier,SimpleName} to get type names, and then EclipseUtils.getType-like code to get the IType back.
+	// TODO: Downcast expressions to get extra methods, fields, and array accesses.
 	
 	/**
 	 * Gets all the visible fields of the given type.
@@ -831,14 +837,14 @@ public final class ExpressionGenerator {
 			IJavaType fieldType = EclipseUtils.getTypeAndLoadIfNeeded(field.typeName(), stack, target, typeCache);
 			/*if (fieldType == null)
 				System.err.println("I cannot get the class of " + objTypeImpl.name() + "." + field.name() + "(" + field.typeName() + ")");*/
-			if (fieldType != null && isHelpfulType(fieldType, depth, maxDepth)) {
+			if (fieldType != null && (isHelpfulType(fieldType, depth, maxDepth) || mightBeHelpfulWithDowncast(fieldType))) {
 				TypedExpression receiver = e;
 				if (e.getExpression() instanceof ThisExpression || e.getType().equals(thisType))
 					receiver = null;  // Don't use a receiver if it is null or the this type.
 				else if (field.isStatic())
 					receiver = expressionMaker.makeStaticName(EclipseUtils.sanitizeTypename(getShortestTypename(field.declaringType().name())), (IJavaReferenceType)EclipseUtils.getTypeAndLoadIfNeeded(field.declaringType().name(), stack, target, typeCache), valueCache, thread);
 				TypedExpression fieldExpr = receiver == null ? expressionMaker.makeFieldVar(field.name(), fieldType, e, field, valueCache, thread) : expressionMaker.makeFieldAccess(receiver, field.name(), fieldType, field, valueCache, thread, target); 
-				addUniqueExpressionToList(ops, fieldExpr, depth);
+				addUniqueExpressionToList(ops, fieldExpr, depth, maxDepth);
 				if (field.isStatic())
 					staticAccesses.add(field.declaringType().name() + " " + field.name());
 			}
@@ -957,7 +963,7 @@ public final class ExpressionGenerator {
 			IJavaType returnType = isConstructor ? e.getType() : EclipseUtils.getTypeAndLoadIfNeeded(method.returnTypeName(), stack, target, typeCache);
 			/*if (returnType == null)
 				System.err.println("I cannot get the class of the return type of " + objTypeImpl.name() + "." + method.name() + "() (" + method.returnTypeName() + ")");*/
-			if (returnType != null && (isHelpfulType(returnType, depth, maxDepth) || method.isConstructor())) {  // Constructors have void type... 
+			if (returnType != null && (isHelpfulType(returnType, depth, maxDepth) || method.isConstructor() || mightBeHelpfulWithDowncast(returnType))) {  // Constructors have void type... 
 				List<?> argumentTypeNames = method.argumentTypeNames();
 				// TODO: Improve overloading detection.
 				overloadChecker.setMethod(method);
@@ -980,7 +986,7 @@ public final class ExpressionGenerator {
 						receiver = expressionMaker.makeStaticName(EclipseUtils.sanitizeTypename(getShortestTypename(method.declaringType().name())), (IJavaReferenceType)EclipseUtils.getTypeAndLoadIfNeeded(method.declaringType().name(), stack, target, typeCache), valueCache, thread);
 					int maxArgDepth = pruneManyArgCalls(method, allPossibleActuals, depth, depth - 1, receiver.getType() + "." + method.name());
 					Set<Effect> receiverEffects = isConstructor ? Collections.<Effect>emptySet() : e.getResult().getEffects();
-					makeAllCalls(method, method.name(), receiver, returnType, ops, receiverEffects, argTypes, allPossibleActuals, new ArrayList<EvaluatedExpression>(allPossibleActuals.size()), depth, maxArgDepth, overloadChecker);
+					makeAllCalls(method, method.name(), receiver, returnType, ops, receiverEffects, argTypes, allPossibleActuals, new ArrayList<EvaluatedExpression>(allPossibleActuals.size()), depth, maxDepth, maxArgDepth, overloadChecker);
                     if (method.isStatic())
                         staticAccesses.add(method.declaringType().name() + " " + method.name() + " " + method.signature());
 				}
@@ -1006,6 +1012,7 @@ public final class ExpressionGenerator {
 		int numArgs = method.argumentTypeNames().size();
 		ArrayList<EvaluatedExpression> curPossibleActuals = new ArrayList<EvaluatedExpression>();
 		// TODO (low priority): This can get called multiple times if there are multiple args with the same type (or even different methods with args of the same type), but this has a tiny effect compared to the general state space explosion problem.
+		// TODO: Allow downcasting args (i.e., a's static type does not meet argBound but its dynamic type does).  This should be easy to do with isHelpfulWithDowncast() and downcast(). 
 		for (EvaluatedExpression a : possibleArgs)
 			if (argBound.isFulfilledBy(a.getType(), subtypeChecker, typeCache, stack, target)  // TODO: This doesn't work for generic methods.
 					&& meetsNonNullPreconditions(method, curArgIndex + 1, a)
@@ -1262,13 +1269,23 @@ public final class ExpressionGenerator {
 	 * @param list List to which to add unique expressions.
 	 * @param e Expression to add if it is unique.
 	 * @param depth The current search depth.
+	 * @param maxDepth The maximum search depth.
 	 * @throws DebugException 
 	 */
-	private void addUniqueExpressionToList(List<TypedExpression> list, TypedExpression e, int depth) throws DebugException {
+	private void addUniqueExpressionToList(List<TypedExpression> list, TypedExpression e, int depth, int maxDepth) throws DebugException {
 		// We only add constructors at max depth, but they might actually be lower depth.
 		if (e != null && isCorrectDepth(e, depth)) {
 			if (e.getValue() != null && "V".equals(e.getValue().getSignature()))
 				return;
+			if (depth == maxDepth && !typeConstraint.isFulfilledBy(e.getType(), subtypeChecker, typeCache, stack, target)) {
+				// The current type does not fulfill the constraint and we're at the maximum depth, so only add it if we can downcast it.
+				if (isHelpfulWithDowncast(e.getValue()))
+					e = downcast(e);
+				else {
+					numFailedDowncasts++;
+					return;
+				}
+			}
 			Result result = e.getResult();
 			Set<Effect> curEffects = Collections.emptySet();
 			Map<Result, ArrayList<EvaluatedExpression>> curEquivalences = equivalences.get(curEffects);
@@ -1313,10 +1330,73 @@ public final class ExpressionGenerator {
 	private boolean isHelpfulType(IJavaType curType, int depth, int maxDepth) throws DebugException {
 		if (curType != null && "V".equals(curType.getSignature()))  // Void things never return anything useful.
 			return false;
-		// TODO: The commented parts in {DesiredType,SupertypeBound}.fulfillsConstraint disallow downcasting things, e.g., (Foo)x.getObject(), which could be legal, but is unlikely to be.
 		if (depth < maxDepth)
 			return true;
 		return typeConstraint.isFulfilledBy(curType, subtypeChecker, typeCache, stack, target);
+	}
+	
+	/**
+	 * Determines whether an expression of the given type might be
+	 * useful after a downcast (i.e., whether a value of the given
+	 * type might be of some subtype that is useful).
+	 * @param curType The type to test.
+	 * @return Whether an expression of the given type might be
+	 * useful after a downcast
+	 */
+	private boolean mightBeHelpfulWithDowncast(IJavaType curType) {
+		for (IJavaType constraintType: typeConstraint.getTypes(stack, target, typeCache))
+			if (subtypeChecker.isSubtypeOf(constraintType, curType))
+				return true;
+		return false;
+	}
+	
+	/**
+	 * Checks whether the given value is useful to us after a
+	 * downcast (i.e., whether it is non-null and its type
+	 * fulfills the constraint).  There is no point in downcasting
+	 * null, so we exclude it.
+	 * @param value The value to test.
+	 * @return Whether the given value is useful to us after a
+	 * downcast.
+	 * @throws DebugException
+	 */
+	private boolean isHelpfulWithDowncast(IJavaValue value) throws DebugException {
+		return value.getJavaType() != null && typeConstraint.isFulfilledBy(value.getJavaType(), subtypeChecker, typeCache, stack, target);
+	}
+
+	/**
+	 * Downcasts the given expression to one that fulfills the
+	 * constraint.
+	 * @param e The expression to downcast.
+	 * @return The given expression downcast to one that fulfills
+	 * the constraint.
+	 * @throws DebugException
+	 */
+	private TypedExpression downcast(TypedExpression e) throws DebugException {
+		Expression casted = expressionMaker.makeCast(e.getExpression(), getShortestTypename(getDowncastType(e.getType()).getName()));
+		if (e instanceof FullyEvaluatedExpression)
+			return new FullyEvaluatedExpression(casted, e.getValue().getJavaType(), e.getResult(), ((FullyEvaluatedExpression)e).getResultString());
+		else
+			return EvaluatedExpression.makeTypedOrEvaluatedExpression(casted, e.getValue().getJavaType(), e.getResult());
+	}
+	
+	/**
+	 * Gets a type to which we should downtype the given type
+	 * so that it satisfies the constraint.  Such a type must
+	 * exist.
+	 * @param curType The type we want to downcast.
+	 * @return The type to which we should downtype the given
+	 * type so that it satisfies the constraint.
+	 */
+	private IJavaType getDowncastType(IJavaType curType) {
+		IJavaType[] constraintTypes = typeConstraint.getTypes(stack, target, typeCache);
+		if (constraintTypes.length == 1)  // Short-circuit for efficiency: if there is only one constraint type, it must be valid.
+			return constraintTypes[0];
+		for (IJavaType constraintType: constraintTypes)
+			if (subtypeChecker.isSubtypeOf(constraintType, curType))
+				return constraintType;
+		assert false;
+		return null;
 	}
 	
 	/**
@@ -1335,11 +1415,12 @@ public final class ExpressionGenerator {
 	 * @param curActuals The current list of actuals, which is built
 	 * up through recursion.
 	 * @param depth The current search depth.
+	 * @param maxDepth The maximum search depth.
 	 * @param maxArgDepth The maximum depth of an argument.
 	 * @param overloadChecker The overload checker.
 	 * @throws DebugException 
 	 */
-	private void makeAllCalls(Method method, String name, TypedExpression receiver, IJavaType returnType, List<TypedExpression> ops, Set<Effect> curEffects, IJavaType[] actualTypes, ArrayList<ArrayList<EvaluatedExpression>> defaultPossibleActuals, ArrayList<EvaluatedExpression> curActuals, int depth, int maxArgDepth, OverloadChecker overloadChecker) throws DebugException {
+	private void makeAllCalls(Method method, String name, TypedExpression receiver, IJavaType returnType, List<TypedExpression> ops, Set<Effect> curEffects, IJavaType[] actualTypes, ArrayList<ArrayList<EvaluatedExpression>> defaultPossibleActuals, ArrayList<EvaluatedExpression> curActuals, int depth, int maxDepth, int maxArgDepth, OverloadChecker overloadChecker) throws DebugException {
 		if (curMonitor.isCanceled())
 			throw new OperationCanceledException();
 		if (curActuals.size() == actualTypes.length) {
@@ -1347,14 +1428,14 @@ public final class ExpressionGenerator {
 				  // We might evaluate the call when we create it (e.g., StringEvaluator), so first ensure it has the proper depth to avoid re-evaluating some calls.
 				if (method.isConstructor() || getDepthOfCall(receiver.getExpression(), curActuals, method) == depth
 						|| (newlyUnpruneds.contains(method) && getDepthOfCall(receiver.getExpression(), curActuals, method) >= prunedDepths.get(method)))
-					addUniqueExpressionToList(ops, expressionMaker.makeCall(name, receiver, curActuals, returnType, thisType, method, target, valueCache, thread, staticEvaluator), depth);
+					addUniqueExpressionToList(ops, expressionMaker.makeCall(name, receiver, curActuals, returnType, thisType, method, target, valueCache, thread, staticEvaluator), depth, maxDepth);
 		} else {
 			int argNum = curActuals.size();
 			ArrayList<EvaluatedExpression> uniqueExpressions = getUniqueExpressions(null, curEffects, actualTypes[argNum], depth, defaultPossibleActuals.get(argNum));
 			ArrayList<EvaluatedExpression> nextArgs = curEffects.isEmpty() ? uniqueExpressions : getArgs(uniqueExpressions, receiver, method, overloadChecker, actualTypes[argNum], argNum, maxArgDepth);
 			for (EvaluatedExpression e : nextArgs) {
 				curActuals.add(e);
-				makeAllCalls(method, name, receiver, returnType, ops, expressionMaker.getExpressionResult(e.getExpression(), curEffects).getEffects(), actualTypes, defaultPossibleActuals, curActuals, depth, maxArgDepth, overloadChecker);
+				makeAllCalls(method, name, receiver, returnType, ops, expressionMaker.getExpressionResult(e.getExpression(), curEffects).getEffects(), actualTypes, defaultPossibleActuals, curActuals, depth, maxDepth, maxArgDepth, overloadChecker);
 				curActuals.remove(argNum);
 			}
 		}
@@ -1595,10 +1676,10 @@ public final class ExpressionGenerator {
 			CastExpression cast = (CastExpression)expr;
 			expressionMaker.setExpressionResult(cast.getExpression(), result, curEffects);
 			expandEquivalencesRec(cast.getExpression(), newlyExpanded, curEffects);
-			IJavaType castType = EclipseUtils.getType(cast.getType().toString(), stack, target, typeCache);
+			String castTypeName = cast.getType().toString();
 			for (TypedExpression e : getEquivalentExpressions(cast.getExpression(), UnknownConstraint.getUnknownConstraint(), curEffects))
 				if (getDepth(e.getExpression()) < curDepth)
-					addIfNew(curEquivalences, new EvaluatedExpression(expressionMaker.makeCast(e.getExpression(), castType), type, result), valued);
+					addIfNew(curEquivalences, new EvaluatedExpression(expressionMaker.makeCast(e.getExpression(), castTypeName), type, result), valued);
 		} else
 			throw new RuntimeException("Unexpected Expression " + expr.toString());
 	}
