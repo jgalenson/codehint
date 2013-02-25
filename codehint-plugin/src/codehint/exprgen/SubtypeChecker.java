@@ -61,13 +61,11 @@ public class SubtypeChecker {
 				// Compute supertypes and add to cache if not there.
 				if (!supertypesMap.containsKey(cur)) {
 					Set<IJavaType> supertypes = new HashSet<IJavaType>();
-					supertypes.add(cur);
 					if (cur instanceof IJavaInterfaceType) {
-						for (IJavaType t : ((IJavaInterfaceType)cur).getSuperInterfaces())
-							supertypes.add(t);
+						addSuperInterfaces((IJavaInterfaceType)cur, supertypes);
 					} else if (cur instanceof IJavaClassType) {
-						for (IJavaClassType parent = ((IJavaClassType)cur).getSuperclass(); parent != null; parent = parent.getSuperclass())
-							supertypes.add(parent);
+						for (IJavaClassType t = (IJavaClassType)cur; t != null; t = t.getSuperclass())
+							supertypes.add(t);
 						for (IJavaType t : ((IJavaClassType)cur).getAllInterfaces())
 							supertypes.add(t);
 					} else
@@ -84,6 +82,19 @@ public class SubtypeChecker {
 			} else
 				throw new RuntimeException(e);
 		}
+	}
+	
+	/**
+	 * Adds all of the super interfaces of the given interface
+	 * type to the given set.
+	 * @param t The type whose super interfaces we want.
+	 * @param supertypes The set into which we store the super interfaces.
+	 * @throws DebugException
+	 */
+	private static void addSuperInterfaces(IJavaInterfaceType t, Set<IJavaType> supertypes) throws DebugException {
+		supertypes.add(t);
+		for (IJavaInterfaceType child : t.getSuperInterfaces())
+			addSuperInterfaces(child, supertypes);
 	}
 
 }
