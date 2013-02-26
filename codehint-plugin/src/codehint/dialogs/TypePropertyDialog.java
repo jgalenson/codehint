@@ -19,6 +19,7 @@ public class TypePropertyDialog extends PropertyDialog {
 	private final String pdspecMessage;
 	private final String initialPdspecText;
 	private final IInputValidator pdspecValidator;
+	private final IType thisType;
 	
     public TypePropertyDialog(String varName, String varTypeName, IJavaStackFrame stack, String initialValue, String extraMessage) {
     	super(varName, extraMessage);
@@ -27,7 +28,7 @@ public class TypePropertyDialog extends PropertyDialog {
     	this.pdspecMessage = getFullMessage(pdspecMessage, extraMessage);
     	try {
 			IJavaProject project = EclipseUtils.getProject(stack);
-			IType thisType = EclipseUtils.getThisType(project, stack);
+			thisType = EclipseUtils.getThisType(project, stack);
 			if (thisType != null && thisType.resolveType(EclipseUtils.getUnqualifiedName(initialValue)) != null)
 				initialValue = EclipseUtils.getUnqualifiedName(initialValue);
 	    	this.initialPdspecText = initialValue;
@@ -80,8 +81,10 @@ public class TypePropertyDialog extends PropertyDialog {
 	public Property computeProperty(String propertyText, TypeCache typeCache) {
 		if (propertyText == null)
 			return null;
-		else
-			return TypeProperty.fromType(propertyText, EclipseUtils.getTypeAndLoadIfNeeded(propertyText, stack, (IJavaDebugTarget)stack.getDebugTarget(), typeCache));
+		else {
+			String fullyQualifiedName = EclipseUtils.getFullyQualifiedTypeName(thisType, propertyText);
+			return TypeProperty.fromType(propertyText, EclipseUtils.getTypeAndLoadIfNeeded(fullyQualifiedName, stack, (IJavaDebugTarget)stack.getDebugTarget(), typeCache));
+		}
 	}
 
 	@Override

@@ -614,16 +614,27 @@ public final class EclipseUtils {
      * @return The IJavaType representing the given name.
      */
     private static IJavaType getType(IJavaProject project, IType thisType, String typeName, IJavaStackFrame stack, IJavaDebugTarget target, TypeCache typeCache) {
+    	if (thisType == null || project == null || target == null)
+			return null;
+		return getFullyQualifiedType(getFullyQualifiedTypeName(thisType, typeName), stack, target, typeCache);
+    }
+
+    /**
+     * Gets the fully-qualified name of the given type name.
+     * @param thisType The type of the this object.
+     * @param typeName The name of the type to get, which does not need
+     * to be fully-qualified but must be unique.
+     * @return The fully-qualified name of the given type name.
+     */
+    public static String getFullyQualifiedTypeName(IType thisType, String typeName) {
     	try {
-    		if (thisType == null || project == null || target == null)
-    			return null;
     		// If this is an array type, first get the base type and then generate the array at the end.
     		int firstArray = typeName.indexOf("[]");
     		String componentTypeName = firstArray == -1 ? typeName : typeName.substring(0, firstArray);
     		String arrayTypes = firstArray == -1 ? "" : typeName.substring(firstArray);
     		// Handle primitives
     		if ("int".equals(componentTypeName) || "boolean".equals(componentTypeName) || "long".equals(componentTypeName) || "byte".equals(componentTypeName) || "char".equals(componentTypeName) || "short".equals(componentTypeName) || "float".equals(componentTypeName) || "double".equals(componentTypeName))
-    			return getFullyQualifiedType(typeName, stack, target, typeCache);
+    			return typeName;
     		// Find the full type name.
     		String[][] allTypes = thisType.resolveType(componentTypeName);
     		assert allTypes != null && allTypes.length == 1 : typeName;
@@ -635,7 +646,7 @@ public final class EclipseUtils {
 					fullTypeName += ".";
 				fullTypeName += typeParts[i];
 			}
-			return getFullyQualifiedType(fullTypeName + arrayTypes, stack, target, typeCache);
+			return fullTypeName + arrayTypes;
     	} catch (JavaModelException e) {
 			throw new RuntimeException(e);
 		}
