@@ -530,21 +530,20 @@ public final class EclipseUtils {
     	try {
     		if (thisType == null)
     			return null;
-    		if (newTypeName.equals("byte") || newTypeName.equals("short") || newTypeName.equals("int") || newTypeName.equals("long") || newTypeName.equals("float") || newTypeName.equals("double") || newTypeName.equals("char") || newTypeName.equals("boolean"))  // ITypes dislike primitive types, so this handles them.
-    			return null;
     		if (newTypeName.contains("<"))
     			return "Please enter an unparameterized type";
-    		if (varTypeName != null) {
-	    		int firstArrayVar = varTypeName.indexOf("[]");
-	    		if (firstArrayVar != -1) {
-	        		int firstArrayNew = newTypeName.indexOf("[]");
-	    			if (firstArrayNew == -1 || varTypeName.length() - firstArrayVar != newTypeName.length() - firstArrayNew) {
-	    				int count = (varTypeName.length() - firstArrayVar) / 2;
-	    				return "Please enter a type with " + count + " array " + Utils.plural("dimension", "s", count) + ".";
-	    			} else  // Recursively check the component types since there seem to be no ITypes for arrays....
-	    				return getValidTypeError(project, varTypeName.substring(0, firstArrayVar), thisType, newTypeName.substring(0, firstArrayNew));
-	    		}
-    		}
+			int firstArrayNew = newTypeName.indexOf("[]");
+    		int firstArrayVar = varTypeName == null ? -1 : varTypeName.indexOf("[]");
+			if (varTypeName != null) {
+	    		int numArrDimsVar = firstArrayVar == -1 ? 0 : (varTypeName.length() - firstArrayVar) / 2;
+	    		int numArrDimsNew = firstArrayNew == -1 ? 0 : (newTypeName.length() - firstArrayNew) / 2;
+				if (numArrDimsVar != numArrDimsNew)
+					return "Please enter a type with " + numArrDimsVar + " array " + Utils.plural("dimension", "s", numArrDimsVar) + ".";
+			}
+    		if (firstArrayNew != -1)  // Recursively check the component types since there seem to be no ITypes for arrays....
+				return getValidTypeError(project, varTypeName == null ? varTypeName : varTypeName.substring(0, firstArrayVar), thisType, newTypeName.substring(0, firstArrayNew));
+    		if (newTypeName.equals("byte") || newTypeName.equals("short") || newTypeName.equals("int") || newTypeName.equals("long") || newTypeName.equals("float") || newTypeName.equals("double") || newTypeName.equals("char") || newTypeName.equals("boolean"))  // ITypes dislike primitive types, so this handles them.
+    			return null;
 			String[][] allTypes;
     		try {
     			allTypes = thisType.resolveType(newTypeName);
