@@ -380,8 +380,13 @@ public final class EclipseUtils {
     		return "'" + value.getValueString() + "'";
     	else if ("Ljava/lang/String;".equals(sig))
     		return "\"" + value.getValueString() + "\"";
-    	else if (value instanceof IJavaObject)
-    		return ((IJavaObject)value).sendMessage("toString", "()Ljava/lang/String;", new IJavaValue[] { }, (IJavaThread)stack.getThread(), null).getValueString();
+    	else if (value instanceof IJavaObject) {
+    		try {
+    			return ((IJavaObject)value).sendMessage("toString", "()Ljava/lang/String;", new IJavaValue[] { }, (IJavaThread)stack.getThread(), null).getValueString();
+    		} catch (DebugException e) {
+    			return value.toString();
+    		}
+    	}
     	String str = value.getValueString();
     	if ("NaN".equals(str) && "F".equals(sig))
     		return "Float.NaN";
