@@ -378,7 +378,7 @@ public class InitialSynthesisDialog extends SynthesisDialog {
 		startEndSynthesis(isAutomatic ? SynthesisState.AUTO_START : SynthesisState.START);
 		expressions = new ArrayList<FullyEvaluatedExpression>();
 		showResults();  // Clears any existing results.
-		valueCache.allowCollectionOfNewStrings();  // Allow collection of strings from previous search.
+		valueCache.allowCollectionOfDisabledObjects();  // Allow collection of objects from previous search.
 		this.shouldContinue = !isAutomatic;
 		// Reset column sort indicators.
 		table.setSortDirection(SWT.NONE);
@@ -709,7 +709,7 @@ public class InitialSynthesisDialog extends SynthesisDialog {
 
 	@Override
 	public void cleanup() {
-		valueCache.allowCollectionOfNewStrings();  // Allow collection of strings from the last search.
+		valueCache.allowCollectionOfDisabledObjects();  // Allow collection of objects from the last search.
 		table.dispose();
 		if (monitor != null)
 			monitor.dispose();

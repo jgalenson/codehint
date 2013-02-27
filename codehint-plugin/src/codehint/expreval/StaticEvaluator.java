@@ -913,7 +913,7 @@ public class StaticEvaluator {
 		IJavaArray result = valueCache.disableObjectCollection(stringArrType.newInstance(a.length));
 		IJavaValue[] arrValues = new IJavaValue[a.length];
 		for (int i = 0; i < a.length; i++)
-			arrValues[i] = a[i] == null ? target.nullValue() : valueOfString(a[i]);
+			arrValues[i] = (a[i] == null ? target.nullValue() : valueOfString(a[i]));
 		result.setValues(arrValues);
 		return result;
 	}

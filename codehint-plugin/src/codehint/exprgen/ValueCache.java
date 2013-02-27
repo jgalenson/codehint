@@ -85,21 +85,27 @@ public class ValueCache {
 	/**
 	 * Returns the IJavaValue for the given String.
 	 * @param s a String.
-	 * @return The IJavaValue for the given tring.
+	 * @return The IJavaValue for the given String.
 	 */
 	public IJavaValue getStringJavaValue(String s) {
 		IJavaValue value = stringVals.get(s);
-		if (value == null) {
-			value = disableObjectCollection((IJavaObject)target.newValue(s));
-			stringVals.put(s, value);
+		try {
+			if (value == null || !value.isAllocated()) {
+				value = disableObjectCollection((IJavaObject)target.newValue(s));
+				stringVals.put(s, value);
+			}
+		} catch (DebugException e) {
+			throw new RuntimeException(e);
 		}
 		return value;
 	}
 	
 	/**
-	 * Allow the strings we created ourselves to be collected.
+	 * Allows the objects we created ourselves to be collected.
+	 * Note that once we do this any values we have stored (e.g.,
+	 * in stringVals may be collected before we access them).
 	 */
-	public void allowCollectionOfNewStrings() {
+	public void allowCollectionOfDisabledObjects() {
 		try {
 			for (IJavaObject obj: collectionDisableds)
 				obj.enableCollection();
@@ -109,7 +115,15 @@ public class ValueCache {
 		collectionDisableds.clear();
 	}
 
-	// We must disable collection on these strings and arrays since they are not reachable and hence could be collected.  Without this, the strings are collected and the EvaluationManager inserts non-quoted string literals for them and crashes.
+	/**
+	 * Disables collection on the given object.
+	 * We must disable collection on strings and arrays since they
+	 * are not reachable and hence could be collected.  Without this,
+	 * the strings are collected and the EvaluationManager inserts
+	 * non-quoted string literals for them and crashes.
+	 * @param o The object for which we want to disable collection.
+	 * @return The input object.
+	 */
 	public <T extends IJavaObject> T disableObjectCollection(T o) {
 		try {
 			o.disableCollection();
