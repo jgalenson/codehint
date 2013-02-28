@@ -563,7 +563,7 @@ public final class EvaluationManager {
     				validResultString = getResultString(typedExpr, curValue, toStrings, evalIndex);
     		}
 			if (valid)
-				validExprs.add(new FullyEvaluatedExpression(typedExpr.getExpression(), typedExpr.getType(), new Result(curValue, typedExpr.getResult() == null ? Collections.<Effect>emptySet() : typedExpr.getResult().getEffects(), valueCache, thread), validResultString.replace("\n", "\\n")));
+				validExprs.add(new FullyEvaluatedExpression(typedExpr.getExpression(), typedExpr.getType(), new Result(curValue, typedExpr.getResult() == null ? Collections.<Effect>emptySet() : typedExpr.getResult().getEffects(), valueCache, thread), Utils.getPrintableString(validResultString)));
 			if (typedExpr.getValue() == null || !validateStatically)
 				evalIndex++;
 		}

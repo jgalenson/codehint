@@ -24,6 +24,7 @@ import codehint.exprgen.ValueCache;
 import codehint.property.ASTFlattener;
 import codehint.utils.EclipseUtils;
 import codehint.utils.Pair;
+import codehint.utils.Utils;
 
 /**
  * Gets the String representation of a node, substituting in
@@ -88,7 +89,7 @@ public class ValueFlattener extends ASTFlattener {
 				} else if (value instanceof IJavaObject && "Ljava/lang/String;".equals(value.getSignature())) {
 					Value wrapper = valueCache.getValue(value);
 					String str = wrapper instanceof StringValue ? "\"" + ((StringValue)wrapper).getStringValue() + "\"" : value.toString();
-					handleCast(node, str.replaceAll("[\n]", "\\\\n"), sb);  // Replace newlines.
+					handleCast(node, Utils.getPrintableString(str), sb);  // Replace newlines.
 					return;
 				}
 			}

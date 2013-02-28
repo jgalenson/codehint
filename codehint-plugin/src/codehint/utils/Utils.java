@@ -107,5 +107,15 @@ public class Utils {
 			num += values.size();
 		return num;
 	}
+	
+	/**
+	 * Gets a printable version of the given String
+	 * by quoting unprintable characters like newlines.
+	 * @param s The string.
+	 * @return A printable version of the given String.
+	 */
+	public static String getPrintableString(String s) {
+		return s.replace("\n", "\\n").replace("\r", "\\r");
+	}
 
 }

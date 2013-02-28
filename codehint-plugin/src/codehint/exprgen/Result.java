@@ -7,6 +7,7 @@ import org.eclipse.jdt.debug.core.IJavaThread;
 import org.eclipse.jdt.debug.core.IJavaValue;
 
 import codehint.effects.Effect;
+import codehint.utils.Utils;
 
 public class Result {
 	
@@ -37,7 +38,7 @@ public class Result {
 		sb.append(valueToString);
 		for (Effect effect: effects)
 			sb.append(", ").append(effect.toString());
-		return sb.toString();
+		return Utils.getPrintableString(sb.toString());
 	}
 
 	@Override
@@ -73,7 +74,7 @@ public class Result {
 
 	@Override
 	public String toString() {
-		return value.toString().replace("\n", "\\n") + " " + effects;
+		return value.toString() + " " + effects.toString();
 	}
 
 }
