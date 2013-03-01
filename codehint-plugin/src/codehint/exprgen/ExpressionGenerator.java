@@ -3,11 +3,13 @@ package codehint.exprgen;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Set;
 
 import org.eclipse.core.runtime.IProgressMonitor;
@@ -371,7 +373,8 @@ public final class ExpressionGenerator {
 			filterDuplicates(nextLevel);
 			/*System.out.println("Depth " + depth + " has " + nextLevel.size() + " inputs:");
 			for (FullyEvaluatedExpression e: nextLevel)
-				System.out.println(Utils.truncate(e.toString(), 100));*/
+				System.out.println(Utils.truncate(e.toString(), 100));
+			printEquivalenceInfo();*/
 			curLevel = genOneLevel(nextLevel, depth, maxDepth, property, searchConstructors, searchOperators, monitor);
 			if (depth < maxDepth) {
 				evalManager.cacheMethodResults(nextLevel);
@@ -2151,21 +2154,40 @@ public final class ExpressionGenerator {
     
 	@SuppressWarnings("unused")
 	private void printEquivalenceInfo() {
+		if (equivalences.isEmpty())
+			return;
 		System.out.println("Exprs:");
     	for (ArrayList<EvaluatedExpression> equivClass: equivalences.get(Collections.<Effect>emptySet()).values()) {
     		for (EvaluatedExpression expr: equivClass)
     			System.out.println(expr);
     	}
+		System.out.println("Types:");
+    	Map<String, ArrayList<Result>> typeBuckets = new HashMap<String, ArrayList<Result>>();
+    	try {
+    		for (Map.Entry<Result, ArrayList<EvaluatedExpression>> equivClass: equivalences.get(Collections.<Effect>emptySet()).entrySet())
+    			Utils.addToListMap(typeBuckets, EclipseUtils.getTypeName(equivClass.getKey().getValue().getValue().getJavaType()), equivClass.getKey());
+    	} catch (DebugException e) {
+    		throw new RuntimeException(e);
+    	}
+    	List<Map.Entry<String, ArrayList<Result>>> typeBucketEntries = new ArrayList<Map.Entry<String,ArrayList<Result>>>(typeBuckets.entrySet());
+    	Collections.sort(typeBucketEntries, new Comparator<Map.Entry<String, ArrayList<Result>>>() {
+			@Override
+			public int compare(Entry<String, ArrayList<Result>> o1, Entry<String, ArrayList<Result>> o2) {
+				return o2.getValue().size() - o1.getValue().size();
+			}
+		});
+    	for (Map.Entry<String, ArrayList<Result>> bucket: typeBucketEntries)
+    		System.out.println(bucket.getKey() + " -> " + bucket.getValue().size() + " (" + Utils.truncate(Utils.getPrintableString(bucket.getValue().toString()), 200) + ")");
 		System.out.println("Equivalences:");
     	for (Map.Entry<Result, ArrayList<EvaluatedExpression>> equivClass: equivalences.get(Collections.<Effect>emptySet()).entrySet()) {
-    		System.out.println(equivClass.getKey().toString().replace("\n", "\\n") + " -> " + equivClass.getValue().size() + " (" + equivClass.getValue().toString().replace("\n", "\\n") + ")");
+    		System.out.println(equivClass.getKey().toString().replace("\n", "\\n") + " -> " + equivClass.getValue().size() + " (" + Utils.truncate(Utils.getPrintableString(equivClass.getValue().toString()), 200) + ")");
     	}
     	System.out.println("Buckets: ");
     	Map<Integer, ArrayList<Result>> buckets = new HashMap<Integer, ArrayList<Result>>();
     	for (Map.Entry<Result, ArrayList<EvaluatedExpression>> equivClass: equivalences.get(Collections.<Effect>emptySet()).entrySet())
     		Utils.addToListMap(buckets, equivClass.getValue().size(), equivClass.getKey());
     	for (Integer bucket: new java.util.TreeSet<Integer>(buckets.keySet()))
-    		System.out.println(bucket + " -> " + buckets.get(bucket).size() + " (" + buckets.get(bucket).toString().replace("\n", "\\n") + ")");
+    		System.out.println(bucket + " -> " + buckets.get(bucket).size() + " (" + Utils.truncate(Utils.getPrintableString(buckets.get(bucket).toString()), 200) + ")");
     }
 
 	@SuppressWarnings("unused")
