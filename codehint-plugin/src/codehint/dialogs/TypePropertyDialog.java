@@ -29,7 +29,7 @@ public class TypePropertyDialog extends PropertyDialog {
     	try {
 			IJavaProject project = EclipseUtils.getProject(stack);
 			thisType = EclipseUtils.getThisType(project, stack);
-			if (thisType != null && thisType.resolveType(EclipseUtils.getUnqualifiedName(initialValue)) != null)
+			if (thisType != null && thisType.resolveType(EclipseUtils.getUnqualifiedName(EclipseUtils.getComponentType(initialValue))) != null)
 				initialValue = EclipseUtils.getUnqualifiedName(initialValue);
 	    	this.initialPdspecText = initialValue;
 	    	this.pdspecValidator = new TypeValidator(project, varTypeName, thisType);

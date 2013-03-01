@@ -736,6 +736,23 @@ public final class EclipseUtils {
 	}
 	
 	/**
+	 * Gets the component type of an array or the type
+	 * itself if it does not represent an array type.
+	 * For example, given "java.lang.String[][]" ir
+	 * returns "java.lang.String".
+	 * @param type The name of the type.
+	 * @return The component type of the given type if
+	 * it is an array type and the type itself otherwise.
+	 */
+	public static String getComponentType(String type) {
+		int firstArrayIndex = type.indexOf('[');
+		if (firstArrayIndex == -1)
+			return type;
+		else
+			return type.substring(0, firstArrayIndex);
+	}
+	
+	/**
 	 * Gets the text at the given line.
 	 * @param document The document.
 	 * @param line The line number.
