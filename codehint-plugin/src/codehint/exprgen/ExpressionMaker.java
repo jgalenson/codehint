@@ -277,7 +277,7 @@ public class ExpressionMaker {
 			else if (receiverValue instanceof IJavaClassObject && method.isStatic())
 				value = ((IJavaClassType)((IJavaClassObject)receiverValue).getInstanceType()).sendMessage(method.name(), method.signature(), argValues, thread);
 			else
-				value = ((IJavaObject)receiverValue).sendMessage(method.name(), method.signature(), argValues, thread, method.declaringType() instanceof ClassType && !((ClassType)method.declaringType()).isAbstract() ? method.declaringType().signature() : null);
+				value = ((IJavaObject)receiverValue).sendMessage(method.name(), method.signature(), argValues, thread, null);
 			//System.out.println("Got " + value);
 		} catch (DebugException e) {
 			//System.out.println("Crashed on " + receiver.toString().replace("\n", "\\n") + "." + method.name() + " with args " + args.toString().replace("\n", "\\n") + " got " + EclipseUtils.getExceptionMessage(e));
