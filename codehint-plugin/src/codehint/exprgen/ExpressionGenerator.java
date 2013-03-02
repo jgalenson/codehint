@@ -780,7 +780,7 @@ public final class ExpressionGenerator {
 	}
 	
 	// TODO: Convert field/method code to use the public API?  I can use IType to get fields/methods (but they only get declared ones, so I'd have to walk the supertype chain), IType to get their signature, Signature.getSignature{Qualifier,SimpleName} to get type names, and then EclipseUtils.getType-like code to get the IType back.
-	// TODO: Downcast expressions to get extra methods, fields, and array accesses.
+	// TODO: Downcast expressions to get extra fields and array accesses.
 	
 	/**
 	 * Gets all the visible fields of the given type.
@@ -940,8 +940,12 @@ public final class ExpressionGenerator {
 		boolean isStatic = !isConstructor && expressionMaker.isStatic(e.getExpression());
 		//String objTypeName = isStatic ? e.getExpression().toString() : objTypeImpl.name();
 		Method stackMethod = ((JDIStackFrame)stack).getUnderlyingMethod();
-		List<Method> legalMethods = getMethods(e.getType(), sideEffectHandler);
-		OverloadChecker overloadChecker = new OverloadChecker(e.getType(), stack, target, typeCache, subtypeChecker);
+		IJavaType curType = /*!isStatic && e.getValue() != null ? e.getValue().getJavaType() :*/ e.getType();
+		/*while (curType.getName().indexOf('$') != -1 && curType instanceof IJavaClassType && project.findType(curType.getName()).isAnonymous())
+			curType = ((IJavaClassType)curType).getSuperclass();
+		boolean isSubtype = !curType.equals(e.getType());*/
+		List<Method> legalMethods = getMethods(curType, sideEffectHandler);
+		OverloadChecker overloadChecker = new OverloadChecker(curType, stack, target, typeCache, subtypeChecker);
 		for (Method method : legalMethods) {
 			// Filter out java.lang.Object methods and fake methods like "<init>".  Note that if we don't filter out Object's methods we do getClass() and then call reflective methods, which is bad times.
 			// TODO: Allow calling protected and package-private things when it's legal.
@@ -987,6 +991,8 @@ public final class ExpressionGenerator {
 					TypedExpression receiver = e;
 					if (method.isStatic())
 						receiver = expressionMaker.makeStaticName(EclipseUtils.sanitizeTypename(getShortestTypename(method.declaringType().name())), (IJavaReferenceType)EclipseUtils.getTypeAndLoadIfNeeded(method.declaringType().name(), stack, target, typeCache), valueCache, thread);
+					/*else if (isSubtype && ((ReferenceType)((JDIType)e.getType()).getUnderlyingType()).methodsByName(method.name(), method.signature()).isEmpty())
+						receiver = expressionMaker.makeParenthesized(downcast(receiver, curType));*/
 					int maxArgDepth = pruneManyArgCalls(method, allPossibleActuals, depth, depth - 1, receiver.getType() + "." + method.name());
 					Set<Effect> receiverEffects = isConstructor ? Collections.<Effect>emptySet() : e.getResult().getEffects();
 					makeAllCalls(method, method.name(), receiver, returnType, ops, receiverEffects, argTypes, allPossibleActuals, new ArrayList<EvaluatedExpression>(allPossibleActuals.size()), depth, maxDepth, maxArgDepth, overloadChecker);
@@ -1376,7 +1382,19 @@ public final class ExpressionGenerator {
 	 * @throws DebugException
 	 */
 	private TypedExpression downcast(TypedExpression e) throws DebugException {
-		Expression casted = expressionMaker.makeCast(e.getExpression(), getShortestTypename(getDowncastType(e.getType()).getName()));
+		return downcast(e, getDowncastType(e.getType()));
+	}
+
+	/**
+	 * Downcasts the given expression to the given type.
+	 * @param e The expression to downcast.
+	 * @param type The type to which we should downcast the given
+	 * expression.
+	 * @return The given expression downcast to one the given type.
+	 * @throws DebugException
+	 */
+	private TypedExpression downcast(TypedExpression e, IJavaType type) throws DebugException {
+		Expression casted = expressionMaker.makeCast(e.getExpression(), getShortestTypename(type.getName()));
 		if (e instanceof FullyEvaluatedExpression)
 			return new FullyEvaluatedExpression(casted, e.getValue().getJavaType(), e.getResult(), ((FullyEvaluatedExpression)e).getResultString());
 		else
