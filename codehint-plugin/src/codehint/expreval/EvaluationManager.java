@@ -352,6 +352,8 @@ public final class EvaluationManager {
 		IJavaValue curValue = curTypedExpr.getValue();
 		if (curValue == null || !validateStatically) {
 			StringBuilder curString = new StringBuilder();
+			if (isFreeSearch && !isPrimitive)
+				curString.append("{\n");
 			for (Map.Entry<String, Pair<Integer, String>> newTemp: valueFlattener.getNewTemporaries().entrySet()) {
 				curString.append(" ").append(newTemp.getValue().second).append(" _$tmp").append(newTemp.getValue().first).append(" = (").append(newTemp.getValue().second).append(")").append(IMPL_QUALIFIER).append("methodResults[").append(methodResultsMap.get(newTemp.getKey())).append("];\n");
 				temporaries.put(newTemp.getKey(), newTemp.getValue().first);
@@ -361,9 +363,11 @@ public final class EvaluationManager {
 				curRHSStr = EclipseUtils.javaStringOfValue(curValue, stack);
 			//curString.append(" // ").append(curExpr.toString()).append("\n");
 			String valueStr = "_$curValue";
-			if (!validateStatically || !isPrimitive)
+			if (!validateStatically || !isPrimitive) {
+				if (isFreeSearch && !isPrimitive)
+					curString.append(" ").append(curTypedExpr.getType() == null ? "Object" : curTypedExpr.getType().getName());
 				curString.append(" _$curValue = ").append(curRHSStr).append(";\n");
-			else
+			} else
 				valueStr = curRHSStr;
 			if (!validateStatically) {
 				curString.append(" ").append(IMPL_QUALIFIER).append("valueCount = ").append(numEvaluated + 1).append(";\n ");
@@ -381,6 +385,8 @@ public final class EvaluationManager {
 			if (hasPropertyPrecondition && !validateStatically)
 				curString.append(" }\n ");
 			curString.append(IMPL_QUALIFIER).append("fullCount = ").append(numEvaluated + 1).append(";\n");
+			if (isFreeSearch && !isPrimitive)
+				curString.append("}\n");
 			expressionsStr.append("\n");
 			expressionsStr.append(curString.toString());
 			evalExprIndices.add(i);
@@ -404,7 +410,7 @@ public final class EvaluationManager {
 	 * @param valuesArrayName The name of the field that will
 	 * store the output values.
 	 */
-	private static void finishBuildingString(StringBuilder expressionsStr, int numEvaluated, String type, boolean arePrimitives, boolean validateStatically, String valuesArrayName) {
+	private void finishBuildingString(StringBuilder expressionsStr, int numEvaluated, String type, boolean arePrimitives, boolean validateStatically, String valuesArrayName) {
 		String newTypeString = "[" + numEvaluated + "]";
 		if (type.contains("[]")) {  // If this is an array type, we must specify our new size as the first array dimension, not the last one.
 		    int index = type.indexOf("[]");
@@ -424,7 +430,7 @@ public final class EvaluationManager {
 			prefix.append(IMPL_QUALIFIER).append("toStrings = null;\n");
 		prefix.append(IMPL_QUALIFIER).append("valueCount = 0;\n");
 		prefix.append(IMPL_QUALIFIER).append("fullCount = 0;\n");
-		if (!validateStatically || !arePrimitives)
+		if ((!validateStatically || !arePrimitives) && (!isFreeSearch || arePrimitives))
 			prefix.append(type).append(" _$curValue;\n");
 		if (!validateStatically)
 			prefix.append("boolean _$curValid;\n");
@@ -459,8 +465,8 @@ public final class EvaluationManager {
 				initValue = "0";
 			else
 				initValue = "null";
-			if (engine.getCompiledExpression(type + " _$curValue = " + initValue + ";  boolean _$curValid = " + validVal + ";", stack).hasErrors()) {
-				// The pdspec crashed on all things of this type.
+			if (!"Object".equals(type) && engine.getCompiledExpression(type + " _$curValue = " + initValue + ";  boolean _$curValid = " + validVal + ";", stack).hasErrors()) {
+				// The pdspec crashed on all things of this type.  But we ignore Objects since it might work for some subtypes but not others.
 				for (int j = i - 1; j >= startIndex; j--)
 					exprs.remove(j);
 				monitor.worked(exprs.size());
@@ -472,15 +478,21 @@ public final class EvaluationManager {
 		int numDeleted = 0;
 		Map<String, Integer> temporaries = new HashMap<String, Integer>(0);
 		for (int j = i - 1; j >= startIndex; j--) {
+			TypedExpression expr = exprs.get(j);
 			// We need to get the flattened string not the actual string, since our temporaries can lose type information.  E.g., foo(bar(x),baz) might compile when storing bar(x) in a temporary with an erased type will not.
 			ValueFlattener valueFlattener = new ValueFlattener(temporaries, expressionMaker, valueCache);
 			String flattenedExprStr = valueFlattener.getResult(exprs.get(j).getExpression());
 			StringBuilder curString = new StringBuilder();
+			curString.append("{\n ");
 			for (Map.Entry<String, Pair<Integer, String>> newTemp: valueFlattener.getNewTemporaries().entrySet())
 				curString.append(newTemp.getValue().second).append(" _$tmp").append(newTemp.getValue().first).append(" = (").append(newTemp.getValue().second).append(")").append(IMPL_QUALIFIER).append("methodResults[").append(methodResultsMap.get(newTemp.getKey())).append("];\n");
-			curString.append(flattenedExprStr).append(";\n ");
-			if (engine.getCompiledExpression(curString.toString(), stack).hasErrors()) {
-				crashingExpressions.add(exprs.get(j).getExpression().toString());
+			String typeName = isFreeSearch && "Object".equals(type) ? (expr.getType() == null ? "Object" : expr.getType().getName()) : type;
+			curString.append(typeName).append(" _$curValue = ").append(flattenedExprStr).append(";\n ");
+			StringBuilder curStringWithSpec = new StringBuilder(curString.toString());
+			curStringWithSpec.append("boolean _$curValid = ").append(validVal).append(";\n}");
+			if (engine.getCompiledExpression(curStringWithSpec.toString(), stack).hasErrors()) {
+				if (engine.getCompiledExpression(curString.toString() + "\n}", stack).hasErrors())  // Do not mark the expression as crashing if we crash on the pdspec.
+					crashingExpressions.add(exprs.get(j).getExpression().toString());
 				exprs.remove(j);
 				numDeleted++;
 				//System.out.println(exprStr + " does not compile.");
