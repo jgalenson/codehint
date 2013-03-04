@@ -1698,8 +1698,9 @@ public final class ExpressionGenerator {
 			expressionMaker.setExpressionResult(cast.getExpression(), result, curEffects);
 			expandEquivalencesRec(cast.getExpression(), newlyExpanded, curEffects);
 			String castTypeName = cast.getType().toString();
+			IJavaType castType = EclipseUtils.getType(castTypeName, stack, target, typeCache);
 			for (TypedExpression e : getEquivalentExpressions(cast.getExpression(), UnknownConstraint.getUnknownConstraint(), curEffects))
-				if (getDepth(e.getExpression()) < curDepth)
+				if (getDepth(e.getExpression()) < curDepth && !subtypeChecker.isSubtypeOf(e.getType(), castType))  // Since I only downcast, we avoid casting things unnecessarily.  Without this, we generate silly things like frame, (Window)frame, (Window)(Window)frame, etc. when adding equivalences for (Window)something_that_equals_frame.
 					addIfNew(curEquivalences, new EvaluatedExpression(expressionMaker.makeCast(e.getExpression(), castTypeName), type, result), valued);
 		} else
 			throw new RuntimeException("Unexpected Expression " + expr.toString());
