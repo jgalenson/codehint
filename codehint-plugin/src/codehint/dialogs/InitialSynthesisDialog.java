@@ -109,9 +109,9 @@ public class InitialSynthesisDialog extends SynthesisDialog {
     private final IJavaDebugTarget target;
     private final IAstEvaluationEngine evaluationEngine;
 	private final SynthesisWorker worker;
-    private SubtypeChecker subtypeChecker;
     private TypeCache typeCache;
     private ValueCache valueCache;
+    private SubtypeChecker subtypeChecker;
     private TimeoutChecker timeoutChecker;
     private NativeHandler nativeHandler;
     private SideEffectHandler sideEffectHandler;
@@ -142,9 +142,9 @@ public class InitialSynthesisDialog extends SynthesisDialog {
 		this.project = EclipseUtils.getProject(stack);
 		this.target = (IJavaDebugTarget)stack.getDebugTarget();
 		this.evaluationEngine = engine;
-		this.subtypeChecker = new SubtypeChecker();
 		this.typeCache = new TypeCache();
 		this.valueCache = new ValueCache(target);
+		this.subtypeChecker = new SubtypeChecker(stack, target, typeCache);
 		IJavaThread thread = (IJavaThread)stack.getThread();
 		this.timeoutChecker = new TimeoutChecker(thread, stack, target, typeCache);
 		this.nativeHandler = new NativeHandler(thread, stack, target, typeCache);

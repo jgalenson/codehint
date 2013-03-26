@@ -269,6 +269,7 @@ public final class ExpressionGenerator {
 	private Set<String> importsSet;
 	private Set<String> staticAccesses;
 	private int numFailedDowncasts;
+	private Map<String, Integer> helpfulTypes;
 	
 	public ExpressionGenerator(IJavaDebugTarget target, IJavaStackFrame stack, SideEffectHandler sideEffectHandler, ExpressionMaker expressionMaker, SubtypeChecker subtypeChecker, TypeCache typeCache, ValueCache valueCache, EvaluationManager evalManager, StaticEvaluator staticEvaluator, Weights weights) {
 		this.target = target;
@@ -330,6 +331,8 @@ public final class ExpressionGenerator {
 			for (IImportDeclaration imp : imports)
 				this.importsSet.add(imp.getElementName());
 			this.numFailedDowncasts = 0;
+			this.helpfulTypes = null;
+			//this.helpfulTypes = getHelpfulTypesMap(maxExprDepth, monitor);
 			
 			ArrayList<FullyEvaluatedExpression> results = genAllExprs(maxExprDepth, property, searchConstructors, searchOperators, synthesisDialog, monitor);
 
@@ -558,7 +561,7 @@ public final class ExpressionGenerator {
     		for (TypedExpression e : nextLevel) {
     			if (depth < maxDepth || isHelpfulType(e.getType(), depth, maxDepth))  // Note that this relies on the fact that something helpful for depth>=2 will be helpful for depth>=1.  If this changes, we'll need to call it again.
     				curLevel.add(e);
-    			else if (isHelpfulWithDowncast(e.getValue()))  // If we're at the maximum depth and an expression is helpful with a downcast, downcast it.
+    			else if (depth == maxDepth && isHelpfulWithDowncast(e.getValue()))  // If we're at the maximum depth and an expression is helpful with a downcast, downcast it.
     				curLevel.add(downcast(e));
     		}
     		
@@ -1111,6 +1114,227 @@ public final class ExpressionGenerator {
 	}
 	
 	/**
+	 * Finds the types that might be helpful for the given search.
+	 * This eliminates types that we definitely do not need to search
+	 * and for each types tells the maximum depth at which it is
+	 * useful.
+	 * For example, if A can get B which can get C and we want a C,
+	 * then C is useful at all depths, B is useful at <=maxDepth-1, and
+	 * A at <=maxDepth-2.  Specifically, A is not useful at maxDepth-1,
+	 * since it takes two steps to get a C from it.
+	 * As this example suggests, we do a backwards search from the
+	 * types for which we are searching.  To help with this, we first
+	 * build a mapping that tells us which types are used to generate
+	 * the given types.
+	 * TODO: If I enable downcasting during the search, enable the bits here that work with that.  Test this if we do, since it might not be very helpful (e.g., if we see an Object, which are common thanks to generics, we have to assume everything is available).
+	 * TODO: This, specifically getTypeGen, is a bit slow.
+	 * TODO: I could make this more precise, by e.g., consider paired types and available depths (e.g., maybe we need A and B to get C, so if we have A but not B, A is not helpful either).
+	 * @param maxDepth The maximum search depth.
+	 * @param monitor The process monitor.
+	 * @return A mapping of useful types to the maximum depth at which
+	 * they are useful.  Types not in this mapping are not useful.  Returns
+	 * null if all types should be considered useful.
+	 * @throws DebugException
+	 * @throws JavaModelException
+	 */
+	private Map<String, Integer> getHelpfulTypesMap(int maxDepth, IProgressMonitor monitor) throws DebugException, JavaModelException {
+		if (typeConstraint instanceof MethodConstraint || typeConstraint instanceof FieldConstraint || typeConstraint instanceof UnknownConstraint)
+			return null;
+		curMonitor = SubMonitor.convert(monitor, "Finding useful types", IProgressMonitor.UNKNOWN);
+		Map<String, Set<String>> typeGen = getTypeGen(maxDepth, monitor);
+		Map<String, Set<String>> subtypes = new HashMap<String, Set<String>>();
+		Map<String, Set<String>> supertypes = new HashMap<String, Set<String>>();
+		getSubSuperTypes(typeGen, subtypes, supertypes);
+		Map<String, Integer> helpfulTypes = new HashMap<String, Integer>();
+		Set<String> processedTypes = new HashSet<String>();
+		Set<String> curTypes = new HashSet<String>();
+		//Set<String> superTypes = new HashSet<String>();
+		// Add the target types.
+		for (IJavaType constraintType: typeConstraint.getTypes(stack, target, typeCache))
+			curTypes.add(constraintType.getName());
+		// Do the backwards search.
+		for (int depth = maxDepth; depth >= 0; depth--) {
+			Set<String> nextCurTypes = new HashSet<String>();
+			//Set<String> nextSuperTypes = new HashSet<String>();
+			for (String typeName: curTypes) {
+				for (String subTypeName: subtypes.get(typeName))
+					process(subTypeName, depth, processedTypes, typeGen, helpfulTypes, nextCurTypes);
+				//for (String superTypeName: supertypes.get(typeName))
+				//	process(superTypeName, depth, processedTypes, typeGen, helpfulTypes, nextSuperTypes);
+			}
+			//for (String typeName: superTypes)
+			//	process(typeName, depth, processedTypes, typeGen, helpfulTypes, nextSuperTypes);
+			monitor.worked(curTypes.size());
+			curTypes = nextCurTypes;
+			//superTypes = nextSuperTypes;
+		}
+		curMonitor.done();
+		return helpfulTypes;
+	}
+	
+	/**
+	 * Gets subtypes and supertypes of all types in the
+	 * typeGen map.
+	 * @param typeGen A map that contains types.
+	 * @param subtypes The map in which we store all subtypes.
+	 * @param supertypes The map in which we store all supertypes.
+	 * @throws DebugException
+	 */
+	private void getSubSuperTypes(Map<String, Set<String>> typeGen, Map<String, Set<String>> subtypes, Map<String, Set<String>> supertypes) throws DebugException {
+		Set<String> allTypes = getAllTypes(typeGen);
+		tryToLoad(allTypes);
+		for (String typeName: allTypes) {
+			for (IJavaType parentType: subtypeChecker.getSupertypes(EclipseUtils.getTypeAndLoadIfNeeded(typeName, stack, target, typeCache))) {
+				Utils.addToSetMap(subtypes, parentType.getName(), typeName);
+				Utils.addToSetMap(supertypes, typeName, parentType.getName());
+			}
+		}
+	}
+	
+	/**
+	 * Gets all the types referenced in the given map.
+	 * @param typeGen A map that contains types.
+	 * @return All the types referenced in the given map.
+	 */
+	private static Set<String> getAllTypes(Map<String, Set<String>> typeGen) {
+		Set<String> allTypes = new HashSet<String>();
+		for (Map.Entry<String, Set<String>> entry: typeGen.entrySet()) {
+			allTypes.add(entry.getKey());
+			for (String typeName: entry.getValue())
+				allTypes.add(typeName);
+		}
+		return allTypes;
+	}
+	
+	/**
+	 * Processes the given type by marking it as helpful and
+	 * preparing to search the types that can generate it.
+	 * @param typeName The current type.
+	 * @param depth The current depth.
+	 * @param processedTypes A list of all types we have processed,
+	 * which allows us to avoid unnecessary work.
+	 * @param typeGen A map that maps a type to all the types that
+	 * can be used to directly get it.
+	 * @param helpfulTypes The map we are building that maps useful
+	 * types to the maximum depth at which they are useful.
+	 * @param nextTypes The types we want to search next.
+	 */
+	private void process(String typeName, int depth, Set<String> processedTypes, Map<String, Set<String>> typeGen, Map<String, Integer> helpfulTypes, Set<String> nextTypes) {
+		if (processedTypes.contains(typeName))
+			return;
+		if (!helpfulTypes.containsKey(typeName))
+			helpfulTypes.put(typeName, depth);
+		Set<String> sources = typeGen.get(typeName);
+		if (sources != null)
+			nextTypes.addAll(sources);
+		processedTypes.add(typeName);  // As an optimization, avoid checking a type multiple times.  Because we're doing a BFS, the first time will have the maximum depth.
+
+	}
+	
+	/**
+	 * Builds a mapping of the types that can be used to build
+	 * the given type.
+	 * @param maxDepth The maximum depth to search.
+	 * @param monitor The progress monitor.z
+	 * @return A map that maps a type to all the types that
+	 * can be used to directly get it.
+	 * @throws DebugException
+	 * @throws JavaModelException
+	 */
+	private Map<String, Set<String>> getTypeGen(int maxDepth, IProgressMonitor monitor) throws DebugException, JavaModelException {
+		Map<String, Set<String>> typeGen = new HashMap<String, Set<String>>();
+		Set<String> processedTypes = new HashSet<String>();
+		Set<String> curTypes = new HashSet<String>();
+		// Initialize depth 0.
+		for (IJavaVariable l : stack.getLocalVariables())
+			curTypes.add(EclipseUtils.getTypeOfVariableAndLoadIfNeeded(l, stack).getName());
+		if (!stack.isStatic())
+			curTypes.add(stack.getDeclaringTypeName());
+		// Do the BFS search.
+		for (int depth = 1; depth <= maxDepth; depth++) {
+			tryToLoad(curTypes);
+			for (String typeName: curTypes) {
+				if (processedTypes.contains(typeName) || classBlacklist.contains(typeName))
+					continue;
+				IJavaType type = EclipseUtils.getTypeAndLoadIfNeeded(typeName, stack, target, typeCache);
+				addTypesFromCalls(typeGen, typeName, type, false, null);
+				addTypesFromFields(typeGen, typeName, type, false, null);
+				if (type instanceof IJavaArrayType) {  // Add {int,array_type} -> component type (for access) and array_type -> int (for length).
+					Utils.addToSetMap(typeGen, ((IJavaArrayType)type).getComponentType().getName(), typeName);
+					Utils.addToSetMap(typeGen, ((IJavaArrayType)type).getComponentType().getName(), "int");
+					Utils.addToSetMap(typeGen, "int", typeName);
+				}
+				processedTypes.add(typeName);  // As an optimization, ensure we don't waste time re-processing types.
+				monitor.worked(1);
+			}
+			curTypes = new HashSet<String>(typeGen.keySet());
+		}
+		// Add static accesses/calls to imported classes.
+		tryToLoad(importsSet);
+		for (IImportDeclaration imp : imports) {
+			String fullName = imp.getElementName();
+			if (!imp.isOnDemand()) {
+				if (Flags.isStatic(imp.getFlags())) {
+					String typeName = fullName.substring(0, fullName.lastIndexOf('.'));
+					if (processedTypes.contains(typeName))
+						continue;
+					IJavaReferenceType importedType = (IJavaReferenceType)EclipseUtils.getTypeAndLoadIfNeeded(typeName, stack, target, typeCache);
+					String shortName = EclipseUtils.getUnqualifiedName(fullName);
+					addTypesFromCalls(typeGen, typeName, importedType, true, shortName);
+					addTypesFromFields(typeGen, typeName, importedType, true, shortName);
+				} else {
+					if (processedTypes.contains(fullName) || classBlacklist.contains(fullName))
+						continue;
+					IJavaReferenceType importedType = (IJavaReferenceType)EclipseUtils.getTypeAndLoadIfNeeded(fullName, stack, target, typeCache);
+					addTypesFromCalls(typeGen, fullName, importedType, true, null);
+					addTypesFromFields(typeGen, fullName, importedType, true, null);
+				}
+			}
+		}
+		return typeGen;
+	}
+
+	/**
+	 * Adds types from method calls to the map of which types
+	 * are used to build other types.
+	 * @param typeGen The mapping of types to types used to build them.
+	 * @param typeName The name of the current type.
+	 * @param type The current type.
+	 * @param isStatic Whether we are only looking for static types.
+	 * @param targetName If this is non-null, only consider methods
+	 * with the given name.
+	 */
+	private void addTypesFromCalls(Map<String, Set<String>> typeGen, String typeName, IJavaType type, boolean isStatic, String targetName) {
+		for (Method method: getMethods(type, sideEffectHandler)) {
+			if (!isLegalMethod(method, thisType, false) || method.returnTypeName().equals("void") || (targetName != null && !targetName.equals(method.name())))
+				continue;
+			for (String argTypeName: method.argumentTypeNames())
+				Utils.addToSetMap(typeGen, method.returnTypeName(), argTypeName);
+			if (!isStatic || method.isStatic())  // Only call static methods if it's an import.
+				Utils.addToSetMap(typeGen, method.returnTypeName(), typeName);
+		}
+	}
+
+	/**
+	 * Adds types from field accesses to the map of which types
+	 * are used to build other types.
+	 * @param typeGen The mapping of types to types used to build them.
+	 * @param typeName The name of the current type.
+	 * @param type The current type.
+	 * @param isStatic Whether we are only looking for static types.
+	 * @param targetName If this is non-null, only consider fields
+	 * with the given name.
+	 */
+	private void addTypesFromFields(Map<String, Set<String>> typeGen, String typeName, IJavaType type, boolean isStatic, String targetName) {
+		for (Field field: getFields(type)) {
+			if (!isLegalField(field, thisType) || (targetName != null && !targetName.equals(field.name())))
+				continue;
+			if (!isStatic || field.isStatic())  // Only access static fields if it's an import.
+				Utils.addToSetMap(typeGen, field.typeName(), typeName);
+		}
+	}
+	
+	/**
 	 * Ensures that the call to the given method with the given
 	 * argument at the given index meets any known non-null
 	 * preconditions.
@@ -1323,13 +1547,6 @@ public final class ExpressionGenerator {
 	/**
 	 * Determines whether an expression of the given type can be
 	 * useful to us.
-	 * We currently assume that anything can be useful until the
-	 * outermost depth, since there are probably methods that
-	 * can take in anything, but that only the desired type
-	 * is helpful otherwise.
-	 * TODO (lowish priority): We could be smarter here, e.g.,
-	 * by pruning ints if the target is not an int and there
-	 * are no methods with int arguments and no arrays.
 	 * @param curType The type to test.
 	 * @param depth The current depth.
 	 * @param maxDepth The maximum search depth.
@@ -1339,9 +1556,10 @@ public final class ExpressionGenerator {
 	private boolean isHelpfulType(IJavaType curType, int depth, int maxDepth) throws DebugException {
 		if (curType != null && "V".equals(curType.getSignature()))  // Void things never return anything useful.
 			return false;
-		if (depth < maxDepth)
-			return true;
-		return typeConstraint.isFulfilledBy(curType, subtypeChecker, typeCache, stack, target);
+		if (curType == null || helpfulTypes == null)
+			return depth < maxDepth || typeConstraint.isFulfilledBy(curType, subtypeChecker, typeCache, stack, target);
+		Integer maxHelpfulDepth = helpfulTypes.get(curType.getName());
+		return maxHelpfulDepth != null && depth <= maxHelpfulDepth;
 	}
 	
 	/**
@@ -1648,6 +1866,8 @@ public final class ExpressionGenerator {
 		if (result == null)
 			return;
 		IJavaType type = result.getValue().getValue().getJavaType();
+		if (expressionMaker.getMethod(expr) != null)  // If this is a call, use the declared type of the method, not the dynamic type of the value.
+			type = EclipseUtils.getFullyQualifiedType(expressionMaker.getMethod(expr).returnTypeName(), stack, target, typeCache);
 		EvaluatedExpression valued = new EvaluatedExpression(expr, type, result);
 		if (newlyExpanded.contains(valued))
 			return;

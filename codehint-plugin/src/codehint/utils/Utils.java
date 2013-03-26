@@ -3,8 +3,10 @@ package codehint.utils;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 public class Utils {
 	
@@ -43,6 +45,18 @@ public class Utils {
 		if (!map.containsKey(key1))
 			map.put(key1, new HashMap<K2, V>());
 		map.get(key1).put(key2, value);
+	}
+	
+	/**
+	 * Adds the given key-value mapping to the given map.
+	 * @param map The map.
+	 * @param key The key.
+	 * @param value The value.
+	 */
+	public static <K, V> void addToSetMap(Map<K, Set<V>> map, K key, V value) {
+		if (!map.containsKey(key))
+			map.put(key, new HashSet<V>());
+		map.get(key).add(value);
 	}
 	
 	public static String plural(String str, String suffix, int count) {

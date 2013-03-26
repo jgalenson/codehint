@@ -1,5 +1,6 @@
 package codehint.exprgen;
 
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
@@ -8,9 +9,13 @@ import java.util.Set;
 import org.eclipse.debug.core.DebugException;
 import org.eclipse.jdt.debug.core.IJavaArrayType;
 import org.eclipse.jdt.debug.core.IJavaClassType;
+import org.eclipse.jdt.debug.core.IJavaDebugTarget;
 import org.eclipse.jdt.debug.core.IJavaInterfaceType;
 import org.eclipse.jdt.debug.core.IJavaReferenceType;
+import org.eclipse.jdt.debug.core.IJavaStackFrame;
 import org.eclipse.jdt.debug.core.IJavaType;
+
+import codehint.utils.EclipseUtils;
 
 import com.sun.jdi.ClassNotLoadedException;
 
@@ -21,9 +26,15 @@ import com.sun.jdi.ClassNotLoadedException;
 public class SubtypeChecker {
 	
 	private final Map<IJavaType, Set<IJavaType>> supertypesMap;
+	private final IJavaStackFrame stack;
+	private final IJavaDebugTarget target;
+	private final TypeCache typeCache;
 	
-	public SubtypeChecker() {
+	public SubtypeChecker(IJavaStackFrame stack, IJavaDebugTarget target, TypeCache typeCache) {
 		this.supertypesMap = new HashMap<IJavaType, Set<IJavaType>>();
+		this.stack = stack;
+		this.target = target;
+		this.typeCache = typeCache;
 	}
 	
 	/**
@@ -58,21 +69,7 @@ public class SubtypeChecker {
 			if (cur instanceof IJavaReferenceType) {
 				if ("java.lang.Object".equals(expected.getName()))  // Shortcut a common case.  Also, this ensures that interfaces are subtypes of Object.
 					return true;
-				// Compute supertypes and add to cache if not there.
-				if (!supertypesMap.containsKey(cur)) {
-					Set<IJavaType> supertypes = new HashSet<IJavaType>();
-					if (cur instanceof IJavaInterfaceType) {
-						addSuperInterfaces((IJavaInterfaceType)cur, supertypes);
-					} else if (cur instanceof IJavaClassType) {
-						for (IJavaClassType t = (IJavaClassType)cur; t != null; t = t.getSuperclass())
-							supertypes.add(t);
-						for (IJavaType t : ((IJavaClassType)cur).getAllInterfaces())
-							supertypes.add(t);
-					} else
-						assert false;
-					supertypesMap.put(cur, supertypes);
-				}
-				return supertypesMap.get(cur).contains(expected);
+				return getSupertypes(cur).contains(expected);
 			} else
 				return false;  // We already checked if the two types were .equal.
 		} catch (DebugException e) {
@@ -95,6 +92,42 @@ public class SubtypeChecker {
 		supertypes.add(t);
 		for (IJavaInterfaceType child : t.getSuperInterfaces())
 			addSuperInterfaces(child, supertypes);
+	}
+	
+	/**
+	 * Gets the supertypes of the given type.
+	 * @param type The type to check.
+	 * @return The supertypes of the given type.
+	 */
+	public Set<IJavaType> getSupertypes(IJavaType type) {
+		try {
+			if (type instanceof IJavaArrayType) {
+				Set<IJavaType> result = new HashSet<IJavaType>();
+				for (IJavaType parentElemType: getSupertypes(((IJavaArrayType)type).getComponentType()))
+					result.add(EclipseUtils.getFullyQualifiedType(parentElemType.getName() + "[]", stack, target, typeCache));
+				result.add(EclipseUtils.getFullyQualifiedType("java.lang.Object", stack, target, typeCache));
+				return result;
+			} else if (type instanceof IJavaReferenceType) {
+				if (!supertypesMap.containsKey(type)) {
+					Set<IJavaType> supertypes = new HashSet<IJavaType>();
+					if (type instanceof IJavaInterfaceType) {
+						addSuperInterfaces((IJavaInterfaceType)type, supertypes);
+					} else if (type instanceof IJavaClassType) {
+						for (IJavaClassType t = (IJavaClassType)type; t != null; t = t.getSuperclass())
+							supertypes.add(t);
+						for (IJavaType t : ((IJavaClassType)type).getAllInterfaces())
+							supertypes.add(t);
+					} else
+						assert false;
+					supertypesMap.put(type, supertypes);
+				}
+				return supertypesMap.get(type);
+			} else {
+				return Collections.singleton(type);
+			}
+		} catch (DebugException e) {
+			throw new RuntimeException(e);
+		}
 	}
 
 }
