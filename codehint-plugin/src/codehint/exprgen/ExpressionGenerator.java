@@ -996,7 +996,7 @@ public final class ExpressionGenerator {
 						receiver = expressionMaker.makeStaticName(EclipseUtils.sanitizeTypename(getShortestTypename(method.declaringType().name())), (IJavaReferenceType)EclipseUtils.getTypeAndLoadIfNeeded(method.declaringType().name(), stack, target, typeCache), valueCache, thread);
 					/*else if (isSubtype && ((ReferenceType)((JDIType)e.getType()).getUnderlyingType()).methodsByName(method.name(), method.signature()).isEmpty())
 						receiver = expressionMaker.makeParenthesized(downcast(receiver, curType));*/
-					int maxArgDepth = pruneManyArgCalls(method, allPossibleActuals, depth, depth - 1, receiver.getType() + "." + method.name());
+					int maxArgDepth = pruneManyArgCalls(method, allPossibleActuals, depth, depth - 1);
 					Set<Effect> receiverEffects = isConstructor ? Collections.<Effect>emptySet() : e.getResult().getEffects();
 					makeAllCalls(method, method.name(), receiver, returnType, ops, receiverEffects, argTypes, allPossibleActuals, new ArrayList<EvaluatedExpression>(allPossibleActuals.size()), depth, maxDepth, maxArgDepth, overloadChecker);
                     if (method.isStatic())
@@ -1058,12 +1058,10 @@ public final class ExpressionGenerator {
 	 * @param curDepth The current depth of expressions being
 	 * generated.
 	 * @param curMaxArgDepth The current maximum depth of the args.
-	 * @param methodToString A toString representation of the
-	 * method being called.
 	 * @return The maximum depth of arguments to this method.
 	 */
-	private int pruneManyArgCalls(Method method, ArrayList<ArrayList<EvaluatedExpression>> allPossibleActuals, int curDepth, int curMaxArgDepth, String methodToString) {
-		int maxArgDepth = pruneManyArgCalls(allPossibleActuals, curDepth, curMaxArgDepth, methodToString);
+	private int pruneManyArgCalls(Method method, ArrayList<ArrayList<EvaluatedExpression>> allPossibleActuals, int curDepth, int curMaxArgDepth) {
+		int maxArgDepth = pruneManyArgCalls(allPossibleActuals, curDepth, curMaxArgDepth, method);
 		if (maxArgDepth < curMaxArgDepth) {
 			if (!prunedDepths.containsKey(method))
 				prunedDepths.put(method, curDepth);
@@ -1082,19 +1080,20 @@ public final class ExpressionGenerator {
 	 * @param curDepth The current depth of expressions being
 	 * generated.
 	 * @param curMaxArgDepth The current maximum depth of the args.
-	 * @param methodToString A toString representation of the
-	 * method being called.
+	 * @param method The method being called.
 	 * @return The maximum depth of arguments to this method.
 	 */
-	private int pruneManyArgCalls(ArrayList<? extends ArrayList<? extends TypedExpression>> allPossibleActuals, int curDepth, int curMaxArgDepth, String methodToString) {
+	private int pruneManyArgCalls(ArrayList<? extends ArrayList<? extends TypedExpression>> allPossibleActuals, int curDepth, int curMaxArgDepth, Method method) {
 		long numCombinations = getNumCalls(allPossibleActuals);
-		if (numCombinations > 50 * Math.pow(10, Math.max(0, curDepth - 1))) {  // 50 at depth 1, 500 at depth 2, 5000 at depth 3, etc.
+		if (numCombinations > getPruneThreshold(curDepth, method)) {
 			for (ArrayList<? extends TypedExpression> possibleActuals: allPossibleActuals)
 				for (Iterator<? extends TypedExpression> it = possibleActuals.iterator(); it.hasNext(); )
 					if (getDepth(it.next()) == curMaxArgDepth)
 						it.remove();
-			//System.out.println("Pruned call to " + methodToString + " from " + numCombinations + " to " + getNumCalls(allPossibleActuals));
-			return pruneManyArgCalls(allPossibleActuals, curDepth, curMaxArgDepth - 1, methodToString);
+			//System.out.println("Pruned call to " + (method.declaringType().name() + "." + method.name()) + " from " + numCombinations + " to " + getNumCalls(allPossibleActuals));
+			//if (numCombinations <= 50 * Math.pow(10, Math.max(0, curDepth - 1)))
+			//	System.out.println("Helpfully reduced prune threshold for " + method.declaringType() + "." + Weights.getMethodKey(method));
+			return pruneManyArgCalls(allPossibleActuals, curDepth, curMaxArgDepth - 1, method);
 		}
 		return curMaxArgDepth;
 	}
@@ -1111,6 +1110,21 @@ public final class ExpressionGenerator {
 		for (ArrayList<? extends TypedExpression> possibleActuals: allPossibleActuals)
 			total *= possibleActuals.size();
 		return total;
+	}
+	
+	/**
+	 * Gets the threshold for the number of calls at
+	 * which we start pruning.
+	 * @param curDepth The current search depth.
+	 * @param method The method being called.
+	 * @return The threshold for the number of calls
+	 * at which we start pruning.
+	 */
+	private int getPruneThreshold(int curDepth, Method method) {
+		int depthFactor = curDepth - 1;
+		if (weights.isUncommon(method.declaringType().name(), Weights.getMethodKey(method)))
+			depthFactor--;
+		return (int)(50 * Math.pow(10, Math.max(0, depthFactor)));  // 50 at depth 1, 500 at depth 2, 5000 at depth 3, etc.
 	}
 	
 	/**
@@ -2095,7 +2109,7 @@ public final class ExpressionGenerator {
 			argConstraints.add(argConstraint);
 			curArgEffects = expressionMaker.getExpressionResult(curArg, curArgEffects).getEffects();
 		}
-		pruneManyArgCalls(newArguments, curDepth, curDepth - 1, method.name());
+		pruneManyArgCalls(newArguments, curDepth, curDepth - 1, method);
 		List<Expression> newCalls = new ArrayList<Expression>();
 		for (Expression e : getEquivalentExpressionsOrGiven(expression, new MethodConstraint(name, UnknownConstraint.getUnknownConstraint(), argConstraints, sideEffectHandler.isHandlingSideEffects()), curEffects))
 			if (e instanceof TypeLiteral || getDepth(e) < curDepth)

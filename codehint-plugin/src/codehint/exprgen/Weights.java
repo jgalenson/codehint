@@ -46,7 +46,7 @@ public class Weights {
 		return averageWeight;
 	}
 	
-	public long getTotal() {
+	private long getTotal() {
 		return total;
 	}
 	
@@ -75,6 +75,19 @@ public class Weights {
 
 	public static String getMethodKey(Method method) {
 		return (method.isConstructor() ? "" : method.name()) + method.signature();
+	}
+	
+	public boolean isUncommon(String typeName, String key) {
+		Map<String, Integer> calls = weights.get(typeName);
+		if (calls == null)
+			return false;
+		Integer numCallsTo = calls.get(key);
+		if (numCallsTo == null)
+			return true;
+		int numCallsOn = 0;
+		for (Integer n: calls.values())
+			numCallsOn += n;
+		return numCallsTo < ((numCallsOn / (double)calls.size()) / 5);
 	}
 	
 	/*private double getMethodWeightComplete(Method method, IJavaClassType type) throws DebugException {
