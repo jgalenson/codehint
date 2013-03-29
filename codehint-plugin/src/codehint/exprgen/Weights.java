@@ -6,6 +6,7 @@ import java.io.ObjectInputStream;
 import java.util.Map;
 import java.util.zip.GZIPInputStream;
 
+import com.sun.jdi.Field;
 import com.sun.jdi.Method;
 
 import codehint.utils.EclipseUtils;
@@ -23,6 +24,7 @@ import codehint.utils.EclipseUtils;
 public class Weights {
 
 	private final Map<String, Map<String, Integer>> weights;
+	private final Map<String, Map<String, Integer>> methodsForConstants;
 	private final double averageWeight;
 	private final long total;
 
@@ -30,6 +32,7 @@ public class Weights {
 		try {
 			ObjectInputStream is = new ObjectInputStream(new GZIPInputStream(EclipseUtils.getFileFromBundle("data" + System.getProperty("file.separator") + "weights.gz")));
 			weights = (Map<String, Map<String, Integer>>)is.readObject();
+			methodsForConstants = (Map<String, Map<String, Integer>>)is.readObject();
 			averageWeight = is.readDouble();
 			total = is.readLong();
 			is.close();
@@ -88,6 +91,21 @@ public class Weights {
 		for (Integer n: calls.values())
 			numCallsOn += n;
 		return numCallsTo < ((numCallsOn / (double)calls.size()) / 5);
+	}
+	
+	public boolean seenMethod(Method method) {
+		Map<String, Integer> calls = weights.get(method.declaringType().name());
+		if (calls == null)
+			return false;
+		return calls.get(getMethodKey(method)) != null;
+	}
+
+	public boolean isBadConstant(Method method, int i, Field field) {
+		Map<String, Integer> locations = methodsForConstants.get(field.declaringType().name() + "." + field.name());
+		if (locations == null)
+			return false;
+		Integer numUsesWith = locations.get(method.declaringType().name() + "~" + getMethodKey(method) + "~" + i);
+		return numUsesWith == null;
 	}
 	
 	/*private double getMethodWeightComplete(Method method, IJavaClassType type) throws DebugException {

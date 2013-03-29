@@ -255,7 +255,8 @@ public final class ExpressionGenerator {
 	private final TypedExpression one;
 	private final TypedExpression two;
 	private final Map<Integer, Integer> realDepths;
-	private final Map<Integer, Boolean> hasBads;
+	private final Map<Integer, Boolean> hasBadMethodsFields;
+	private final Map<Integer, Boolean> hasBadConstants;
 	// Cache the generated expressions
 	//private final Map<Pair<TypeConstraint, Integer>, Pair<ArrayList<FullyEvaluatedExpression>, ArrayList<TypedExpression>>> cachedExprs;
 
@@ -296,7 +297,8 @@ public final class ExpressionGenerator {
 		this.one = expressionMaker.makeNumber("1", target.newValue(1), intType, valueCache, thread);
 		this.two = expressionMaker.makeNumber("2", target.newValue(2), intType, valueCache, thread);
 		this.realDepths = new HashMap<Integer, Integer>();
-		this.hasBads = new HashMap<Integer, Boolean>();
+		this.hasBadMethodsFields = new HashMap<Integer, Boolean>();
+		this.hasBadConstants = new HashMap<Integer, Boolean>();
 		//this.cachedExprs = new HashMap<Pair<TypeConstraint, Integer>, Pair<ArrayList<FullyEvaluatedExpression>, ArrayList<TypedExpression>>>();
 	}
 	
@@ -2292,6 +2294,84 @@ public final class ExpressionGenerator {
     }
     
     /**
+     * Class that checks whether an expression contains a call
+     * that is mis-using a constant field.
+     */
+    private static class BadConstantChecker extends ASTVisitor {
+    	
+    	private final ExpressionMaker expressionMaker;
+    	private final Weights weights;
+    	private boolean hasBad;
+    	
+    	public BadConstantChecker(ExpressionMaker expressionMaker, Weights weights) {
+    		this.expressionMaker = expressionMaker;
+    		this.weights = weights;
+    		hasBad = false;
+    	}
+
+		@Override
+		public boolean visit(MethodInvocation node) {
+			Method method = expressionMaker.getMethod(node);
+			if (weights.seenMethod(method)) {
+				List<?> args = node.arguments();
+				for (int i = 0; i < args.size(); i++) {
+					Expression arg = (Expression)args.get(i);
+					if (arg instanceof FieldAccess) {
+						Field field = expressionMaker.getField(arg);
+						if (field != null && field.isPublic() && field.isStatic() && field.isFinal()) {
+							if (weights.isBadConstant(method, i, field)) {
+								hasBad = true;
+								return false;
+							}
+						}
+					}
+				}
+			}
+			return !hasBad;
+		}
+		
+		/**
+		 * Checks whether the given expression contains a call that
+		 * misuses a constant field.
+		 * @param e The expression to check.
+		 * @param expressionMaker The expression maker.
+		 * @param weights Weight data about methods and fields.
+		 * @param hasBadConstants Result cache to avoid recomputation
+		 * when possible.
+		 * @return Whether the given expression contains a call
+		 * that misuses a constant field.
+		 */
+		public static boolean hasBad(Expression e, ExpressionMaker expressionMaker, Weights weights, Map<Integer, Boolean> hasBadConstants) {
+			return hasBad(e, new BadConstantChecker(expressionMaker, weights), hasBadConstants);
+		}
+		
+		/**
+		 * Checks whether the given expression contains a call that
+		 * misuses a constant field.
+		 * @param e The expression to check.
+		 * @param checker The checker to use.
+		 * @param hasBadConstants Result cache to avoid recomputation
+		 * when possible.
+		 * @return Whether the given expression contains a call
+		 * that misuses a constant field.
+		 */
+		public static boolean hasBad(Expression e, BadConstantChecker checker, Map<Integer, Boolean> hasBadConstants) {
+			if (checker.hasBad)
+				return true;
+	    	int id = ExpressionMaker.getID(e);
+	    	Object hasBadConstantOpt = hasBadConstants.get(id);
+	    	if (hasBadConstantOpt != null) {
+	    		checker.hasBad = ((Boolean)hasBadConstantOpt).booleanValue();
+	    		return checker.hasBad;
+	    	}
+	    	e.accept(checker);
+	    	hasBadConstants.put(id, checker.hasBad);
+	    	return checker.hasBad;
+		}
+		
+    }
+    
+    /**
      * Gets the depth of the given expression including
      * heuristics including whether the expression is unique.
      * @param expr The expression whose depth we want.
@@ -2314,7 +2394,7 @@ public final class ExpressionGenerator {
     	Object depthOpt = realDepths.get(id);
     	if (depthOpt != null)
     		return ((Integer)depthOpt).intValue();
-		int depth = getDepthImpl(expr) + (UniqueASTChecker.isUnique(expr, varName) ? 0 : 1) + (BadMethodFieldChecker.hasBad(expr, expressionMaker, weights, hasBads) ? 1 : 0);
+		int depth = getDepthImpl(expr) + (UniqueASTChecker.isUnique(expr, varName) ? 0 : 1) + (BadMethodFieldChecker.hasBad(expr, expressionMaker, weights, hasBadMethodsFields) ? 1 : 0) + (BadConstantChecker.hasBad(expr, expressionMaker, weights, hasBadConstants) ? 1 : 0);
 		realDepths.put(id, depth);
 		return depth;
     }
@@ -2335,16 +2415,19 @@ public final class ExpressionGenerator {
     	for (TypedExpression arg: args)
     		depth = Math.max(depth, getDepthImpl(arg.getExpression()));
     	UniqueASTChecker uniqueChecker = new UniqueASTChecker(varName);
-    	BadMethodFieldChecker badChecker = new BadMethodFieldChecker(expressionMaker, weights);
+    	BadMethodFieldChecker badMethodFieldChecker = new BadMethodFieldChecker(expressionMaker, weights);
+    	BadConstantChecker badConstantChecker = new BadConstantChecker(expressionMaker, weights);
     	if (receiver != null) {
     		UniqueASTChecker.isUnique(receiver, uniqueChecker);
-			BadMethodFieldChecker.hasBad(receiver, badChecker, hasBads);
+			BadMethodFieldChecker.hasBad(receiver, badMethodFieldChecker, hasBadMethodsFields);
+			BadConstantChecker.hasBad(receiver, badConstantChecker, hasBadConstants);
     	}
     	for (TypedExpression arg: args) {
     		UniqueASTChecker.isUnique(arg.getExpression(), uniqueChecker);
-			BadMethodFieldChecker.hasBad(arg.getExpression(), badChecker, hasBads);
+			BadMethodFieldChecker.hasBad(arg.getExpression(), badMethodFieldChecker, hasBadMethodsFields);
+			BadConstantChecker.hasBad(arg.getExpression(), badConstantChecker, hasBadConstants);
     	}
-    	return depth + 1 + (uniqueChecker.isUnique ? 0 : 1) + (badChecker.hasBad || BadMethodFieldChecker.isBadMethod(method, receiver, weights) ? 1 : 0);
+    	return depth + 1 + (uniqueChecker.isUnique ? 0 : 1) + (badMethodFieldChecker.hasBad || BadMethodFieldChecker.isBadMethod(method, receiver, weights) ? 1 : 0) + (badConstantChecker.hasBad ? 1 : 0);
     }
 
     /**
