@@ -100,6 +100,7 @@ public final class EvaluationManager {
 	private final IJavaFieldVariable methodResultsField;
 	// As an optimization, we cache expressions that crash and do not evaluate them again.
 	private final Set<String> crashingExpressions;
+	private final boolean canUseJar;
 	
 	private InitialSynthesisDialog synthesisDialog;
 	private IProgressMonitor monitor;
@@ -126,6 +127,7 @@ public final class EvaluationManager {
 			this.valueCountField = implType.getField("valueCount");
 			this.fullCountField = implType.getField("fullCount");
 			this.methodResultsField = implType.getField("methodResults");
+			this.canUseJar = !engine.getCompiledExpression(IMPL_QUALIFIER + "valid", stack).hasErrors();  // If the jar is not on the classpath, strings using its type will not compile, so we must do something different.
 		} catch (DebugException e) {
 			throw new RuntimeException(e);
 		}
@@ -355,7 +357,7 @@ public final class EvaluationManager {
 			if (isFreeSearch && !isPrimitive)
 				curString.append("{\n");
 			for (Map.Entry<String, Pair<Integer, String>> newTemp: valueFlattener.getNewTemporaries().entrySet()) {
-				curString.append(" ").append(newTemp.getValue().second).append(" _$tmp").append(newTemp.getValue().first).append(" = (").append(newTemp.getValue().second).append(")").append(IMPL_QUALIFIER).append("methodResults[").append(methodResultsMap.get(newTemp.getKey())).append("];\n");
+				curString.append(" ").append(newTemp.getValue().second).append(" _$tmp").append(newTemp.getValue().first).append(" = (").append(newTemp.getValue().second).append(")").append(getQualifier(null)).append("methodResults[").append(methodResultsMap.get(newTemp.getKey())).append("];\n");
 				temporaries.put(newTemp.getKey(), newTemp.getValue().first);
 			}
 			String curRHSStr = curExprStr;
@@ -370,21 +372,27 @@ public final class EvaluationManager {
 			} else
 				valueStr = curRHSStr;
 			if (!validateStatically) {
-				curString.append(" ").append(IMPL_QUALIFIER).append("valueCount = ").append(numEvaluated + 1).append(";\n ");
+				if (canUseJar)
+					curString.append(" ").append(getQualifier(null)).append("valueCount = ").append(numEvaluated + 1).append(";\n ");
+				else
+					curString.append(" _$valueCountField.setInt(null, ").append(numEvaluated + 1).append(");\n ");
 				if (hasPropertyPrecondition)
 					curString.append("if (" + propertyPreconditions + ") {\n ");
 				curString.append("_$curValid = ").append(validVal).append(";\n ");
-				curString.append(IMPL_QUALIFIER).append("valid[").append(numEvaluated).append("] = _$curValid;\n");
+				curString.append(getQualifier(null)).append("valid[").append(numEvaluated).append("] = _$curValid;\n");
 			}
-			curString.append(" ").append(IMPL_QUALIFIER).append(valuesArrayName).append("[").append(numEvaluated).append("] = ").append(valueStr).append(";\n ");
+			curString.append(" ").append(getQualifier(null)).append(valuesArrayName).append("[").append(numEvaluated).append("] = ").append(valueStr).append(";\n ");
 			if (!isPrimitive) {
 				if (!validateStatically)
 					curString.append("if (_$curValid)\n  ");
-				curString.append(IMPL_QUALIFIER).append("toStrings[").append(numEvaluated).append("] = ").append(getToStringGetter(curTypedExpr)).append(";\n ");
+				curString.append(getQualifier(null)).append("toStrings[").append(numEvaluated).append("] = ").append(getToStringGetter(curTypedExpr)).append(";\n ");
 			}
 			if (hasPropertyPrecondition && !validateStatically)
 				curString.append(" }\n ");
-			curString.append(IMPL_QUALIFIER).append("fullCount = ").append(numEvaluated + 1).append(";\n");
+			if (canUseJar)
+				curString.append(getQualifier(null)).append("fullCount = ").append(numEvaluated + 1).append(";\n");
+			else
+				curString.append("_$fullCountField.setInt(null, ").append(numEvaluated + 1).append(");\n");
 			if (isFreeSearch && !isPrimitive)
 				curString.append("}\n");
 			expressionsStr.append("\n");
@@ -419,23 +427,56 @@ public final class EvaluationManager {
 		    newTypeString = type + newTypeString;
 		StringBuilder prefix = new StringBuilder();
 		prefix.append("{\n");
-		prefix.append(IMPL_QUALIFIER).append(valuesArrayName).append(" = new ").append(newTypeString).append(";\n");
+		prefix.append(getQualifier(type + "[]")).append(valuesArrayName).append(" = new ").append(newTypeString).append(";\n");
 		if (!validateStatically)
-			prefix.append(IMPL_QUALIFIER).append("valid = new boolean[").append(numEvaluated).append("];\n");
+			prefix.append(getQualifier("boolean[]")).append("valid = new boolean[").append(numEvaluated).append("];\n");
 		else
-			prefix.append(IMPL_QUALIFIER).append("valid = null;\n");
+			prefix.append(getQualifier("boolean[]")).append("valid = null;\n");
 		if (!arePrimitives)
-			prefix.append(IMPL_QUALIFIER).append("toStrings = new String[").append(numEvaluated).append("];\n");
+			prefix.append(getQualifier("String[]")).append("toStrings = new String[").append(numEvaluated).append("];\n");
 		else
-			prefix.append(IMPL_QUALIFIER).append("toStrings = null;\n");
-		prefix.append(IMPL_QUALIFIER).append("valueCount = 0;\n");
-		prefix.append(IMPL_QUALIFIER).append("fullCount = 0;\n");
+			prefix.append(getQualifier("String[]")).append("toStrings = null;\n");
+		prefix.append(getQualifier("int")).append("valueCount = 0;\n");
+		prefix.append(getQualifier("int")).append("fullCount = 0;\n");
 		if ((!validateStatically || !arePrimitives) && (!isFreeSearch || arePrimitives))
 			prefix.append(type).append(" _$curValue;\n");
 		if (!validateStatically)
 			prefix.append("boolean _$curValid;\n");
+		if (!canUseJar) {
+			// Get the impl jar.
+			prefix.append("java.lang.reflect.Field _$implClassField = System.getSecurityManager().getClass().getDeclaredField(\"codeHintImplClass\");\n");
+			prefix.append("_$implClassField.setAccessible(true);\n");
+			prefix.append("Class _$implClass = (Class)_$implClassField.get(null);\n");
+			// Setup local aliases
+			prefix.append("_$implClass.getDeclaredField(\"").append(valuesArrayName).append("\").set(null, ").append(valuesArrayName).append(");\n");
+			if (!validateStatically)
+				prefix.append("_$implClass.getDeclaredField(\"valid\").set(null, valid);\n");
+			if (!arePrimitives)
+				prefix.append("_$implClass.getDeclaredField(\"toStrings\").set(null, toStrings);\n");
+			prefix.append("Object[] methodResults = (Object[])_$implClass.getDeclaredField(\"methodResults\").get(null);\n");
+			// Setup integers.
+			prefix.append("java.lang.reflect.Field _$valueCountField = _$implClass.getDeclaredField(\"valueCount\");\n");
+			prefix.append("java.lang.reflect.Field _$fullCountField = _$implClass.getDeclaredField(\"fullCount\");\n");
+			prefix.append("_$valueCountField.setInt(null, 0);\n");
+			prefix.append("_$fullCountField.setInt(null, 0);\n");
+		}
 		expressionsStr.insert(0, prefix.toString());
 		expressionsStr.append("}");
+	}
+	
+	/**
+	 * Gets the qualifier to use for accesses to data structures
+	 * used for evaluation.  We need this because if we cannot
+	 * access the library jar, we cannot use the real ones and
+	 * instead alias them locally.
+	 * @param type The type of the field if this is a declaration
+	 * and we cannot access the library jar or null if we should
+	 * just return the qualifier itself.
+	 * @return The qualifier to use for accesses to data structures
+	 * used for evaluation, possibly with a type declaration.
+	 */
+	private String getQualifier(String type) {
+		return canUseJar ? IMPL_QUALIFIER : (type == null ? "" : type + " ");
 	}
 
 	/**
@@ -485,7 +526,7 @@ public final class EvaluationManager {
 			StringBuilder curString = new StringBuilder();
 			curString.append("{\n ");
 			for (Map.Entry<String, Pair<Integer, String>> newTemp: valueFlattener.getNewTemporaries().entrySet())
-				curString.append(newTemp.getValue().second).append(" _$tmp").append(newTemp.getValue().first).append(" = (").append(newTemp.getValue().second).append(")").append(IMPL_QUALIFIER).append("methodResults[").append(methodResultsMap.get(newTemp.getKey())).append("];\n");
+				curString.append(newTemp.getValue().second).append(" _$tmp").append(newTemp.getValue().first).append(" = (").append(newTemp.getValue().second).append(")").append(getQualifier(null)).append("methodResults[").append(methodResultsMap.get(newTemp.getKey())).append("];\n");
 			String typeName = isFreeSearch && "Object".equals(type) ? (expr.getType() == null ? "Object" : expr.getType().getName()) : type;
 			curString.append(typeName).append(" _$curValue = ").append(flattenedExprStr).append(";\n ");
 			StringBuilder curStringWithSpec = new StringBuilder(curString.toString());

@@ -16,6 +16,8 @@ class SynthesisSecurityManager extends SecurityManager {
 	}
 
 	private final SecurityManager oldSecurityManager;
+	@SuppressWarnings("unused")
+	private static final Class<CodeHintImpl> codeHintImplClass = CodeHintImpl.class;
 	private boolean disabled;
 	
 	public SynthesisSecurityManager() {
@@ -80,5 +82,4 @@ class SynthesisSecurityManager extends SecurityManager {
     	if (clazz.getName().equals("sun.misc.Unsafe"))
     		throw new SynthesisSecurityException();
     }*/
-
 }

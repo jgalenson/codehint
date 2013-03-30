@@ -1235,7 +1235,7 @@ public final class ExpressionGenerator {
 	 * types to the maximum depth at which they are useful.
 	 * @param nextTypes The types we want to search next.
 	 */
-	private void process(String typeName, int depth, Set<String> processedTypes, Map<String, Set<String>> typeGen, Map<String, Integer> helpfulTypes, Set<String> nextTypes) {
+	private static void process(String typeName, int depth, Set<String> processedTypes, Map<String, Set<String>> typeGen, Map<String, Integer> helpfulTypes, Set<String> nextTypes) {
 		if (processedTypes.contains(typeName))
 			return;
 		if (!helpfulTypes.containsKey(typeName))

@@ -59,7 +59,6 @@ import codehint.utils.EclipseUtils;
 import codehint.utils.Utils;
 
 import com.sun.jdi.ClassNotLoadedException;
-import com.sun.jdi.ClassType;
 import com.sun.jdi.Field;
 import com.sun.jdi.Method;
 
