@@ -271,6 +271,7 @@ public final class ExpressionGenerator {
 	private Set<String> staticAccesses;
 	private int numFailedDowncasts;
 	private Map<String, Integer> helpfulTypes;
+	private int numBooleansSeen;
 	
 	public ExpressionGenerator(IJavaDebugTarget target, IJavaStackFrame stack, SideEffectHandler sideEffectHandler, ExpressionMaker expressionMaker, SubtypeChecker subtypeChecker, TypeCache typeCache, ValueCache valueCache, EvaluationManager evalManager, StaticEvaluator staticEvaluator, Weights weights) {
 		this.target = target;
@@ -335,6 +336,7 @@ public final class ExpressionGenerator {
 			this.numFailedDowncasts = 0;
 			this.helpfulTypes = null;
 			//this.helpfulTypes = getHelpfulTypesMap(maxExprDepth, monitor);
+			this.numBooleansSeen = 0;
 			
 			ArrayList<FullyEvaluatedExpression> results = genAllExprs(maxExprDepth, property, searchConstructors, searchOperators, synthesisDialog, monitor);
 
@@ -946,8 +948,12 @@ public final class ExpressionGenerator {
 		//String objTypeName = isStatic ? e.getExpression().toString() : objTypeImpl.name();
 		Method stackMethod = ((JDIStackFrame)stack).getUnderlyingMethod();
 		IJavaType curType = /*!isStatic && e.getValue() != null ? e.getValue().getJavaType() :*/ e.getType();
-		/*while (curType.getName().indexOf('$') != -1 && curType instanceof IJavaClassType && project.findType(curType.getName()).isAnonymous())
+		/*while (curType.getName().indexOf('$') != -1 && curType instanceof IJavaClassType) {
+			IType itype = project.findType(curType.getName());
+			if (itype == null || !itype.isAnonymous())
+				break;
 			curType = ((IJavaClassType)curType).getSuperclass();
+		}
 		boolean isSubtype = !curType.equals(e.getType());*/
 		List<Method> legalMethods = getMethods(curType, sideEffectHandler);
 		OverloadChecker overloadChecker = new OverloadChecker(curType, stack, target, typeCache, subtypeChecker);
@@ -1541,8 +1547,11 @@ public final class ExpressionGenerator {
 			if (result != null && curEquivalences != null && curEquivalences.containsKey(result))
 				addEquivalentExpression(curEquivalences.get(result), (EvaluatedExpression)e);
 			else {
-				if (e.getValue() != null)
+				if (e.getValue() != null) {
 					addEquivalentExpressionOnlyIfNewValue((EvaluatedExpression)e, result, curEffects);
+					if (booleanType.equals(e.getType()))
+						numBooleansSeen++;
+				}
 				list.add(e);
 			}
 		}
@@ -2394,7 +2403,15 @@ public final class ExpressionGenerator {
     	Object depthOpt = realDepths.get(id);
     	if (depthOpt != null)
     		return ((Integer)depthOpt).intValue();
-		int depth = getDepthImpl(expr) + (UniqueASTChecker.isUnique(expr, varName) ? 0 : 1) + (BadMethodFieldChecker.hasBad(expr, expressionMaker, weights, hasBadMethodsFields) ? 1 : 0) + (BadConstantChecker.hasBad(expr, expressionMaker, weights, hasBadConstants) ? 1 : 0);
+    	IJavaType exprType = null;
+    	try {
+			Result result = expressionMaker.getExpressionResult(expr, Collections.<Effect>emptySet());
+			if (result != null)  // result can be null if we are expanding equivalences.
+				exprType = result.getValue().getValue().getJavaType();
+		} catch (DebugException e) {
+			throw new RuntimeException(e);
+		}
+		int depth = getDepthImpl(expr) + (UniqueASTChecker.isUnique(expr, varName) ? 0 : 1) + (BadMethodFieldChecker.hasBad(expr, expressionMaker, weights, hasBadMethodsFields) ? 1 : 0) + (BadConstantChecker.hasBad(expr, expressionMaker, weights, hasBadConstants) ? 1 : 0) + (numBooleansSeen == 2 && booleanType.equals(exprType) ? 1 : 0);
 		realDepths.put(id, depth);
 		return depth;
     }
@@ -2427,7 +2444,7 @@ public final class ExpressionGenerator {
 			BadMethodFieldChecker.hasBad(arg.getExpression(), badMethodFieldChecker, hasBadMethodsFields);
 			BadConstantChecker.hasBad(arg.getExpression(), badConstantChecker, hasBadConstants);
     	}
-    	return depth + 1 + (uniqueChecker.isUnique ? 0 : 1) + (badMethodFieldChecker.hasBad || BadMethodFieldChecker.isBadMethod(method, receiver, weights) ? 1 : 0) + (badConstantChecker.hasBad ? 1 : 0);
+    	return depth + 1 + (uniqueChecker.isUnique ? 0 : 1) + (badMethodFieldChecker.hasBad || BadMethodFieldChecker.isBadMethod(method, receiver, weights) ? 1 : 0) + (badConstantChecker.hasBad ? 1 : 0) + (numBooleansSeen == 2 && "boolean".equals(method.returnTypeName()) ? 1 : 0);
     }
 
     /**
