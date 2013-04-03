@@ -705,10 +705,10 @@ public final class ExpressionGenerator {
     			// Extra things
     			{
     				// Field accesses from static scope.
-    				if (stack.isStatic() && !stack.getReceivingTypeName().contains("<"))  // TODO: Allow referring to generic classes (and below).
+    				if ((stack.isStatic() || stack.isConstructor()) && !stack.getReceivingTypeName().contains("<"))  // TODO: Allow referring to generic classes (and below).
     					addFieldAccesses(expressionMaker.makeStaticName(stack.getReceivingTypeName(), thisType, valueCache, thread), curLevel, depth, maxDepth, null);
     				// Method calls from static scope.
-    				if (stack.isStatic() && !stack.getReceivingTypeName().contains("<"))
+    				if ((stack.isStatic() || stack.isConstructor()) && !stack.getReceivingTypeName().contains("<"))
     					addMethodCalls(expressionMaker.makeStaticName(stack.getReceivingTypeName(), thisType, valueCache, thread), nextLevel, curLevel, depth, maxDepth, null);
     				// Accesses/calls to static fields/methods.
     				for (IJavaReferenceType type : objectInterfaceTypes) {
@@ -1004,9 +1004,12 @@ public final class ExpressionGenerator {
 						receiver = expressionMaker.makeStaticName(EclipseUtils.sanitizeTypename(getShortestTypename(method.declaringType().name())), (IJavaReferenceType)EclipseUtils.getTypeAndLoadIfNeeded(method.declaringType().name(), stack, target, typeCache), valueCache, thread);
 					/*else if (isSubtype && ((ReferenceType)((JDIType)e.getType()).getUnderlyingType()).methodsByName(method.name(), method.signature()).isEmpty())
 						receiver = expressionMaker.makeParenthesized(downcast(receiver, curType));*/
+					String name = method.name();
+					if (method.isConstructor())
+						name = getShortestTypename(receiver.getType().getName());
 					int maxArgDepth = pruneManyArgCalls(method, allPossibleActuals, depth, depth - 1);
 					Set<Effect> receiverEffects = isConstructor ? Collections.<Effect>emptySet() : e.getResult().getEffects();
-					makeAllCalls(method, method.name(), receiver, returnType, ops, receiverEffects, argTypes, allPossibleActuals, new ArrayList<EvaluatedExpression>(allPossibleActuals.size()), depth, maxDepth, maxArgDepth, overloadChecker);
+					makeAllCalls(method, name, receiver, returnType, ops, receiverEffects, argTypes, allPossibleActuals, new ArrayList<EvaluatedExpression>(allPossibleActuals.size()), depth, maxDepth, maxArgDepth, overloadChecker);
                     if (method.isStatic())
                         staticAccesses.add(method.declaringType().name() + " " + method.name() + " " + method.signature());
 				}

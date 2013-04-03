@@ -1101,7 +1101,12 @@ public final class EclipseUtils {
 				loadClass(var.getReferenceTypeName(), stack);
 				return var.getJavaType();
 			} catch (DebugException e2) {
-				throw new RuntimeException(e1);
+				try {
+					loadClass(var.getSignature().substring(1, var.getSignature().length() - 1).replace("/", "."), stack);
+					return var.getJavaType();
+				} catch (DebugException e3) {
+					throw new RuntimeException(e1);
+				}
 			}
 		}
     }

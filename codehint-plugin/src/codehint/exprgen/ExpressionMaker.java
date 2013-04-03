@@ -638,12 +638,7 @@ public class ExpressionMaker {
 			result = new Result(value, valueCache, thread);
 		TypedExpression e = null;
 		if (receiver.getExpression() == null) {
-			assert "<init>".equals(name);
-			try {
-				e = makeClassInstanceCreation(receiver.getType(), args, result);
-			} catch (DebugException ex) {
-				throw new RuntimeException(ex);
-			}
+			e = makeClassInstanceCreation(receiver.getType(), name, args, result);
 		} else {
 			if (receiver.getExpression() instanceof ThisExpression || receiver.getType().equals(thisType))
 				receiver = null;  // Don't use a receiver if it is null or the this type.
@@ -734,9 +729,9 @@ public class ExpressionMaker {
 	}
 
 	@SuppressWarnings("unchecked")
-	private TypedExpression makeClassInstanceCreation(IJavaType type, ArrayList<? extends TypedExpression> args, Result result) throws DebugException {
+	private TypedExpression makeClassInstanceCreation(IJavaType type, String name, ArrayList<? extends TypedExpression> args, Result result) {
 		ClassInstanceCreation e = ast.newClassInstanceCreation();
-		e.setType(ast.newSimpleType(makeName(EclipseUtils.sanitizeTypename(type.getName()))));
+		e.setType(ast.newSimpleType(makeName(EclipseUtils.sanitizeTypename(name))));
 		for (TypedExpression ex: args)
 			e.arguments().add(ASTCopyer.copy(ex.getExpression()));
 		setID(e);
