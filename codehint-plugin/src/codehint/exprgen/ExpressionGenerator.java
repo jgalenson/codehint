@@ -839,7 +839,7 @@ public final class ExpressionGenerator {
 				continue;
 			if (targetName != null && !targetName.equals(field.name()))
 				continue;
-            IField ifield = getIField(field);
+            IField ifield = EclipseUtils.getIField(field, project);
             if (ifield != null && Flags.isDeprecated(ifield.getFlags()))
             	continue;
 			IJavaType fieldType = EclipseUtils.getTypeAndLoadIfNeeded(field.typeName(), stack, target, typeCache);
@@ -857,20 +857,6 @@ public final class ExpressionGenerator {
 					staticAccesses.add(field.declaringType().name() + " " + field.name());
 			}
 		}
-	}
-	
-	/**
-	 * Gets the IField associated with the given field.
-	 * @param field The field.
-	 * @return The IField associated with the given field.
-	 * @throws DebugException
-	 * @throws JavaModelException
-	 */
-	private IField getIField(Field field) throws JavaModelException {
-		IType itype = project.findType(field.declaringType().name());
-		if (itype == null)
-			return null;
-		return itype.getField(field.name());
 	}
 	
 	/**

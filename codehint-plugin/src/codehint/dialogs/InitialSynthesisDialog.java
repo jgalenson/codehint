@@ -10,9 +10,12 @@ import org.eclipse.core.runtime.Status;
 import org.eclipse.core.runtime.SubMonitor;
 import org.eclipse.core.runtime.jobs.Job;
 import org.eclipse.debug.core.DebugException;
+import org.eclipse.jdt.core.IField;
 import org.eclipse.jdt.core.IJavaProject;
 import org.eclipse.jdt.core.IMethod;
 import org.eclipse.jdt.core.JavaModelException;
+import org.eclipse.jdt.core.dom.CastExpression;
+import org.eclipse.jdt.core.dom.Expression;
 import org.eclipse.jdt.debug.core.IJavaDebugTarget;
 import org.eclipse.jdt.debug.core.IJavaPrimitiveValue;
 import org.eclipse.jdt.debug.core.IJavaStackFrame;
@@ -48,6 +51,8 @@ import org.eclipse.swt.widgets.Table;
 import org.eclipse.swt.widgets.TableColumn;
 import org.eclipse.swt.widgets.TableItem;
 import org.eclipse.ui.PlatformUI;
+
+import com.sun.jdi.Field;
 import com.sun.jdi.Method;
 
 import codehint.Activator;
@@ -465,13 +470,22 @@ public class InitialSynthesisDialog extends SynthesisDialog {
 	
 	private String getJavadoc(FullyEvaluatedExpression expr, ExpressionMaker expressionMaker) {
 		try {
-			Method method = expressionMaker.getMethod(expr.getExpression());
-			if (method == null)
-				return null;
-			IMethod imethod = EclipseUtils.getIMethod(method, project);
-			if (imethod == null)
-				return null;
-			return imethod.getAttachedJavadoc(null);
+			Expression e = expr.getExpression();
+			if (e instanceof CastExpression)
+				e = ((CastExpression)e).getExpression();
+			Method method = expressionMaker.getMethod(e);
+			if (method != null) {
+				IMethod imethod = EclipseUtils.getIMethod(method, project);
+				if (imethod != null)
+					return imethod.getAttachedJavadoc(null);
+			}
+			Field field = expressionMaker.getField(e);
+			if (field != null) {
+				IField ifield = EclipseUtils.getIField(field, project);
+				if (ifield != null)
+					return ifield.getAttachedJavadoc(null);
+			}
+			return null;
 		} catch (JavaModelException e) {
 			throw new RuntimeException(e);
 		} catch (DebugException e) {
