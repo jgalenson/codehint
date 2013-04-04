@@ -1,6 +1,6 @@
 # CodeHint
 
-CodeHint is a tool that synthesizes code from user-provided partial dynamic specifications of the desired behavior.
+CodeHint is a tool that synthesizes code from user-provided partial dynamic specifications of the desired behavior.  [Here](http://www.cs.berkeley.edu/~joel/codehint/demo.html) is a demo.
 
 If you find any bugs, would like to request any features, or have any general comments, please email joel at cs dot berkeley dot edu.
 
