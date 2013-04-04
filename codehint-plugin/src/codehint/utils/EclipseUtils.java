@@ -24,6 +24,7 @@ import org.eclipse.debug.core.model.IStackFrame;
 import org.eclipse.debug.core.model.IThread;
 import org.eclipse.debug.core.model.IVariable;
 import org.eclipse.debug.ui.DebugUITools;
+import org.eclipse.jdt.core.IField;
 import org.eclipse.jdt.core.IJavaElement;
 import org.eclipse.jdt.core.IJavaProject;
 import org.eclipse.jdt.core.IMethod;
@@ -58,6 +59,7 @@ import org.eclipse.ui.IWorkbenchPage;
 import org.eclipse.ui.PlatformUI;
 import org.eclipse.ui.texteditor.ITextEditor;
 
+import com.sun.jdi.Field;
 import com.sun.jdi.InvocationException;
 import com.sun.jdi.Method;
 import com.sun.jdi.ObjectReference;
@@ -1180,6 +1182,20 @@ public final class EclipseUtils {
 			break;
 		curType = project.findType(parentName);*/
 		return best;
+	}
+	
+	/**
+	 * Gets the IField associated with the given field.
+	 * @param field The field.
+	 * @param project The java project.
+	 * @return The IField associated with the given field.
+	 * @throws JavaModelException
+	 */
+	public static IField getIField(Field field, IJavaProject project) throws JavaModelException {
+		IType itype = project.findType(field.declaringType().name());
+		if (itype == null)
+			return null;
+		return itype.getField(field.name());
 	}
     
     /**
