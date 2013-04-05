@@ -680,7 +680,7 @@ public final class EclipseUtils {
      * @param typeCache The type cache.
      * @return The type with the given name, or null.
      */
-    private static IJavaType getFullyQualifiedTypeIfExists(String fullTypeName, IJavaStackFrame stack, IJavaDebugTarget target, TypeCache typeCache) {
+    public static IJavaType getFullyQualifiedTypeIfExists(String fullTypeName, IJavaStackFrame stack, IJavaDebugTarget target, TypeCache typeCache) {
     	try {
     		IJavaType cachedType = typeCache.get(fullTypeName);
     		if (cachedType != null)
