@@ -389,10 +389,10 @@ public final class ExpressionGenerator {
 			curLevel = genOneLevel(nextLevel, depth, maxDepth, property, searchConstructors, searchOperators, monitor);
 			if (depth < maxDepth) {
 				evalManager.cacheMethodResults(nextLevel);
-				nextLevel = evaluateExpressions(curLevel, null, null, monitor, depth);
+				nextLevel = evaluateExpressions(curLevel, null, null, monitor, depth, maxDepth);
 			}
 		}
-		ArrayList<FullyEvaluatedExpression> results = evaluateExpressions(curLevel, property, synthesisDialog, monitor, maxDepth);
+		ArrayList<FullyEvaluatedExpression> results = evaluateExpressions(curLevel, property, synthesisDialog, monitor, maxDepth, maxDepth);
 		int numEvaled = getNumExprsSearched() - initNumCrashes;
 		
 		//printEquivalenceInfo();
@@ -423,11 +423,13 @@ public final class ExpressionGenerator {
 	 * expressions, or null if we should not pass anything.
 	 * @param monitor Progress monitor.
 	 * @param depth The current depth.
+	 * @param maxDepth The maximum depth to search (inclusive).
 	 * @return The expressions that do not crash and satisfy the
 	 * given pdspec if it is non-null.
 	 * @throws DebugException
 	 */
-	private ArrayList<FullyEvaluatedExpression> evaluateExpressions(List<TypedExpression> exprs, Property property, InitialSynthesisDialog synthesisDialog, IProgressMonitor monitor, @SuppressWarnings("unused") int depth) throws DebugException {
+	private ArrayList<FullyEvaluatedExpression> evaluateExpressions(List<TypedExpression> exprs, Property property, InitialSynthesisDialog synthesisDialog, IProgressMonitor monitor, int depth, int maxDepth) throws DebugException {
+		String taskNameSuffix = " " + (depth + 1) + "/" + (maxDepth + 1);
 		ArrayList<EvaluatedExpression> evaluatedExprs = new ArrayList<EvaluatedExpression>();
 		ArrayList<TypedExpression> unevaluatedExprs = new ArrayList<TypedExpression>();
 		
@@ -444,7 +446,7 @@ public final class ExpressionGenerator {
     	
     	if (property != null && unevaluatedExprs.isEmpty() && !EvaluationManager.canEvaluateStatically(property))
 			evalManager.cacheMethodResults(evaluatedExprs);
-		ArrayList<FullyEvaluatedExpression> results = evalManager.evaluateExpressions(evaluatedExprs, property, getVarType(), synthesisDialog, monitor);
+		ArrayList<FullyEvaluatedExpression> results = evalManager.evaluateExpressions(evaluatedExprs, property, getVarType(), synthesisDialog, monitor, taskNameSuffix);
     	if (unevaluatedExprs.size() > 0) {
 
     		/*int printCount = 0;
@@ -475,7 +477,7 @@ public final class ExpressionGenerator {
 	    	}*/
     		
     		// We evaluate these separately because we need to set their value and add them to our equivalent expressions map; we have already done this for those whose value we already knew.
-    		ArrayList<FullyEvaluatedExpression> result = evalManager.evaluateExpressions(unevaluatedExprs, property, getVarType(), synthesisDialog, monitor);
+    		ArrayList<FullyEvaluatedExpression> result = evalManager.evaluateExpressions(unevaluatedExprs, property, getVarType(), synthesisDialog, monitor, taskNameSuffix);
     		for (FullyEvaluatedExpression e: result) {
     			expressionMaker.setExpressionResult(e.getExpression(), e.getResult(), Collections.<Effect>emptySet());
     			addEquivalentExpression(e, Collections.<Effect>emptySet());
@@ -554,6 +556,7 @@ public final class ExpressionGenerator {
 		try {
 			ArrayList<TypedExpression> curLevel = new ArrayList<TypedExpression>();
 			IJavaType[] constraintTypes = typeConstraint.getTypes(stack, target, typeCache);
+			String taskName = "Expression generation " + (depth + 1) + "/" + (maxDepth + 1);
     		
     		// Get constants (but only at the top-level).
 			// We add these directly to curLevel and not equivalences because we don't want to substitute them anywhere else.
@@ -575,7 +578,7 @@ public final class ExpressionGenerator {
     		
     		// Add calls to the desired type's constructors (but only at the top-level).
     		if (searchConstructors && depth == maxDepth) {
-    			curMonitor = SubMonitor.convert(monitor, "Expression generation", IProgressMonitor.UNKNOWN);
+    			curMonitor = SubMonitor.convert(monitor, taskName, IProgressMonitor.UNKNOWN);
     			for (IJavaType type: constraintTypes)
     				if (type instanceof IJavaClassType)
     					addMethodCalls(new TypedExpression(null, type), nextLevel, curLevel, depth, maxDepth, null);
@@ -606,7 +609,7 @@ public final class ExpressionGenerator {
 				if (!sideEffectHandler.isHandlingSideEffects())  // TODO: Without this, the below line makes us crash on S1 at depth 2 with effect handling on.  Why?  But it's still helpful when effects are off (speeds up S1 at depth 1 noticeably), so I'm keeping it.
 					loadTypesFromMethods(nextLevel, imports);
 				this.staticAccesses = new HashSet<String>();  // Reset the list of static accesses to ensure that while we don't generate duplicate ones in a given depth, we can generate them again in different depths.
-    			curMonitor = SubMonitor.convert(monitor, "Expression generation", nextLevel.size() * 2 + imports.length);
+    			curMonitor = SubMonitor.convert(monitor, taskName, nextLevel.size() * 2 + imports.length);
     			addLocals(depth, maxDepth, curLevel);
     			// Get binary ops.
     			// We use string comparisons to avoid duplicates, e.g., x+y and y+x.

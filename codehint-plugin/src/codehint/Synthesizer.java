@@ -327,7 +327,7 @@ public class Synthesizer {
 		public void refine(RefinementSynthesisDialog synthesisDialog) {
 			Property property = synthesisDialog.getProperty();
    			try {
-   				ArrayList<FullyEvaluatedExpression> validExpressions = evalManager.evaluateExpressions(exprs, property, varType, null, new NullProgressMonitor());
+   				ArrayList<FullyEvaluatedExpression> validExpressions = evalManager.evaluateExpressions(exprs, property, varType, null, new NullProgressMonitor(), "");
             	synthesisDialog.setExpressions(validExpressions);
    			} catch (EvaluationError e) {
    		    	EclipseUtils.showError("Error", e.getMessage(), e);
@@ -435,7 +435,7 @@ public class Synthesizer {
         	// TODO: Run the following off the UI thread like above when we do the first synthesis.
         	EvaluationManager evalManager = new EvaluationManager(false, frame, new ExpressionMaker(frame, valueCache, typeCache, timeoutChecker, null, null), new SubtypeChecker(frame, target, typeCache), typeCache, valueCache, timeoutChecker);
         	evalManager.init();
-   			ArrayList<FullyEvaluatedExpression> exprs = evalManager.evaluateExpressions(initialExprs, null, null, null, new NullProgressMonitor());
+   			ArrayList<FullyEvaluatedExpression> exprs = evalManager.evaluateExpressions(initialExprs, null, null, null, new NullProgressMonitor(), "");
    			if (exprs.isEmpty()) {
    				EclipseUtils.showError("No valid expressions", "No valid expressions were found.", null);
    				throw new RuntimeException("No valid expressions");

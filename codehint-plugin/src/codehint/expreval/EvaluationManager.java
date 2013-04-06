@@ -148,10 +148,11 @@ public final class EvaluationManager {
 	 * @param monitor a progress monitor, or null if progress reporting and
 	 * cancellation are not desired.  The caller should not allocate a new
 	 * progress monitor; this method will do so.
+	 * @param taskNameSuffix The suffix of the name of the task to show on the progress monitor.
      * @return a list of non-crashing expressions that satisfy
      * the given property (or all that do not crash if it is null).
 	 */
-	public ArrayList<FullyEvaluatedExpression> evaluateExpressions(ArrayList<? extends TypedExpression> exprs, Property property, IJavaType varType, InitialSynthesisDialog synthesisDialog, IProgressMonitor monitor) {
+	public ArrayList<FullyEvaluatedExpression> evaluateExpressions(ArrayList<? extends TypedExpression> exprs, Property property, IJavaType varType, InitialSynthesisDialog synthesisDialog, IProgressMonitor monitor, String taskNameSuffix) {
 		try {
 			this.synthesisDialog = synthesisDialog;
 			validVal = property == null ? "true" : property.getReplacedString("_$curValue", stack);
@@ -162,7 +163,7 @@ public final class EvaluationManager {
     		boolean validateStatically = canEvaluateStatically(property);
 			Map<String, ArrayList<TypedExpression>> expressionsByType = getNonKnownCrashingExpressionByType(exprs);
 			int numExpressions = Utils.getNumValues(expressionsByType);
-			this.monitor = SubMonitor.convert(monitor, "Expression evaluation", numExpressions);
+			this.monitor = SubMonitor.convert(monitor, "Expression evaluation" + taskNameSuffix, numExpressions);
 			ArrayList<FullyEvaluatedExpression> validExprs = new ArrayList<FullyEvaluatedExpression>(numExpressions);
 			for (Map.Entry<String, ArrayList<TypedExpression>> expressionsOfType: expressionsByType.entrySet()) {
 				String type = EclipseUtils.sanitizeTypename(expressionsOfType.getKey());

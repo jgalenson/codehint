@@ -435,7 +435,7 @@ public final class ExpressionSkeleton {
 				ArrayList<TypedExpression> exprs = SkeletonFiller.fillSkeleton(expression, typeConstraint, extraDepth, searchConstructors, searchOperators, holeInfos, stack, target, expressionMaker, evalManager, staticEvaluator, expressionGenerator, sideEffectHandler, subtypeChecker, typeCache, valueCache, monitor);
 				EclipseUtils.log("Fitting " + exprs.size() + " potential expressions with extra depth " + extraDepth + " into skeleton " + sugaredString + ".");
 				DataCollector.log("skel-start", "spec=" + property.toString(), "skel=" + sugaredString, "exdep=" + extraDepth, "num=" + exprs.size());
-				results = evalManager.evaluateExpressions(exprs, property, varStaticType, synthesisDialog, monitor);
+				results = evalManager.evaluateExpressions(exprs, property, varStaticType, synthesisDialog, monitor, " of filled-in skeletons");
 				long time = System.currentTimeMillis() - startTime;
 				EclipseUtils.log("Synthesis found " + exprs.size() + " expressions of which " + results.size() + " were valid and took " + time + " milliseconds.");
 				DataCollector.log("skel-finish", "spec=" + property.toString(), "skel=" + sugaredString, "exdep=" + extraDepth, "num=" + exprs.size(), "valid=" + results.size(), "time=" + time);
@@ -1036,7 +1036,7 @@ public final class ExpressionSkeleton {
 								fakeTypedHoleInfos.add(new TypedExpression(e, type));
 							}
 							// Evaluate all the expressions.
-							values = evalManager.evaluateExpressions(fakeTypedHoleInfos, null, null, null, monitor);
+							values = evalManager.evaluateExpressions(fakeTypedHoleInfos, null, null, null, monitor, " of ??{...}");
 						} else  // If the user did not provide potential expressions, synthesize some.
 							values = expressionGenerator.generateExpression(null, curConstraint, null, searchConstructors, searchOperators, null, monitor, (holeInfos.size() == 1 ? SEARCH_DEPTH : SEARCH_DEPTH - 1) + extraDepth);
 						// Group the expressions by their type.
