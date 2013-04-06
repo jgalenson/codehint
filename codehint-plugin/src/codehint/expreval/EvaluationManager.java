@@ -852,8 +852,20 @@ public final class EvaluationManager {
 		try {
 			implType.sendMessage("init", "()V", new IJavaValue[] { }, thread);
 		} catch (DebugException e) {
-			throw new RuntimeException(e);
+			boolean result = EclipseUtils.showQuestion("Continue?", "We were unable to install a SecurityManager that prevents our synthesis from having external effects such as deleting files.  Would you still like to continue with the synthesis?");
+			if (!result)
+				throw new StopSynthesis();
 		}
+	}
+	
+	public static class StopSynthesis extends RuntimeException {
+		
+		private static final long serialVersionUID = 1L;
+
+		public StopSynthesis() {
+			super();
+		}
+		
 	}
 	
 	/**

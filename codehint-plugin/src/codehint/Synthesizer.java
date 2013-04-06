@@ -63,6 +63,7 @@ import codehint.dialogs.SynthesisDialog;
 import codehint.dialogs.TypePropertyDialog;
 import codehint.effects.SideEffectHandler;
 import codehint.expreval.EvaluationManager;
+import codehint.expreval.EvaluationManager.StopSynthesis;
 import codehint.expreval.TimeoutChecker;
 import codehint.expreval.EvaluationManager.EvaluationError;
 import codehint.expreval.FullyEvaluatedExpression;
@@ -252,6 +253,9 @@ public class Synthesizer {
 						EclipseUtils.showError("Error", e.getMessage(), null);
 						unfinished = true;
 						return Status.CANCEL_STATUS;
+					} catch (StopSynthesis e) {
+						unfinished = true;
+						return Status.CANCEL_STATUS;  // We want to quit silently here, not throw an exception to the user.
 					} catch (RuntimeException e) {
 						unfinished = true;
 						throw e;

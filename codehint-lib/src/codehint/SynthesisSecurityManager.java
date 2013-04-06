@@ -21,13 +21,19 @@ class SynthesisSecurityManager extends SecurityManager {
 	private boolean disabled;
 	
 	public SynthesisSecurityManager() {
+		disabled = true;
 		this.oldSecurityManager = System.getSecurityManager();
+	}
+	
+	protected void setEnabled() {
 		disabled = false;
 	}
 	
 	protected void disable() {
-		disabled = true;
-		System.setSecurityManager(oldSecurityManager);
+		boolean wasDisabled = disabled;
+		disabled = true;  // Disable before setting the SecurityManager so we don't fail our own check.
+		if (!wasDisabled)  // Only reset to the old SecurityManager if we actually set to this one.
+			System.setSecurityManager(oldSecurityManager);
 	}
 	
     @Override

@@ -48,6 +48,7 @@ import org.eclipse.jdt.debug.eval.ICompiledExpression;
 import org.eclipse.jdt.debug.eval.IEvaluationListener;
 import org.eclipse.jdt.debug.eval.IEvaluationResult;
 import org.eclipse.jface.dialogs.ErrorDialog;
+import org.eclipse.jface.dialogs.MessageDialog;
 import org.eclipse.jface.text.BadLocationException;
 import org.eclipse.jface.text.IDocument;
 import org.eclipse.swt.widgets.Display;
@@ -899,6 +900,23 @@ public final class EclipseUtils {
 				ErrorDialog.openError(getShell(), title, null, status);
 			}
 		});
+   	}
+   	
+   	/**
+   	 * Shows a question to the user.
+   	 * @param title The title of the dialog.
+   	 * @param text The text of the question.
+   	 * @return True if the user clicked yes and false otherwise.
+   	 */
+   	public static boolean showQuestion(final String title, final String text) {
+   		final boolean[] result = new boolean[] { false }; 
+		Display.getDefault().syncExec(new Runnable() {
+			@Override
+			public void run() {
+				result[0] = MessageDialog.openQuestion(getShell(), title, text);
+			}
+		});
+		return result[0];
    	}
    	
    	/**

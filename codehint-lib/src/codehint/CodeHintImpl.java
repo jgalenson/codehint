@@ -29,6 +29,7 @@ public final class CodeHintImpl {
 	public static void init() {
 		newSecurityManager = new SynthesisSecurityManager();
 		System.setSecurityManager(newSecurityManager);
+		newSecurityManager.setEnabled();
 	}
 	
 	public static void reset() {
@@ -44,8 +45,10 @@ public final class CodeHintImpl {
 		valid = null;
 		toStrings = null;
 		methodResults = null;
-		newSecurityManager.disable();
-		newSecurityManager = null;
+		if (newSecurityManager != null) {  // For some reason, this seems to become null when we fail to set a new SecurityManager.
+			newSecurityManager.disable();
+			newSecurityManager = null;
+		}
 	}
 
 }
