@@ -85,7 +85,9 @@ import codehint.property.ValueProperty;
 import codehint.utils.EclipseUtils;
 import codehint.utils.Utils;
 
+import com.sun.jdi.ClassType;
 import com.sun.jdi.Field;
+import com.sun.jdi.InterfaceType;
 import com.sun.jdi.Method;
 import com.sun.jdi.ReferenceType;
 
@@ -1006,7 +1008,7 @@ public final class ExpressionGenerator {
 					if (method.isStatic())
 						receiver = expressionMaker.makeStaticName(EclipseUtils.sanitizeTypename(getShortestTypename(method.declaringType().name())), (IJavaReferenceType)EclipseUtils.getTypeAndLoadIfNeeded(method.declaringType().name(), stack, target, typeCache), valueCache, thread);
 					else if (isSubtype && ((ReferenceType)((JDIType)e.getType()).getUnderlyingType()).methodsByName(method.name(), method.signature()).isEmpty())
-						receiver = expressionMaker.makeParenthesized(downcast(receiver, method.declaringType().name()));
+						receiver = expressionMaker.makeParenthesized(downcast(receiver, getDowncastTypeName(method).name()));
 					String name = method.name();
 					if (method.isConstructor())
 						name = getShortestTypename(receiver.getType().getName());
@@ -1140,6 +1142,42 @@ public final class ExpressionGenerator {
 		if (weights.isUncommon(method.declaringType().name(), Weights.getMethodKey(method)))
 			depthFactor--;
 		return (int)(50 * Math.pow(10, Math.max(0, depthFactor)));  // 50 at depth 1, 500 at depth 2, 5000 at depth 3, etc.
+	}
+	
+	/**
+	 * Gets the type to which we want to downcast calls to
+	 * the given method.  We heuristically try to choose one
+	 * of the types highest up in the hierarchy.
+	 * @param method The method we are calling.
+	 * @return The type to which we should downcast calls to
+	 * the given method.
+	 */
+	private static ReferenceType getDowncastTypeName(Method method) {
+		List<ReferenceType> candidates = new ArrayList<ReferenceType>();
+		candidates.add(method.declaringType());
+		// Do a BFS to find types highest in the hierarchy.
+		while (true) {
+			List<ReferenceType> newCandidates = new ArrayList<ReferenceType>();
+			for (ReferenceType type: candidates) {
+				if (type instanceof ClassType) {  // Add interface types first so we try to prefer them.
+					ClassType classType = (ClassType)type;
+					for (InterfaceType interfacetype: classType.interfaces())
+						if (!interfacetype.methodsByName(method.name(), method.signature()).isEmpty())
+							newCandidates.add(interfacetype);
+					ClassType supertype = classType.superclass();
+					if (supertype != null && !supertype.methodsByName(method.name(), method.signature()).isEmpty())
+						newCandidates.add(supertype);
+				} else {
+					for (InterfaceType interfacetype: ((InterfaceType)type).superinterfaces())
+						if (!interfacetype.methodsByName(method.name(), method.signature()).isEmpty())
+							newCandidates.add(interfacetype);
+				}
+			}
+			if (newCandidates.isEmpty())
+				break;
+			candidates = newCandidates;
+		}
+		return candidates.get(0);
 	}
 	
 	/**
