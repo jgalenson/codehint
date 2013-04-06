@@ -956,6 +956,7 @@ public final class ExpressionGenerator {
 				downcastTypes.add(supertype.getName());
 		}
 		List<Method> legalMethods = getMethods(curType, sideEffectHandler);
+		Set<String> calledMethods = new HashSet<String>();
 		OverloadChecker overloadChecker = new OverloadChecker(curType, stack, target, typeCache, subtypeChecker);
 		for (Method method : legalMethods) {
 			// Filter out java.lang.Object methods and fake methods like "<init>".  Note that if we don't filter out Object's methods we do getClass() and then call reflective methods, which is bad times.
@@ -978,6 +979,8 @@ public final class ExpressionGenerator {
             IMethod imethod = EclipseUtils.getIMethod(method, project);
             if (imethod != null && Flags.isDeprecated(imethod.getFlags()))
             	continue;
+            if (calledMethods.contains(method.name() + "~" + method.signature()))
+            	continue;  // visibleMethods can return duplicates, so we filter them out.
 			IJavaType returnType = isConstructor ? e.getType() : EclipseUtils.getTypeAndLoadIfNeeded(method.returnTypeName(), stack, target, typeCache);
 			/*if (returnType == null)
 				System.err.println("I cannot get the class of the return type of " + objTypeImpl.name() + "." + method.name() + "() (" + method.returnTypeName() + ")");*/
@@ -1012,6 +1015,7 @@ public final class ExpressionGenerator {
 					makeAllCalls(method, name, receiver, returnType, ops, receiverEffects, argTypes, allPossibleActuals, new ArrayList<EvaluatedExpression>(allPossibleActuals.size()), depth, maxDepth, maxArgDepth, overloadChecker);
                     if (method.isStatic())
                         staticAccesses.add(method.declaringType().name() + " " + method.name() + " " + method.signature());
+                    calledMethods.add(method.name() + "~" + method.signature());
 				}
 			}
 		}
