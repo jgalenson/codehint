@@ -271,7 +271,8 @@ public final class ExpressionGenerator {
 	private Set<String> staticAccesses;
 	private int numFailedDowncasts;
 	private Map<String, Integer> helpfulTypes;
-	private int numBooleansSeen;
+	private Map<String, Integer> uniqueValuesSeenForType;
+	private Set<String> downcastTypes;
 	
 	public ExpressionGenerator(IJavaDebugTarget target, IJavaStackFrame stack, SideEffectHandler sideEffectHandler, ExpressionMaker expressionMaker, SubtypeChecker subtypeChecker, TypeCache typeCache, ValueCache valueCache, EvaluationManager evalManager, StaticEvaluator staticEvaluator, Weights weights) {
 		this.target = target;
@@ -336,7 +337,8 @@ public final class ExpressionGenerator {
 			this.numFailedDowncasts = 0;
 			this.helpfulTypes = null;
 			//this.helpfulTypes = getHelpfulTypesMap(maxExprDepth, monitor);
-			this.numBooleansSeen = 0;
+			this.uniqueValuesSeenForType = new HashMap<String, Integer>();
+			this.downcastTypes = new HashSet<String>();
 			
 			ArrayList<FullyEvaluatedExpression> results = genAllExprs(maxExprDepth, property, searchConstructors, searchOperators, synthesisDialog, monitor);
 
@@ -933,14 +935,26 @@ public final class ExpressionGenerator {
 		boolean isStatic = !isConstructor && expressionMaker.isStatic(e.getExpression());
 		//String objTypeName = isStatic ? e.getExpression().toString() : objTypeImpl.name();
 		Method stackMethod = ((JDIStackFrame)stack).getUnderlyingMethod();
-		IJavaType curType = /*!isStatic && e.getValue() != null ? e.getValue().getJavaType() :*/ e.getType();
-		/*while (curType.getName().indexOf('$') != -1 && curType instanceof IJavaClassType) {
+		IJavaType curType = !isStatic && e.getValue() != null && !e.getValue().isNull() ? e.getValue().getJavaType() : e.getType();
+		if (!(curType instanceof IJavaClassType))  // This can happen when something of static type Object is actually an array.
+			return;
+		while (curType.getName().indexOf('$') != -1 && curType instanceof IJavaClassType) {  // Avoid downcasting to anonymous types.
 			IType itype = project.findType(curType.getName());
 			if (itype == null || !itype.isAnonymous())
 				break;
 			curType = ((IJavaClassType)curType).getSuperclass();
 		}
-		boolean isSubtype = !curType.equals(e.getType());*/
+		while (curType != null && !curType.equals(e.getType()) && (downcastTypes.contains(curType.getName()) || uniqueValuesSeenForType.containsKey(curType.getName()) || curType.getName().startsWith("sun."))) {
+			curType = ((IJavaClassType)curType).getSuperclass();  // As a heuristic optimization, avoid downcasting to types we've seen before (or private sun. types).
+		}
+		if (curType == null)
+			curType = e.getType();
+		boolean isSubtype = !curType.equals(e.getType());
+		if (isSubtype) {
+			//System.out.println("Downcasting " + e.getExpression() + " to " + curType.getName());
+			for (IJavaType supertype: subtypeChecker.getSupertypes(curType))  // Heuristically ensure we do not downcast to any of this type's supertypes.
+				downcastTypes.add(supertype.getName());
+		}
 		List<Method> legalMethods = getMethods(curType, sideEffectHandler);
 		OverloadChecker overloadChecker = new OverloadChecker(curType, stack, target, typeCache, subtypeChecker);
 		for (Method method : legalMethods) {
@@ -988,8 +1002,8 @@ public final class ExpressionGenerator {
 					TypedExpression receiver = e;
 					if (method.isStatic())
 						receiver = expressionMaker.makeStaticName(EclipseUtils.sanitizeTypename(getShortestTypename(method.declaringType().name())), (IJavaReferenceType)EclipseUtils.getTypeAndLoadIfNeeded(method.declaringType().name(), stack, target, typeCache), valueCache, thread);
-					/*else if (isSubtype && ((ReferenceType)((JDIType)e.getType()).getUnderlyingType()).methodsByName(method.name(), method.signature()).isEmpty())
-						receiver = expressionMaker.makeParenthesized(downcast(receiver, curType));*/
+					else if (isSubtype && ((ReferenceType)((JDIType)e.getType()).getUnderlyingType()).methodsByName(method.name(), method.signature()).isEmpty())
+						receiver = expressionMaker.makeParenthesized(downcast(receiver, method.declaringType().name()));
 					String name = method.name();
 					if (method.isConstructor())
 						name = getShortestTypename(receiver.getType().getName());
@@ -1137,6 +1151,7 @@ public final class ExpressionGenerator {
 	 * types for which we are searching.  To help with this, we first
 	 * build a mapping that tells us which types are used to generate
 	 * the given types.
+	 * TODO: getTypeGen does not work for downcasting.  E.g., if target is VirtualMachine, it finds almost nothing that points to it because the actual expressions require downcasting to get more methods.
 	 * TODO: If I enable downcasting during the search, enable the bits here that work with that.  Test this if we do, since it might not be very helpful (e.g., if we see an Object, which are common thanks to generics, we have to assume everything is available).
 	 * TODO: This, specifically getTypeGen, is a bit slow.
 	 * TODO: I could make this more precise, by e.g., consider paired types and available depths (e.g., maybe we need A and B to get C, so if we have A but not B, A is not helpful either).
@@ -1195,9 +1210,12 @@ public final class ExpressionGenerator {
 		Set<String> allTypes = getAllTypes(typeGen);
 		tryToLoad(allTypes);
 		for (String typeName: allTypes) {
-			for (IJavaType parentType: subtypeChecker.getSupertypes(EclipseUtils.getTypeAndLoadIfNeeded(typeName, stack, target, typeCache))) {
-				Utils.addToSetMap(subtypes, parentType.getName(), typeName);
-				Utils.addToSetMap(supertypes, typeName, parentType.getName());
+			IJavaType type = EclipseUtils.getTypeAndLoadIfNeeded(typeName, stack, target, typeCache);
+			if (type != null) {  // The type could be illegal.
+				for (IJavaType parentType: subtypeChecker.getSupertypes(type)) {
+					Utils.addToSetMap(subtypes, parentType.getName(), typeName);
+					Utils.addToSetMap(supertypes, typeName, parentType.getName());
+				}
 			}
 		}
 	}
@@ -1538,8 +1556,11 @@ public final class ExpressionGenerator {
 			else {
 				if (e.getValue() != null) {
 					addEquivalentExpressionOnlyIfNewValue((EvaluatedExpression)e, result, curEffects);
-					if (booleanType.equals(e.getType()))
-						numBooleansSeen++;
+					if (e.getType() != null) {
+						String typeName = e.getType().getName();
+						Integer numValuesSeenOfType = uniqueValuesSeenForType.get(typeName);
+						uniqueValuesSeenForType.put(typeName, numValuesSeenOfType == null ? 1 : numValuesSeenOfType + 1);
+					}
 				}
 				list.add(e);
 			}
@@ -1614,19 +1635,19 @@ public final class ExpressionGenerator {
 	 * @throws DebugException
 	 */
 	private TypedExpression downcast(TypedExpression e) throws DebugException {
-		return downcast(e, getDowncastType(e.getType()));
+		return downcast(e, getDowncastType(e.getType()).getName());
 	}
 
 	/**
 	 * Downcasts the given expression to the given type.
 	 * @param e The expression to downcast.
-	 * @param type The type to which we should downcast the given
-	 * expression.
+	 * @param typename The name of the type to which we
+	 * should downcast the given expression.
 	 * @return The given expression downcast to one the given type.
 	 * @throws DebugException
 	 */
-	private TypedExpression downcast(TypedExpression e, IJavaType type) throws DebugException {
-		Expression casted = expressionMaker.makeCast(e.getExpression(), getShortestTypename(type.getName()));
+	private TypedExpression downcast(TypedExpression e, String typeName) throws DebugException {
+		Expression casted = expressionMaker.makeCast(e.getExpression(), getShortestTypename(typeName));
 		if (e instanceof FullyEvaluatedExpression)
 			return new FullyEvaluatedExpression(casted, e.getValue().getJavaType(), e.getResult(), ((FullyEvaluatedExpression)e).getResultString());
 		else
@@ -1634,7 +1655,7 @@ public final class ExpressionGenerator {
 	}
 	
 	/**
-	 * Gets a type to which we should downtype the given type
+	 * Gets a type to which we should downcast the given type
 	 * so that it satisfies the constraint.  Such a type must
 	 * exist.
 	 * @param curType The type we want to downcast.
@@ -2400,7 +2421,8 @@ public final class ExpressionGenerator {
 		} catch (DebugException e) {
 			throw new RuntimeException(e);
 		}
-		int depth = getDepthImpl(expr) + (UniqueASTChecker.isUnique(expr, varName) ? 0 : 1) + (BadMethodFieldChecker.hasBad(expr, expressionMaker, weights, hasBadMethodsFields) ? 1 : 0) + (BadConstantChecker.hasBad(expr, expressionMaker, weights, hasBadConstants) ? 1 : 0) + (numBooleansSeen == 2 && booleanType.equals(exprType) ? 1 : 0);
+    	Integer numBooleansSeen = uniqueValuesSeenForType.get("boolean");
+		int depth = getDepthImpl(expr) + (UniqueASTChecker.isUnique(expr, varName) ? 0 : 1) + (BadMethodFieldChecker.hasBad(expr, expressionMaker, weights, hasBadMethodsFields) ? 1 : 0) + (BadConstantChecker.hasBad(expr, expressionMaker, weights, hasBadConstants) ? 1 : 0) + (numBooleansSeen != null && numBooleansSeen == 2 && booleanType.equals(exprType) ? 1 : 0);
 		realDepths.put(id, depth);
 		return depth;
     }
@@ -2433,7 +2455,8 @@ public final class ExpressionGenerator {
 			BadMethodFieldChecker.hasBad(arg.getExpression(), badMethodFieldChecker, hasBadMethodsFields);
 			BadConstantChecker.hasBad(arg.getExpression(), badConstantChecker, hasBadConstants);
     	}
-    	return depth + 1 + (uniqueChecker.isUnique ? 0 : 1) + (badMethodFieldChecker.hasBad || BadMethodFieldChecker.isBadMethod(method, receiver, weights) ? 1 : 0) + (badConstantChecker.hasBad ? 1 : 0) + (numBooleansSeen == 2 && "boolean".equals(method.returnTypeName()) ? 1 : 0);
+    	Integer numBooleansSeen = uniqueValuesSeenForType.get("boolean");
+    	return depth + 1 + (uniqueChecker.isUnique ? 0 : 1) + (badMethodFieldChecker.hasBad || BadMethodFieldChecker.isBadMethod(method, receiver, weights) ? 1 : 0) + (badConstantChecker.hasBad ? 1 : 0) + (numBooleansSeen != null && numBooleansSeen == 2 && "boolean".equals(method.returnTypeName()) ? 1 : 0);
     }
 
     /**
