@@ -576,13 +576,16 @@ public final class ExpressionGenerator {
     				curLevel.add(downcast(e));
     		}
     		
-    		// Add calls to the desired type's constructors (but only at the top-level).
+    		// Add calls to the desired type's (and those of its subtypes in the same package (for efficiency)) constructors (but only at the top-level).
     		if (searchConstructors && depth == maxDepth) {
-    			curMonitor = SubMonitor.convert(monitor, taskName, IProgressMonitor.UNKNOWN);
-    			for (IJavaType type: constraintTypes)
-    				if (type instanceof IJavaClassType)
-    					addMethodCalls(new TypedExpression(null, type), nextLevel, curLevel, depth, maxDepth, null);
-    			curMonitor.done();
+    			for (IJavaType type: constraintTypes) {
+    				List<IJavaType> subtypes = EclipseUtils.getSubtypesInSamePackage(type, project, stack, target, typeCache, monitor, taskName);
+        			curMonitor = SubMonitor.convert(monitor, taskName + ": calling constructors", subtypes.size());
+    				for (IJavaType subtype: subtypes) {
+    					addMethodCalls(new TypedExpression(null, subtype), nextLevel, curLevel, depth, maxDepth, null);
+    					curMonitor.worked(1);
+    				}
+    			}
     		}
     		
     		if (depth == 0) {
@@ -1948,8 +1951,10 @@ public final class ExpressionGenerator {
 		if (result == null)
 			return;
 		IJavaType type = result.getValue().getValue().getJavaType();
-		if (expressionMaker.getMethod(expr) != null)  // If this is a call, use the declared type of the method, not the dynamic type of the value.
-			type = EclipseUtils.getFullyQualifiedType(expressionMaker.getMethod(expr).returnTypeName(), stack, target, typeCache);
+		if (expressionMaker.getMethod(expr) != null) {  // If this is a call, use the declared type of the method, not the dynamic type of the value.
+			Method method = expressionMaker.getMethod(expr);
+			type = EclipseUtils.getFullyQualifiedType(method.isConstructor() ? method.declaringType().name() : expressionMaker.getMethod(expr).returnTypeName(), stack, target, typeCache);
+		}
 		EvaluatedExpression valued = new EvaluatedExpression(expr, type, result);
 		if (newlyExpanded.contains(valued))
 			return;

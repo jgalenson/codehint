@@ -173,7 +173,7 @@ public class InitialSynthesisDialog extends SynthesisDialog {
 		skeletonInput = createInput(skeletonComposite, message, initialSkeletonText, skeletonValidator, new SkeletonModifyHandler(), "skeleton");
 		
 		Composite skeletonButtonComposite = makeChildComposite(skeletonComposite, GridData.HORIZONTAL_ALIGN_CENTER, 0);
-		searchConstructorsButton = createCheckBoxButton(skeletonButtonComposite, "Search constructors");
+		searchConstructorsButton = createCheckBoxButton(skeletonButtonComposite, "Search top-level constructors");
 		if (!EclipseUtils.isObject(varType))
 			searchConstructorsButton.setEnabled(false);
 		searchOperatorsButton = createCheckBoxButton(skeletonButtonComposite, "Search operators");

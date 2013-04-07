@@ -4,7 +4,10 @@ import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
@@ -12,10 +15,12 @@ import org.eclipse.core.resources.IFile;
 import org.eclipse.core.runtime.CoreException;
 import org.eclipse.core.runtime.FileLocator;
 import org.eclipse.core.runtime.IAdaptable;
+import org.eclipse.core.runtime.IProgressMonitor;
 import org.eclipse.core.runtime.IStatus;
 import org.eclipse.core.runtime.Path;
 import org.eclipse.core.runtime.Platform;
 import org.eclipse.core.runtime.Status;
+import org.eclipse.core.runtime.SubMonitor;
 import org.eclipse.debug.core.DebugEvent;
 import org.eclipse.debug.core.DebugException;
 import org.eclipse.debug.core.DebugPlugin;
@@ -1271,6 +1276,45 @@ public final class EclipseUtils {
 				return getExceptionName(throwable);
 		}
 		return exception.getClass().toString(); 
+    }
+    
+    /**
+     * Gets all the subtypes of the given type that are 
+     * in the same package or a subpackage.
+     * @param type The type.
+     * @param project The project.
+     * @param stack The stack frame.
+     * @param target The debug target.
+     * @param typeCache The type cache.
+     * @param monitor The progress monitor.
+     * @param taskName The name of the task on the progress monitor.
+     * @return All the subtypes of the given type that are
+     * in the same package or a subpackage.
+     * @throws JavaModelException
+     * @throws DebugException
+     */
+    public static List<IJavaType> getSubtypesInSamePackage(IJavaType type, IJavaProject project, IJavaStackFrame stack, IJavaDebugTarget target, TypeCache typeCache, IProgressMonitor monitor, String taskName) throws JavaModelException, DebugException {
+    	IType itype = project.findType(type.getName());
+    	if (itype == null)
+    		return Arrays.asList(new IJavaType[] { type });
+    	String packageName = itype.getPackageFragment().getElementName();
+    	IType[] subitypes = itype.newTypeHierarchy(project, null).getAllSubtypes(itype);
+		monitor = SubMonitor.convert(monitor, taskName + ": finding subtypes", subitypes.length);
+    	List<IJavaType> subtypes = new ArrayList<IJavaType>();
+    	subtypes.add(type);
+    	for (int i = 0; i < subitypes.length; i++) {
+    		String subtypeName = subitypes[i].getPackageFragment().getElementName();
+    		if (subtypeName.startsWith(packageName)) {
+	    		if (!subtypeName.isEmpty())
+	    			subtypeName += ".";
+	    		subtypeName += subitypes[i].getTypeQualifiedName('.');
+	    		IJavaType subtype = getTypeAndLoadIfNeeded(subtypeName, stack, target, typeCache);
+	    		if (subtype != null)
+	    			subtypes.add(subtype);
+    		}
+    		monitor.worked(1);
+    	}
+    	return subtypes;
     }
 
 }
