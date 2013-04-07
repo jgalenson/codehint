@@ -1680,7 +1680,10 @@ public final class ExpressionGenerator {
 	 * @throws DebugException
 	 */
 	private TypedExpression downcast(TypedExpression e) throws DebugException {
-		return downcast(e, getDowncastType(e.getType()).getName());
+		IJavaType downcastType = getDowncastType(e.getType());
+		if (downcastType == null)  // we can't downcast the static type, so use the dynamic type, which was what we used when we checked if a downcast would be useful.
+			downcastType = e.getValue().getJavaType();
+		return downcast(e, downcastType.getName());
 	}
 
 	/**
@@ -1714,7 +1717,6 @@ public final class ExpressionGenerator {
 		for (IJavaType constraintType: constraintTypes)
 			if (subtypeChecker.isSubtypeOf(constraintType, curType))
 				return constraintType;
-		assert false;
 		return null;
 	}
 	
