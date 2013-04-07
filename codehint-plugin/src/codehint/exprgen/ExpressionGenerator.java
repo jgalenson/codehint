@@ -1957,8 +1957,10 @@ public final class ExpressionGenerator {
 		int curDepth = getDepth(expr);
 		addEquivalentExpressionOnlyIfNewValue(valued, result, curEffects);
 		ArrayList<EvaluatedExpression> curEquivalences = equivalences.get(curEffects).get(result);
-		if (expr instanceof NumberLiteral || expr instanceof BooleanLiteral || expr instanceof Name || expr instanceof ParenthesizedExpression || expr instanceof ThisExpression || expr instanceof NullLiteral) {
+		if (expr instanceof NumberLiteral || expr instanceof BooleanLiteral || expr instanceof Name || expr instanceof ThisExpression || expr instanceof NullLiteral) {
 			// Do nothing as there's nothing to expand.
+		} else if (expr instanceof ParenthesizedExpression) {
+			expandEquivalencesRec(((ParenthesizedExpression)expr).getExpression(), newlyExpanded, curEffects);
 		} else if (expr instanceof InfixExpression) {
 			InfixExpression infix = (InfixExpression)expr;
 			expandEquivalencesRec(infix.getLeftOperand(), newlyExpanded, curEffects);
@@ -1999,11 +2001,7 @@ public final class ExpressionGenerator {
 			CastExpression cast = (CastExpression)expr;
 			expressionMaker.setExpressionResult(cast.getExpression(), result, curEffects);
 			expandEquivalencesRec(cast.getExpression(), newlyExpanded, curEffects);
-			String castTypeName = cast.getType().toString();
-			IJavaType castType = EclipseUtils.getType(castTypeName, stack, target, typeCache);
-			for (TypedExpression e : getEquivalentExpressions(cast.getExpression(), UnknownConstraint.getUnknownConstraint(), curEffects))
-				if (getDepth(e.getExpression()) < curDepth && !subtypeChecker.isSubtypeOf(e.getType(), castType))  // Since I only downcast, we avoid casting things unnecessarily.  Without this, we generate silly things like frame, (Window)frame, (Window)(Window)frame, etc. when adding equivalences for (Window)something_that_equals_frame.
-					addIfNew(curEquivalences, new EvaluatedExpression(expressionMaker.makeCast(e.getExpression(), castTypeName), type, result), valued);
+			// We don't want to make equivalences of the cast itself since our equivalences are based on the value, so anything equivalent to this will also be equivalent to the inner expression.  So if we made new casts here, we would be introducing duplicate expressions.
 		} else
 			throw new RuntimeException("Unexpected Expression " + expr.toString());
 	}
@@ -2071,28 +2069,51 @@ public final class ExpressionGenerator {
 	 */
 	private ArrayList<EvaluatedExpression> getEquivalentExpressions(Result result, Expression curExpr, TypeConstraint constraint, Set<Effect> curEffects) throws DebugException {
 		ArrayList<EvaluatedExpression> results = new ArrayList<EvaluatedExpression>();
-		Set<String> fulfillingType = new HashSet<String>();
 		ArrayList<EvaluatedExpression> equivs = equivalences.get(curEffects).get(result);
-		if (equivs != null || (!(curExpr instanceof NumberLiteral) && !expressionMaker.isStatic(curExpr)))
+		if (equivs != null || (!(curExpr instanceof NumberLiteral) && !expressionMaker.isStatic(curExpr))) {
+			Set<String> fulfillingType = new HashSet<String>();
+			String castTypeName = null;  //IJavaType castType = EclipseUtils.getType(castTypeName, stack, target, typeCache);
+			if (curExpr instanceof ParenthesizedExpression)
+				curExpr = ((ParenthesizedExpression)curExpr).getExpression();
+			if (curExpr instanceof CastExpression)
+				castTypeName = ((CastExpression)curExpr).getType().toString();
 			for (EvaluatedExpression expr: equivs) {
 				// We might get things that are equivalent but with difference static types (e.g., Object and String when we want a String), so we ensure we satisfy the type constraint.
+				// Otherwise, we downcast to the dynamic type (or, if the given expression is a cast, its type, as otherwise we might generate a different cast of it) if curExpr is non-null (if it is null, we have already downcast to this in the initial generation).
 				// However, we have to special case static accesses/calls (e.g., Foo.bar), as the expression part has type Class not the desired type (Foo).
-				IJavaType type = expr.getType();
-				String typeName = type == null ? null : type.getName();
-				if (fulfillingType.contains(typeName))
-					results.add(expr);  // Cache the fulfilling types, since there can be a ton of equivalent expressions at higher depths and computing isFulfilledBy can take a lot of time.
-				else if (constraint.isFulfilledBy(type, subtypeChecker, typeCache, stack, target)) {
-					fulfillingType.add(typeName);
+				if (isValidType(expr.getType(), constraint, fulfillingType)
+						|| expressionMaker.isStatic(expr.getExpression()) && (constraint instanceof FieldConstraint || constraint instanceof MethodConstraint))
 					results.add(expr);
-				} else if (expressionMaker.isStatic(expr.getExpression()) && (constraint instanceof FieldConstraint || constraint instanceof MethodConstraint))
-					results.add(expr);
+				else if (curExpr != null && !result.getValue().getValue().isNull() && isValidType(result.getValue().getValue().getJavaType(), constraint, fulfillingType))  // I think this will only fail if the value is null, so I could optimize it by confirming that and removing the extra work here.
+					results.add((EvaluatedExpression)expressionMaker.makeParenthesized(downcast(expr, castTypeName == null ? result.getValue().getValue().getJavaType().getName() : castTypeName)));
 			}
+		}
 		// 0 is already in the equivalences map, but no other int constants are.
 		if ((curExpr instanceof NumberLiteral && !"0".equals(((NumberLiteral)curExpr).getToken())) || curExpr instanceof StringLiteral || curExpr instanceof BooleanLiteral)
 			results.add(new EvaluatedExpression(curExpr, result.getValue().getValue().getJavaType(), result));
 		if (equivs == null && expressionMaker.isStatic(curExpr))
 			results.add(new EvaluatedExpression(curExpr, result.getValue().getValue().getJavaType(), result));
 		return results;
+	}
+	
+	/**
+	 * Checks whether the given type satisfies the given constraint
+	 * using the specified cache as a shortcut.
+	 * @param type The type.
+	 * @param constraint The constraint.
+	 * @param fulfillingType A cache of types that fulfill the constraint.
+	 * @return Whether the given type satisfies the given constraint.
+	 * @throws DebugException
+	 */
+	private boolean isValidType(IJavaType type, TypeConstraint constraint, Set<String> fulfillingType) throws DebugException {
+		String typeName = type == null ? null : type.getName();
+		if (fulfillingType.contains(typeName)) {
+			return true;  // Cache the fulfilling types, since there can be a ton of equivalent expressions at higher depths and computing isFulfilledBy can take a lot of time.
+		} else if (constraint.isFulfilledBy(type, subtypeChecker, typeCache, stack, target)) {
+			fulfillingType.add(typeName);
+			return true;
+		} else
+			return false;
 	}
 	
 	/**
