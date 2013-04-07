@@ -14,7 +14,8 @@ import org.eclipse.jdt.core.IField;
 import org.eclipse.jdt.core.IJavaProject;
 import org.eclipse.jdt.core.IMethod;
 import org.eclipse.jdt.core.JavaModelException;
-import org.eclipse.jdt.core.dom.CastExpression;
+import org.eclipse.jdt.core.dom.ASTNode;
+import org.eclipse.jdt.core.dom.ASTVisitor;
 import org.eclipse.jdt.core.dom.Expression;
 import org.eclipse.jdt.debug.core.IJavaDebugTarget;
 import org.eclipse.jdt.debug.core.IJavaPrimitiveValue;
@@ -239,7 +240,7 @@ public class InitialSynthesisDialog extends SynthesisDialog {
 			public String getToolTipText(Object element) {
 				// TODO: Handle fields and expressions with multiple methods.
 				FullyEvaluatedExpression expr = (FullyEvaluatedExpression)element;
-				String javadoc = getJavadoc(expr, expressionMaker);
+				String javadoc = getJavadocs(expr.getExpression());
 				if (javadoc == null)
 					return null;
 				javadoc = javadoc.replaceAll("<H3>([^<]|\n)*</H3>\n?", "");
@@ -434,7 +435,7 @@ public class InitialSynthesisDialog extends SynthesisDialog {
     			numSearches++;
     			setSearchCancelButtonText("Continue search");
     		}
-    		javadocPrefetcher = new JavadocPrefetcher(this.expressions, this.expressionMaker);
+    		javadocPrefetcher = new JavadocPrefetcher(this.expressions);
     		javadocPrefetcher.setPriority(Job.DECORATE);
     		javadocPrefetcher.schedule();
     		if (state == SynthesisState.UNFINISHED && sorterWorker != null)
@@ -448,38 +449,33 @@ public class InitialSynthesisDialog extends SynthesisDialog {
 	private final class JavadocPrefetcher extends Job {
 		
 		private final ArrayList<FullyEvaluatedExpression> expressions;
-		private final ExpressionMaker expressionMaker;
 
-		private JavadocPrefetcher(ArrayList<FullyEvaluatedExpression> expressions, ExpressionMaker expressionMaker) {
+		private JavadocPrefetcher(ArrayList<FullyEvaluatedExpression> expressions) {
 			super("Javadoc prefetch");
 			this.expressions = expressions;
-			this.expressionMaker = expressionMaker;
 		}
 
 		@Override
 		protected IStatus run(IProgressMonitor monitor) {
-			for (int i = 0; i < expressions.size() && i < 100; i++) {
+			for (int i = 0; i < expressions.size() && i < 20; i++) {
 				if (monitor.isCanceled())
 					return Status.CANCEL_STATUS;
-				getJavadoc(expressions.get(i), expressionMaker);
+				getJavadocs(expressions.get(i).getExpression());
 			}
 			return Status.OK_STATUS;
 		}
 		
 	}
 	
-	private String getJavadoc(FullyEvaluatedExpression expr, ExpressionMaker expressionMaker) {
+	private String getJavadoc(Expression expr) {
 		try {
-			Expression e = expr.getExpression();
-			if (e instanceof CastExpression)
-				e = ((CastExpression)e).getExpression();
-			Method method = expressionMaker.getMethod(e);
+			Method method = expressionMaker.getMethod(expr);
 			if (method != null) {
 				IMethod imethod = EclipseUtils.getIMethod(method, project);
 				if (imethod != null)
 					return imethod.getAttachedJavadoc(null);
 			}
-			Field field = expressionMaker.getField(e);
+			Field field = expressionMaker.getField(expr);
 			if (field != null) {
 				IField ifield = EclipseUtils.getIField(field, project);
 				if (ifield != null)
@@ -492,6 +488,24 @@ public class InitialSynthesisDialog extends SynthesisDialog {
 			throw new RuntimeException(e);
 		}
 	}
+	
+	private String getJavadocs(Expression expr) {
+    	final StringBuffer javadocs = new StringBuffer();
+    	expr.accept(new ASTVisitor() {
+    		@Override
+    		public void postVisit(ASTNode node) {
+    			if (node instanceof Expression) {
+    				String javadoc = getJavadoc((Expression)node);
+    				if (javadoc != null) {
+    					if (javadocs.length() > 0)
+    						javadocs.append("\n\n-----\n\n");
+    					javadocs.append(javadoc);
+    				}
+    			}
+    		}
+    	});
+    	return javadocs.length() == 0 ? null : javadocs.toString();
+    }
 
 	@Override
 	protected void cancelPressed() {
