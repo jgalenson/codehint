@@ -119,6 +119,7 @@ public class InitialSynthesisDialog extends SynthesisDialog {
     private static final int filterButtonID = IDialogConstants.CLIENT_ID + 4;
     private static final int clearButtonID = IDialogConstants.CLIENT_ID + 5;
     private FilterWorker filterWorker;
+    private boolean amFiltering;
 
     private final IJavaProject project;
     private final IJavaDebugTarget target;
@@ -154,6 +155,7 @@ public class InitialSynthesisDialog extends SynthesisDialog {
 		this.maxResultLen = 0;
 		this.expressions = null;
 		this.filteredExpressions = null;
+		this.amFiltering = false;
 		this.worker = worker;
 		this.project = EclipseUtils.getProject(stack);
 		this.target = (IJavaDebugTarget)stack.getDebugTarget();
@@ -350,7 +352,7 @@ public class InitialSynthesisDialog extends SynthesisDialog {
         @Override
 		public void inputChanged(boolean hasError) {
         	skeletonIsValid = !hasError;
-        	if (searchCancelButton != null && !amSearching)
+        	if (searchCancelButton != null && !amSearching && !amFiltering)
         		searchCancelButton.setEnabled(pdspecIsValid && skeletonIsValid);
         	ensureNoContinue();
         }
@@ -362,7 +364,7 @@ public class InitialSynthesisDialog extends SynthesisDialog {
         @Override
 		public void inputChanged(boolean hasError) {
 			super.inputChanged(hasError);
-        	if (searchCancelButton != null && !amSearching)
+        	if (searchCancelButton != null && !amSearching && !amFiltering)
         		searchCancelButton.setEnabled(pdspecIsValid && skeletonIsValid);
         	ensureNoContinue();
         }
@@ -403,14 +405,14 @@ public class InitialSynthesisDialog extends SynthesisDialog {
     private void ensureNoContinue() {
     	 numSearches = 0;
     	 shouldContinue = false;
-     	if (searchCancelButton != null && !amSearching)
+     	if (searchCancelButton != null && !amSearching && !amFiltering)
      		setSearchCancelButtonText("Search");
     }
 
     @Override
 	protected void buttonPressed(int buttonId) {
         if (buttonId == searchCancelButtonID) {
-        	if (!amSearching)
+        	if (!amSearching && !amFiltering)
         		startSearch(propertyDialog.computeProperty(pdspecInput.getText(), typeCache), false);
         	else
         		monitor.setCanceled(true);
@@ -436,13 +438,6 @@ public class InitialSynthesisDialog extends SynthesisDialog {
 		// Reset column sort indicators.
 		table.setSortDirection(SWT.NONE);
 		table.setSortColumn(null);
-		// Set up progress monitor
-		monitor = new SynthesisProgressMonitor(monitorComposite, null);
-		//monitor.attachToCancelComponent(searchButton);
-		GridData gridData = new GridData();
-		gridData.widthHint = MONITOR_WIDTH;
-		monitor.setLayoutData(gridData);
-		monitorComposite.getParent().layout(true);
 		// Start the synthesis
 		boolean blockNatives = isAutomatic || !searchNativeCalls.getSelection();
 		nativeHandler.enable(blockNatives);
@@ -472,17 +467,12 @@ public class InitialSynthesisDialog extends SynthesisDialog {
 	private void startEndSynthesis(SynthesisState state) {
 		boolean isStarting = isStart(state);
         getButton(IDialogConstants.CANCEL_ID).setEnabled(!isStarting);
-    	searchCancelButton.setEnabled(isStarting || (pdspecIsValid && skeletonIsValid));
+		if (state == SynthesisState.END && shouldContinue)
+			numSearches++;
+        startOrEndWork(isStarting);
     	amSearching = isStarting;
-    	setSearchCancelButtonText(amSearching ? "Cancel" : "Search");
     	filterComposite.setVisible(!isStarting);
     	if (!isStarting) {
-    		monitor.dispose();
-    		monitorComposite.getParent().layout(true);
-    		if (state == SynthesisState.END && shouldContinue) {
-    			numSearches++;
-    			setSearchCancelButtonText("Continue search");
-    		}
     		javadocPrefetcher = new JavadocPrefetcher(this.filteredExpressions, this.expressionMaker);
     		javadocPrefetcher.setPriority(Job.DECORATE);
     		javadocPrefetcher.schedule();
@@ -491,6 +481,29 @@ public class InitialSynthesisDialog extends SynthesisDialog {
 			sorterWorker = null;
     	}
     }
+	
+	private void startOrEndWork(boolean isStarting) {
+    	searchCancelButton.setEnabled(isStarting || (pdspecIsValid && skeletonIsValid));
+    	setSearchCancelButtonText(isStarting ? "Cancel" : shouldContinue && numSearches > 0 ? "Continue search" : "Search");
+    	if (isStarting)
+    		enableProgressMonitor();
+    	else
+    		disableProgressMonitor();
+	}
+
+	private void enableProgressMonitor() {
+		monitor = new SynthesisProgressMonitor(monitorComposite, null);
+		//monitor.attachToCancelComponent(searchButton);
+		GridData gridData = new GridData();
+		gridData.widthHint = MONITOR_WIDTH;
+		monitor.setLayoutData(gridData);
+		monitorComposite.getParent().layout(true);
+	}
+
+	private void disableProgressMonitor() {
+		monitor.dispose();
+		monitorComposite.getParent().layout(true);
+	}
 
 	// Prefetch the Javadocs to reduce the waiting time (which can be noticeable without this) when the user hovers over an expression.
 	// Copy fields used to avoid a race with closing the dialog.
@@ -764,8 +777,16 @@ public class InitialSynthesisDialog extends SynthesisDialog {
 	}
 	
 	private void filterExpressions(String text) {
-    	if (filterWorker != null)
-    		filterWorker.cancel();
+    	if (filterWorker != null && amFiltering) {
+    		monitor.setCanceled(true);
+    		try {
+				filterWorker.join();  // Wait for the child job to finish and cleanup (e.g., dispose its monitor).
+			} catch (InterruptedException e) {
+				e.printStackTrace();
+			}
+    	}
+    	amFiltering = true;
+    	startOrEndWork(true);
     	filterWorker = new FilterWorker(text, expressions, expressionMaker);
     	filterWorker.setPriority(Job.LONG);
     	filterWorker.schedule();
@@ -789,11 +810,11 @@ public class InitialSynthesisDialog extends SynthesisDialog {
 		protected IStatus run(IProgressMonitor monitor) {
 			final ArrayList<FullyEvaluatedExpression> filteredExpressions = filterWords == null ? expressions : new ArrayList<FullyEvaluatedExpression>();
 			if (filterWords != null) {
-				monitor.beginTask("Result filter", expressions.size());
+				InitialSynthesisDialog.this.monitor.beginTask("Result filter", expressions.size());
 				exprLoop: for (FullyEvaluatedExpression expr: expressions) {
-					if (monitor.isCanceled())
-						return Status.CANCEL_STATUS;
-					monitor.worked(1);
+					if (InitialSynthesisDialog.this.monitor.isCanceled())
+						return finished(expressions, Status.CANCEL_STATUS);
+					InitialSynthesisDialog.this.monitor.worked(1);
 					String exprString = expr.getExpression().toString().toLowerCase();
 					String javadocs = null;
 					for (String filterWord: filterWords) {
@@ -808,16 +829,22 @@ public class InitialSynthesisDialog extends SynthesisDialog {
 					}
 					filteredExpressions.add(expr);
 				}
-				monitor.done();
+				InitialSynthesisDialog.this.monitor.done();
 			}
-	    	Display.getDefault().asyncExec(new Runnable(){
+	    	return finished(filteredExpressions, Status.OK_STATUS);
+		}
+
+		private IStatus finished(final ArrayList<FullyEvaluatedExpression> filteredExpressions, IStatus status) {
+			Display.getDefault().syncExec(new Runnable(){  // We do this synchronously since we need it for cancellation and it doesn't matter otherwise as we're just about to end.
 				@Override
 				public void run() {
 					InitialSynthesisDialog.this.filteredExpressions = filteredExpressions;
+					startOrEndWork(false);
+					amFiltering = false;
 					showResults();
 				}
 	    	});
-			return Status.OK_STATUS;
+			return status;
 		}
 		
 	}
