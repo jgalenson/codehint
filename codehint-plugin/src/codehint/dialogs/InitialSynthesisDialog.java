@@ -240,7 +240,7 @@ public class InitialSynthesisDialog extends SynthesisDialog {
 			public String getToolTipText(Object element) {
 				// TODO: Handle fields and expressions with multiple methods.
 				FullyEvaluatedExpression expr = (FullyEvaluatedExpression)element;
-				String javadoc = getJavadocs(expr.getExpression());
+				String javadoc = getJavadocs(expr.getExpression(), expressionMaker);
 				if (javadoc == null)
 					return null;
 				javadoc = javadoc.replaceAll("<H3>([^<]|\n)*</H3>\n?", "");
@@ -435,7 +435,7 @@ public class InitialSynthesisDialog extends SynthesisDialog {
     			numSearches++;
     			setSearchCancelButtonText("Continue search");
     		}
-    		javadocPrefetcher = new JavadocPrefetcher(this.expressions);
+    		javadocPrefetcher = new JavadocPrefetcher(this.expressions, this.expressionMaker);
     		javadocPrefetcher.setPriority(Job.DECORATE);
     		javadocPrefetcher.schedule();
     		if (state == SynthesisState.UNFINISHED && sorterWorker != null)
@@ -449,10 +449,12 @@ public class InitialSynthesisDialog extends SynthesisDialog {
 	private final class JavadocPrefetcher extends Job {
 		
 		private final ArrayList<FullyEvaluatedExpression> expressions;
+		private final ExpressionMaker expressionMaker;
 
-		private JavadocPrefetcher(ArrayList<FullyEvaluatedExpression> expressions) {
+		private JavadocPrefetcher(ArrayList<FullyEvaluatedExpression> expressions, ExpressionMaker expressionMaker) {
 			super("Javadoc prefetch");
 			this.expressions = expressions;
+			this.expressionMaker = expressionMaker;
 		}
 
 		@Override
@@ -460,14 +462,14 @@ public class InitialSynthesisDialog extends SynthesisDialog {
 			for (int i = 0; i < expressions.size() && i < 20; i++) {
 				if (monitor.isCanceled())
 					return Status.CANCEL_STATUS;
-				getJavadocs(expressions.get(i).getExpression());
+				getJavadocs(expressions.get(i).getExpression(), expressionMaker);
 			}
 			return Status.OK_STATUS;
 		}
 		
 	}
 	
-	private String getJavadoc(Expression expr) {
+	private String getJavadoc(Expression expr, ExpressionMaker expressionMaker) {
 		try {
 			Method method = expressionMaker.getMethod(expr);
 			if (method != null) {
@@ -489,13 +491,13 @@ public class InitialSynthesisDialog extends SynthesisDialog {
 		}
 	}
 	
-	private String getJavadocs(Expression expr) {
+	private String getJavadocs(Expression expr, final ExpressionMaker expressionMaker) {
     	final StringBuffer javadocs = new StringBuffer();
     	expr.accept(new ASTVisitor() {
     		@Override
     		public void postVisit(ASTNode node) {
     			if (node instanceof Expression) {
-    				String javadoc = getJavadoc((Expression)node);
+    				String javadoc = getJavadoc((Expression)node, expressionMaker);
     				if (javadoc != null) {
     					if (javadocs.length() > 0)
     						javadocs.append("\n\n-----\n\n");
