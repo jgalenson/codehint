@@ -36,6 +36,8 @@ import org.eclipse.swt.SWT;
 import org.eclipse.swt.custom.StyledText;
 import org.eclipse.swt.events.SelectionAdapter;
 import org.eclipse.swt.events.SelectionEvent;
+import org.eclipse.swt.events.TraverseEvent;
+import org.eclipse.swt.events.TraverseListener;
 import org.eclipse.swt.graphics.Point;
 import org.eclipse.swt.graphics.Rectangle;
 import org.eclipse.swt.layout.GridData;
@@ -51,6 +53,7 @@ import org.eclipse.swt.widgets.Shell;
 import org.eclipse.swt.widgets.Table;
 import org.eclipse.swt.widgets.TableColumn;
 import org.eclipse.swt.widgets.TableItem;
+import org.eclipse.swt.widgets.Text;
 import org.eclipse.ui.PlatformUI;
 
 import com.sun.jdi.Field;
@@ -103,13 +106,19 @@ public class InitialSynthesisDialog extends SynthesisDialog {
     private Table table;
     private int maxExprLen;
     private int maxResultLen;
-    private ArrayList<FullyEvaluatedExpression> expressions;  // This does not reflect the sort order of the expressions in the table, so get items from the table directly.
+    private ArrayList<FullyEvaluatedExpression> expressions;
+    private ArrayList<FullyEvaluatedExpression> filteredExpressions;
     private Button checkAllButton;
     private Button uncheckAllButton;
     private static final int checkSelectedButtonID = IDialogConstants.CLIENT_ID + 2;
     private Button checkSelectedButton;
     private static final int uncheckSelectedButtonID = IDialogConstants.CLIENT_ID + 3;
     private Button uncheckSelectedButton;
+    
+    private Composite filterComposite;
+    private static final int filterButtonID = IDialogConstants.CLIENT_ID + 4;
+    private static final int clearButtonID = IDialogConstants.CLIENT_ID + 5;
+    private FilterWorker filterWorker;
 
     private final IJavaProject project;
     private final IJavaDebugTarget target;
@@ -144,6 +153,7 @@ public class InitialSynthesisDialog extends SynthesisDialog {
 		this.maxExprLen = 0;
 		this.maxResultLen = 0;
 		this.expressions = null;
+		this.filteredExpressions = null;
 		this.worker = worker;
 		this.project = EclipseUtils.getProject(stack);
 		this.target = (IJavaDebugTarget)stack.getDebugTarget();
@@ -199,7 +209,7 @@ public class InitialSynthesisDialog extends SynthesisDialog {
 			public void handleEvent(Event event) {
 				TableItem item = (TableItem)event.item;
 				int index = event.index;
-				FullyEvaluatedExpression expr = expressions.get(index);
+				FullyEvaluatedExpression expr = filteredExpressions.get(index);
 				item.setData(expr);
 				String exprLabel = getExpressionLabel(expr);
 				String resultLabel = getValueLabel(expr);
@@ -238,7 +248,6 @@ public class InitialSynthesisDialog extends SynthesisDialog {
     	(new TableViewerColumn(tableViewer, column1)).setLabelProvider(new ColumnLabelProvider() {
 			@Override
 			public String getToolTipText(Object element) {
-				// TODO: Handle fields and expressions with multiple methods.
 				FullyEvaluatedExpression expr = (FullyEvaluatedExpression)element;
 				String javadoc = getJavadocs(expr.getExpression(), expressionMaker);
 				if (javadoc == null)
@@ -295,6 +304,43 @@ public class InitialSynthesisDialog extends SynthesisDialog {
             }
         });
         uncheckSelectedButton.setEnabled(false);
+        
+        filterComposite = makeChildComposite(composite, GridData.HORIZONTAL_ALIGN_FILL, 2);
+        createLabel(filterComposite, "Filter expressions, results, and Javadoc by words:", 325);
+		final Text filterText = new Text(filterComposite, SWT.BORDER | SWT.WRAP | SWT.SINGLE);
+		filterText.setLayoutData(new GridData(GridData.GRAB_HORIZONTAL | GridData.HORIZONTAL_ALIGN_FILL));
+		filterText.addSelectionListener(new SelectionAdapter() {
+			@Override
+			public void widgetDefaultSelected(SelectionEvent e) {
+				filterExpressions(filterText.getText());
+			}
+		});
+		// Override the default behavior of pressing the default button when you hit enter.
+		filterText.addTraverseListener(new TraverseListener() {
+			@Override
+			public void keyTraversed(TraverseEvent e) {
+				if (e.detail == SWT.TRAVERSE_RETURN) {
+					e.doit = false;
+					e.detail = SWT.TRAVERSE_NONE;
+				}
+			}
+		});
+		Button filterButton = createButton(filterComposite, filterButtonID, "Filter", false);
+		filterButton.addSelectionListener(new SelectionAdapter() {
+			@Override
+			public void widgetSelected(SelectionEvent e) {
+				filterExpressions(filterText.getText());
+			}
+		});
+		Button clearButton = createButton(filterComposite, clearButtonID, "Clear", false);
+		clearButton.addSelectionListener(new SelectionAdapter() {
+			@Override
+			public void widgetSelected(SelectionEvent e) {
+				filterText.setText("");
+				filterExpressions("");
+			}
+		});
+        filterComposite.setVisible(false);
 		
 		return composite;
 	}
@@ -383,6 +429,7 @@ public class InitialSynthesisDialog extends SynthesisDialog {
 		skeleton = ExpressionSkeleton.fromString(skeletonResult, target, stack, expressionMaker, evaluationEngine, subtypeChecker, typeCache, valueCache, evalManager, staticEvaluator, expressionGenerator, sideEffectHandler);
 		startEndSynthesis(isAutomatic ? SynthesisState.AUTO_START : SynthesisState.START);
 		expressions = new ArrayList<FullyEvaluatedExpression>();
+		filteredExpressions = expressions;
 		showResults();  // Clears any existing results.
 		valueCache.allowCollectionOfDisabledObjects();  // Allow collection of objects from previous search.
 		this.shouldContinue = !isAutomatic;
@@ -428,6 +475,7 @@ public class InitialSynthesisDialog extends SynthesisDialog {
     	searchCancelButton.setEnabled(isStarting || (pdspecIsValid && skeletonIsValid));
     	amSearching = isStarting;
     	setSearchCancelButtonText(amSearching ? "Cancel" : "Search");
+    	filterComposite.setVisible(!isStarting);
     	if (!isStarting) {
     		monitor.dispose();
     		monitorComposite.getParent().layout(true);
@@ -435,7 +483,7 @@ public class InitialSynthesisDialog extends SynthesisDialog {
     			numSearches++;
     			setSearchCancelButtonText("Continue search");
     		}
-    		javadocPrefetcher = new JavadocPrefetcher(this.expressions, this.expressionMaker);
+    		javadocPrefetcher = new JavadocPrefetcher(this.filteredExpressions, this.expressionMaker);
     		javadocPrefetcher.setPriority(Job.DECORATE);
     		javadocPrefetcher.schedule();
     		if (state == SynthesisState.UNFINISHED && sorterWorker != null)
@@ -636,10 +684,10 @@ public class InitialSynthesisDialog extends SynthesisDialog {
     
     private void showResults() {
 		// Set and show the results.
-    	table.setItemCount(expressions.size());
+    	table.setItemCount(filteredExpressions.size());
     	table.clearAll();
     	// Enable/Disable check/selection buttons.
-    	boolean haveResults = !expressions.isEmpty();
+    	boolean haveResults = !filteredExpressions.isEmpty();
     	checkAllButton.setEnabled(haveResults);
     	uncheckAllButton.setEnabled(haveResults);
     	checkSelectedButton.setEnabled(haveResults);
@@ -654,7 +702,7 @@ public class InitialSynthesisDialog extends SynthesisDialog {
             @Override
 			public void widgetSelected(SelectionEvent e) {
             	final int direction = table.getSortColumn() == column ? (table.getSortDirection() == SWT.DOWN ? SWT.UP : SWT.DOWN) : SWT.DOWN;
-            	Collections.sort(expressions, new Comparator<FullyEvaluatedExpression>() {
+            	Collections.sort(filteredExpressions, new Comparator<FullyEvaluatedExpression>() {
 					@Override
 					public int compare(FullyEvaluatedExpression e1, FullyEvaluatedExpression e2) {
 			    		int result;
@@ -715,6 +763,65 @@ public class InitialSynthesisDialog extends SynthesisDialog {
 		}
 	}
 	
+	private void filterExpressions(String text) {
+    	if (filterWorker != null)
+    		filterWorker.cancel();
+    	filterWorker = new FilterWorker(text, expressions, expressionMaker);
+    	filterWorker.setPriority(Job.LONG);
+    	filterWorker.schedule();
+    }
+
+	// TODO: This messes up the sort order since I sort the filteredExpressions.  So if you filter, sort, then unfilter, the table looks like it has the new filter but it actually has the old one.  The best thing is to probably sort both the filtered and unfiltered expressions each time, but another option is to save/restore the old table look when filtering/reseting.
+	private final class FilterWorker extends Job {
+		
+		private final String[] filterWords;
+		private final ArrayList<FullyEvaluatedExpression> expressions;
+		private final ExpressionMaker expressionMaker;
+
+		private FilterWorker(String filterText, ArrayList<FullyEvaluatedExpression> expressions, ExpressionMaker expressionMaker) {
+			super("Result filter");
+			this.filterWords = filterText.isEmpty() ? null : filterText.toLowerCase().split(" +");
+			this.expressions = expressions;
+			this.expressionMaker = expressionMaker;
+		}
+
+		@Override
+		protected IStatus run(IProgressMonitor monitor) {
+			final ArrayList<FullyEvaluatedExpression> filteredExpressions = filterWords == null ? expressions : new ArrayList<FullyEvaluatedExpression>();
+			if (filterWords != null) {
+				monitor.beginTask("Result filter", expressions.size());
+				exprLoop: for (FullyEvaluatedExpression expr: expressions) {
+					if (monitor.isCanceled())
+						return Status.CANCEL_STATUS;
+					monitor.worked(1);
+					String exprString = expr.getExpression().toString().toLowerCase();
+					String javadocs = null;
+					for (String filterWord: filterWords) {
+						if (exprString.contains(filterWord))
+							continue;
+						if (expr.getResultString().contains(filterWord))
+							continue;
+						if (javadocs == null)  // Lazily initialize for efficiency.
+							javadocs = getJavadocs(expr.getExpression(), expressionMaker).toLowerCase();
+						if (!javadocs.contains(filterWord))
+							continue exprLoop;
+					}
+					filteredExpressions.add(expr);
+				}
+				monitor.done();
+			}
+	    	Display.getDefault().asyncExec(new Runnable(){
+				@Override
+				public void run() {
+					InitialSynthesisDialog.this.filteredExpressions = filteredExpressions;
+					showResults();
+				}
+	    	});
+			return Status.OK_STATUS;
+		}
+		
+	}
+	
 	@Override
     protected void opened() {
 		automaticallyStartSynthesisIfPossible();
@@ -750,6 +857,7 @@ public class InitialSynthesisDialog extends SynthesisDialog {
 		monitor = null;
 		table = null;
 		expressions = null;
+		filteredExpressions = null;
 		checkAllButton = null;
 		uncheckAllButton = null;
 		checkSelectedButton = null;
