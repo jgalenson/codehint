@@ -520,11 +520,15 @@ public class InitialSynthesisDialog extends SynthesisDialog {
 
 		@Override
 		protected IStatus run(IProgressMonitor monitor) {
-			for (int i = 0; i < expressions.size() && i < 20; i++) {
+			int num = Math.min(expressions.size(), 20);
+			monitor.beginTask("Javadoc prefetch", num);
+			for (int i = 0; i < num; i++) {
 				if (monitor.isCanceled())
 					return Status.CANCEL_STATUS;
 				getJavadocs(expressions.get(i).getExpression(), expressionMaker);
+				monitor.worked(1);
 			}
+			monitor.done();
 			return Status.OK_STATUS;
 		}
 		
