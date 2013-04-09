@@ -817,14 +817,19 @@ public class InitialSynthesisDialog extends SynthesisDialog {
 					InitialSynthesisDialog.this.monitor.worked(1);
 					String exprString = expr.getExpression().toString().toLowerCase();
 					String javadocs = null;
+					boolean readJavadocs = false;
 					for (String filterWord: filterWords) {
 						if (exprString.contains(filterWord))
 							continue;
 						if (expr.getResultString().contains(filterWord))
 							continue;
-						if (javadocs == null)  // Lazily initialize for efficiency.
-							javadocs = getJavadocs(expr.getExpression(), expressionMaker).toLowerCase();
-						if (!javadocs.contains(filterWord))
+						if (!readJavadocs) {  // Lazily initialize for efficiency.
+							javadocs = getJavadocs(expr.getExpression(), expressionMaker);
+							readJavadocs = true;
+							if (javadocs != null)
+								javadocs = javadocs.toLowerCase();
+						}
+						if (javadocs != null && !javadocs.contains(filterWord))
 							continue exprLoop;
 					}
 					filteredExpressions.add(expr);
