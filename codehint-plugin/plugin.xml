@@ -55,11 +55,7 @@
          </command>
       </menuContribution>
       <menuContribution
-            allPopups="false"
-            locationURI="toolbar:org.eclipse.ui.main.toolbar">
-         <toolbar
-               id="codehint.toolbar"
-               label="CodeHint">
+            locationURI="toolbar:org.eclipse.debug.ui.debugActionSet?after=additions">
       		<!--
             <command
                   commandId="codehint.synthesizeLine"
@@ -72,19 +68,15 @@
                   style="push">
             </command>
             -->
+          <separator
+                name="codehint.toolbar.separator"
+                visible="true">
+          </separator>
             <command
                   commandId="codehint.synthesizeFree"
                   id="codehint.synthesizeFreeInToolbar"
                   style="push">
-               <visibleWhen
-                     checkEnabled="false">
-                  <systemTest
-                        property="org.eclipse.jdt.debug.ui.debuggerActive"
-                        value="true">
-                  </systemTest>
-               </visibleWhen>
             </command>
-         </toolbar>
       </menuContribution>
    </extension>
    <extension
@@ -155,7 +147,6 @@
             markerType="org.eclipse.jdt.core.problem">
       </markerResolutionGenerator>
    </extension>
-   
    <!--
    <extension
          point="org.eclipse.core.expressions.propertyTesters">
@@ -170,14 +161,14 @@
    -->
    <extension
          point="org.eclipse.ui.commandImages">
-      <image
+      <!--<image
             commandId="codehint.synthesizeLine"
             icon="icons/synthesis-line.png">
       </image>
       <image
             commandId="codehint.synthesizeVar"
             icon="icons/synthesis-var.png">
-      </image>
+      </image>-->
       <image
             commandId="codehint.synthesizeFree"
             icon="icons/synthesis-free.png">
