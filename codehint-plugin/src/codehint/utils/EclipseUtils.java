@@ -1184,7 +1184,14 @@ public final class EclipseUtils {
 		IType itype = project.findType(method.declaringType().name());
 		if (itype == null)
 			return null;
-		String name = method.isConstructor() ? getUnqualifiedName(method.declaringType().name()) : method.name();
+		String name = null;
+		if (method.isConstructor()) {
+			name = getUnqualifiedName(method.declaringType().name());
+			int dollar = name.lastIndexOf('$');
+			if (dollar != -1)
+				name = name.substring(dollar + 1);
+		} else
+			name = method.name();
 		String signature = method.signature();
 		int numArgs = method.argumentTypeNames().size();
 		IMethod best = null;
