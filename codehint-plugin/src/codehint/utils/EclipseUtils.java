@@ -6,6 +6,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -1094,7 +1095,7 @@ public final class EclipseUtils {
      * @return Whether all of the given types were loaded.
      * @throws DebugException
      */
-    public static boolean tryToLoadTypes(Set<String> types, IJavaStackFrame stack) throws DebugException {
+    public static boolean tryToLoadTypes(Collection<String> types, IJavaStackFrame stack) throws DebugException {
     	StringBuilder sb = new StringBuilder();
     	sb.append("{\nObject _$o;\n");
     	for (String typeName: types)
@@ -1311,24 +1312,38 @@ public final class EclipseUtils {
     		return Arrays.asList(new IJavaType[] { type });
     	String packageName = itype.getPackageFragment().getElementName();
     	IType[] subitypes = itype.newTypeHierarchy(project, null).getAllSubtypes(itype);
-		monitor = SubMonitor.convert(monitor, taskName + ": finding subtypes", subitypes.length);
+		// Optimization: pre-load all the types.
+		List<String> subtypeNames = new ArrayList<String>(subitypes.length);
+		for (IType subitype: subitypes)
+			if (!subitype.isAnonymous() && subitype.getPackageFragment().getElementName().startsWith(packageName))
+				subtypeNames.add(getFullITypeName(subitype));
+		tryToLoadTypes(subtypeNames, stack);
+		// Get the actual types
+		monitor = SubMonitor.convert(monitor, taskName + ": finding subtypes", subtypeNames.size());
     	List<IJavaType> subtypes = new ArrayList<IJavaType>();
     	subtypes.add(type);
-    	for (int i = 0; i < subitypes.length; i++) {
+    	for (String subtypeName: subtypeNames)  {
     		if (monitor.isCanceled())
     			return subtypes;
-    		String subtypeName = subitypes[i].getPackageFragment().getElementName();
-    		if (subtypeName.startsWith(packageName)) {
-	    		if (!subtypeName.isEmpty())
-	    			subtypeName += ".";
-	    		subtypeName += subitypes[i].getTypeQualifiedName('.');
-	    		IJavaType subtype = getTypeAndLoadIfNeeded(subtypeName, stack, target, typeCache);
-	    		if (subtype != null)
-	    			subtypes.add(subtype);
-    		}
+    		IJavaType subtype = getFullyQualifiedTypeIfExists(subtypeName, stack, target, typeCache);  // This works with $-qualified names and fails for nested types with .-qualified names, so we use the former.
+    		if (subtype != null)
+    			subtypes.add(subtype);
     		monitor.worked(1);
     	}
     	return subtypes;
+    }
+    
+    /**
+     * Gets the fully-qualified name (using $) of the given type.
+     * @param type The type.
+     * @return The fully-qualified name (using $) of the given type.
+     */
+    private static String getFullITypeName(IType type) {
+		String typeName = type.getPackageFragment().getElementName();
+		if (!typeName.isEmpty())
+			typeName += ".";
+		typeName += type.getTypeQualifiedName('$');
+		return typeName;
     }
 
 }
