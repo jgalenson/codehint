@@ -781,19 +781,28 @@ public class InitialSynthesisDialog extends SynthesisDialog {
 	}
 	
 	private void filterExpressions(String text) {
-    	if (filterWorker != null && amFiltering) {
-    		monitor.setCanceled(true);
-    		try {
-				filterWorker.join();  // Wait for the child job to finish and cleanup (e.g., dispose its monitor).
-			} catch (InterruptedException e) {
-				e.printStackTrace();
+		if (text.isEmpty()) {
+			filteredExpressions = expressions;
+			showResults();
+		} else {
+			if (filterWorker != null && amFiltering) {
+				monitor.setCanceled(true);
+				try {
+					filterWorker.join();  // Wait for the child job to finish and cleanup (e.g., dispose its monitor).
+				} catch (InterruptedException e) {
+					e.printStackTrace();
+				}
 			}
-    	}
-    	amFiltering = true;
-    	startOrEndWork(true);
-    	filterWorker = new FilterWorker(text, expressions, expressionMaker);
-    	filterWorker.setPriority(Job.LONG);
-    	filterWorker.schedule();
+			if (javadocPrefetcher != null)  // Cancel the prefetcher for efficiency.
+				javadocPrefetcher.cancel();
+			amFiltering = true;
+			startOrEndWork(true);
+			filteredExpressions = new ArrayList<FullyEvaluatedExpression>();
+			showResults();
+			filterWorker = new FilterWorker(text, expressions, expressionMaker);
+			filterWorker.setPriority(Job.LONG);
+			filterWorker.schedule();
+		}
     }
 
 	// TODO: This messes up the sort order since I sort the filteredExpressions.  So if you filter, sort, then unfilter, the table looks like it has the new filter but it actually has the old one.  The best thing is to probably sort both the filtered and unfiltered expressions each time, but another option is to save/restore the old table look when filtering/reseting.
@@ -805,55 +814,65 @@ public class InitialSynthesisDialog extends SynthesisDialog {
 
 		private FilterWorker(String filterText, ArrayList<FullyEvaluatedExpression> expressions, ExpressionMaker expressionMaker) {
 			super("Result filter");
-			this.filterWords = filterText.isEmpty() ? null : filterText.toLowerCase().split(" +");
+			this.filterWords = filterText.toLowerCase().split(" +");
 			this.expressions = expressions;
 			this.expressionMaker = expressionMaker;
 		}
 
 		@Override
 		protected IStatus run(IProgressMonitor monitor) {
-			final ArrayList<FullyEvaluatedExpression> filteredExpressions = filterWords == null ? expressions : new ArrayList<FullyEvaluatedExpression>();
-			if (filterWords != null) {
-				InitialSynthesisDialog.this.monitor.beginTask("Result filter", expressions.size());
-				exprLoop: for (FullyEvaluatedExpression expr: expressions) {
-					if (InitialSynthesisDialog.this.monitor.isCanceled())
-						return finished(expressions, Status.CANCEL_STATUS);
-					InitialSynthesisDialog.this.monitor.worked(1);
-					String exprString = expr.getExpression().toString().toLowerCase();
-					String javadocs = null;
-					boolean readJavadocs = false;
-					for (String filterWord: filterWords) {
-						if (exprString.contains(filterWord))
-							continue;
-						if (expr.getResultString().contains(filterWord))
-							continue;
-						if (!readJavadocs) {  // Lazily initialize for efficiency.
-							javadocs = getJavadocs(expr.getExpression(), expressionMaker);
-							readJavadocs = true;
-							if (javadocs != null)
-								javadocs = javadocs.toLowerCase();
-						}
-						if (javadocs != null && !javadocs.contains(filterWord))
-							continue exprLoop;
+			final ArrayList<FullyEvaluatedExpression> filteredExpressions = InitialSynthesisDialog.this.filteredExpressions;
+			InitialSynthesisDialog.this.monitor.beginTask("Result filter", expressions.size());
+			long lastUpdate = System.currentTimeMillis();
+			exprLoop: for (FullyEvaluatedExpression expr: expressions) {
+				if (InitialSynthesisDialog.this.monitor.isCanceled())
+					return finished(false);
+				InitialSynthesisDialog.this.monitor.worked(1);
+				String exprString = expr.getExpression().toString().toLowerCase();
+				String javadocs = null;
+				boolean readJavadocs = false;
+				for (String filterWord: filterWords) {
+					if (exprString.contains(filterWord))
+						continue;
+					if (expr.getResultString().contains(filterWord))
+						continue;
+					if (!readJavadocs) {  // Lazily initialize for efficiency.
+						javadocs = getJavadocs(expr.getExpression(), expressionMaker);
+						readJavadocs = true;
+						if (javadocs != null)
+							javadocs = javadocs.toLowerCase();
 					}
-					filteredExpressions.add(expr);
+					if (javadocs == null || !javadocs.contains(filterWord))
+						continue exprLoop;  // We count things without Javadocs as not matching.
 				}
-				InitialSynthesisDialog.this.monitor.done();
+				filteredExpressions.add(expr);
+				long curTime = System.currentTimeMillis();
+				if (curTime - lastUpdate > 1000) {  // Update the screen at most every second.
+					Display.getDefault().asyncExec(new Runnable(){
+						@Override
+						public void run() {
+							showResults();
+						}
+					});
+					lastUpdate = curTime;
+				}
 			}
-	    	return finished(filteredExpressions, Status.OK_STATUS);
+			InitialSynthesisDialog.this.monitor.done();
+	    	return finished(true);
 		}
 
-		private IStatus finished(final ArrayList<FullyEvaluatedExpression> filteredExpressions, IStatus status) {
+		private IStatus finished(final boolean finished) {
 			Display.getDefault().syncExec(new Runnable(){  // We do this synchronously since we need it for cancellation and it doesn't matter otherwise as we're just about to end.
 				@Override
 				public void run() {
-					InitialSynthesisDialog.this.filteredExpressions = filteredExpressions;
+					if (!finished)  // Restore the original list of expressions if we cancelled.
+						filteredExpressions = expressions;
 					startOrEndWork(false);
 					amFiltering = false;
 					showResults();
 				}
 	    	});
-			return status;
+			return finished ? Status.OK_STATUS : Status.CANCEL_STATUS;
 		}
 		
 	}
