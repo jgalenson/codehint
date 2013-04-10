@@ -1315,6 +1315,8 @@ public final class EclipseUtils {
     	List<IJavaType> subtypes = new ArrayList<IJavaType>();
     	subtypes.add(type);
     	for (int i = 0; i < subitypes.length; i++) {
+    		if (monitor.isCanceled())
+    			return subtypes;
     		String subtypeName = subitypes[i].getPackageFragment().getElementName();
     		if (subtypeName.startsWith(packageName)) {
 	    		if (!subtypeName.isEmpty())
