@@ -11,10 +11,10 @@ If you find any bugs, would like to request any features, or have any general co
 
 ### Installing the plugin:
 1. Open Eclipse and choose the "Help -> Install New Software" menu item.
-2. In the "Work with" box at the top, enter "http://www.cs.berkeley.edu/~joel/codehint/eclipse/".
-3. Select the plugin below, install it, and restart Eclipse when prompted.
+2. In the "Work with" box at the top, enter "http://www.cs.berkeley.edu/~joel/codehint/eclipse/".  Click "Add", name the site, and press "OK".
+3. Select the plugin below, install it by clicking "Next" a few times, and restart Eclipse when prompted.
 4. When the plugin loads for the first time, it will open the preferences page to ask if you want to allow it to report anonymous usage information. We would appreciate it if you allow it to do so. You may change this setting at any time by returning to the preferences page.
-    - The information collected contains data about how you use CodeHint, including the specification you give and how long the search takes.
+    - The information collected contains data about how you use CodeHint and how it performs.  This information includes the specifications you give but none of your code.
 
 ### Brief user guide:
 1. Open Eclipse to a Java project and navigate to where you want to add code.
@@ -33,6 +33,6 @@ If you find any bugs, would like to request any features, or have any general co
 - `??.??().??` will search for field accesses of zero-argument method calls of arbitrary expressions.
 - `foo.??(**)` will search for calls to methods of the `foo` object with any number of unknown expressions. 
 5. If you want to search calls to constructors of the desired type, check the "Search constructors" button. If you want to search operators such as `+` and `<`, check the "Search operators" button. If you want to avoid making calls to native methods to avoid any external side effects, uncheck the "Call native methods" button, which will block such calls at the cost of slowing down the search. If you want to see all the side effects of the expressions and undo them so they do not affect subsequent evaluations, check the "Log and undo side effects" button, which will slow down the search.
-6. Click the "Search" button. You will be shown expressions that satisfy your specifications and their values. Select the ones you wish to insert into the code and click "OK". If you do not see an expression you want, you may modify your specification and/or skeleton and try again. You may also click "Continue Search" to search more expressions with the same specification, but be aware that this search may take a long time and need to be cancelled.
+6. Click the "Search" button. You will be shown expressions that satisfy your specifications and their values. Select the ones you wish to insert into the code and click "OK". If you do not see an expression you want, you may modify your specification and/or skeleton and try again. You may also click "Continue Search" to search more expressions with the same specification, but be aware that this search may take a long time and need to be cancelled.  You may type words in the filter box at the bottom of the dialog and press "Filter" to keep only expressions whose text, result, or Javadocs contain the given words.
 7. The desired expressions will be inserted into the code. You can look through them and select the correct one (by manually editing the code) if you desire. Alternatively, you can bring the debugger back to this line (perhaps by continuing the execution or giving another testcase) and give another specification in this new state to prune the set of candidate expressions.
 - Optional The added code contains calls to a small runtime library. If you want this code to be executable, you may download the library from [here](http://www.cs.berkeley.edu/~joel/codehint/codehint-lib.jar) and add it to the classpath of the current project.  This will additionally provide some performance improvements.
