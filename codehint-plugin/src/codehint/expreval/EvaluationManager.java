@@ -355,12 +355,12 @@ public final class EvaluationManager {
 		IJavaValue curValue = curTypedExpr.getValue();
 		if (curValue == null || !validateStatically) {
 			StringBuilder curString = new StringBuilder();
-			if (isFreeSearch && !isPrimitive)
-				curString.append("{\n");
 			for (Map.Entry<String, Pair<Integer, String>> newTemp: valueFlattener.getNewTemporaries().entrySet()) {
 				curString.append(" ").append(newTemp.getValue().second).append(" _$tmp").append(newTemp.getValue().first).append(" = (").append(newTemp.getValue().second).append(")").append(getQualifier(null)).append("methodResults[").append(methodResultsMap.get(newTemp.getKey())).append("];\n");
 				temporaries.put(newTemp.getKey(), newTemp.getValue().first);
 			}
+			if (isFreeSearch && !isPrimitive)  // Variables now might have different types, so give each evaluation its own scope, but declare temporaries outside that since we reuse them.
+				curString.append("{\n");
 			String curRHSStr = curExprStr;
 			if (isPrimitive && curValue != null)
 				curRHSStr = EclipseUtils.javaStringOfValue(curValue, stack);
