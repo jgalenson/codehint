@@ -264,9 +264,6 @@ public class Synthesizer {
 						unfinished = true;
 						throw new RuntimeException(e);
 					} finally {
-						timeoutChecker.stop();
-						sideEffectHandler.stop(synthesisDialog.getProgressMonitor());
-						final InitialSynthesisDialog.SynthesisState state = unfinished ? InitialSynthesisDialog.SynthesisState.UNFINISHED : InitialSynthesisDialog.SynthesisState.END;
 						for (int i = 0; i < breakpoints.length; i++) {
 							try {
 								if (breakpointsEnabled[i])
@@ -275,6 +272,9 @@ public class Synthesizer {
 								e.printStackTrace();
 							}
 						}
+						timeoutChecker.stop();
+						sideEffectHandler.stop(synthesisDialog.getProgressMonitor());
+						final InitialSynthesisDialog.SynthesisState state = unfinished ? InitialSynthesisDialog.SynthesisState.UNFINISHED : InitialSynthesisDialog.SynthesisState.END;
 						if (oldPrefValue)
 							prefStore.setValue(PHANTOM_BREAKPOINT_PREFNAME, oldPrefValue);
 	                	synthesisDialog.endSynthesis(state);
