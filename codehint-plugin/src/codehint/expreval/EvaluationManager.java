@@ -685,7 +685,10 @@ public final class EvaluationManager {
 	 */
 	private int skipLikelyCrashes(ArrayList<TypedExpression> exprs, DebugException error, int crashingIndex, Expression crashedExpr) throws DebugException {
 		int numToSkip = 1;
-		Method crashedMethod = expressionMaker.getMethod(crashedExpr);
+		Object idObj = ExpressionMaker.getIDOpt(crashedExpr);
+		if (idObj == null)
+			return numToSkip;
+		Method crashedMethod = expressionMaker.getMethod((Integer)idObj);
 		String errorName = EclipseUtils.getExceptionName(error);
 		int numNulls = getNumNulls(crashedExpr);
 		if (crashedMethod != null && "java.lang.NullPointerException".equals(errorName) && numNulls > 0) {
