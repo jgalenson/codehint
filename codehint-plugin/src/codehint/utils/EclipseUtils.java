@@ -858,9 +858,17 @@ public final class EclipseUtils {
    	 * @return The current document.
    	 */
    	public static IDocument getDocument() {
-   		ITextEditor editor = EclipseUtils.getActiveTextEditor();
-   		return editor.getDocumentProvider().getDocument(editor.getEditorInput());
+   		return getDocument(EclipseUtils.getActiveTextEditor());
    	}
+
+	/**
+	 * Gets the document.
+	 * @param editor The text editor.
+	 * @return The document.
+	 */
+	public static IDocument getDocument(ITextEditor editor) {
+		return editor.getDocumentProvider().getDocument(editor.getEditorInput());
+	}
 
    	/**
    	 * Gets the current shell.

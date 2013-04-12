@@ -63,7 +63,7 @@ public class SynthesisStarter extends AbstractHandler {
 				return null;
 			}
 			int line = getLineNumber(editor);
-			initialFile = getDocument(editor).get();
+			initialFile = EclipseUtils.getDocument(editor).get();
 			// Get the closest line that can have a breakpoint (e.g., is executable).
 			CompilationUnit unit = SharedASTProvider.getAST(JavaUI.getWorkingCopyManager().getWorkingCopy(editor.getEditorInput()), SharedASTProvider.WAIT_YES, null);
 			ValidBreakpointLocationLocator bpLoc = new ValidBreakpointLocationLocator(unit, line, false, false);
@@ -111,15 +111,6 @@ public class SynthesisStarter extends AbstractHandler {
 	}
 
 	/**
-	 * Gets the document.
-	 * @param editor The text editor.
-	 * @return The document.
-	 */
-	private static IDocument getDocument(ITextEditor editor) {
-		return editor.getDocumentProvider().getDocument(editor.getEditorInput());
-	}
-
-	/**
 	 * Gets the text at the current line.
 	 * @param editor The text editor.
 	 * @param line The line number (debug version, 1-based).
@@ -127,7 +118,7 @@ public class SynthesisStarter extends AbstractHandler {
 	 * @throws BadLocationException
 	 */
 	private static String getTextAtLine(ITextEditor editor, int line) throws BadLocationException {
-		return EclipseUtils.getTextAtLine(getDocument(editor), line - 1);
+		return EclipseUtils.getTextAtLine(EclipseUtils.getDocument(editor), line - 1);
 	}
 	
 	/**
@@ -236,7 +227,7 @@ public class SynthesisStarter extends AbstractHandler {
 							if (!isDirty)  // If the document was not dirty, then save after we delete the line we ourselves added.
 								editor.doSave(null);
 						} else if (Pattern.compile("\\s*(?:(\\w+)\\s+)?([\\w\\[\\].]+)\\s*=\\s*(CodeHint.(?:choose|chosen).*);\\s*\\r?\\n\\s*").matcher(curLine).matches()) {
-							IDocument document = getDocument(editor);
+							IDocument document = EclipseUtils.getDocument(editor);
 							String curFile = document.get(0, document.getLineOffset(breakpointLine - 1)) + document.get(document.getLineOffset(breakpointLine), document.getLength() - document.getLineOffset(breakpointLine));
 							if (curFile.equals(initialFile))  // If the only change to the file since the synthesis started is a choose/chosen call, save the file.
 								editor.doSave(null);

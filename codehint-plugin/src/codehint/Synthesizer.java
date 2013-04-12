@@ -94,6 +94,7 @@ public class Synthesizer {
 	private static final String PHANTOM_BREAKPOINT_PREFNAME = "org.eclipse.jdt.debug.ui.javaDebug.SuspendOnUncaughtExceptions";
 	
 	private static Map<String, Property> initialDemonstrations;
+	private static List<String> addedChosenStmts;
 	
 	/**
 	 * Synthesizes expressions and inserts them into the code.
@@ -392,7 +393,27 @@ public class Synthesizer {
 					} catch (CoreException e) {
 						throw new RuntimeException(e);
 					}
-					// Remove the text we added, if any, and save if possible.
+					// Remove chosen statements, any text we added, and save if possible.
+					if (!addedChosenStmts.isEmpty()) {
+						Display.getDefault().asyncExec(new Runnable(){
+							@Override
+							public void run() {
+								try {
+									IDocument document = EclipseUtils.getDocument();
+									String text = document.get();
+									for (int i = addedChosenStmts.size() - 1; i >= 0; i--) {
+										String chosenStmt = addedChosenStmts.get(i);
+										int index = text.indexOf(chosenStmt);
+										if (index != -1)  // Replace "CodeHint.chosen(...)" with "...".
+											document.replace(index, chosenStmt.length(), chosenStmt.substring("CodeHint.chosen(".length(), chosenStmt.length() - 1));
+										addedChosenStmts.remove(i);
+									}
+								} catch (BadLocationException e) {
+									throw new RuntimeException(e);
+								}
+							}
+						});
+					}
 					SynthesisStarter.cleanup();
 	            }
 	        }
@@ -743,12 +764,14 @@ public class Synthesizer {
 	 */
     private static String generateChooseOrChosenStmt(String varname, List<String> expressions) {
     	String functionName = "CodeHint." + (expressions.size() == 1 ? "chosen" : "choose");
-		String statement = (varname == null ? "" : varname + " = ") + functionName + "(";
+		String statementRHSExpr = functionName + "(";
 		String newExprsString = expressions.toString();
 		newExprsString = newExprsString.substring(1, newExprsString.length() - 1);
-		statement += newExprsString;
-		statement += ");";
-		return statement;
+		statementRHSExpr += newExprsString;
+		statementRHSExpr += ")";
+		if (expressions.size() == 1)
+			addedChosenStmts.add(statementRHSExpr);
+		return (varname == null ? "" : varname + " = ") + statementRHSExpr + ";";
     }
 
     private static ChoiceBreakpointListener listener;
@@ -762,11 +785,11 @@ public class Synthesizer {
     	if (listener == null)
     		listener = new ChoiceBreakpointListener();
     	initialDemonstrations = new HashMap<String, Property>();
+    	addedChosenStmts = new ArrayList<String>();
     	DebugPlugin.getDefault().addDebugEventListener(listener);
     	ExpressionGenerator.init();
     }
 
-    //Called externally (from the plugin shutdown) to unregister our breakpoint listener
     /**
      * Unregisters our breakpoint listener and clears some
      * static fields.
@@ -776,6 +799,7 @@ public class Synthesizer {
     	DebugPlugin.getDefault().removeDebugEventListener(listener);
     	listener = null;
     	initialDemonstrations = null;
+    	addedChosenStmts = null;
     	ExpressionGenerator.clear();
     }
     
