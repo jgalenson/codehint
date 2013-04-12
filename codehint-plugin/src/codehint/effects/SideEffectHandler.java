@@ -58,6 +58,7 @@ import com.sun.jdi.event.Event;
 import com.sun.jdi.event.EventSet;
 import com.sun.jdi.event.LocatableEvent;
 import com.sun.jdi.event.ModificationWatchpointEvent;
+import com.sun.jdi.event.WatchpointEvent;
 
 public class SideEffectHandler {
 	
@@ -114,16 +115,24 @@ public class SideEffectHandler {
 					//System.out.println("Bad times on " + type.name());
 					continue;
 				}
+				String typeName = itype.getFullyQualifiedName();
 				if (itype.getPackageFragment().getElementName().equals("codehint")
-						|| itype.getFullyQualifiedName().equals("java.lang.String")  // A String's value array will never change and we don't care about its hashCode.
-						|| itype.getFullyQualifiedName().equals("java.lang.Class"))
+						|| typeName.equals("java.lang.String")  // A String's value array will never change and we don't care about its hashCode.
+						|| typeName.equals("java.lang.Class")
+						|| typeName.equals("java.lang.CharacterDataLatin1")
+						|| typeName.equals("java.lang.Integer$IntegerCache"))
 					continue;
 				List<ObjectReference> instances = null;
 				for (IField field: itype.getFields()) {
 					if (!Flags.isFinal(field.getFlags()) || canBeArray(field)) {
-						if (Flags.isStatic(field.getFlags()))
+						if (Flags.isStatic(field.getFlags())) {
+							if ((typeName.equals("javax.swing.UIDefaults") && field.getElementName().equals("PENDING"))
+									|| (typeName.equals("javax.swing.UIManager") && field.getElementName().equals("classLock")))
+								continue;
 							fields.add(field);
-						else {
+						} else {
+							if (typeName.equals("javax.swing.MultiUIDefaults") && field.getElementName().equals("tables"))
+								continue;
 							if (instances == null) {
 								instances = type.instances(Long.MAX_VALUE);
 								for (ObjectReference instance: instances) {
@@ -243,30 +252,28 @@ public class SideEffectHandler {
 		public boolean handleEvent(Event event, JDIDebugTarget target, boolean suspendVote, EventSet eventSet) {
 			if (effectsMap == null)  // We're not currently tracking side effects.
 				return true;
-			if (event instanceof ModificationWatchpointEvent) {
-				ModificationWatchpointEvent modEvent = (ModificationWatchpointEvent)event;
-				if (modEvent.location().method().isStaticInitializer())
-					return true;  // If the field is modified in a static initializer, it must be the initialization of a static field of a newly-loaded class, which we don't want to revert.
-				ObjectReference obj = modEvent.object();
+			if (event instanceof WatchpointEvent) {
+				WatchpointEvent watchEvent = (WatchpointEvent)event;
+				//System.out.println(event + " on " + FieldLVal.makeFieldLVal(watchEvent.object(), watchEvent.field()).toString());
+				ObjectReference obj = watchEvent.object();
 				if (obj != null && obj.uniqueID() > maxID) {
 					//System.out.println("Ignoring new object " + obj.toString());
 					return true;
 				}
-				recordEffect(FieldLVal.makeFieldLVal(obj, modEvent.field()), modEvent.valueCurrent(), modEvent.valueToBe());
-				return true;
-			} else if (event instanceof AccessWatchpointEvent) {
-				AccessWatchpointEvent readEvent = (AccessWatchpointEvent)event;
-				Field field = readEvent.field();
-				if (readEvent.valueCurrent() instanceof ArrayReference) {
-					ObjectReference obj = readEvent.object();
-					if (obj != null && obj.uniqueID() > maxID) {
-						//System.out.println("Ignoring new object " + obj.toString());
-						return true;
-					}
-					backupArray(FieldLVal.makeFieldLVal(obj, field), readEvent.valueCurrent());
+				if (watchEvent instanceof ModificationWatchpointEvent) {
+					ModificationWatchpointEvent modEvent = (ModificationWatchpointEvent)watchEvent;
+					if (!modEvent.location().method().isStaticInitializer())  // If the field is modified in a static initializer, it must be the initialization of a static field of a newly-loaded class, which we don't want to revert.
+						recordEffect(FieldLVal.makeFieldLVal(obj, modEvent.field()), modEvent.valueCurrent(), modEvent.valueToBe());
+					return true;
+				} else if (watchEvent instanceof AccessWatchpointEvent) {
+					AccessWatchpointEvent readEvent = (AccessWatchpointEvent)watchEvent;
+					Value oldVal = readEvent.valueCurrent();
+					if (oldVal instanceof ArrayReference)
+						backupArray(FieldLVal.makeFieldLVal(obj, readEvent.field()), oldVal);
+					/*else
+						System.out.println("Ignoring read on non-array Object");*/
 					return true;
 				}
-				return true;
 			}
 			return super.handleEvent(event, target, suspendVote, eventSet);
 		}
@@ -277,10 +284,10 @@ public class SideEffectHandler {
 		if (oldVal != newVal && (oldVal == null || !oldVal.equals(newVal))) {
 			if (readArrays.contains(lval))  // If the static type of the field is Object, we might track it twice, in write and array read.
 				return;
-			changedFields.add(lval);
-			RVal oldRVal = RVal.makeRVal(oldVal);
 			RVal newRVal = RVal.makeRVal(newVal);
 			if (!effectsMap.containsKey(lval)) {
+				changedFields.add(lval);
+				RVal oldRVal = RVal.makeRVal(oldVal);
 				effectsMap.put(lval, new MutablePair<RVal, RVal>(oldRVal, newRVal));
 				disableCollection(oldVal);
 			} else {
@@ -299,9 +306,9 @@ public class SideEffectHandler {
 	private void backupArray(FieldLVal lval, Value oldVal) {
 		if (changedFields.contains(lval))  // If the static type of the field is Object, we might track it twice, in write and array read.
 			return;
-		readArrays.add(lval);
-		ArrayValue oldRVal = ArrayValue.makeArrayValue((ArrayReference)oldVal);
 		if (!readFieldsMap.containsKey(lval)) {
+			readArrays.add(lval);
+			ArrayValue oldRVal = ArrayValue.makeArrayValue((ArrayReference)oldVal);
 			readFieldsMap.put(lval, oldRVal);
 			disableCollection(oldVal);
 			//System.out.println("Reading " + lval.toString() + " from " + (oldVal == null ? "null" : getValues((ArrayReference)oldVal)));

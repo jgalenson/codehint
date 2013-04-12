@@ -264,6 +264,7 @@ public class ExpressionMaker {
 		IJavaValue receiverValue = receiver.getValue();
 		IJavaValue value = null;
 		Set<Effect> effects = null;
+		//long startTime = System.currentTimeMillis();
 		try {
 			//System.out.println("Calling " + (receiver.getValue() != null ? receiver.getExpression() : receiver.getType()).toString().replace("\n", "\\n") + "." + method.name() + " with args " + args.toString());
 			timeoutChecker.startEvaluating(null);
@@ -286,6 +287,7 @@ public class ExpressionMaker {
 			effects = isOutermost ? sideEffectHandler.stopHandlingSideEffects() : sideEffectHandler.getSideEffects();
 			nativeHandler.allowNativeCalls();
 			timeoutChecker.stopEvaluating();
+			//System.out.println("Calling " + (receiver.getValue() != null ? receiver.getExpression() : receiver.getType()).toString().replace("\n", "\\n") + "." + method.name() + " with args " + args.toString() + " took " + (System.currentTimeMillis() - startTime) + "ms.");
 		}
 		return new Result(value, effects, valueCache, thread);
 	}
