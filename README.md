@@ -7,12 +7,13 @@ If you find any bugs, would like to request any features, or have any general co
 *Warning*: CodeHint actually executes some expressions, which could contain external side effects. We use Java's security manager to stop effects like deleting files, but it is possible that there will be undesirable external side effects inside native calls. Users may disallow native calls to methods outside the standard library when using CodeHint and so should be careful when the current context contains objects with such external side effects in native calls.
 
 ### Requirements:
+- Java (tested with Oracle's VM versions 6 and 7, though 5 should work).
 - A new version of Eclipse (3.7/Indigo or 4.2/Juno) with the Java plugins.
 
 ### Installing the plugin:
 1. Open Eclipse and choose the "Help -> Install New Software" menu item.
 2. In the "Work with" box at the top, enter "http://www.cs.berkeley.edu/~joel/codehint/eclipse/".  Click "Add", name the site, and press "OK".
-3. Select the plugin below, install it by clicking "Next" a few times, and restart Eclipse when prompted.
+3. Select the plugin in the list below, install it by clicking "Next" a few times, and restart Eclipse when prompted.
 4. When the plugin loads for the first time, it will open the preferences page to ask if you want to allow it to report anonymous usage information. We would appreciate it if you allow it to do so. You may change this setting at any time by returning to the preferences page.
     - The information collected contains data about how you use CodeHint and how it performs.  This information includes the specifications you give but none of your code.
 

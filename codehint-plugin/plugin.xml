@@ -5,7 +5,11 @@
          point="org.eclipse.ui.menus">
       <menuContribution
             allPopups="false"
-            locationURI="popup:org.eclipse.debug.ui.VariableView">
+            locationURI="popup:org.eclipse.debug.ui.VariableView?after=additions">
+          <separator
+                name="codehint.varview.separator"
+                visible="true">
+          </separator>
          <command
                commandId="codehint.handler.demonstrateValue"
                label="Demonstrate value"

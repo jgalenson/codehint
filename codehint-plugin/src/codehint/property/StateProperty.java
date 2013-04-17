@@ -43,6 +43,8 @@ public class StateProperty extends Property {
 	}
 	
 	public static String isLegalProperty(String str, IJavaStackFrame stackFrame, IAstEvaluationEngine evaluationEngine) {
+    	if ("".equals(str))
+    		return "Please enter a property.";
 		ASTNode property = rewritePrimeSyntax(str);
 		if (property instanceof CompilationUnit)
 			return "Enter a valid expression: " + ((CompilationUnit)property).getProblems()[0].getMessage();

@@ -274,7 +274,7 @@ public class InitialSynthesisDialog extends SynthesisDialog {
         table.setItemCount(0);
 
 		Composite bottomButtonComposite = makeChildComposite(composite, GridData.HORIZONTAL_ALIGN_CENTER, 0);
-        checkAllButton = createButton(bottomButtonComposite, IDialogConstants.SELECT_ALL_ID, "Check All", false);
+        checkAllButton = createButton(bottomButtonComposite, IDialogConstants.SELECT_ALL_ID, "Check all", false);
         checkAllButton.addSelectionListener(new SelectionAdapter() {
             @Override
 			public void widgetSelected(SelectionEvent e) {
@@ -282,7 +282,7 @@ public class InitialSynthesisDialog extends SynthesisDialog {
             }
         });
         checkAllButton.setEnabled(false);
-        uncheckAllButton = createButton(bottomButtonComposite, IDialogConstants.DESELECT_ALL_ID, "Uncheck All", false);
+        uncheckAllButton = createButton(bottomButtonComposite, IDialogConstants.DESELECT_ALL_ID, "Uncheck all", false);
         uncheckAllButton.addSelectionListener(new SelectionAdapter() {
             @Override
 			public void widgetSelected(SelectionEvent e) {
@@ -901,6 +901,7 @@ public class InitialSynthesisDialog extends SynthesisDialog {
 
 	@Override
 	public void cleanup() {
+		super.cleanup();
 		valueCache.allowCollectionOfDisabledObjects();  // Allow collection of objects from the last search.
 		table.dispose();
 		if (monitor != null)
@@ -929,7 +930,6 @@ public class InitialSynthesisDialog extends SynthesisDialog {
 		expressionGenerator = null;
 		skeleton = null;
 		expressionSorter = null;
-		super.cleanup();
 	}
     
     // Expression validator

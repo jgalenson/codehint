@@ -36,8 +36,8 @@ import org.eclipse.swt.SWT;
 import org.eclipse.swt.custom.StyledText;
 import org.eclipse.swt.events.FocusEvent;
 import org.eclipse.swt.events.FocusListener;
+import org.eclipse.swt.events.KeyAdapter;
 import org.eclipse.swt.events.KeyEvent;
-import org.eclipse.swt.events.KeyListener;
 import org.eclipse.swt.events.SelectionAdapter;
 import org.eclipse.swt.events.SelectionEvent;
 import org.eclipse.swt.events.TraverseEvent;
@@ -92,6 +92,7 @@ public abstract class SynthesisDialog extends ModelessDialog {
 		this.comboIndex = -1;
 		this.propertyDialog = propertyDialog;
 		this.pdspecIsValid = false;
+		this.fService = (IHandlerService)PlatformUI.getWorkbench().getAdapter(IHandlerService.class);
 		this.okButton = null;
 		this.stack = stack;
 		this.results = null;
@@ -253,7 +254,6 @@ public abstract class SynthesisDialog extends ModelessDialog {
 			@Override
 			public void focusGained(FocusEvent e) {
 		    	deactivateHandler();
-				fService = (IHandlerService)PlatformUI.getWorkbench().getAdapter(IHandlerService.class);
 				fActivation = fService.activateHandler(ITextEditorActionDefinitionIds.CONTENT_ASSIST_PROPOSALS, handler);
 			}
 		});
@@ -272,16 +272,13 @@ public abstract class SynthesisDialog extends ModelessDialog {
 		// Enable undo/redo.
 		final KeyStroke undoTrigger = getKeyStrokeForCommand("org.eclipse.ui.edit.undo");
 		final KeyStroke redoTrigger = getKeyStrokeForCommand("org.eclipse.ui.edit.redo");
-		sv.getControl().addKeyListener(new KeyListener() {
+		sv.getControl().addKeyListener(new KeyAdapter() {
 			@Override
 			public void keyPressed(KeyEvent e) {
 				if (matches(e, undoTrigger))
 					sv.doOperation(ITextOperationTarget.UNDO);
 				else if (matches(e, redoTrigger))
 					sv.doOperation(ITextOperationTarget.REDO);
-			}
-			@Override
-			public void keyReleased(KeyEvent e) {
 			}
 			
 		});

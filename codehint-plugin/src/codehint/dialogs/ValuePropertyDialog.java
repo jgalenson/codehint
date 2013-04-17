@@ -66,6 +66,8 @@ public class ValuePropertyDialog extends PropertyDialog {
         
         @Override
 		public String isValid(String newText) {
+        	if ("".equals(newText))
+        		return "Please enter a Java expression.";
         	ASTNode node = EclipseUtils.parseExpr(parser, newText);
         	if (node instanceof CompilationUnit)
         		return "Enter a valid expression: " + ((CompilationUnit)node).getProblems()[0].getMessage();
