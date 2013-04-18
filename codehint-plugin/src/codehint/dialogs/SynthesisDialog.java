@@ -70,7 +70,7 @@ public abstract class SynthesisDialog extends ModelessDialog {
 	
 	private int comboIndex;
 
-    protected static final int MESSAGE_WIDTH = 1000;
+    protected static final int MESSAGE_WIDTH = 800;
 	protected PropertyDialog propertyDialog;
 	private Composite pdspecComposite;
 	protected StyledText pdspecInput;
@@ -87,6 +87,7 @@ public abstract class SynthesisDialog extends ModelessDialog {
 
     protected SynthesisDialog(Shell parentShell, String varTypeName, IJavaType varType, IJavaStackFrame stack, PropertyDialog propertyDialog) {
 		super(parentShell);
+		setShellStyle(getShellStyle() | SWT.RESIZE);
 		this.varTypeName = varTypeName;
 		this.varType = varType;
 		this.comboIndex = -1;
@@ -104,6 +105,7 @@ public abstract class SynthesisDialog extends ModelessDialog {
 	@Override
 	protected Control createDialogArea(Composite parent) {
 		Composite composite = (Composite)super.createDialogArea(parent);
+		useGridLayout(composite);
 
 		makeCombo(composite);
 
@@ -177,12 +179,18 @@ public abstract class SynthesisDialog extends ModelessDialog {
 	// For buttons, pass in 0 for numColumns, as createButtons increments it.
 	protected static Composite makeChildComposite(Composite parent, int horizStyle, int numColumns) {
 		Composite composite = new Composite(parent, SWT.NONE);
-		GridLayout layout = new GridLayout();
+		GridLayout layout = useGridLayout(composite);
 		layout.numColumns = numColumns;
-		composite.setLayout(layout);
 		composite.setLayoutData(new GridData(horizStyle | GridData.VERTICAL_ALIGN_CENTER));
 		composite.setFont(parent.getFont());
 		return composite;
+	}
+	
+	private static GridLayout useGridLayout(Composite composite) {
+		GridLayout layout = new GridLayout();
+		layout.verticalSpacing = 0;
+		composite.setLayout(layout);
+		return layout;
 	}
 	
 	private static class MySourceViewerConfiguration extends JavaSourceViewerConfiguration {
@@ -312,6 +320,7 @@ public abstract class SynthesisDialog extends ModelessDialog {
 		label.setFont(composite.getFont());
 		GridData gridData = new GridData();
 		gridData.widthHint = width;
+		gridData.horizontalAlignment = GridData.FILL;
 		label.setLayoutData(gridData);
 	}
 	
