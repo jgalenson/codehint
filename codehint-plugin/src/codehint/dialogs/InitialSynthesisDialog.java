@@ -484,7 +484,7 @@ public class InitialSynthesisDialog extends SynthesisDialog {
         getButton(IDialogConstants.CANCEL_ID).setEnabled(!isStarting);
 		if (state == SynthesisState.END && shouldContinue)
 			numSearches++;
-        startOrEndWork(isStarting, !isStarting && expressions.isEmpty() ? "No expressions found.  You may press \"Continue Search\" to search further or change some search options." : null);
+        startOrEndWork(isStarting, state == SynthesisState.END && expressions.isEmpty() ? "No expressions found.  You may press \"Continue Search\" to search further or change some search options." : null);
     	amSearching = isStarting;
     	filterComposite.setVisible(!isStarting && !expressions.isEmpty());
     	if (!isStarting) {
