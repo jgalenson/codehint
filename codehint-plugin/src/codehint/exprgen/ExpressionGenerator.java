@@ -1168,14 +1168,14 @@ public final class ExpressionGenerator {
 				if (type instanceof ClassType) {  // Add interface types first so we try to prefer them.
 					ClassType classType = (ClassType)type;
 					for (InterfaceType interfacetype: classType.interfaces())
-						if (!interfacetype.methodsByName(method.name(), method.signature()).isEmpty())
+						if (hasSimilarMethod(interfacetype, method))
 							newCandidates.add(interfacetype);
 					ClassType supertype = classType.superclass();
-					if (supertype != null && !supertype.methodsByName(method.name(), method.signature()).isEmpty())
+					if (supertype != null && hasSimilarMethod(supertype, method))
 						newCandidates.add(supertype);
 				} else {
 					for (InterfaceType interfacetype: ((InterfaceType)type).superinterfaces())
-						if (!interfacetype.methodsByName(method.name(), method.signature()).isEmpty())
+						if (hasSimilarMethod(interfacetype, method))
 							newCandidates.add(interfacetype);
 				}
 			}
@@ -1184,6 +1184,21 @@ public final class ExpressionGenerator {
 			candidates = newCandidates;
 		}
 		return candidates.get(0);
+	}
+	
+	/**
+	 * Checks whether the given type has a public version
+	 * of the given method.
+	 * @param type The type to check.
+	 * @param method The method we want to call.
+	 * @return Whether the given type has a public version
+	 * of the given method.
+	 */
+	private static boolean hasSimilarMethod(ReferenceType type, Method method) {
+		for (Method cur: type.methodsByName(method.name(), method.signature()))
+			if (cur.isPublic())  // Some supertypes might have non-public version of the method, so ignore them.
+				return true;
+		return false;
 	}
 	
 	/**
