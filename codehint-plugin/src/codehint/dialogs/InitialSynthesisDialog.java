@@ -28,6 +28,9 @@ import org.eclipse.jface.dialogs.IInputValidator;
 import org.eclipse.jface.resource.JFaceResources;
 import org.eclipse.jface.viewers.ColumnLabelProvider;
 import org.eclipse.jface.viewers.ColumnViewerToolTipSupport;
+import org.eclipse.jface.viewers.DoubleClickEvent;
+import org.eclipse.jface.viewers.IDoubleClickListener;
+import org.eclipse.jface.viewers.IStructuredSelection;
 import org.eclipse.jface.viewers.TableViewer;
 import org.eclipse.jface.viewers.TableViewerColumn;
 import org.eclipse.jface.window.ToolTip;
@@ -270,6 +273,15 @@ public class InitialSynthesisDialog extends SynthesisDialog {
 		});
     	addColumn("Result", 1, TABLE_WIDTH / 2);
     	ColumnViewerToolTipSupport.enableFor(tableViewer, ToolTip.NO_RECREATE);
+    	tableViewer.addDoubleClickListener(new IDoubleClickListener() {
+			@Override
+			public void doubleClick(DoubleClickEvent event) {
+				TableItem clickedItem = table.getItem(table.getSelectionIndex());
+				Object doubleClickedElement = ((IStructuredSelection)event.getSelection()).getFirstElement();
+				if (clickedItem.getData() == doubleClickedElement)
+					clickedItem.setChecked(!clickedItem.getChecked());
+			}
+		});
         PlatformUI.getWorkbench().getHelpSystem().setHelp(table, Activator.PLUGIN_ID + "." + "candidate-selector");
         table.setItemCount(0);
 
