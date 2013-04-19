@@ -236,7 +236,7 @@ public abstract class SynthesisDialog extends ModelessDialog {
 	}
 	
 	protected StyledText createInput(Composite composite, String message, String initialText, final IInputValidator validator, final ModifyHandler modifyListener, String helpID) {
-		createLabel(composite, message, MESSAGE_WIDTH);
+		createLabel(composite, message, SWT.BEGINNING, MESSAGE_WIDTH);
 
 		// This code was adapted from ExpressionInputDialog.
 		final SourceViewer sv = new SourceViewer(composite, null, SWT.SINGLE | SWT.BORDER);
@@ -314,14 +314,15 @@ public abstract class SynthesisDialog extends ModelessDialog {
 		return sv.getTextWidget();
 	}
 
-	protected void createLabel(Composite composite, String message, int width) {
+	protected Label createLabel(Composite composite, String message, int horizAlign, int width) {
 		Label label = new Label(composite, SWT.WRAP);
 		label.setText(message);
 		label.setFont(composite.getFont());
 		GridData gridData = new GridData();
 		gridData.widthHint = width;
-		gridData.horizontalAlignment = GridData.FILL;
+		gridData.horizontalAlignment = horizAlign;
 		label.setLayoutData(gridData);
+		return label;
 	}
 	
 	/**

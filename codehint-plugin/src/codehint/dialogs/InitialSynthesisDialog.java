@@ -50,6 +50,7 @@ import org.eclipse.swt.widgets.Composite;
 import org.eclipse.swt.widgets.Control;
 import org.eclipse.swt.widgets.Display;
 import org.eclipse.swt.widgets.Event;
+import org.eclipse.swt.widgets.Label;
 import org.eclipse.swt.widgets.Layout;
 import org.eclipse.swt.widgets.Listener;
 import org.eclipse.swt.widgets.Shell;
@@ -103,6 +104,7 @@ public class InitialSynthesisDialog extends SynthesisDialog {
     private static final int MONITOR_WIDTH = 300;
     private JavadocPrefetcher javadocPrefetcher;
     private SorterWorker sorterWorker;
+    private Label monitorLabel;
 
     private static final int TABLE_WIDTH = MESSAGE_WIDTH;
     private static final int TABLE_HEIGHT = 300;
@@ -206,6 +208,7 @@ public class InitialSynthesisDialog extends SynthesisDialog {
 		searchCancelButton.setEnabled(pdspecIsValid && skeletonIsValid);
 		
 		monitorComposite = makeChildComposite(composite, GridData.HORIZONTAL_ALIGN_CENTER, 1);
+		monitorLabel = null;
 		
 		table = new Table(composite, SWT.BORDER | SWT.CHECK | SWT.MULTI | SWT.VIRTUAL);
 		TableViewer tableViewer = new TableViewer(table);
@@ -320,7 +323,7 @@ public class InitialSynthesisDialog extends SynthesisDialog {
         uncheckSelectedButton.setEnabled(false);
         
         filterComposite = makeChildComposite(composite, GridData.HORIZONTAL_ALIGN_FILL, 2);
-        createLabel(filterComposite, "Filter expressions, results, and Javadoc by words:", 325);
+        createLabel(filterComposite, "Filter expressions, results, and Javadoc by words:", SWT.BEGINNING, 325);
 		final Text filterText = new Text(filterComposite, SWT.BORDER | SWT.WRAP | SWT.SINGLE);
 		filterText.setLayoutData(new GridData(GridData.GRAB_HORIZONTAL | GridData.HORIZONTAL_ALIGN_FILL));
 		filterText.addSelectionListener(new SelectionAdapter() {
@@ -481,9 +484,9 @@ public class InitialSynthesisDialog extends SynthesisDialog {
         getButton(IDialogConstants.CANCEL_ID).setEnabled(!isStarting);
 		if (state == SynthesisState.END && shouldContinue)
 			numSearches++;
-        startOrEndWork(isStarting);
+        startOrEndWork(isStarting, !isStarting && expressions.isEmpty() ? "No expressions found.  You may press \"Continue Search\" to search further or change some search options." : null);
     	amSearching = isStarting;
-    	filterComposite.setVisible(!isStarting);
+    	filterComposite.setVisible(!isStarting && !expressions.isEmpty());
     	if (!isStarting) {
     		javadocPrefetcher = new JavadocPrefetcher(this.filteredExpressions, this.expressionMaker);
     		javadocPrefetcher.setPriority(Job.DECORATE);
@@ -494,26 +497,21 @@ public class InitialSynthesisDialog extends SynthesisDialog {
     	}
     }
 	
-	private void startOrEndWork(boolean isStarting) {
+	private void startOrEndWork(boolean isStarting, String message) {
     	searchCancelButton.setEnabled(isStarting || (pdspecIsValid && skeletonIsValid));
     	setSearchCancelButtonText(isStarting ? "Cancel" : shouldContinue && numSearches > 0 ? "Continue search" : "Search");
-    	if (isStarting)
-    		enableProgressMonitor();
-    	else
-    		disableProgressMonitor();
-	}
-
-	private void enableProgressMonitor() {
-		monitor = new SynthesisProgressMonitor(monitorComposite, null);
-		//monitor.attachToCancelComponent(searchButton);
-		GridData gridData = new GridData();
-		gridData.widthHint = MONITOR_WIDTH;
-		monitor.setLayoutData(gridData);
-		monitorComposite.getParent().layout(true);
-	}
-
-	private void disableProgressMonitor() {
-		monitor.dispose();
+    	if (!isStarting && message != null)
+			monitorLabel = createLabel(monitorComposite, message, SWT.CENTER, SWT.DEFAULT);
+    	else if (monitorLabel != null)
+			monitorLabel.dispose();
+    	if (isStarting) {  // Enable progress monitor.
+    		monitor = new SynthesisProgressMonitor(monitorComposite, null);
+    		//monitor.attachToCancelComponent(searchButton);
+    		GridData gridData = new GridData();
+    		gridData.widthHint = MONITOR_WIDTH;
+    		monitor.setLayoutData(gridData);
+    	} else  // Disable progress monitor.
+    		monitor.dispose();
 		monitorComposite.getParent().layout(true);
 	}
 
@@ -795,6 +793,10 @@ public class InitialSynthesisDialog extends SynthesisDialog {
 	private void filterExpressions(String text) {
 		if (text.isEmpty()) {
 			filteredExpressions = expressions;
+			if (monitorLabel != null) {
+				monitorLabel.dispose();
+				monitorComposite.getParent().layout(true);
+			}
 			showResults();
 		} else {
 			if (filterWorker != null && amFiltering) {
@@ -808,7 +810,7 @@ public class InitialSynthesisDialog extends SynthesisDialog {
 			if (javadocPrefetcher != null)  // Cancel the prefetcher for efficiency.
 				javadocPrefetcher.cancel();
 			amFiltering = true;
-			startOrEndWork(true);
+			startOrEndWork(true, null);
 			filteredExpressions = new ArrayList<FullyEvaluatedExpression>();
 			showResults();
 			filterWorker = new FilterWorker(text, expressions, expressionMaker);
@@ -879,7 +881,7 @@ public class InitialSynthesisDialog extends SynthesisDialog {
 				public void run() {
 					if (!finished)  // Restore the original list of expressions if we cancelled.
 						filteredExpressions = expressions;
-					startOrEndWork(false);
+					startOrEndWork(false, filteredExpressions.isEmpty() ? "All expressions have been filtered away." : null);
 					amFiltering = false;
 					showResults();
 				}
