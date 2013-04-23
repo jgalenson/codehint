@@ -112,6 +112,7 @@ public class InitialSynthesisDialog extends SynthesisDialog {
     private int maxExprLen;
     private int maxResultLen;
     private ArrayList<FullyEvaluatedExpression> expressions;
+    private ArrayList<FullyEvaluatedExpression> lastExpressions;
     private ArrayList<FullyEvaluatedExpression> filteredExpressions;
     private Button checkAllButton;
     private Button uncheckAllButton;
@@ -159,6 +160,7 @@ public class InitialSynthesisDialog extends SynthesisDialog {
 		this.maxExprLen = 0;
 		this.maxResultLen = 0;
 		this.expressions = null;
+		this.lastExpressions = null;
 		this.filteredExpressions = null;
 		this.amFiltering = false;
 		this.worker = worker;
@@ -445,6 +447,7 @@ public class InitialSynthesisDialog extends SynthesisDialog {
 		skeletonResult = skeletonInput.getText();
 		skeleton = ExpressionSkeleton.fromString(skeletonResult, target, stack, expressionMaker, evaluationEngine, subtypeChecker, typeCache, valueCache, evalManager, staticEvaluator, expressionGenerator, sideEffectHandler);
 		startEndSynthesis(isAutomatic ? SynthesisState.AUTO_START : SynthesisState.START);
+		lastExpressions = expressions;
 		expressions = new ArrayList<FullyEvaluatedExpression>();
 		filteredExpressions = expressions;
 		showResults();  // Clears any existing results.
@@ -470,7 +473,9 @@ public class InitialSynthesisDialog extends SynthesisDialog {
 			} finally {
 				curMonitor.done();
 			}
-		}
+		} else if (state == SynthesisState.UNFINISHED && sorterWorker != null)
+			sorterWorker.cancel();
+		sorterWorker = null;
 		Display.getDefault().asyncExec(new Runnable(){
 			@Override
 			public void run() {
@@ -487,13 +492,14 @@ public class InitialSynthesisDialog extends SynthesisDialog {
         startOrEndWork(isStarting, state == SynthesisState.END && expressions.isEmpty() ? "No expressions found.  You may press \"Continue Search\" to search further or change some search options." : null);
     	amSearching = isStarting;
     	filterComposite.setVisible(!isStarting && !expressions.isEmpty());
-    	if (!isStarting) {
+    	if (state == SynthesisState.END) {
     		javadocPrefetcher = new JavadocPrefetcher(this.filteredExpressions, this.expressionMaker);
     		javadocPrefetcher.setPriority(Job.DECORATE);
     		javadocPrefetcher.schedule();
-    		if (state == SynthesisState.UNFINISHED && sorterWorker != null)
-    			sorterWorker.cancel();
-			sorterWorker = null;
+    	}
+    	if (state == SynthesisState.UNFINISHED && lastExpressions != null) {
+    		filteredExpressions = expressions = lastExpressions;
+    		showResults();
     	}
     }
 	
@@ -927,6 +933,7 @@ public class InitialSynthesisDialog extends SynthesisDialog {
 		monitor = null;
 		table = null;
 		expressions = null;
+		lastExpressions = null;
 		filteredExpressions = null;
 		checkAllButton = null;
 		uncheckAllButton = null;
