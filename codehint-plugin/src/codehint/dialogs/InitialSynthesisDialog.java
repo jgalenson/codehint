@@ -843,10 +843,22 @@ public class InitialSynthesisDialog extends SynthesisDialog {
 		protected IStatus run(IProgressMonitor monitor) {
 			final ArrayList<FullyEvaluatedExpression> filteredExpressions = InitialSynthesisDialog.this.filteredExpressions;
 			InitialSynthesisDialog.this.monitor.beginTask("Result filter", expressions.size());
-			long lastUpdate = System.currentTimeMillis();
+			long lastUpdate = 0;
+			int lastUpdateSize = 0;
 			exprLoop: for (FullyEvaluatedExpression expr: expressions) {
 				if (InitialSynthesisDialog.this.monitor.isCanceled())
 					return finished(false);
+				long curTime = System.currentTimeMillis();
+				if (curTime - lastUpdate > 1000 && filteredExpressions.size() > lastUpdateSize) {  // Update the screen at most every second.
+					Display.getDefault().asyncExec(new Runnable(){
+						@Override
+						public void run() {
+							showResults();
+						}
+					});
+					lastUpdate = curTime;
+					lastUpdateSize = filteredExpressions.size();
+				}
 				InitialSynthesisDialog.this.monitor.worked(1);
 				String exprString = expr.getExpression().toString().toLowerCase();
 				String javadocs = null;
@@ -866,16 +878,6 @@ public class InitialSynthesisDialog extends SynthesisDialog {
 						continue exprLoop;  // We count things without Javadocs as not matching.
 				}
 				filteredExpressions.add(expr);
-				long curTime = System.currentTimeMillis();
-				if (curTime - lastUpdate > 1000) {  // Update the screen at most every second.
-					Display.getDefault().asyncExec(new Runnable(){
-						@Override
-						public void run() {
-							showResults();
-						}
-					});
-					lastUpdate = curTime;
-				}
 			}
 			InitialSynthesisDialog.this.monitor.done();
 	    	return finished(true);
