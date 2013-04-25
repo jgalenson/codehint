@@ -10,9 +10,13 @@ import org.eclipse.core.runtime.Status;
 import org.eclipse.core.runtime.SubMonitor;
 import org.eclipse.core.runtime.jobs.Job;
 import org.eclipse.debug.core.DebugException;
+import org.eclipse.jdt.core.Flags;
+import org.eclipse.jdt.core.IBuffer;
 import org.eclipse.jdt.core.IField;
 import org.eclipse.jdt.core.IJavaProject;
+import org.eclipse.jdt.core.IMember;
 import org.eclipse.jdt.core.IMethod;
+import org.eclipse.jdt.core.ISourceRange;
 import org.eclipse.jdt.core.JavaModelException;
 import org.eclipse.jdt.core.dom.ASTNode;
 import org.eclipse.jdt.core.dom.ASTVisitor;
@@ -23,6 +27,7 @@ import org.eclipse.jdt.debug.core.IJavaStackFrame;
 import org.eclipse.jdt.debug.core.IJavaThread;
 import org.eclipse.jdt.debug.core.IJavaType;
 import org.eclipse.jdt.debug.eval.IAstEvaluationEngine;
+import org.eclipse.jdt.ui.JavaElementLabels;
 import org.eclipse.jface.dialogs.IDialogConstants;
 import org.eclipse.jface.dialogs.IInputValidator;
 import org.eclipse.jface.resource.JFaceResources;
@@ -259,14 +264,9 @@ public class InitialSynthesisDialog extends SynthesisDialog {
 			@Override
 			public String getToolTipText(Object element) {
 				FullyEvaluatedExpression expr = (FullyEvaluatedExpression)element;
-				String javadoc = getJavadocs(expr.getExpression(), expressionMaker);
+				String javadoc = getJavadocs(expr.getExpression(), expressionMaker, true);
 				if (javadoc == null)
 					return null;
-				javadoc = javadoc.replaceAll("<H3>([^<]|\n)*</H3>\n?", "");
-				javadoc = javadoc.replaceAll("<DL>|<DD>|<DT>", "\n");
-				javadoc = javadoc.replaceAll("<[^>]*>", "");
-				javadoc = javadoc.replaceAll("&nbsp;", " ").replaceAll("&lt;", "<").replaceAll("&gt;", ">").replaceAll("&quot;", "\"");
-				javadoc = javadoc.replaceAll("[\n\r]{2,}", "\n\n");
 				javadoc = javadoc.trim();
 				return javadoc;
 			}
@@ -541,7 +541,7 @@ public class InitialSynthesisDialog extends SynthesisDialog {
 			for (int i = 0; i < num; i++) {
 				if (monitor.isCanceled())
 					return Status.CANCEL_STATUS;
-				getJavadocs(expressions.get(i).getExpression(), expressionMaker);
+				getJavadocs(expressions.get(i).getExpression(), expressionMaker, false);
 				monitor.worked(1);
 			}
 			monitor.done();
@@ -550,19 +550,19 @@ public class InitialSynthesisDialog extends SynthesisDialog {
 		
 	}
 	
-	private String getJavadoc(Expression expr, ExpressionMaker expressionMaker) {
+	private String getJavadoc(Expression expr, ExpressionMaker expressionMaker, boolean prettify) {
 		try {
 			Method method = expressionMaker.getMethod(expr);
 			if (method != null) {
 				IMethod imethod = EclipseUtils.getIMethod(method, project);
 				if (imethod != null)
-					return imethod.getAttachedJavadoc(null);
+					return getJavadocFast(imethod, prettify);
 			}
 			Field field = expressionMaker.getField(expr);
 			if (field != null) {
 				IField ifield = EclipseUtils.getIField(field, project);
 				if (ifield != null)
-					return ifield.getAttachedJavadoc(null);
+					return getJavadocFast(ifield, prettify);
 			}
 			return null;
 		} catch (JavaModelException e) {
@@ -572,13 +572,46 @@ public class InitialSynthesisDialog extends SynthesisDialog {
 		}
 	}
 	
-	private String getJavadocs(Expression expr, final ExpressionMaker expressionMaker) {
+	// This is adapted from org.eclipse.jdt.internal.ui.text.javadoc.JavadocContentAccess2.getHTMLContentFromSource.
+	private static String getJavadocFast(IMember member, boolean prettify) throws JavaModelException {
+		IBuffer buffer = member.getOpenable().getBuffer();
+		if (buffer == null)
+			return getJavadocSlow(member, prettify);
+		ISourceRange javadocRange = member.getJavadocRange();
+		if (javadocRange == null)
+			return getJavadocSlow(member, prettify);
+		String javadocText = buffer.getText(javadocRange.getOffset(), javadocRange.getLength());
+		if (prettify) {
+			javadocText = javadocText.replaceAll("^/[*][*][ \t]*\n?", "");  // Filter starting /**
+			javadocText = javadocText.replaceAll("\n?[ \t]*[*]/$", "");  // Filter ending */
+			javadocText = javadocText.replaceAll("^\\s*[*]", "\n");  // Trim leading whitespace.
+			javadocText = javadocText.replaceAll("\n\\s*[*]", "\n");  // Trim whitespace at beginning of line.
+			javadocText = javadocText.replaceAll("<[^>]*>", "");  // Remove HTml tags.
+			javadocText = javadocText.replaceAll("[{]@code([^}]*)[}]", "$1");  // Replace {@code foo} blocks with foo.
+		}
+		javadocText = Flags.toString(member.getFlags()) + " " + JavaElementLabels.getElementLabel(member, JavaElementLabels.M_PRE_RETURNTYPE | JavaElementLabels.M_PARAMETER_NAMES | JavaElementLabels.M_PARAMETER_TYPES | JavaElementLabels.F_PRE_TYPE_SIGNATURE) + "\n" + javadocText;
+		return javadocText;
+	}
+	
+	private static String getJavadocSlow(IMember member, boolean prettify) throws JavaModelException {
+		String javadoc = member.getAttachedJavadoc(null);
+		if (prettify) {
+			javadoc = javadoc.replaceAll("<H3>([^<]|\n)*</H3>\n?", "");
+			javadoc = javadoc.replaceAll("<DL>|<DD>|<DT>", "\n");
+			javadoc = javadoc.replaceAll("<[^>]*>", "");
+			javadoc = javadoc.replaceAll("&nbsp;", " ").replaceAll("&lt;", "<").replaceAll("&gt;", ">").replaceAll("&quot;", "\"");
+			javadoc = javadoc.replaceAll("[\n\r]{2,}", "\n\n");
+		}
+		return javadoc;
+	}
+	
+	private String getJavadocs(Expression expr, final ExpressionMaker expressionMaker, final boolean prettify) {
     	final StringBuffer javadocs = new StringBuffer();
     	expr.accept(new ASTVisitor() {
     		@Override
     		public void postVisit(ASTNode node) {
     			if (node instanceof Expression) {
-    				String javadoc = getJavadoc((Expression)node, expressionMaker);
+    				String javadoc = getJavadoc((Expression)node, expressionMaker, prettify);
     				if (javadoc != null) {
     					if (javadocs.length() > 0)
     						javadocs.append("\n\n-----\n\n");
@@ -869,7 +902,7 @@ public class InitialSynthesisDialog extends SynthesisDialog {
 					if (expr.getResultString().contains(filterWord))
 						continue;
 					if (!readJavadocs) {  // Lazily initialize for efficiency.
-						javadocs = getJavadocs(expr.getExpression(), expressionMaker);
+						javadocs = getJavadocs(expr.getExpression(), expressionMaker, false);
 						readJavadocs = true;
 						if (javadocs != null)
 							javadocs = javadocs.toLowerCase();
