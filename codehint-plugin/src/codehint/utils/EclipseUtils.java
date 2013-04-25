@@ -30,6 +30,7 @@ import org.eclipse.debug.core.model.IStackFrame;
 import org.eclipse.debug.core.model.IThread;
 import org.eclipse.debug.core.model.IVariable;
 import org.eclipse.debug.ui.DebugUITools;
+import org.eclipse.jdt.core.Flags;
 import org.eclipse.jdt.core.IField;
 import org.eclipse.jdt.core.IJavaElement;
 import org.eclipse.jdt.core.IJavaProject;
@@ -1300,8 +1301,8 @@ public final class EclipseUtils {
     }
     
     /**
-     * Gets all the subtypes of the given type that are 
-     * in the same package or a subpackage.
+     * Gets all the public subtypes of the given type that
+     * are in the same package or a subpackage.
      * @param type The type.
      * @param project The project.
      * @param stack The stack frame.
@@ -1314,7 +1315,7 @@ public final class EclipseUtils {
      * @throws JavaModelException
      * @throws DebugException
      */
-    public static List<IJavaType> getSubtypesInSamePackage(IJavaType type, IJavaProject project, IJavaStackFrame stack, IJavaDebugTarget target, TypeCache typeCache, IProgressMonitor monitor, String taskName) throws JavaModelException, DebugException {
+    public static List<IJavaType> getPublicSubtypesInSamePackage(IJavaType type, IJavaProject project, IJavaStackFrame stack, IJavaDebugTarget target, TypeCache typeCache, IProgressMonitor monitor, String taskName) throws JavaModelException, DebugException {
     	IType itype = project.findType(type.getName());
     	if (itype == null)
     		return Arrays.asList(new IJavaType[] { type });
@@ -1323,10 +1324,10 @@ public final class EclipseUtils {
 		// Optimization: pre-load all the types.
 		List<String> subtypeNames = new ArrayList<String>(subitypes.length);
 		for (IType subitype: subitypes)
-			if (!subitype.isAnonymous() && subitype.getPackageFragment().getElementName().startsWith(packageName))
+			if (!subitype.isAnonymous() && subitype.getPackageFragment().getElementName().startsWith(packageName) && Flags.isPublic(subitype.getFlags()))
 				subtypeNames.add(getFullITypeName(subitype));
 		tryToLoadTypes(subtypeNames, stack);
-		// Get the actual types
+		// Get the actual types.
 		monitor = SubMonitor.convert(monitor, taskName + ": finding subtypes", subtypeNames.size());
     	List<IJavaType> subtypes = new ArrayList<IJavaType>();
     	subtypes.add(type);

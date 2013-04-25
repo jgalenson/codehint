@@ -579,7 +579,7 @@ public final class ExpressionGenerator {
     		// Add calls to the desired type's (and those of its subtypes in the same package (for efficiency)) constructors (but only at the top-level).
     		if (searchConstructors && depth == maxDepth) {
     			for (IJavaType type: constraintTypes) {
-    				List<IJavaType> subtypes = EclipseUtils.getSubtypesInSamePackage(type, project, stack, target, typeCache, monitor, taskName);
+    				List<IJavaType> subtypes = EclipseUtils.getPublicSubtypesInSamePackage(type, project, stack, target, typeCache, monitor, taskName);
         			curMonitor = SubMonitor.convert(monitor, taskName + ": calling constructors", subtypes.size());
     				for (IJavaType subtype: subtypes) {
     					addMethodCalls(new TypedExpression(null, subtype), nextLevel, curLevel, depth, maxDepth, null);

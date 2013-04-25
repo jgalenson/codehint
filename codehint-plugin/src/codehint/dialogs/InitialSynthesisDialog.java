@@ -586,7 +586,7 @@ public class InitialSynthesisDialog extends SynthesisDialog {
 			javadocText = javadocText.replaceAll("\n?[ \t]*[*]/$", "");  // Filter ending */
 			javadocText = javadocText.replaceAll("^\\s*[*]", "\n");  // Trim leading whitespace.
 			javadocText = javadocText.replaceAll("\n\\s*[*]", "\n");  // Trim whitespace at beginning of line.
-			javadocText = javadocText.replaceAll("<[^>]*>", "");  // Remove HTml tags.
+			javadocText = javadocText.replaceAll("<[^>]*>", "");  // Remove html tags.
 			javadocText = javadocText.replaceAll("[{]@code([^}]*)[}]", "$1");  // Replace {@code foo} blocks with foo.
 		}
 		javadocText = Flags.toString(member.getFlags()) + " " + JavaElementLabels.getElementLabel(member, JavaElementLabels.M_PRE_RETURNTYPE | JavaElementLabels.M_PARAMETER_NAMES | JavaElementLabels.M_PARAMETER_TYPES | JavaElementLabels.F_PRE_TYPE_SIGNATURE) + "\n" + javadocText;
