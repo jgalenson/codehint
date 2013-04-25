@@ -29,11 +29,10 @@ public class TimeoutChecker extends Job {
 	private int lastCheckCount;
 	private boolean killed;
 	
-	private final IJavaClassType awtWindowType;
-	private final IJavaValue[] awtWindows;
-	private final IJavaClassType swtDisplayType;
-	private final IJavaValue swtDefaultDisplay;
-	private final IJavaValue[] swtShells;
+	private IJavaClassType awtWindowType;
+	private IJavaValue[] awtWindows;
+	private IJavaValue swtDefaultDisplay;
+	private IJavaValue[] swtShells;
 
 	public TimeoutChecker(IJavaThread thread, IJavaStackFrame stack, IJavaDebugTarget target, TypeCache typeCache) {
 		super("Timeout checker");
@@ -41,23 +40,21 @@ public class TimeoutChecker extends Job {
 		try {
 			IJavaClassType exceptionType = EclipseUtils.loadLibrary("codehint.Timeout", stack, target, typeCache);
 			this.exceptionObj = exceptionType.newInstance("()V", new IJavaValue[0], thread);
-			
+		} catch (DebugException e) {
+			throw new RuntimeException(e);
+		}
+		try {	
 			// TODO: Getting the types here will fail if the corresponding classes have not yet been loaded but will be loaded during some evaluation.  This seems unlikely (most GUI apps have probably already started the GUI), so we ignore it for efficiency.  If we wanted, we could replace this with calls to the versions that load the type.
 			awtWindowType = (IJavaClassType)EclipseUtils.getFullyQualifiedTypeIfExists("java.awt.Window", stack, target, typeCache);
-			if (awtWindowType == null)
-				awtWindows = null;
-			else
+			if (awtWindowType != null)
 				awtWindows = getAWTWindows();
-			swtDisplayType = (IJavaClassType)EclipseUtils.getFullyQualifiedTypeIfExists("org.eclipse.swt.widgets.Display", stack, target, typeCache);
-			if (swtDisplayType == null) {
-				swtDefaultDisplay = null;
-				swtShells = null;
-			} else {
+			IJavaClassType swtDisplayType = (IJavaClassType)EclipseUtils.getFullyQualifiedTypeIfExists("org.eclipse.swt.widgets.Display", stack, target, typeCache);
+			if (swtDisplayType != null) {
 				swtDefaultDisplay = swtDisplayType.sendMessage("getDefault", "()Lorg/eclipse/swt/widgets/Display;", new IJavaValue[] { }, thread);
 				swtShells = getSWTShells();
 			}
 		} catch (DebugException e) {
-			throw new RuntimeException(e);
+			EclipseUtils.showError("Unable to get AWT/Swing/SWT windows/shells.", "Unable to get AWT/Swing/SWT windows/shells.\n\nWe thus cannot automatically close new windows when they open during evaluation.", e);
 		}
 		this.isEvaluating = false;
 		this.countField = null;
