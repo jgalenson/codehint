@@ -65,8 +65,9 @@ import com.sun.jdi.Method;
 public class ExpressionMaker {
 
 	private final static AST ast = AST.newAST(AST.JLS4);
-	
+
 	private final IJavaStackFrame stack;
+	private final IJavaDebugTarget target;
 	private int id;
 	private final Map<Set<Effect>, Map<Integer, Result>> results;
 	private final Map<Integer, Method> methods;
@@ -82,6 +83,7 @@ public class ExpressionMaker {
 	
 	public ExpressionMaker(IJavaStackFrame stack, ValueCache valueCache, TypeCache typeCache, TimeoutChecker timeoutChecker, NativeHandler nativeHandler, SideEffectHandler sideEffectHandler) {
 		this.stack = stack;
+		this.target = (IJavaDebugTarget)stack.getDebugTarget();
 		id = 0;
 		results = new HashMap<Set<Effect>, Map<Integer, Result>>();
 		methods = new HashMap<Integer, Method>();
@@ -139,6 +141,8 @@ public class ExpressionMaker {
 			return computeIntInfixOp(left, op, right);
 		else if (isBoolean(type))
 			return computeBooleanInfixOp(left, op, right);
+		else if (isLong(type))
+			return computeLongInfixOp(left, op, right);
 		else if (type instanceof IJavaReferenceType)
 			return computeRefInfixOp(left, op, right);
 		else
@@ -160,6 +164,56 @@ public class ExpressionMaker {
 			assert r != 0;
 			return valueCache.getIntJavaValue(l / r);
 		}
+		if (op == InfixExpression.Operator.REMAINDER) {
+			assert r != 0;
+			return valueCache.getIntJavaValue(l % r);
+		}
+		if (op == InfixExpression.Operator.XOR)
+			return valueCache.getIntJavaValue(l ^ r);
+		if (op == InfixExpression.Operator.OR)
+			return valueCache.getIntJavaValue(l | r);
+		if (op == InfixExpression.Operator.AND)
+			return valueCache.getIntJavaValue(l & r);
+		if (op == InfixExpression.Operator.EQUALS)
+			return valueCache.getBooleanJavaValue(l == r);
+		if (op == InfixExpression.Operator.NOT_EQUALS)
+			return valueCache.getBooleanJavaValue(l != r);
+		if (op == InfixExpression.Operator.LESS)
+			return valueCache.getBooleanJavaValue(l < r);
+		if (op == InfixExpression.Operator.LESS_EQUALS)
+			return valueCache.getBooleanJavaValue(l <= r);
+		if (op == InfixExpression.Operator.GREATER)
+			return valueCache.getBooleanJavaValue(l > r);
+		if (op == InfixExpression.Operator.GREATER_EQUALS)
+			return valueCache.getBooleanJavaValue(l >= r);
+		throw new RuntimeException("Unknown infix operation: " + op.toString());
+	}
+
+	private IJavaValue computeLongInfixOp(IJavaValue left, InfixExpression.Operator op, IJavaValue right) throws NumberFormatException, DebugException {
+		if (left == null || right == null)
+			return null;
+		long l = Long.parseLong(left.getValueString());
+		long r = Long.parseLong(right.getValueString());
+		if (op == InfixExpression.Operator.PLUS)
+			return target.newValue(l + r);
+		if (op == InfixExpression.Operator.MINUS)
+			return target.newValue(l - r);
+		if (op == InfixExpression.Operator.TIMES)
+			return target.newValue(l * r);
+		if (op == InfixExpression.Operator.DIVIDE) {
+			assert r != 0;
+			return target.newValue(l / r);
+		}
+		if (op == InfixExpression.Operator.REMAINDER) {
+			assert r != 0;
+			return target.newValue(l % r);
+		}
+		if (op == InfixExpression.Operator.XOR)
+			return target.newValue(l ^ r);
+		if (op == InfixExpression.Operator.OR)
+			return target.newValue(l | r);
+		if (op == InfixExpression.Operator.AND)
+			return target.newValue(l & r);
 		if (op == InfixExpression.Operator.EQUALS)
 			return valueCache.getBooleanJavaValue(l == r);
 		if (op == InfixExpression.Operator.NOT_EQUALS)
