@@ -35,10 +35,10 @@ public class ExpressionSorter implements Comparator<TypedExpression> {
 		//System.out.println(e2.getExpression() + " " + p2);
 		if (p1 < p2)
 			return 1;
-		else if (p2 > p1)
+		else if (p1 > p2)
 			return -1;
 		else
-			return 0;
+			return e1.getExpression().toString().length() - e2.getExpression().toString().length();
 	}
 	
 	private double weigh(Expression expr) {
