@@ -69,6 +69,7 @@ public class TimeoutChecker extends Job {
 	private IJavaValue[] getSWTShells() throws DebugException {
 		if (swtDefaultDisplay.isNull())
 			return null;
+		// This will throw an invalid access exception if we are in the wrong thread (i.e., Display.getDefault().getThread() != Thread.currentThread()).  I could check for this and/or use Display.syncExec to work around it.
 		return ((IJavaArray)((IJavaObject)swtDefaultDisplay).sendMessage("getShells", "()[Lorg/eclipse/swt/widgets/Shell;", new IJavaValue[] { }, thread, null)).getValues();
 	}
 	
