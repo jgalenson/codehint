@@ -879,7 +879,7 @@ public final class ExpressionSkeleton {
 					for (Map.Entry<String, ArrayList<TypedExpression>> rightExprs: rightResult.getExprs().entrySet()) {
 						IJavaType rightType = "null".equals(rightExprs.getKey()) ? null : EclipseUtils.getFullyQualifiedType(rightExprs.getKey(), stack, target, typeCache);
 						if ((leftType == null && EclipseUtils.isObject(rightType)) || (rightType == null && EclipseUtils.isObject(leftType)) || (leftType != null && leftType.equals(rightType)))
-							if (!(EclipseUtils.isObject(leftType) && EclipseUtils.isObject(rightType) && (leftType != null && !"java.lang.String".equals(leftType.getName())) && (rightType != null && !"java.lang.String".equals(rightType.getName()))))
+							if (!(EclipseUtils.isObject(leftType) && EclipseUtils.isObject(rightType) && (((leftType != null && !"java.lang.String".equals(leftType.getName())) && (rightType != null && !"java.lang.String".equals(rightType.getName()))) || infix.getOperator() != InfixExpression.Operator.PLUS)))
 								for (TypedExpression leftExpr: leftExprs.getValue())
 									for (TypedExpression rightExpr: rightExprs.getValue())
 										if (leftExpr.getValue() == null || !leftExpr.getValue().isNull() || rightExpr.getValue() == null || !rightExpr.getValue().isNull()) {  // TODO: These two checks should be part of my constraint when I search for the child holes above.
