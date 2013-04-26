@@ -496,8 +496,9 @@ public class InitialSynthesisDialog extends SynthesisDialog {
     		javadocPrefetcher = new JavadocPrefetcher(this.filteredExpressions, this.expressionMaker);
     		javadocPrefetcher.setPriority(Job.DECORATE);
     		javadocPrefetcher.schedule();
-    	}
-    	if (state == SynthesisState.UNFINISHED && lastExpressions != null) {
+    		if (expressions.isEmpty() && numSearches == 1)  // Automatically continue search if no results were found at depth 1.
+    			startSearch(property, false);
+    	} else if (state == SynthesisState.UNFINISHED && lastExpressions != null) {
     		filteredExpressions = expressions = lastExpressions;
     		showResults();
     	}
