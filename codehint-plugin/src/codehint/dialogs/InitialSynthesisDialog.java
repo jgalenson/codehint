@@ -588,6 +588,7 @@ public class InitialSynthesisDialog extends SynthesisDialog {
 			javadocText = javadocText.replaceAll("\n\\s*[*]", "\n");  // Trim whitespace at beginning of line.
 			javadocText = javadocText.replaceAll("<[^>]*>", "");  // Remove html tags.
 			javadocText = javadocText.replaceAll("[{]@code([^}]*)[}]", "$1");  // Replace {@code foo} blocks with foo.
+			javadocText = javadocText.replaceAll("&nbsp;", " ").replaceAll("&lt;", "<").replaceAll("&gt;", ">").replaceAll("&quot;", "\"");  // Replace html formatting.
 		}
 		javadocText = Flags.toString(member.getFlags()) + " " + JavaElementLabels.getElementLabel(member, JavaElementLabels.M_PRE_RETURNTYPE | JavaElementLabels.M_PARAMETER_NAMES | JavaElementLabels.M_PARAMETER_TYPES | JavaElementLabels.F_PRE_TYPE_SIGNATURE) + "\n" + javadocText;
 		return javadocText;
@@ -595,7 +596,7 @@ public class InitialSynthesisDialog extends SynthesisDialog {
 	
 	private static String getJavadocSlow(IMember member, boolean prettify) throws JavaModelException {
 		String javadoc = member.getAttachedJavadoc(null);
-		if (prettify) {
+		if (javadoc != null && prettify) {
 			javadoc = javadoc.replaceAll("<H3>([^<]|\n)*</H3>\n?", "");
 			javadoc = javadoc.replaceAll("<DL>|<DD>|<DT>", "\n");
 			javadoc = javadoc.replaceAll("<[^>]*>", "");
