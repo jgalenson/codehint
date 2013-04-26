@@ -2000,11 +2000,12 @@ public final class ExpressionGenerator {
 					if (getDepth(a.getExpression()) < curDepth && getDepth(i.getExpression()) < curDepth)
 						addIfNew(curEquivalences, new EvaluatedExpression(expressionMaker.makeArrayAccess(a.getExpression(), i.getExpression()), type, result), valued);
 		} else if (expr instanceof FieldAccess) {
-			FieldAccess field = (FieldAccess)expr;
-			expandEquivalencesRec(field.getExpression(), newlyExpanded, curEffects);
-			for (Expression e : getEquivalentExpressionsOrGiven(field.getExpression(), new FieldConstraint(field.getName().getIdentifier(), UnknownConstraint.getUnknownConstraint()), curEffects))
+			FieldAccess fieldAccess = (FieldAccess)expr;
+			Field field = expressionMaker.getField(fieldAccess);
+			expandEquivalencesRec(fieldAccess.getExpression(), newlyExpanded, curEffects);
+			for (Expression e : getEquivalentExpressionsOrGiven(fieldAccess.getExpression(), new FieldConstraint(fieldAccess.getName().getIdentifier(), UnknownConstraint.getUnknownConstraint()), curEffects))
 				if (getDepth(e) < curDepth)
-					addIfNew(curEquivalences, new EvaluatedExpression(expressionMaker.makeFieldAccess(e, field.getName().getIdentifier()), type, result), valued);
+					addIfNew(curEquivalences, new EvaluatedExpression(expressionMaker.makeFieldAccess(e, fieldAccess.getName().getIdentifier(), field), type, result), valued);
 		} else if (expr instanceof PrefixExpression) {
 			PrefixExpression prefix = (PrefixExpression)expr;
 			expandEquivalencesRec(prefix.getOperand(), newlyExpanded, curEffects);

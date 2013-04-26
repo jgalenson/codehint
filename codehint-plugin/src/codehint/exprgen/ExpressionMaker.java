@@ -630,22 +630,22 @@ public class ExpressionMaker {
 
 	public TypedExpression makeFieldAccess(TypedExpression obj, String name, IJavaType fieldType, Field field, ValueCache valueCache, IJavaThread thread, IJavaDebugTarget target) {
 		try {
-			FieldAccess e = makeFieldAccess(obj.getExpression(), name);
+			FieldAccess e = makeFieldAccess(obj.getExpression(), name, field);
 			IJavaValue value = computeFieldAccess(obj.getValue(), obj.getType(), field, target);
 			Result result = new Result(value, obj.getResult().getEffects(), valueCache, thread);
 			setExpressionResult(e, result, Collections.<Effect>emptySet());
-			setField(e, field);
 			return EvaluatedExpression.makeTypedOrEvaluatedExpression(e, fieldType, result);
 		} catch (DebugException ex) {
 			throw new RuntimeException(ex);
 		}
 	}
 
-	public FieldAccess makeFieldAccess(Expression obj, String name) {
+	public FieldAccess makeFieldAccess(Expression obj, String name, Field field) {
 		FieldAccess e = ast.newFieldAccess();
 		e.setExpression(ASTCopyer.copy(obj));
 		e.setName(makeSimpleName(name));
 		setID(e);
+		setField(e, field);
 		return e;
 	}
 
