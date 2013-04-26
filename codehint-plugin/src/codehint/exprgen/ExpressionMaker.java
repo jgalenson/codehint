@@ -557,6 +557,7 @@ public class ExpressionMaker {
 		try{
 			TypedExpression e = makeVar(name, computeFieldAccess(thisExpr.getValue(), thisExpr.getType(), field, null), type, valueCache, thread);
 			setDepth(e.getExpression(), 1);
+			setField(e.getExpression(), field);
 			return e;
 		} catch (DebugException e) {
 			throw new RuntimeException(e);
