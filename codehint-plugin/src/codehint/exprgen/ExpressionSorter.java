@@ -76,6 +76,8 @@ public class ExpressionSorter implements Comparator<TypedExpression> {
 				prob *= weights.getAverageWeight();
 			else
 				prob *= weights.getWeight(field.declaringType().name(), field.name());
+			// We bias fields by how often they occur compared to methods: P(field) / P(method).
+			prob *= 0.14;  // TODO: Use the actually-computed value once I update the weights file to add it.
 			return true;
 		}
 		
