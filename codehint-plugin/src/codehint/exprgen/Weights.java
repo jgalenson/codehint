@@ -53,8 +53,10 @@ public class Weights {
 		return total;
 	}
 	
+	// Note: Type keys do not use $ for nested types but method/field keys do.
+	
 	public double getWeight(String typeName, String key) {
-		Map<String, Integer> calls = weights.get(typeName);
+		Map<String, Integer> calls = weights.get(typeName.replace("$", "."));
 		if (calls == null)
 			return averageWeight;
 		/*int numCallsOn = 0;
@@ -69,7 +71,7 @@ public class Weights {
 	}
 	
 	public boolean isRare(String typeName, String key) {
-		Map<String, Integer> calls = weights.get(typeName);
+		Map<String, Integer> calls = weights.get(typeName.replace("$", "."));
 		if (calls == null)
 			return false;
 		Integer numCallsTo = calls.get(key);
@@ -81,7 +83,7 @@ public class Weights {
 	}
 	
 	public boolean isUncommon(String typeName, String key) {
-		Map<String, Integer> calls = weights.get(typeName);
+		Map<String, Integer> calls = weights.get(typeName.replace("$", "."));
 		if (calls == null)
 			return false;
 		Integer numCallsTo = calls.get(key);
@@ -94,14 +96,14 @@ public class Weights {
 	}
 	
 	public boolean seenMethod(Method method) {
-		Map<String, Integer> calls = weights.get(method.declaringType().name());
+		Map<String, Integer> calls = weights.get(method.declaringType().name().replace("$", "."));
 		if (calls == null)
 			return false;
 		return calls.get(getMethodKey(method)) != null;
 	}
 
 	public boolean isBadConstant(Method method, int i, Field field) {
-		Map<String, Integer> locations = methodsForConstants.get(field.declaringType().name() + "." + field.name());
+		Map<String, Integer> locations = methodsForConstants.get(field.declaringType().name().replace("$", ".") + "." + field.name());
 		if (locations == null)
 			return false;
 		Integer numUsesWith = locations.get(method.declaringType().name() + "~" + getMethodKey(method) + "~" + i);
