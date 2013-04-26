@@ -9,6 +9,7 @@ import org.eclipse.jdt.core.dom.FieldAccess;
 import org.eclipse.jdt.core.dom.InfixExpression;
 import org.eclipse.jdt.core.dom.MethodInvocation;
 import org.eclipse.jdt.core.dom.PrefixExpression;
+import org.eclipse.jdt.core.dom.SimpleName;
 
 import com.sun.jdi.Field;
 import com.sun.jdi.Method;
@@ -75,10 +76,24 @@ public class ExpressionSorter implements Comparator<TypedExpression> {
 			if (field == null)  // Array length
 				prob *= weights.getAverageWeight();
 			else
-				prob *= weights.getWeight(field.declaringType().name(), field.name());
-			// We bias fields by how often they occur compared to methods: P(field) / P(method).
-			prob *= 0.14;  // TODO: Use the actually-computed value once I update the weights file to add it.
+				visitField(field);
 			return true;
+		}
+		
+		@Override
+		public boolean visit(SimpleName node) {
+			Field field = expressionMaker.getField(node);
+			if (field != null && field.isPublic())  // Don't count unqualified non-public field accesses.
+				visitField(field);
+			return true;
+		}
+		
+		private void visitField(Field field) {
+			if (field != null) {
+				prob *= weights.getWeight(field.declaringType().name(), field.name());
+				// We bias fields by how often they occur compared to methods: P(field) / P(method).
+				prob *= 0.14;  // TODO: Use the actually-computed value once I update the weights file to add it.
+			}
 		}
 		
 		@Override
