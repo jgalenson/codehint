@@ -810,7 +810,7 @@ public final class ExpressionSkeleton {
 			OverloadChecker overloadChecker = new OverloadChecker(consType, stack, target, typeCache, subtypeChecker);
 			Map<String, ArrayList<TypedExpression>> resultExprs = new HashMap<String, ArrayList<TypedExpression>>();
 			for (Method method: Utils.singleton(constructors.values()))
-				buildCalls(method, new TypedExpression(null, consType), cons, argResults, isListHole, resultExprs, overloadChecker);
+				buildCalls(method, cons.getType().toString(), new TypedExpression(null, consType), cons, argResults, isListHole, resultExprs, overloadChecker);
 			return new ExpressionsAndTypeConstraints(resultExprs, new DesiredType(consType));
 		}
 
@@ -1235,7 +1235,7 @@ public final class ExpressionSkeleton {
 								OverloadChecker overloadChecker = new OverloadChecker(receiverExpr.getType(), stack, target, typeCache, subtypeChecker);
 								for (Method method: methods.get(receiverExprs.getKey()))
 									if (!expressionMaker.isStatic(receiverExpr.getExpression()) || method.isStatic())
-										buildCalls(method, receiverExpr, node, argResults, isListHole, resultExprs, overloadChecker);
+										buildCalls(method, method.name(), receiverExpr, node, argResults, isListHole, resultExprs, overloadChecker);
 							}
 			} else {  // No receiver (implicit this).
 				IJavaReferenceType thisType = getThisType();
@@ -1248,7 +1248,7 @@ public final class ExpressionSkeleton {
 				OverloadChecker overloadChecker = new OverloadChecker(thisType, stack, target, typeCache, subtypeChecker);
 				if (!methods.isEmpty())
 					for (Method method: Utils.singleton(methods.values()))
-						buildCalls(method, receiver, node, argResults, isListHole, resultExprs, overloadChecker);
+						buildCalls(method, method.name(), receiver, node, argResults, isListHole, resultExprs, overloadChecker);
 			}
 			return new ExpressionsAndTypeConstraints(resultExprs, methodResult.getTypeConstraint());
 		}
@@ -1320,8 +1320,8 @@ public final class ExpressionSkeleton {
 		}
 
 		/**
-		 * 
 		 * @param method The method to call.
+		 * @param methodName The name of the method to call.
 		 * @param receiverExpr The receiver object.
 		 * @param callNode The node representing the call
 		 * piece of the skeleton.
@@ -1334,7 +1334,7 @@ public final class ExpressionSkeleton {
 		 * expressions.
 		 * @param overloadChecker The overload checker.
 		 */
-		private void buildCalls(Method method, TypedExpression receiverExpr, Expression callNode, ArrayList<ExpressionsAndTypeConstraints> argResults, boolean isListHole, Map<String, ArrayList<TypedExpression>> resultExprs, OverloadChecker overloadChecker) {
+		private void buildCalls(Method method, String methodName, TypedExpression receiverExpr, Expression callNode, ArrayList<ExpressionsAndTypeConstraints> argResults, boolean isListHole, Map<String, ArrayList<TypedExpression>> resultExprs, OverloadChecker overloadChecker) {
 			try {
 				String methodReturnTypeName = method.isConstructor() ? receiverExpr.getType().getName() : method.returnTypeName();  // The method class returns void for the return type of constructors....
 				overloadChecker.setMethod(method);
@@ -1356,7 +1356,7 @@ public final class ExpressionSkeleton {
 						return;
 					allPossibleActuals.add(allArgs);
 				}
-				makeAllCalls(method, method.name(), methodReturnTypeName, receiverExpr, callNode, EclipseUtils.getTypeAndLoadIfNeeded(methodReturnTypeName, stack, target, typeCache), getThisType(), allPossibleActuals, new ArrayList<TypedExpression>(allPossibleActuals.size()), resultExprs);
+				makeAllCalls(method, methodName, methodReturnTypeName, receiverExpr, callNode, EclipseUtils.getTypeAndLoadIfNeeded(methodReturnTypeName, stack, target, typeCache), getThisType(), allPossibleActuals, new ArrayList<TypedExpression>(allPossibleActuals.size()), resultExprs);
 			} catch (DebugException e) {
 				throw new RuntimeException(e);
 			}
