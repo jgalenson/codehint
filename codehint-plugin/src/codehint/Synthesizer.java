@@ -95,6 +95,7 @@ public class Synthesizer {
 	
 	private static Map<String, Property> initialDemonstrations;
 	private static List<String> addedChosenStmts;
+	private static Map<String, String> initialFiles;
 	
 	/**
 	 * Synthesizes expressions and inserts them into the code.
@@ -158,7 +159,7 @@ public class Synthesizer {
 			assert editor != null;
 
 			String typename = stack.getDeclaringTypeName();
-			IResource resource = (IResource)editor.getEditorInput().getAdapter(IResource.class);
+			IResource resource = getResource(editor);
 
 			addBreakpoint(resource, typename, line);
 
@@ -394,27 +395,47 @@ public class Synthesizer {
 						throw new RuntimeException(e);
 					}
 					// Remove chosen statements, any text we added, and save if possible.
-					if (!addedChosenStmts.isEmpty()) {
-						Display.getDefault().asyncExec(new Runnable(){
-							@Override
-							public void run() {
-								try {
-									IDocument document = EclipseUtils.getDocument();
-									String text = document.get();
-									for (int i = addedChosenStmts.size() - 1; i >= 0; i--) {
-										String chosenStmt = addedChosenStmts.get(i);
-										int index = text.indexOf(chosenStmt);
-										if (index != -1)  // Replace "CodeHint.chosen(...)" with "...".
-											document.replace(index, chosenStmt.length(), chosenStmt.substring("CodeHint.chosen(".length(), chosenStmt.length() - 1));
-										addedChosenStmts.remove(i);
+					Display.getDefault().asyncExec(new Runnable(){
+						@Override
+						public void run() {
+							try {
+								ITextEditor editor = EclipseUtils.getActiveTextEditor();
+								String resourceName = getResourceName(editor);
+								IDocument document = EclipseUtils.getDocument();
+								String text = document.get();
+								String cleanText = text;
+								int numChosenStmts = addedChosenStmts.size();
+								for (int i = addedChosenStmts.size() - 1; i >= 0; i--) {
+									String chosenStmt = addedChosenStmts.get(i);
+									int index = text.indexOf(chosenStmt);
+									if (index != -1) {  // Replace "CodeHint.chosen(...)" with "...".
+										document.replace(index, chosenStmt.length(), chosenStmt.substring("CodeHint.chosen(".length(), chosenStmt.length() - 1));
+										int startIndex = index - 1;
+										while (cleanText.charAt(startIndex) != '\n')
+											startIndex--;
+										int endIndex = index + chosenStmt.length();
+										while (cleanText.charAt(endIndex) != '\n')
+											endIndex++;
+										cleanText = cleanText.substring(0, startIndex) + cleanText.substring(endIndex);  // Remove the chosen call completely to see if anything else has changed.
 									}
-								} catch (BadLocationException e) {
-									throw new RuntimeException(e);
+									addedChosenStmts.remove(i);
 								}
+								String initialFile = initialFiles.get(resourceName);
+								if (initialFile != null) {
+									if (numChosenStmts > 0 && initialFile.equals(cleanText))
+										editor.doSave(null);
+									initialFiles.remove(resourceName);
+								}
+							} catch (BadLocationException e) {
+								throw new RuntimeException(e);
 							}
-						});
-					}
+						}
+					});
 					SynthesisStarter.cleanup();
+	            } else if (source instanceof IJavaDebugTarget && event.getKind() == DebugEvent.CREATE) {
+					String resourceName = getResourceName(getEditor());
+	    	        if (!initialFiles.containsKey(resourceName))
+	    	        	initialFiles.put(resourceName, getDocument().get());
 	            }
 	        }
 	        
@@ -645,6 +666,21 @@ public class Synthesizer {
         	});
         	return result[0];
 	    }
+	    
+	    /**
+	     * Gets the current editor on the UI thread.
+	     * @return The current editor.
+	     */
+	    private static ITextEditor getEditor() {
+	    	final ITextEditor[] result = new ITextEditor[] { null };
+        	Display.getDefault().syncExec(new Runnable(){
+				@Override
+				public void run() {
+                	result[0] = EclipseUtils.getActiveTextEditor();
+				}
+        	});
+        	return result[0];
+	    }
 
 	    /**
 	     * Gets the current Shell on the UI thread.
@@ -774,6 +810,16 @@ public class Synthesizer {
 		return (varname == null ? "" : varname + " = ") + statementRHSExpr + ";";
     }
 
+	private static IResource getResource(ITextEditor editor) {
+		IResource resource = (IResource)editor.getEditorInput().getAdapter(IResource.class);
+		return resource;
+	}
+
+	private static String getResourceName(ITextEditor editor) {
+		String resourceName = getResource(editor).getLocation().toString();
+		return resourceName;
+	}
+
     private static ChoiceBreakpointListener listener;
 	
     /**
@@ -786,6 +832,15 @@ public class Synthesizer {
     		listener = new ChoiceBreakpointListener();
     	initialDemonstrations = new HashMap<String, Property>();
     	addedChosenStmts = new ArrayList<String>();
+    	initialFiles = new HashMap<String, String>();
+    	Display.getDefault().asyncExec(new Runnable() {
+			@Override
+			public void run() {
+            	ITextEditor editor = EclipseUtils.getActiveTextEditor();
+            	if (editor != null && !editor.isDirty())  // Initialize the original file if it is not dirty.
+            		initialFiles.put(getResourceName(editor), EclipseUtils.getDocument(editor).get());
+			}
+    	});
     	DebugPlugin.getDefault().addDebugEventListener(listener);
     	ExpressionGenerator.init();
     }
@@ -800,6 +855,7 @@ public class Synthesizer {
     	listener = null;
     	initialDemonstrations = null;
     	addedChosenStmts = null;
+    	initialFiles = null;
     	ExpressionGenerator.clear();
     }
     
