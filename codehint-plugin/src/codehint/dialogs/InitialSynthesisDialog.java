@@ -249,13 +249,10 @@ public class InitialSynthesisDialog extends SynthesisDialog {
             @Override
 			public void widgetSelected(SelectionEvent e) {
                 if (e.detail == SWT.CHECK) {
-                 	for (int i = 0; i < table.getItemCount(); i++) {
-                 		if (table.getItem(i).getChecked()) {
-                 			okButton.setEnabled(true);
-                 			return;
-                 		}
-                 	}
-                 	okButton.setEnabled(false);
+                	if (((TableItem)e.item).getChecked())
+                		okButton.setEnabled(true);
+                	else
+                		enableDisableOKButton();
                 }
             }
         });
@@ -283,8 +280,13 @@ public class InitialSynthesisDialog extends SynthesisDialog {
 			public void doubleClick(DoubleClickEvent event) {
 				TableItem clickedItem = table.getItem(table.getSelectionIndex());
 				Object doubleClickedElement = ((IStructuredSelection)event.getSelection()).getFirstElement();
-				if (clickedItem.getData() == doubleClickedElement)
+				if (clickedItem.getData() == doubleClickedElement) {
 					clickedItem.setChecked(!clickedItem.getChecked());
+					if (clickedItem.getChecked())
+						okButton.setEnabled(true);
+					else
+						enableDisableOKButton();
+				}
 			}
 		});
         PlatformUI.getWorkbench().getHelpSystem().setHelp(table, Activator.PLUGIN_ID + "." + "candidate-selector");
@@ -646,6 +648,16 @@ public class InitialSynthesisDialog extends SynthesisDialog {
 			setButtonLayoutData(searchCancelButton);
 			searchCancelButton.getParent().getParent().layout(true);
 		}
+	}
+
+	private void enableDisableOKButton() {
+		for (int i = 0; i < table.getItemCount(); i++) {
+			if (table.getItem(i).getChecked()) {
+				okButton.setEnabled(true);
+				return;
+			}
+		}
+		okButton.setEnabled(false);
 	}
     
     public IProgressMonitor getProgressMonitor() {
