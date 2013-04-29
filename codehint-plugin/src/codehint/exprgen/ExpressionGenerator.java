@@ -1107,7 +1107,7 @@ public final class ExpressionGenerator {
 	 * @return The maximum depth of arguments to this method.
 	 */
 	private int pruneManyArgCalls(ArrayList<? extends ArrayList<? extends TypedExpression>> allPossibleActuals, int curDepth, int curMaxArgDepth, Method method) {
-		long numCombinations = getNumCalls(allPossibleActuals);
+		long numCombinations = Utils.getNumCalls(allPossibleActuals);
 		if (numCombinations > getPruneThreshold(curDepth, method)) {
 			for (ArrayList<? extends TypedExpression> possibleActuals: allPossibleActuals)
 				for (Iterator<? extends TypedExpression> it = possibleActuals.iterator(); it.hasNext(); )
@@ -1119,20 +1119,6 @@ public final class ExpressionGenerator {
 			return pruneManyArgCalls(allPossibleActuals, curDepth, curMaxArgDepth - 1, method);
 		}
 		return curMaxArgDepth;
-	}
-	
-	/**
-	 * Gets the number of calls that will be created from
-	 * the given list of possible actuals.
-	 * @param possibleActuals A list of all the possible
-	 * actuals for each argument.
-	 * @return The number of calls with the given possible actuals.
-	 */
-	private static long getNumCalls(ArrayList<? extends ArrayList<? extends TypedExpression>> allPossibleActuals) {
-		long total = 1L;
-		for (ArrayList<? extends TypedExpression> possibleActuals: allPossibleActuals)
-			total *= possibleActuals.size();
-		return total;
 	}
 	
 	/**

@@ -12,6 +12,7 @@ import java.util.Set;
 
 import org.eclipse.core.runtime.IProgressMonitor;
 import org.eclipse.core.runtime.OperationCanceledException;
+import org.eclipse.core.runtime.SubMonitor;
 import org.eclipse.debug.core.DebugException;
 import org.eclipse.jdt.core.dom.AST;
 import org.eclipse.jdt.core.dom.ASTNode;
@@ -431,7 +432,7 @@ public final class ExpressionSkeleton {
 			if (HOLE_SYNTAX.equals(sugaredString))  // Optimization: Optimize special case of "??" skeleton by simply calling old ExprGen code directly.
 				results = expressionGenerator.generateExpression(property, typeConstraint, varName, searchConstructors, searchOperators, synthesisDialog, monitor, SEARCH_DEPTH + extraDepth);
 			else {
-				monitor.beginTask("Skeleton generation", holeInfos.size() + 2);
+				monitor.beginTask("Skeleton generation", IProgressMonitor.UNKNOWN);
 				ArrayList<TypedExpression> exprs = SkeletonFiller.fillSkeleton(expression, typeConstraint, extraDepth, searchConstructors, searchOperators, holeInfos, stack, target, expressionMaker, evalManager, staticEvaluator, expressionGenerator, sideEffectHandler, subtypeChecker, typeCache, valueCache, monitor);
 				EclipseUtils.log("Fitting " + exprs.size() + " potential expressions with extra depth " + extraDepth + " into skeleton " + sugaredString + ".");
 				DataCollector.log("skel-start", "spec=" + property.toString(), "skel=" + sugaredString, "exdep=" + extraDepth, "num=" + exprs.size());
@@ -809,8 +810,9 @@ public final class ExpressionSkeleton {
 			ArrayList<ExpressionsAndTypeConstraints> argResults = getAndFillArgs(cons.arguments(), parentsOfHoles, constructors, isListHole);
 			OverloadChecker overloadChecker = new OverloadChecker(consType, stack, target, typeCache, subtypeChecker);
 			Map<String, ArrayList<TypedExpression>> resultExprs = new HashMap<String, ArrayList<TypedExpression>>();
-			for (Method method: Utils.singleton(constructors.values()))
-				buildCalls(method, cons.getType().toString(), new TypedExpression(null, consType), cons, argResults, isListHole, resultExprs, overloadChecker);
+			ArrayList<Method> constructorsToCall = Utils.singleton(constructors.values());
+			for (int i = 0; i < constructorsToCall.size(); i++)
+				buildCalls(constructorsToCall.get(i), cons.getType().toString(), new TypedExpression(null, consType), cons, argResults, isListHole, resultExprs, overloadChecker, i + 1, constructorsToCall.size());
 			return new ExpressionsAndTypeConstraints(resultExprs, new DesiredType(consType));
 		}
 
@@ -1038,7 +1040,7 @@ public final class ExpressionSkeleton {
 							// Evaluate all the expressions.
 							values = evalManager.evaluateExpressions(fakeTypedHoleInfos, null, null, null, monitor, " of ??{...}");
 						} else  // If the user did not provide potential expressions, synthesize some.
-							values = expressionGenerator.generateExpression(null, curConstraint, null, searchConstructors, searchOperators, null, monitor, (holeInfos.size() == 1 ? SEARCH_DEPTH : SEARCH_DEPTH - 1) + extraDepth);
+							values = expressionGenerator.generateExpression(null, curConstraint, null, searchConstructors, searchOperators, null, SubMonitor.convert(monitor), (holeInfos.size() == 1 ? SEARCH_DEPTH : SEARCH_DEPTH - 1) + extraDepth);
 						// Group the expressions by their type.
 						Map<String, ArrayList<EvaluatedExpression>> valuesByType = new HashMap<String, ArrayList<EvaluatedExpression>>();
 						List<IJavaType> resultTypes = new ArrayList<IJavaType>(values.size());
@@ -1228,6 +1230,11 @@ public final class ExpressionSkeleton {
 			ArrayList<ExpressionsAndTypeConstraints> argResults = getAndFillArgs(arguments, parentsOfHoles, methods, isListHole);
 			Map<String, ArrayList<TypedExpression>> resultExprs = new HashMap<String, ArrayList<TypedExpression>>(methodResult.getTypeConstraint().getTypes(stack, target, typeCache).length);
 			if (receiverResult.getExprs() != null) {
+				long numCalls = 0;
+				for (Map.Entry<String, ArrayList<TypedExpression>> receiverExprs: receiverResult.getExprs().entrySet())
+					if (methods.containsKey(receiverExprs.getKey()))
+						numCalls += receiverExprs.getValue().size() * methods.get(receiverExprs.getKey()).size();
+				long curCall = 0;
 				for (Map.Entry<String, ArrayList<TypedExpression>> receiverExprs: receiverResult.getExprs().entrySet())
 					if (methods.containsKey(receiverExprs.getKey()))
 						for (TypedExpression receiverExpr: receiverExprs.getValue())
@@ -1235,7 +1242,7 @@ public final class ExpressionSkeleton {
 								OverloadChecker overloadChecker = new OverloadChecker(receiverExpr.getType(), stack, target, typeCache, subtypeChecker);
 								for (Method method: methods.get(receiverExprs.getKey()))
 									if (!expressionMaker.isStatic(receiverExpr.getExpression()) || method.isStatic())
-										buildCalls(method, method.name(), receiverExpr, node, argResults, isListHole, resultExprs, overloadChecker);
+										buildCalls(method, method.name(), receiverExpr, node, argResults, isListHole, resultExprs, overloadChecker, ++curCall, numCalls);
 							}
 			} else {  // No receiver (implicit this).
 				IJavaReferenceType thisType = getThisType();
@@ -1246,9 +1253,11 @@ public final class ExpressionSkeleton {
 					throw new RuntimeException(e);
 				}
 				OverloadChecker overloadChecker = new OverloadChecker(thisType, stack, target, typeCache, subtypeChecker);
-				if (!methods.isEmpty())
-					for (Method method: Utils.singleton(methods.values()))
-						buildCalls(method, method.name(), receiver, node, argResults, isListHole, resultExprs, overloadChecker);
+				if (!methods.isEmpty()) {
+					ArrayList<Method> methodsToCall = Utils.singleton(methods.values());
+					for (int i = 0; i < methodsToCall.size(); i++)
+						buildCalls(methodsToCall.get(i), methodsToCall.get(i).name(), receiver, node, argResults, isListHole, resultExprs, overloadChecker, i + 1, methodsToCall.size());
+				}
 			}
 			return new ExpressionsAndTypeConstraints(resultExprs, methodResult.getTypeConstraint());
 		}
@@ -1333,8 +1342,12 @@ public final class ExpressionSkeleton {
 		 * @param resultExprs Map that stores the resulting
 		 * expressions.
 		 * @param overloadChecker The overload checker.
+		 * @param curCall The index of the current call (for
+		 * the progress monitor).
+		 * @param numCalls The number of total calls (for
+		 * the progress monitor).
 		 */
-		private void buildCalls(Method method, String methodName, TypedExpression receiverExpr, Expression callNode, ArrayList<ExpressionsAndTypeConstraints> argResults, boolean isListHole, Map<String, ArrayList<TypedExpression>> resultExprs, OverloadChecker overloadChecker) {
+		private void buildCalls(Method method, String methodName, TypedExpression receiverExpr, Expression callNode, ArrayList<ExpressionsAndTypeConstraints> argResults, boolean isListHole, Map<String, ArrayList<TypedExpression>> resultExprs, OverloadChecker overloadChecker, long curCall, long numCalls) {
 			try {
 				String methodReturnTypeName = method.isConstructor() ? receiverExpr.getType().getName() : method.returnTypeName();  // The method class returns void for the return type of constructors....
 				overloadChecker.setMethod(method);
@@ -1356,7 +1369,8 @@ public final class ExpressionSkeleton {
 						return;
 					allPossibleActuals.add(allArgs);
 				}
-				makeAllCalls(method, methodName, methodReturnTypeName, receiverExpr, callNode, EclipseUtils.getTypeAndLoadIfNeeded(methodReturnTypeName, stack, target, typeCache), getThisType(), allPossibleActuals, new ArrayList<TypedExpression>(allPossibleActuals.size()), resultExprs);
+				SubMonitor subMonitor = SubMonitor.convert(monitor, "Filling method " + curCall + "/" + numCalls + ": " + EclipseUtils.getUnqualifiedName(method.declaringType().name()) + "." + method.name(), (int)Utils.getNumCalls(allPossibleActuals));
+				makeAllCalls(method, methodName, methodReturnTypeName, receiverExpr, callNode, EclipseUtils.getTypeAndLoadIfNeeded(methodReturnTypeName, stack, target, typeCache), getThisType(), allPossibleActuals, new ArrayList<TypedExpression>(allPossibleActuals.size()), resultExprs, subMonitor);
 			} catch (DebugException e) {
 				throw new RuntimeException(e);
 			}
@@ -1376,9 +1390,10 @@ public final class ExpressionSkeleton {
 		 * @param curActuals The current list of actuals, which is built
 		 * up through recursion.
 		 * @param resultExprs The map that stores the resulting expressions.
+		 * @param monitor The progress monitor.
 		 * @throws DebugException 
 		 */
-		private void makeAllCalls(Method method, String name, String constraintName, TypedExpression receiver, Expression callNode, IJavaType returnType, IJavaType thisType, ArrayList<ArrayList<TypedExpression>> possibleActuals, ArrayList<TypedExpression> curActuals, Map<String, ArrayList<TypedExpression>> resultExprs) throws DebugException {
+		private void makeAllCalls(Method method, String name, String constraintName, TypedExpression receiver, Expression callNode, IJavaType returnType, IJavaType thisType, ArrayList<ArrayList<TypedExpression>> possibleActuals, ArrayList<TypedExpression> curActuals, Map<String, ArrayList<TypedExpression>> resultExprs, IProgressMonitor monitor) throws DebugException {
 			if (monitor.isCanceled())
 				throw new OperationCanceledException();
 			if (curActuals.size() == possibleActuals.size()) {
@@ -1389,12 +1404,12 @@ public final class ExpressionSkeleton {
 					callExpr = expressionMaker.makeCall(name, receiver, curActuals, returnType, thisType, method, target, valueCache, thread, staticEvaluator);
 				if (callExpr.getValue() == null || !"V".equals(callExpr.getValue().getSignature()))
 					Utils.addToListMap(resultExprs, constraintName, callExpr);
-			}
-			else {
+				monitor.worked(1);
+			} else {
 				int argNum = curActuals.size();
 				for (TypedExpression e : possibleActuals.get(argNum)) {
 					curActuals.add(e);
-					makeAllCalls(method, name, constraintName, receiver, callNode, returnType, thisType, possibleActuals, curActuals, resultExprs);
+					makeAllCalls(method, name, constraintName, receiver, callNode, returnType, thisType, possibleActuals, curActuals, resultExprs, monitor);
 					curActuals.remove(argNum);
 				}
 			}

@@ -106,7 +106,7 @@ public class InitialSynthesisDialog extends SynthesisDialog {
     private boolean shouldContinue;
     private Composite monitorComposite;
     private ProgressMonitorPart monitor;
-    private static final int MONITOR_WIDTH = 300;
+    private static final int MONITOR_WIDTH = 350;
     private JavadocPrefetcher javadocPrefetcher;
     private SorterWorker sorterWorker;
     private Label monitorLabel;
@@ -512,7 +512,7 @@ public class InitialSynthesisDialog extends SynthesisDialog {
     	else if (monitorLabel != null)
 			monitorLabel.dispose();
     	if (isStarting) {  // Enable progress monitor.
-    		monitor = new SynthesisProgressMonitor(monitorComposite, null);
+    		monitor = new SynthesisProgressMonitor(monitorComposite, monitorComposite.getLayout());
     		//monitor.attachToCancelComponent(searchButton);
     		GridData gridData = new GridData();
     		gridData.widthHint = MONITOR_WIDTH;
