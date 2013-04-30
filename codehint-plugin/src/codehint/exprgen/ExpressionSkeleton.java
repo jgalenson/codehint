@@ -436,6 +436,7 @@ public final class ExpressionSkeleton {
 				ArrayList<TypedExpression> exprs = SkeletonFiller.fillSkeleton(expression, typeConstraint, extraDepth, searchConstructors, searchOperators, holeInfos, stack, target, expressionMaker, evalManager, staticEvaluator, expressionGenerator, sideEffectHandler, subtypeChecker, typeCache, valueCache, monitor);
 				EclipseUtils.log("Fitting " + exprs.size() + " potential expressions with extra depth " + extraDepth + " into skeleton " + sugaredString + ".");
 				DataCollector.log("skel-start", "spec=" + property.toString(), "skel=" + sugaredString, "exdep=" + extraDepth, "num=" + exprs.size());
+				evalManager.cacheMethodResults(exprs);
 				results = evalManager.evaluateExpressions(exprs, property, varStaticType, synthesisDialog, monitor, " of filled-in skeletons");
 				long time = System.currentTimeMillis() - startTime;
 				EclipseUtils.log("Synthesis found " + exprs.size() + " expressions of which " + results.size() + " were valid and took " + time + " milliseconds.");

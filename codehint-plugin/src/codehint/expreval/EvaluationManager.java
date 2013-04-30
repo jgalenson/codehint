@@ -828,15 +828,15 @@ public final class EvaluationManager {
      * we currently want to evaluate.
      * @throws DebugException
      */
-    public void cacheMethodResults(ArrayList<? extends EvaluatedExpression> exprs) throws DebugException {
+    public void cacheMethodResults(ArrayList<? extends TypedExpression> exprs) throws DebugException {
     	// Find the non-inlined method calls.
     	ArrayList<EvaluatedExpression> calls = new ArrayList<EvaluatedExpression>();
-    	for (EvaluatedExpression expr: exprs) {
+    	for (TypedExpression expr: exprs) {
     		Expression e = expr.getExpression();
     		IJavaValue value = expr.getValue();
-    		if ((e instanceof MethodInvocation || e instanceof ClassInstanceCreation || e instanceof SuperMethodInvocation)
+    		if (value != null && (e instanceof MethodInvocation || e instanceof ClassInstanceCreation || e instanceof SuperMethodInvocation)
     				&& !(value instanceof IJavaPrimitiveValue || value.isNull() || (value instanceof IJavaObject && "Ljava/lang/String;".equals(value.getSignature()))))
-    			calls.add(expr);
+    			calls.add((EvaluatedExpression)expr);
     	}
 		methodResultsMap = new HashMap<String, Integer>();
     	if (!calls.isEmpty()) {  // Cache the method call results so the runtime can use them.
