@@ -304,6 +304,7 @@ public final class EvaluationManager {
 						crashingExpressions.add(crashedExpr.toString());
 		    		work = crashingIndex - startIndex;
 		    		numToSkip = skipLikelyCrashes(exprs, error, crashingIndex, crashedExpr);
+			    	monitor.worked(numToSkip);
 		    	}
 		    	if (work > 0) {
 		    		ArrayList<FullyEvaluatedExpression> newResults = getResultsFromArray(exprs, property, valuesField, startIndex, work, numEvaluated, validateStatically);
@@ -313,7 +314,6 @@ public final class EvaluationManager {
 		    	/*System.out.println("Evaluated " + (work + numToSkip) + " expressions.");
 		    	if (hasError)
 		    		System.out.println("Crashed on " + exprs.get(startIndex + count));*/
-		    	monitor.worked(work + numToSkip);
 		    	startIndex += work + numToSkip;
 			}
 		} catch (DebugException e) {
@@ -586,6 +586,8 @@ public final class EvaluationManager {
 		IJavaValue[] toStrings = numEvaluated == 0 || toStringsFieldValue.isNull() ? null : ((IJavaArray)toStringsFieldValue).getValues();
 		int evalIndex = 0;
 		for (int i = 0; i < count; i++) {
+			if (monitor.isCanceled())  // We ignore the maximum batch size if everything is already evaluated, so we might have a lot of things here and hence need this check.
+				throw new OperationCanceledException();
 			TypedExpression typedExpr = exprs.get(startIndex + i);
 			IJavaValue curValue = typedExpr.getValue() != null ? typedExpr.getValue() : values[evalIndex];
 			boolean valid = false;
@@ -620,6 +622,7 @@ public final class EvaluationManager {
 				validExprs.add(new FullyEvaluatedExpression(typedExpr.getExpression(), typedExpr.getType(), new Result(curValue, typedExpr.getResult() == null ? Collections.<Effect>emptySet() : typedExpr.getResult().getEffects(), valueCache, thread), Utils.getPrintableString(validResultString)));
 			if (typedExpr.getValue() == null || !validateStatically)
 				evalIndex++;
+			monitor.worked(1);
 		}
 		return validExprs;
 	}
