@@ -784,9 +784,8 @@ public final class ExpressionSkeleton {
 		 * skeleton piece and the type constraint representing their types.
 		 */
 		private ExpressionsAndTypeConstraints fillCast(CastExpression cast, TypeConstraint curConstraint, Set<ASTNode> parentsOfHoles) {
-			// TODO: Allow any type or ensure comparable with the given type with SameHierarchy?
-			ExpressionsAndTypeConstraints exprResult = fillSkeleton(cast.getExpression(), curConstraint, parentsOfHoles);
 			IJavaType castType = EclipseUtils.getType(cast.getType().toString(), stack, target, typeCache);
+			ExpressionsAndTypeConstraints exprResult = fillSkeleton(cast.getExpression(), new SameHierarchy(castType), parentsOfHoles);
 			Map<String, ArrayList<TypedExpression>> resultExprs = new HashMap<String, ArrayList<TypedExpression>>(exprResult.getExprs().size());
 			for (Map.Entry<String, ArrayList<TypedExpression>> res: exprResult.getExprs().entrySet())
 				for (TypedExpression expr: res.getValue())
@@ -906,13 +905,18 @@ public final class ExpressionSkeleton {
 		 * skeleton piece and the type constraint representing their types.
 		 */
 		private ExpressionsAndTypeConstraints fillInstanceof(InstanceofExpression instance, Set<ASTNode> parentsOfHoles) {
-			IJavaType castType = EclipseUtils.getType(instance.getRightOperand().toString(), stack, target, typeCache);
-			ExpressionsAndTypeConstraints exprResult = fillSkeleton(instance.getLeftOperand(), new SameHierarchy(castType), parentsOfHoles);
-			Map<String, ArrayList<TypedExpression>> resultExprs = new HashMap<String, ArrayList<TypedExpression>>(exprResult.getExprs().size());
-			for (Map.Entry<String, ArrayList<TypedExpression>> res: exprResult.getExprs().entrySet())
-				for (TypedExpression expr: res.getValue())
-					Utils.addToListMap(resultExprs, res.getKey(), expressionMaker.makeInstanceOf(expr, (Type)ExpressionMaker.resetAST(instance.getRightOperand()), booleanType, null, valueCache, thread));
-			return new ExpressionsAndTypeConstraints(resultExprs, new SupertypeBound(booleanType));
+			try {
+				IJavaType targetType = EclipseUtils.getType(instance.getRightOperand().toString(), stack, target, typeCache);
+				ExpressionsAndTypeConstraints exprResult = fillSkeleton(instance.getLeftOperand(), new SameHierarchy(targetType), parentsOfHoles);
+				Map<String, ArrayList<TypedExpression>> resultExprs = new HashMap<String, ArrayList<TypedExpression>>(exprResult.getExprs().size());
+				expressionMaker.setID(instance.getRightOperand());
+				for (Map.Entry<String, ArrayList<TypedExpression>> res: exprResult.getExprs().entrySet())
+					for (TypedExpression expr: res.getValue())
+						Utils.addToListMap(resultExprs, res.getKey(), expressionMaker.makeInstanceOf(expr, instance.getRightOperand(), booleanType, expr.getValue() == null ? null : valueCache.getBooleanJavaValue(!expr.getValue().isNull() && subtypeChecker.isSubtypeOf(expr.getValue().getJavaType(), targetType)), valueCache, thread));
+				return new ExpressionsAndTypeConstraints(resultExprs, new SupertypeBound(booleanType));
+			} catch (DebugException e) {
+				throw new RuntimeException(e);
+			}
 		}
 
 		/**

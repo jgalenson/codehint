@@ -11,6 +11,7 @@ import org.eclipse.debug.core.DebugException;
 import org.eclipse.jdt.core.dom.AST;
 import org.eclipse.jdt.core.dom.ASTNode;
 import org.eclipse.jdt.core.dom.ArrayAccess;
+import org.eclipse.jdt.core.dom.ArrayType;
 import org.eclipse.jdt.core.dom.BooleanLiteral;
 import org.eclipse.jdt.core.dom.CastExpression;
 import org.eclipse.jdt.core.dom.CharacterLiteral;
@@ -29,7 +30,9 @@ import org.eclipse.jdt.core.dom.PostfixExpression;
 import org.eclipse.jdt.core.dom.PrefixExpression;
 import org.eclipse.jdt.core.dom.PrimitiveType;
 import org.eclipse.jdt.core.dom.QualifiedName;
+import org.eclipse.jdt.core.dom.QualifiedType;
 import org.eclipse.jdt.core.dom.SimpleName;
+import org.eclipse.jdt.core.dom.SimpleType;
 import org.eclipse.jdt.core.dom.StringLiteral;
 import org.eclipse.jdt.core.dom.SuperFieldAccess;
 import org.eclipse.jdt.core.dom.SuperMethodInvocation;
@@ -760,7 +763,7 @@ public class ExpressionMaker {
 	private InstanceofExpression makeInstanceOf(Expression expr, Type targetDomType) {
 		InstanceofExpression e = ast.newInstanceofExpression();
 		e.setLeftOperand(ASTCopyer.copy(expr));
-		e.setRightOperand(targetDomType);
+		e.setRightOperand(ASTCopyer.copy(targetDomType));
 		setID(e);
 		return e;
 	}
@@ -883,6 +886,17 @@ public class ExpressionMaker {
 			return ast.newPrimitiveType(PrimitiveType.DOUBLE);
 		else
 			return ast.newSimpleType(makeName(EclipseUtils.sanitizeTypename(typeName)));
+	}
+	
+	public void setID(Type type) {
+		if (type instanceof SimpleType)
+			setID(((SimpleType)type).getName());
+		else if (type instanceof QualifiedType) {
+			QualifiedType q = (QualifiedType)type;
+			setID(q.getQualifier());
+			setID(q.getName());
+		} else if (type instanceof ArrayType)
+			setID(((ArrayType)type).getComponentType());
 	}
 	
 	private SimpleName makeSimpleName(String name) {
