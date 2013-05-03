@@ -127,6 +127,7 @@ public class InitialSynthesisDialog extends SynthesisDialog {
     private Button uncheckSelectedButton;
     
     private Composite filterComposite;
+    private Text filterText;
     private static final int filterButtonID = IDialogConstants.CLIENT_ID + 4;
     private static final int clearButtonID = IDialogConstants.CLIENT_ID + 5;
     private FilterWorker filterWorker;
@@ -328,7 +329,7 @@ public class InitialSynthesisDialog extends SynthesisDialog {
         
         filterComposite = makeChildComposite(composite, GridData.HORIZONTAL_ALIGN_FILL, 2);
         createLabel(filterComposite, "Filter expressions, results, and Javadoc by words:", SWT.BEGINNING, 325);
-		final Text filterText = new Text(filterComposite, SWT.BORDER | SWT.WRAP | SWT.SINGLE);
+		filterText = new Text(filterComposite, SWT.BORDER | SWT.WRAP | SWT.SINGLE);
 		filterText.setLayoutData(new GridData(GridData.GRAB_HORIZONTAL | GridData.HORIZONTAL_ALIGN_FILL));
 		filterText.addSelectionListener(new SelectionAdapter() {
 			@Override
@@ -493,7 +494,6 @@ public class InitialSynthesisDialog extends SynthesisDialog {
 			numSearches++;
         startOrEndWork(isStarting, state == SynthesisState.END && expressions.isEmpty() ? "No expressions found.  You may press \"Continue Search\" to search further or change some search options." : null);
     	amSearching = isStarting;
-    	filterComposite.setVisible(!isStarting && !expressions.isEmpty());
     	if (state == SynthesisState.END) {
     		javadocPrefetcher = new JavadocPrefetcher(this.filteredExpressions, this.expressionMaker);
     		javadocPrefetcher.setPriority(Job.DECORATE);
@@ -504,6 +504,9 @@ public class InitialSynthesisDialog extends SynthesisDialog {
     		filteredExpressions = expressions = lastExpressions;
     		showResults();
     	}
+    	if (!isStarting)
+    		filterText.setText("");
+    	filterComposite.setVisible(!isStarting && !expressions.isEmpty());
     }
 	
 	private void startOrEndWork(boolean isStarting, String message) {
