@@ -515,7 +515,7 @@ public class SideEffectHandler {
 			//System.out.println("stop: " + (System.currentTimeMillis() - startTime));
 			curMonitor.done();
 		} catch (CoreException e) {
-			throw new RuntimeException(e);
+			EclipseUtils.showError("Error", "Error", e);
 		}
 	}
 	

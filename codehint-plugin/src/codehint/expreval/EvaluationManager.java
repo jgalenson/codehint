@@ -888,7 +888,8 @@ public final class EvaluationManager {
 			implType.sendMessage("reset", "()V", new IJavaValue[] { }, thread);
 			return true;
 		} catch (DebugException e) {
-			throw new RuntimeException(e);
+			EclipseUtils.showError("Error", "Error", e);
+			return false;
 		}
 	}
 	
