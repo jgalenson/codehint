@@ -784,6 +784,8 @@ public class InitialSynthesisDialog extends SynthesisDialog {
     	column.addSelectionListener(new SelectionAdapter() {
             @Override
 			public void widgetSelected(SelectionEvent e) {
+            	if (filteredExpressions == null)
+            		return;
             	final int direction = table.getSortColumn() == column ? (table.getSortDirection() == SWT.DOWN ? SWT.UP : SWT.DOWN) : SWT.DOWN;
             	Collections.sort(filteredExpressions, new Comparator<FullyEvaluatedExpression>() {
 					@Override
