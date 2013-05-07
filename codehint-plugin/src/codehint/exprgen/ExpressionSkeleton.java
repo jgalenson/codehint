@@ -3,6 +3,7 @@ package codehint.exprgen;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -1039,7 +1040,7 @@ public final class ExpressionSkeleton {
 								Expression e = (Expression)ExpressionMaker.resetAST(EclipseUtils.parseExpr(parser, s));
 								expressionMaker.setID(e);  //  Some later code will expect the expression to have an ID.
 								// The current evaluation manager needs to know the type of the expression, so we figure it out.
-								IJavaType type = curConstraint instanceof DesiredType ? ((DesiredType)curConstraint).getDesiredType() : ((SingleTypeConstraint)fillSkeleton(e, curConstraint, null).getTypeConstraint()).getTypeConstraint();
+								IJavaType type = curConstraint instanceof DesiredType ? ((DesiredType)curConstraint).getDesiredType() : ((SingleTypeConstraint)fillSkeleton(e, curConstraint, Collections.<ASTNode>emptySet()).getTypeConstraint()).getTypeConstraint();
 								fakeTypedHoleInfos.add(new TypedExpression(e, type));
 							}
 							// Evaluate all the expressions.

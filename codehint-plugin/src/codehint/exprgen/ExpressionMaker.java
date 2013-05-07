@@ -491,7 +491,7 @@ public class ExpressionMaker {
 	public String getToStringWithEffects(TypedExpression expr, IJavaValue value) throws DebugException {
 		if (sideEffectHandler == null || !sideEffectHandler.isEnabled())  // This should only be null during refinement, in which case we just get the toString without worrying about side effects, as we do when we're not handling side effects.
 			return EclipseUtils.javaStringOfValue(value, stack);
-		Set<Effect> effects = expr.getResult().getEffects();
+		Set<Effect> effects = expr.getResult() == null ? Collections.<Effect>emptySet() : expr.getResult().getEffects();
 		try {
 			//System.out.println("Getting toString of " + expr.getExpression() + " with effects " + effects);
 			SideEffectHandler.redoEffects(effects);
