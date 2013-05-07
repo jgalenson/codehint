@@ -27,11 +27,13 @@ import org.eclipse.jdt.core.JavaModelException;
 import org.eclipse.jdt.debug.core.IJavaArray;
 import org.eclipse.jdt.debug.core.IJavaClassPrepareBreakpoint;
 import org.eclipse.jdt.debug.core.IJavaMethodEntryBreakpoint;
+import org.eclipse.jdt.debug.core.IJavaObject;
 import org.eclipse.jdt.debug.core.IJavaStackFrame;
 import org.eclipse.jdt.debug.core.IJavaValue;
 import org.eclipse.jdt.internal.debug.core.breakpoints.JavaClassPrepareBreakpoint;
 import org.eclipse.jdt.internal.debug.core.breakpoints.JavaMethodEntryBreakpoint;
 import org.eclipse.jdt.internal.debug.core.breakpoints.JavaWatchpoint;
+import org.eclipse.jdt.internal.debug.core.model.JDIClassType;
 import org.eclipse.jdt.internal.debug.core.model.JDIDebugTarget;
 import org.eclipse.jdt.internal.debug.core.model.JDIObjectValue;
 import org.eclipse.jdt.internal.debug.ui.BreakpointUtils;
@@ -39,6 +41,7 @@ import org.eclipse.jdt.internal.debug.ui.BreakpointUtils;
 import codehint.utils.EclipseUtils;
 import codehint.utils.MutablePair;
 import codehint.utils.Pair;
+import codehint.utils.Utils;
 
 import com.sun.jdi.ArrayReference;
 import com.sun.jdi.ClassNotLoadedException;
@@ -76,9 +79,10 @@ public class SideEffectHandler {
 		if (!enabled)
 			return;
 		SubMonitor curMonitor = SubMonitor.convert(monitor, "Side effect handler setup", IProgressMonitor.UNKNOWN);
-		List<IField> fields = getAllLoadedMutableFields(stack, project, curMonitor);
+		Map<String, List<IJavaObject>> instancesCache = new HashMap<String, List<IJavaObject>>();
+		List<IField> fields = getAllLoadedMutableFields(stack, project, instancesCache, curMonitor);
 		curMonitor.setWorkRemaining(fields.size());
-		addedWatchpoints = getFieldWatchpoints(fields);
+		addedWatchpoints = getFieldWatchpoints(fields, instancesCache);
 		curMonitor.worked(fields.size());
 		try {
 			prepareBreakpoint = new MyClassPrepareBreakpoint(project);
@@ -102,7 +106,8 @@ public class SideEffectHandler {
 		return types;
 	}
 	
-	private List<IField> getAllLoadedMutableFields(IJavaStackFrame stack, IJavaProject project, SubMonitor monitor) {
+	private List<IField> getAllLoadedMutableFields(IJavaStackFrame stack, IJavaProject project, Map<String, List<IJavaObject>> instancesCache, SubMonitor monitor) {
+		JDIDebugTarget target = (JDIDebugTarget)stack.getDebugTarget();
 		List<ReferenceType> loadedTypes = getAllLoadedTypes(stack);
 		monitor.setWorkRemaining(loadedTypes.size());
 		//long startTime = System.currentTimeMillis();
@@ -122,7 +127,7 @@ public class SideEffectHandler {
 						|| typeName.equals("java.lang.CharacterDataLatin1")
 						|| typeName.equals("java.lang.Integer$IntegerCache"))
 					continue;
-				List<ObjectReference> instances = null;
+				List<IJavaObject> instances = null;
 				for (IField field: itype.getFields()) {
 					if (!Flags.isFinal(field.getFlags()) || canBeArray(field)) {
 						if (Flags.isStatic(field.getFlags())) {
@@ -134,19 +139,11 @@ public class SideEffectHandler {
 							if (typeName.equals("javax.swing.MultiUIDefaults") && field.getElementName().equals("tables"))
 								continue;
 							if (instances == null) {
-								instances = type.instances(Long.MAX_VALUE);
-								for (ObjectReference instance: instances) {
-									long id = instance.uniqueID();
+								instances = getInstances(type, instancesCache, target);
+								for (IJavaObject instance: instances) {
+									long id = instance.getUniqueId();
 									if (id > maxID)
 										maxID = id;
-								}
-								// Abstract classes seem to return no instances, so check their subclasses, but don't bother checking for maxID.  (Without this, we don't get AbstractList.modCount, which makes toString on subList fail.)
-								if (instances.isEmpty() && type.isAbstract()) {
-									for (ClassType subtype: ((ClassType)type).subclasses()) {
-										instances = subtype.instances(1);
-										if (!instances.isEmpty())
-											break;
-									}
 								}
 							}
 							if (!instances.isEmpty())
@@ -157,6 +154,8 @@ public class SideEffectHandler {
 			} catch (JavaModelException e) {
 				//System.out.println("Bad times on " + type.name());
 				continue;  // Calling getFields() on some anonymous classes throws an exception....
+			} catch (DebugException e) {
+				throw new RuntimeException(e);
 			} finally {
 				monitor.worked(1);
 			}
@@ -168,19 +167,35 @@ public class SideEffectHandler {
 		return fields;
 	}
 	
+	private static List<IJavaObject> getInstances(ReferenceType type, Map<String, List<IJavaObject>> instancesCache, JDIDebugTarget target) throws DebugException {
+		List<IJavaObject> instances = instancesCache.get(type.name());
+		if (instances == null && type instanceof ClassType) {
+			ClassType classType = (ClassType)type;
+			instances = new ArrayList<IJavaObject>();
+			for (IJavaObject instance: (new JDIClassType(target, classType)).getInstances(Long.MAX_VALUE))
+				instances.add(instance);
+			for (ClassType subtype: classType.subclasses())
+				instances.addAll(getInstances(subtype, instancesCache, target));
+			instancesCache.put(type.name(), instances);
+		}
+		return instances;
+	}
+	
 	private static boolean canBeArray(IField field) throws JavaModelException {
 		String typeSig = field.getTypeSignature();
 		return typeSig.contains("[") || typeSig.equals("Ljava.lang.Object;") || typeSig.equals("QObject;");
 	}
 	
-	private List<MyJavaWatchpoint> getFieldWatchpoints(final Collection<IField> fields) {
+	private List<MyJavaWatchpoint> getFieldWatchpoints(final Collection<IField> fields, final Map<String, List<IJavaObject>> instancesCache) {
 		try {
 			final List<MyJavaWatchpoint> watchpoints = new ArrayList<MyJavaWatchpoint>(fields.size());
 			IWorkspaceRunnable wr = new IWorkspaceRunnable() {
 				@Override
 				public void run(IProgressMonitor monitor) throws CoreException {
-					for (IField field: fields)
-						watchpoints.add(new MyJavaWatchpoint(field));
+					for (IField field: fields) {
+						List<IJavaObject> instances = instancesCache == null ? null : instancesCache.get(field.getDeclaringType().getFullyQualifiedName());
+						watchpoints.add(new MyJavaWatchpoint(field, instances == null || instances.size() != 1 ? null : Utils.singleton(instances)));  // It seems like you can only add one instance filter.
+					}
 					DebugPlugin.getDefault().getBreakpointManager().addBreakpoints(watchpoints.toArray(new IBreakpoint[watchpoints.size()]));
 				}
 			};
@@ -221,7 +236,7 @@ public class SideEffectHandler {
 		private final boolean canBeArray;
 		private final boolean isFinal;
 		
-		public MyJavaWatchpoint(IField field) throws CoreException {
+		public MyJavaWatchpoint(IField field, IJavaObject uniqueInstance) throws CoreException {
 			//super(BreakpointUtils.getBreakpointResource(field.getDeclaringType()), field.getDeclaringType().getElementName(), field.getElementName(), -1, -1, -1, 0, false, new HashMap<String, Object>(10));
 			
 			canBeArray = canBeArray(field);
@@ -241,6 +256,9 @@ public class SideEffectHandler {
 			addFieldName(attributes, fieldName);
 			addDefaultAccessAndModification(attributes);
 			ensureMarker().setAttributes(attributes);
+			
+			if (uniqueInstance != null)
+				addInstanceFilter(uniqueInstance);
 		}
 
 		@Override
@@ -410,7 +428,7 @@ public class SideEffectHandler {
 					for (IField field: itype.getFields())
 						if ((!Flags.isFinal(field.getFlags()) || field.getTypeSignature().contains("[")) && Flags.isStatic(field.getFlags()))
 							fields.add(field);
-					List<MyJavaWatchpoint> newWatchpoints = getFieldWatchpoints(fields);
+					List<MyJavaWatchpoint> newWatchpoints = getFieldWatchpoints(fields, null);
 					addedWatchpoints.addAll(newWatchpoints);
 				}
 			} catch (JavaModelException e) {

@@ -344,7 +344,7 @@ public class ExpressionMaker {
 			effects = isOutermost ? sideEffectHandler.stopHandlingSideEffects() : sideEffectHandler.getSideEffects();
 			nativeHandler.allowNativeCalls();
 			timeoutChecker.stopEvaluating();
-			//System.out.println("Calling " + (receiver.getValue() != null ? receiver.getExpression() : receiver.getType()).toString().replace("\n", "\\n") + "." + method.name() + " with args " + args.toString() + " got " + value + " and took " + (System.currentTimeMillis() - startTime) + "ms.");
+			//System.out.println("Calling " + (receiver.getValue() != null ? receiver.getExpression() : receiver.getType()).toString().replace("\n", "\\n") + "." + method.name() + " with args " + args.toString() + " got " + value + " with effects " + effects + " and took " + (System.currentTimeMillis() - startTime) + "ms.");
 		}
 		return new Result(value, effects, valueCache, thread);
 	}
