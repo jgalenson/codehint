@@ -10,6 +10,7 @@ import java.util.Set;
 import org.eclipse.debug.core.DebugException;
 import org.eclipse.jdt.core.dom.AST;
 import org.eclipse.jdt.core.dom.ASTNode;
+import org.eclipse.jdt.core.dom.ASTVisitor;
 import org.eclipse.jdt.core.dom.ArrayAccess;
 import org.eclipse.jdt.core.dom.ArrayType;
 import org.eclipse.jdt.core.dom.BooleanLiteral;
@@ -1049,6 +1050,22 @@ public class ExpressionMaker {
 	 */
 	public static ASTNode resetAST(ASTNode node) {
 		return ASTNode.copySubtree(ast, node);
+	}
+	
+	/**
+	 * Sets the IDs of all subexpressions of the given
+	 * expression.
+	 * @param expr The expression.
+	 */
+	public void setSubexpressionIDs(Expression expr) {
+    	expr.accept(new ASTVisitor() {
+    		@Override
+    		public void postVisit(ASTNode node) {
+    			if (node instanceof Expression) {
+    				setID((Expression)node);
+    			}
+    		}
+    	});
 	}
 	
 	public int getNumCrashes() {

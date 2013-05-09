@@ -43,7 +43,6 @@ import org.eclipse.jdt.core.dom.StringLiteral;
 import org.eclipse.jdt.core.dom.SuperFieldAccess;
 import org.eclipse.jdt.core.dom.SuperMethodInvocation;
 import org.eclipse.jdt.core.dom.ThisExpression;
-import org.eclipse.jdt.core.dom.Type;
 import org.eclipse.jdt.core.dom.TypeLiteral;
 import org.eclipse.jdt.debug.core.IJavaArrayType;
 import org.eclipse.jdt.debug.core.IJavaClassObject;
@@ -247,8 +246,6 @@ public final class ExpressionSkeleton {
 						break;
 				}
 			}
-			if (holeInfos.isEmpty())
-				throw new ParserError("The skeleton must have at least one " + HOLE_SYNTAX + " or " + LIST_HOLE_SYNTAX + " hole.");
 			ASTNode node = EclipseUtils.parseExpr(parser, str);
 			if (node instanceof CompilationUnit)
 				throw new ParserError("Enter a valid skeleton: " + ((CompilationUnit)node).getProblems()[0].getMessage());
@@ -275,7 +272,7 @@ public final class ExpressionSkeleton {
 		private static ExpressionSkeleton rewriteHoleSyntax(String sugaredString, IJavaDebugTarget target, IJavaStackFrame stack, ExpressionMaker expressionMaker, IAstEvaluationEngine evaluationEngine, SubtypeChecker subtypeChecker, TypeCache typeCache, ValueCache valueCache, EvaluationManager evalManager, StaticEvaluator staticEvaluator, ExpressionGenerator expressionGenerator, SideEffectHandler sideEffectHandler) {
 			Map<String, HoleInfo> holeInfos = new HashMap<String, HoleInfo>();
 			Expression expr = rewriteHoleSyntax(sugaredString, holeInfos, stack, evaluationEngine);
-			return new ExpressionSkeleton(sugaredString, (Expression)ExpressionMaker.resetAST(expr), holeInfos, target, stack, expressionMaker, subtypeChecker, typeCache, valueCache, evalManager, staticEvaluator, expressionGenerator, sideEffectHandler);
+			return new ExpressionSkeleton(sugaredString, expr, holeInfos, target, stack, expressionMaker, subtypeChecker, typeCache, valueCache, evalManager, staticEvaluator, expressionGenerator, sideEffectHandler);
 		}
 	
 		/**
@@ -433,8 +430,16 @@ public final class ExpressionSkeleton {
 			if (HOLE_SYNTAX.equals(sugaredString))  // Optimization: Optimize special case of "??" skeleton by simply calling old ExprGen code directly.
 				results = expressionGenerator.generateExpression(property, typeConstraint, varName, searchConstructors, searchOperators, synthesisDialog, monitor, SEARCH_DEPTH + extraDepth);
 			else {
-				monitor.beginTask("Skeleton generation", IProgressMonitor.UNKNOWN);
-				ArrayList<TypedExpression> exprs = SkeletonFiller.fillSkeleton(expression, typeConstraint, extraDepth, searchConstructors, searchOperators, holeInfos, stack, target, expressionMaker, evalManager, staticEvaluator, expressionGenerator, sideEffectHandler, subtypeChecker, typeCache, valueCache, monitor);
+				ArrayList<TypedExpression> exprs;
+				if (holeInfos.isEmpty()) {
+					expressionMaker.setSubexpressionIDs(expression);
+					SkeletonFiller filler = new SkeletonFiller(extraDepth, searchConstructors, searchOperators, holeInfos, stack, target, expressionMaker, evalManager, staticEvaluator, expressionGenerator, sideEffectHandler, subtypeChecker, typeCache, valueCache, monitor);
+					exprs = new ArrayList<TypedExpression>(1);
+					exprs.add(new TypedExpression(expression, filler.getType(expression, typeConstraint)));
+				} else {
+					monitor.beginTask("Skeleton generation", IProgressMonitor.UNKNOWN);
+					exprs = SkeletonFiller.fillSkeleton(expression, typeConstraint, extraDepth, searchConstructors, searchOperators, holeInfos, stack, target, expressionMaker, evalManager, staticEvaluator, expressionGenerator, sideEffectHandler, subtypeChecker, typeCache, valueCache, monitor);
+				}
 				EclipseUtils.log("Fitting " + exprs.size() + " potential expressions with extra depth " + extraDepth + " into skeleton " + sugaredString + ".");
 				DataCollector.log("skel-start", "spec=" + property.toString(), "skel=" + sugaredString, "exdep=" + extraDepth, "num=" + exprs.size());
 				evalManager.cacheMethodResults(exprs);
@@ -1038,9 +1043,9 @@ public final class ExpressionSkeleton {
 							ArrayList<TypedExpression> fakeTypedHoleInfos = new ArrayList<TypedExpression>(holeInfo.getArgs().size());
 							for (String s: holeInfo.getArgs()) {
 								Expression e = (Expression)ExpressionMaker.resetAST(EclipseUtils.parseExpr(parser, s));
-								expressionMaker.setID(e);  //  Some later code will expect the expression to have an ID.
+								expressionMaker.setSubexpressionIDs(e);  //  Some later code will expect the expression to have an ID.
 								// The current evaluation manager needs to know the type of the expression, so we figure it out.
-								IJavaType type = curConstraint instanceof DesiredType ? ((DesiredType)curConstraint).getDesiredType() : ((SingleTypeConstraint)fillSkeleton(e, curConstraint, Collections.<ASTNode>emptySet()).getTypeConstraint()).getTypeConstraint();
+								IJavaType type = getType(e, curConstraint);
 								fakeTypedHoleInfos.add(new TypedExpression(e, type));
 							}
 							// Evaluate all the expressions.
@@ -1085,6 +1090,16 @@ public final class ExpressionSkeleton {
 			} catch (DebugException e) {
 				throw new RuntimeException(e);
 			}
+		}
+
+		/**
+		 * Gets the type of the given expression.
+		 * @param e The expression.
+		 * @param curConstraint The current constraint
+		 * @return The type of the given expression.
+		 */
+		public IJavaType getType(Expression e, TypeConstraint curConstraint) {
+			return curConstraint instanceof DesiredType ? ((DesiredType)curConstraint).getDesiredType() : ((SingleTypeConstraint)fillSkeleton(e, curConstraint, Collections.<ASTNode>emptySet()).getTypeConstraint()).getTypeConstraint();
 		}
 
 		/**

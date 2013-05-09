@@ -534,6 +534,8 @@ public class SideEffectHandler {
 			curMonitor.done();
 		} catch (CoreException e) {
 			EclipseUtils.showError("Error", "Error", e);
+		} catch (RuntimeException e) {
+			EclipseUtils.showError("Error", "Error", e);
 		}
 	}
 	
