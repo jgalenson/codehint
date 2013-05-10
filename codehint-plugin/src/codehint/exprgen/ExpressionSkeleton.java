@@ -60,7 +60,7 @@ import com.sun.jdi.Field;
 import com.sun.jdi.Method;
 
 import codehint.DataCollector;
-import codehint.dialogs.InitialSynthesisDialog;
+import codehint.dialogs.SynthesisDialog;
 import codehint.effects.SideEffectHandler;
 import codehint.expreval.EvaluatedExpression;
 import codehint.expreval.EvaluationManager;
@@ -421,7 +421,7 @@ public final class ExpressionSkeleton {
 	 * @param monitor The progress monitor.
 	 * @return Expressions that satisfy this skeleton and the pdspec.
 	 */
-	public ArrayList<FullyEvaluatedExpression> synthesize(Property property, String varName, IJavaType varStaticType, int extraDepth, boolean searchConstructors, boolean searchOperators, InitialSynthesisDialog synthesisDialog, IProgressMonitor monitor) {
+	public ArrayList<FullyEvaluatedExpression> synthesize(Property property, String varName, IJavaType varStaticType, int extraDepth, boolean searchConstructors, boolean searchOperators, SynthesisDialog synthesisDialog, IProgressMonitor monitor) {
 		try {
 			long startTime = System.currentTimeMillis();
 			// TODO: Improve progress monitor so it shows you which evaluation it is.

@@ -85,13 +85,17 @@ public class ExpressionMaker {
 	private final NativeHandler nativeHandler;
 	private final SideEffectHandler sideEffectHandler;
 	
-	public ExpressionMaker(IJavaStackFrame stack, ValueCache valueCache, TypeCache typeCache, TimeoutChecker timeoutChecker, NativeHandler nativeHandler, SideEffectHandler sideEffectHandler) {
+	public ExpressionMaker(IJavaStackFrame stack, ValueCache valueCache, TypeCache typeCache, TimeoutChecker timeoutChecker, NativeHandler nativeHandler, SideEffectHandler sideEffectHandler, Metadata metadata) {
+		this(stack, valueCache, typeCache, timeoutChecker, nativeHandler, sideEffectHandler, metadata.subsetMethods, metadata.subsetFields, metadata.maxId);
+	}
+	
+	private ExpressionMaker(IJavaStackFrame stack, ValueCache valueCache, TypeCache typeCache, TimeoutChecker timeoutChecker, NativeHandler nativeHandler, SideEffectHandler sideEffectHandler, Map<Integer, Method> methods, Map<Integer, Field> fields, int id) {
 		this.stack = stack;
 		this.target = (IJavaDebugTarget)stack.getDebugTarget();
-		id = 0;
+		this.id = id + 1;
 		results = new HashMap<Set<Effect>, Map<Integer, Result>>();
-		methods = new HashMap<Integer, Method>();
-		fields = new HashMap<Integer, Field>();
+		this.methods = new HashMap<Integer, Method>(methods);  // Make copies so that changes we make here don't affect the metadata's maps.
+		this.fields = new HashMap<Integer, Field>(fields);
 		statics = new HashMap<Integer, IJavaReferenceType>();
 		depths = new HashMap<Integer, Integer>();
 		this.valueCache = valueCache;
@@ -1000,6 +1004,13 @@ public class ExpressionMaker {
 	public Method getMethod(int id) {
 		return methods.get(id);
 	}
+	
+	public Method getMethodOpt(Expression e) {
+		Object idObj = getIDOpt(e);
+		if (idObj == null)
+			return null;
+		return getMethod((Integer)idObj);
+	}
 
 	private void setField(Expression e, Field field) {
 		fields.put(getID(e), field);
@@ -1007,6 +1018,17 @@ public class ExpressionMaker {
 
 	public Field getField(Expression e) {
 		return fields.get(getID(e));
+	}
+
+	public Field getField(int id) {
+		return fields.get(id);
+	}
+	
+	public Field getFieldOpt(Expression e) {
+		Object idObj = getIDOpt(e);
+		if (idObj == null)
+			return null;
+		return getField((Integer)idObj);
 	}
 
 	/**
@@ -1070,6 +1092,47 @@ public class ExpressionMaker {
 	
 	public int getNumCrashes() {
 		return numCrashes;
+	}
+	
+	public static class Metadata {
+		
+		private final Map<Integer, Method> subsetMethods;
+		private final Map<Integer, Field> subsetFields;
+		private int maxId;
+		
+		public Metadata(Map<Integer, Method> subsetMethods, Map<Integer, Field> subsetFields) {
+			this.subsetMethods = subsetMethods;
+			this.subsetFields = subsetFields;
+			this.maxId = -1;
+		}
+		
+		public static Metadata emptyMetadata() {
+			return new Metadata(new HashMap<Integer, Method>(), new HashMap<Integer, Field>());
+		}
+		
+		public void addMetadataFor(List<? extends TypedExpression> exprs, final ExpressionMaker expressionMaker) {
+			ASTVisitor visitor = new ASTVisitor() {
+	    		@Override
+	    		public void postVisit(ASTNode node) {
+	    			if (node instanceof Expression) {
+	    				Object idObj = ExpressionMaker.getIDOpt((Expression)node);
+	    				if (idObj != null) {
+	    					int id = (Integer)idObj;
+	    					Method method = expressionMaker.getMethod(id);
+	    					if (method != null)
+	    						subsetMethods.put(id, method);
+	    					Field field = expressionMaker.getField(id);
+	    					if (field != null)
+	    						subsetFields.put(id, field);
+	    				}
+	    			}
+	    		}
+			};
+			for (TypedExpression e: exprs)
+				e.getExpression().accept(visitor);
+			maxId = expressionMaker.id - 1;
+		}
+		
 	}
 
 }

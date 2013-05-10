@@ -58,7 +58,7 @@ import org.eclipse.jdt.debug.core.IJavaVariable;
 import org.eclipse.jdt.internal.debug.core.model.JDIStackFrame;
 import org.eclipse.jdt.internal.debug.core.model.JDIType;
 import codehint.DataCollector;
-import codehint.dialogs.InitialSynthesisDialog;
+import codehint.dialogs.SynthesisDialog;
 import codehint.effects.Effect;
 import codehint.effects.SideEffectHandler;
 import codehint.expreval.EvaluatedExpression;
@@ -323,7 +323,7 @@ public final class ExpressionGenerator {
 	 * to the given depth) whose result in the current stack frame satisfies
 	 * the given pdspec.
 	 */
-	public ArrayList<FullyEvaluatedExpression> generateExpression(Property property, TypeConstraint typeConstraint, String varName, boolean searchConstructors, boolean searchOperators, InitialSynthesisDialog synthesisDialog, IProgressMonitor monitor, int maxExprDepth) {
+	public ArrayList<FullyEvaluatedExpression> generateExpression(Property property, TypeConstraint typeConstraint, String varName, boolean searchConstructors, boolean searchOperators, SynthesisDialog synthesisDialog, IProgressMonitor monitor, int maxExprDepth) {
 		monitor.beginTask("Expression generation and evaluation", IProgressMonitor.UNKNOWN);
 		
 		try {
@@ -374,7 +374,7 @@ public final class ExpressionGenerator {
 	 * current stack frame satisfies the current pdspec.
 	 * @throws DebugException 
 	 */
-	private ArrayList<FullyEvaluatedExpression> genAllExprs(int maxDepth, Property property, boolean searchConstructors, boolean searchOperators, final InitialSynthesisDialog synthesisDialog, IProgressMonitor monitor) throws DebugException {
+	private ArrayList<FullyEvaluatedExpression> genAllExprs(int maxDepth, Property property, boolean searchConstructors, boolean searchOperators, final SynthesisDialog synthesisDialog, IProgressMonitor monitor) throws DebugException {
 		long startTime = System.currentTimeMillis();
 		int initNumCrashes = getNumCrashes();
 		
@@ -428,7 +428,7 @@ public final class ExpressionGenerator {
 	 * given pdspec if it is non-null.
 	 * @throws DebugException
 	 */
-	private ArrayList<FullyEvaluatedExpression> evaluateExpressions(List<TypedExpression> exprs, Property property, InitialSynthesisDialog synthesisDialog, IProgressMonitor monitor, int depth, int maxDepth) throws DebugException {
+	private ArrayList<FullyEvaluatedExpression> evaluateExpressions(List<TypedExpression> exprs, Property property, SynthesisDialog synthesisDialog, IProgressMonitor monitor, int depth, int maxDepth) throws DebugException {
 		String taskNameSuffix = " " + (depth + 1) + "/" + (maxDepth + 1);
 		ArrayList<EvaluatedExpression> evaluatedExprs = new ArrayList<EvaluatedExpression>();
 		ArrayList<TypedExpression> unevaluatedExprs = new ArrayList<TypedExpression>();

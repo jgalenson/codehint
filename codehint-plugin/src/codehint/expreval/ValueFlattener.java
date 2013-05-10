@@ -34,13 +34,15 @@ public class ValueFlattener extends ASTFlattener {
 
 	private final Map<String, Integer> temporaries;
 	private final Map<String, Pair<Integer, String>> newTemporaries;
+	private final Map<String, Integer> methodResultsMap;
 	private final ExpressionMaker expressionMaker;
 	private final ValueCache valueCache;
 	private Set<Effect> curEffects;
 	
-	public ValueFlattener(Map<String, Integer> temporaries, ExpressionMaker expressionMaker, ValueCache valueCache) {
+	public ValueFlattener(Map<String, Integer> temporaries, Map<String, Integer> methodResultsMap, ExpressionMaker expressionMaker, ValueCache valueCache) {
 		this.temporaries = temporaries;
 		this.newTemporaries = new HashMap<String, Pair<Integer, String>>();
+		this.methodResultsMap = methodResultsMap;
 		this.expressionMaker = expressionMaker;
 		this.valueCache = valueCache;
 		this.curEffects = Collections.<Effect>emptySet();
@@ -133,11 +135,8 @@ public class ValueFlattener extends ASTFlattener {
 			sb.append("_$tmp").append(newTemporaries.get(toString).first);
 			return;
 		} else {
-			Method method = null;
-			Object idObj = ExpressionMaker.getIDOpt(node);
-			if (idObj != null)
-				method = expressionMaker.getMethod((Integer)idObj);
-			if (method != null) {  // The method should only be null during refinement.
+			Method method = expressionMaker.getMethodOpt(node);
+			if (method != null && methodResultsMap != null && methodResultsMap.containsKey(toString)) {  // The method should only be null or the call should not be cached in the methodResultsMap during refinement.
 				String typeStr = EclipseUtils.sanitizeTypename(method.returnTypeName());
 				int newIndex = temporaries.size() + newTemporaries.size();
 				sb.append("_$tmp").append(newIndex);

@@ -61,6 +61,7 @@ import codehint.dialogs.RefinementSynthesisDialog;
 import codehint.dialogs.StatePropertyDialog;
 import codehint.dialogs.SynthesisDialog;
 import codehint.dialogs.TypePropertyDialog;
+import codehint.dialogs.SynthesisDialog.SynthesisState;
 import codehint.effects.SideEffectHandler;
 import codehint.expreval.EvaluationManager;
 import codehint.expreval.EvaluationManager.StopSynthesis;
@@ -96,6 +97,8 @@ public class Synthesizer {
 	private static Map<String, Property> initialDemonstrations;
 	private static List<String> addedChosenStmts;
 	private static Map<String, String> initialFiles;
+	private static ExpressionMaker.Metadata metadata;
+	private static Map<String, List<FullyEvaluatedExpression>> initialExprs;
 	
 	/**
 	 * Synthesizes expressions and inserts them into the code.
@@ -120,6 +123,7 @@ public class Synthesizer {
 			Property property = synthesisDialog.getProperty();
 			ExpressionSkeleton skeleton = synthesisDialog.getSkeleton();
 			List<FullyEvaluatedExpression> finalExpressions = synthesisDialog.getExpressions();
+			ExpressionMaker expressionMaker = synthesisDialog.getExpressionMaker();
 			synthesisDialog.cleanup();
 	        if (finalExpressions == null) {
 		    	if (property != null && skeleton != null) {
@@ -164,8 +168,11 @@ public class Synthesizer {
 			addBreakpoint(resource, typename, line);
 
 			// TODO: Using the text of the statement as a key is not a very good idea.
-			if (finalExpressions.size() > 1)
+			if (finalExpressions.size() > 1) {
 				initialDemonstrations.put(statement, property);
+				metadata.addMetadataFor(finalExpressions, expressionMaker);
+				initialExprs.put(statement, finalExpressions);
+			}
 
 			IJavaValue value = property instanceof ValueProperty ? ((ValueProperty)property).getValue() : finalExpressions.get(0).getValue();
 			if (variable != null && value != null)
@@ -208,7 +215,7 @@ public class Synthesizer {
 		 * @param blockNatives Whether we are block native calls.
 		 * @param sideEffectHandler Class that records and undoes side effects.
 		 */
-		public void synthesize(final InitialSynthesisDialog synthesisDialog, final EvaluationManager evalManager, final int extraDepth, final TimeoutChecker timeoutChecker, final boolean blockNatives, final SideEffectHandler sideEffectHandler) {
+		public void synthesize(final SynthesisDialog synthesisDialog, final EvaluationManager evalManager, final int extraDepth, final TimeoutChecker timeoutChecker, final boolean blockNatives, final SideEffectHandler sideEffectHandler) {
 			final Property property = synthesisDialog.getProperty();
 			final ExpressionSkeleton skeleton = synthesisDialog.getSkeleton();
 			final boolean searchConstructors = synthesisDialog.searchConstructors();
@@ -305,7 +312,6 @@ public class Synthesizer {
 		
 		private final ArrayList<FullyEvaluatedExpression> exprs;
 		private IJavaType varType;
-		private final EvaluationManager evalManager;
 		
 		/**
 		 * Creates a new RefinementWorker that will filter
@@ -315,10 +321,9 @@ public class Synthesizer {
 		 * assigned.
 		 * @param evalManager The evaluation manager.
 		 */
-		public RefinementWorker(ArrayList<FullyEvaluatedExpression> exprs, IJavaType varType, EvaluationManager evalManager) {
+		public RefinementWorker(ArrayList<FullyEvaluatedExpression> exprs, IJavaType varType) {
 			this.exprs = exprs;
 			this.varType = varType;
-			this.evalManager = evalManager;
 		}
 
 		/**
@@ -326,11 +331,11 @@ public class Synthesizer {
 		 * that meet the user's specifications.
 		 * @param synthesisDialog The dialog controlling the synthesis.
 		 */
-		public void refine(RefinementSynthesisDialog synthesisDialog) {
+		public void refine(RefinementSynthesisDialog synthesisDialog, EvaluationManager evalManager) {
 			Property property = synthesisDialog.getProperty();
    			try {
-   				ArrayList<FullyEvaluatedExpression> validExpressions = evalManager.evaluateExpressions(exprs, property, varType, null, new NullProgressMonitor(), "");
-            	synthesisDialog.setExpressions(validExpressions);
+   				evalManager.evaluateExpressions(exprs, property, varType, synthesisDialog, synthesisDialog.getProgressMonitor(), "");
+   				synthesisDialog.endSynthesis(SynthesisState.END);
    			} catch (EvaluationError e) {
    		    	EclipseUtils.showError("Error", e.getMessage(), e);
 				throw e;
@@ -463,21 +468,34 @@ public class Synthesizer {
    			// This is the declared type while vartype is the type of the array.  The difference is that if the static type is a primitive, the array type is the wrapper class.
 	    	IJavaType varStaticType = lhsVar != null ? lhsVar.getJavaType() : null;
    			String varStaticTypeName = lhsVar != null ? EclipseUtils.sanitizeTypename(lhsVar.getReferenceTypeName()) : matcher.group(1);
-        	
-   			// Parse the expression.
-   			ASTNode node = EclipseUtils.parseExpr(parser, matcher.group(3));
-   			// Get the possible expressions in a generic list.
-   			Iterator<?> it = ((MethodInvocation)node).arguments().iterator();
-   			ArrayList<TypedExpression> initialExprs = new ArrayList<TypedExpression>();
-   			while (it.hasNext())
-   				initialExprs.add(new TypedExpression((Expression)it.next(), varStaticType));
-        	assert initialExprs.size() > 0;  // We must have at least one expression.
+
+   			ArrayList<TypedExpression> typedExprs = new ArrayList<TypedExpression>();
+   			List<FullyEvaluatedExpression> oldExprs = initialExprs.get(curLine);
+   			if (oldExprs != null) {
+   				for (TypedExpression e: oldExprs)  // Use the old expressions since we might have metadata about them (e.g., Method, Field).
+   					typedExprs.add(new TypedExpression(e.getExpression(), e.getType()));
+   			} else {
+	   			// Parse the expression.
+	   			ASTNode node = EclipseUtils.parseExpr(parser, matcher.group(3));
+	   			// Get the possible expressions in a generic list.
+	   			Iterator<?> it = ((MethodInvocation)node).arguments().iterator();
+	   			while (it.hasNext())
+	   				typedExprs.add(new TypedExpression((Expression)it.next(), varStaticType));
+   			}
+        	assert typedExprs.size() > 0;  // We must have at least one expression.
 			IJavaDebugTarget target = (IJavaDebugTarget)frame.getDebugTarget();
 			ValueCache valueCache = new ValueCache(target);
         	// TODO: Run the following off the UI thread like above when we do the first synthesis.
-        	EvaluationManager evalManager = new EvaluationManager(false, frame, new ExpressionMaker(frame, valueCache, typeCache, timeoutChecker, null, null), new SubtypeChecker(frame, target, typeCache), typeCache, valueCache, timeoutChecker);
+        	EvaluationManager evalManager = new EvaluationManager(false, frame, new ExpressionMaker(frame, valueCache, typeCache, timeoutChecker, null, null, metadata), new SubtypeChecker(frame, target, typeCache), typeCache, valueCache, timeoutChecker);
         	evalManager.init();
-   			ArrayList<FullyEvaluatedExpression> exprs = evalManager.evaluateExpressions(initialExprs, null, null, null, new NullProgressMonitor(), "");
+   			ArrayList<FullyEvaluatedExpression> exprs;
+   			try {
+   				exprs = evalManager.evaluateExpressions(typedExprs, null, null, null, new NullProgressMonitor(), "");
+   			} catch (RuntimeException e) {
+   				throw e;
+   			} finally {
+   				evalManager.resetFields();
+   			}
    			if (exprs.isEmpty()) {
    				EclipseUtils.showError("No valid expressions", "No valid expressions were found.", null);
    				throw new RuntimeException("No valid expressions");
@@ -492,8 +510,7 @@ public class Synthesizer {
    			            			
    			// If all expressions evaluate to the same value, use that and move on.
    			if (allHaveSameResult(exprs)) {
-   				evalManager.resetFields();
-   				if (exprs.size() < initialExprs.size())  // Some expressions crashed, so remove them from the code.
+   				if (exprs.size() < typedExprs.size())  // Some expressions crashed, so remove them from the code.
            			newLine = rewriteLine(matcher, varname, curLine, initialProperty, exprs, lineNumber);
    				value = exprs.get(0).getValue();
    				automatic = true;
@@ -508,14 +525,13 @@ public class Synthesizer {
    	   				}
    	   			});
        			// Get the new concrete value from the user.
-   				final SynthesisDialog synthesisDialog = getRefinementDialog(exprs, varname, varStaticType, varStaticTypeName, "\nPotential values are: " + getLegalValues(exprs), frame, initialProperty, evalManager, typeCache);
+   				final SynthesisDialog synthesisDialog = getRefinementDialog(exprs, varname, varStaticType, varStaticTypeName, "\nPotential values are: " + getLegalValues(exprs), frame, initialProperty);
    				Display.getDefault().syncExec(new Runnable() {
    	   				@Override
 					public void run() {
    	   					synthesisDialog.open();
    	   				}
    	   			});
-   				evalManager.resetFields();
    				ArrayList<FullyEvaluatedExpression> validExprs = synthesisDialog.getExpressions();
        			if (validExprs == null) {
        				//The user cancelled, just drop back into the debugger and let the 
@@ -532,7 +548,8 @@ public class Synthesizer {
        			}
    				value = validExprs.get(0).getValue();  // The returned values could be different, so we arbitrarily use the first one.  This might not be the best thing to do.
        			
-       			newLine = rewriteLine(matcher, varname, curLine, synthesisDialog.getProperty(), validExprs, lineNumber);
+   				Property newProperty = synthesisDialog.getProperty() == null ? initialProperty : synthesisDialog.getProperty();  // The user might not have entered a pdspec (e.g., they refined or just selected some things), in which case we use the old one.
+       			newLine = rewriteLine(matcher, varname, curLine, newProperty, validExprs, lineNumber);
 
        			if (validExprs.size() == 1) {
            			// If there's only a single possibility remaining, remove the breakpoint.
@@ -545,7 +562,8 @@ public class Synthesizer {
 						e.printStackTrace();
 						throw new RuntimeException("Cannot delete breakpoint.");
 					}
-       			}
+       			} else
+    				metadata.addMetadataFor(validExprs, synthesisDialog.getExpressionMaker());
 
    				automatic = false;
    				finalExprs = validExprs;
@@ -556,8 +574,8 @@ public class Synthesizer {
    				lhsVar.setValue(value);
 
    			
-   			EclipseUtils.log("Ending refinement for " + curLine + (automatic ? " automatically" : "") + ".  " + (newLine == null ? "Statement unchanged." : "Went from " + initialExprs.size() + " expressions to " + finalExprs.size() + ".  New statement: " + newLine));
-   			DataCollector.log("refine-finish", "pre=" + initialExprs.size(), "post=" + finalExprs.size());
+   			EclipseUtils.log("Ending refinement for " + curLine + (automatic ? " automatically" : "") + ".  " + (newLine == null ? "Statement unchanged." : "Went from " + typedExprs.size() + " expressions to " + finalExprs.size() + ".  New statement: " + newLine));
+   			DataCollector.log("refine-finish", "pre=" + typedExprs.size(), "post=" + finalExprs.size());
    			
    			// Immediately continue the execution.
    			thread.resume();
@@ -635,6 +653,8 @@ public class Synthesizer {
 			});
    			initialDemonstrations.remove(curLine);
 			initialDemonstrations.put(newLine, property);
+			initialExprs.remove(curLine);
+			initialExprs.put(newLine, validExprs);
 			return newLine;
 		}
 	    
@@ -710,13 +730,11 @@ public class Synthesizer {
 	     * @param stackFrame The stack frame.
 	     * @param oldProperty The property the user gave the last time
 	     * at this line.
-	     * @param evalManager The evaluation manager.
-	     * @param typeCache 
 	     * @return A dialog that defaults to asking for the type of
 	     * pdspec the user gave the last time at this line.
 	     * @throws DebugException
 	     */
-	    private static RefinementSynthesisDialog getRefinementDialog(ArrayList<FullyEvaluatedExpression> exprs, String varName, IJavaType varStaticType, String varStaticTypeName, String extraMessage, IJavaStackFrame stackFrame, Property oldProperty, EvaluationManager evalManager, TypeCache typeCache) throws DebugException {
+	    private static RefinementSynthesisDialog getRefinementDialog(ArrayList<FullyEvaluatedExpression> exprs, String varName, IJavaType varStaticType, String varStaticTypeName, String extraMessage, IJavaStackFrame stackFrame, Property oldProperty) throws DebugException {
 			Shell shell = getShell();
 			PropertyDialog propertyDialog = null;
 			if (oldProperty == null || oldProperty instanceof StateProperty)
@@ -731,7 +749,7 @@ public class Synthesizer {
 				propertyDialog = new LambdaPropertyDialog(varName, varStaticType.getName(), varStaticType, stackFrame, oldProperty.toString(), extraMessage);*/
 			else
 				throw new IllegalArgumentException(oldProperty.toString());
-			return new RefinementSynthesisDialog(shell, varStaticTypeName, varStaticType, stackFrame, propertyDialog, new RefinementWorker(exprs, varStaticType, evalManager), typeCache);
+			return new RefinementSynthesisDialog(exprs, shell, varStaticTypeName, varStaticType, stackFrame, propertyDialog, new SynthesisWorker(varName, varStaticType), new RefinementWorker(exprs, varStaticType));
 	    }
 	    
 	    /**
@@ -833,6 +851,8 @@ public class Synthesizer {
     	initialDemonstrations = new HashMap<String, Property>();
     	addedChosenStmts = new ArrayList<String>();
     	initialFiles = new HashMap<String, String>();
+    	metadata = ExpressionMaker.Metadata.emptyMetadata();
+    	initialExprs = new HashMap<String, List<FullyEvaluatedExpression>>();
     	Display.getDefault().asyncExec(new Runnable() {
 			@Override
 			public void run() {
@@ -856,6 +876,8 @@ public class Synthesizer {
     	initialDemonstrations = null;
     	addedChosenStmts = null;
     	initialFiles = null;
+    	metadata = null;
+    	initialExprs = null;
     	ExpressionGenerator.clear();
     }
     
@@ -868,6 +890,10 @@ public class Synthesizer {
 		} catch (CoreException e) {
 			throw new RuntimeException(e);
 		}
+    }
+    
+    public static ExpressionMaker.Metadata getMetadata() {
+    	return metadata;
     }
 
 }

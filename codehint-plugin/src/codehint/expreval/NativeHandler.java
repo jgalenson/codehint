@@ -97,5 +97,9 @@ public class NativeHandler {
 	public void enable(boolean enable) {
 		enabled = enable;
 	}
+	
+	public boolean isEnabled() {
+		return enabled;
+	}
 
 }

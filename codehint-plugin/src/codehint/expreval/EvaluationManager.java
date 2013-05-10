@@ -43,7 +43,7 @@ import org.eclipse.jdt.debug.eval.IEvaluationListener;
 import org.eclipse.jdt.debug.eval.IEvaluationResult;
 import com.sun.jdi.Method;
 
-import codehint.dialogs.InitialSynthesisDialog;
+import codehint.dialogs.SynthesisDialog;
 import codehint.effects.Effect;
 import codehint.exprgen.ExpressionMaker;
 import codehint.exprgen.Result;
@@ -102,7 +102,7 @@ public final class EvaluationManager {
 	private final Set<String> crashingExpressions;
 	private final boolean canUseJar;
 	
-	private InitialSynthesisDialog synthesisDialog;
+	private SynthesisDialog synthesisDialog;
 	private IProgressMonitor monitor;
 	private String validVal;
 	private String preVarsString;
@@ -152,7 +152,7 @@ public final class EvaluationManager {
      * @return a list of non-crashing expressions that satisfy
      * the given property (or all that do not crash if it is null).
 	 */
-	public ArrayList<FullyEvaluatedExpression> evaluateExpressions(ArrayList<? extends TypedExpression> exprs, Property property, IJavaType varType, InitialSynthesisDialog synthesisDialog, IProgressMonitor monitor, String taskNameSuffix) {
+	public ArrayList<FullyEvaluatedExpression> evaluateExpressions(ArrayList<? extends TypedExpression> exprs, Property property, IJavaType varType, SynthesisDialog synthesisDialog, IProgressMonitor monitor, String taskNameSuffix) {
 		try {
 			this.synthesisDialog = synthesisDialog;
 			validVal = property == null ? "true" : property.getReplacedString("_$curValue", stack);
@@ -350,7 +350,7 @@ public final class EvaluationManager {
 	 */
 	private int buildStringForExpression(TypedExpression curTypedExpr, int i, StringBuilder expressionsStr, boolean isPrimitive, boolean validateStatically, boolean hasPropertyPrecondition, ArrayList<Integer> evalExprIndices, int numEvaluated, Map<String, Integer> temporaries, String valuesArrayName) throws DebugException {
 		Expression curExpr = curTypedExpr.getExpression();
-		ValueFlattener valueFlattener = new ValueFlattener(temporaries, expressionMaker, valueCache);
+		ValueFlattener valueFlattener = new ValueFlattener(temporaries, methodResultsMap, expressionMaker, valueCache);
 		String curExprStr = valueFlattener.getResult(curExpr);
 		IJavaValue curValue = curTypedExpr.getValue();
 		if (curValue == null || !validateStatically) {
@@ -522,7 +522,7 @@ public final class EvaluationManager {
 		for (int j = i - 1; j >= startIndex; j--) {
 			TypedExpression expr = exprs.get(j);
 			// We need to get the flattened string not the actual string, since our temporaries can lose type information.  E.g., foo(bar(x),baz) might compile when storing bar(x) in a temporary with an erased type will not.
-			ValueFlattener valueFlattener = new ValueFlattener(temporaries, expressionMaker, valueCache);
+			ValueFlattener valueFlattener = new ValueFlattener(temporaries, methodResultsMap, expressionMaker, valueCache);
 			String flattenedExprStr = valueFlattener.getResult(exprs.get(j).getExpression());
 			StringBuilder curString = new StringBuilder();
 			curString.append("{\n ");

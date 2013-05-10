@@ -58,21 +58,26 @@ public class ExpressionSorter implements Comparator<TypedExpression> {
 
 		@Override
 		public boolean visit(MethodInvocation node) {
-			Method method = expressionMaker.getMethod(node);
-			prob *= weights.getWeight(method.declaringType().name(), Weights.getMethodKey(method));
-			return true;
+			return visitMethod(node);
 		}
 
 		@Override
 		public boolean visit(ClassInstanceCreation node) {
-			Method method = expressionMaker.getMethod(node);
-			prob *= weights.getWeight(method.declaringType().name(), Weights.getMethodKey(method));
+			return visitMethod(node);
+		}
+		
+		private boolean visitMethod(Expression node) {
+			Method method = expressionMaker.getMethodOpt(node);
+			if (method == null)  // During refinement, we might not have an id.
+				prob *= weights.getAverageWeight();
+			else
+				prob *= weights.getWeight(method.declaringType().name(), Weights.getMethodKey(method));
 			return true;
 		}
 		
 		@Override
 		public boolean visit(FieldAccess node) {
-			Field field = expressionMaker.getField(node);
+			Field field = expressionMaker.getFieldOpt(node);
 			if (field == null)  // Array length
 				prob *= weights.getAverageWeight();
 			else
@@ -82,7 +87,7 @@ public class ExpressionSorter implements Comparator<TypedExpression> {
 		
 		@Override
 		public boolean visit(SimpleName node) {
-			Field field = expressionMaker.getField(node);
+			Field field = expressionMaker.getFieldOpt(node);
 			if (field != null && field.isPublic())  // Don't count unqualified non-public field accesses.
 				visitField(field);
 			return true;
