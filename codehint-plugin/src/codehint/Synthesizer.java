@@ -404,7 +404,7 @@ public class Synthesizer {
 						@Override
 						public void run() {
 							try {
-								ITextEditor editor = EclipseUtils.getActiveTextEditor();
+								final ITextEditor editor = EclipseUtils.getActiveTextEditor();
 								String resourceName = getResourceName(editor);
 								IDocument document = EclipseUtils.getDocument();
 								String text = document.get();
@@ -428,7 +428,12 @@ public class Synthesizer {
 								String initialFile = initialFiles.get(resourceName);
 								if (initialFile != null) {
 									if (numChosenStmts > 0 && initialFile.equals(cleanText))
-										editor.doSave(null);
+										Display.getDefault().asyncExec(new Runnable(){  // Save asynchronously, since it takes a noticeable amount of time and delays e.g., updating the document's text.
+											@Override
+											public void run() {
+												editor.doSave(null);
+											}
+										});
 									initialFiles.remove(resourceName);
 								}
 							} catch (BadLocationException e) {
