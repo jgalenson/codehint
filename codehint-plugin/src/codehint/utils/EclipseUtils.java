@@ -973,8 +973,20 @@ public final class EclipseUtils {
 			}
 		}
 		IEvaluationResult result = results[0];
-		if (result == null)
+		if (result == null) {  // The evaluation timed out, so we need to cancel it and wait for it to finish.  If we don't wait, the thread will be in a bad state and error for future evaluations until it finishes.
+			IJavaThread thread = (IJavaThread)stack.getThread();
+			thread.terminateEvaluation();  // Unfortunately, we cannot easily tell when it actually terminates (this method just sets a flag asking it to).
+			try {
+				for (int i = 0; thread.isPerformingEvaluation(); i++) {
+					if (i == 20)  // Eventually give up on the termination and abort.
+						throw new EvaluationManager.EvaluationError("Unable to terminate evaluation.");
+					Thread.sleep(TimeoutChecker.TIMEOUT_TIME_MS / 10);
+				}
+			} catch (InterruptedException e) {
+				throw new RuntimeException(e);
+			}
 		    return null;
+		}
 		if (result.hasErrors()) {
 			String msg = "The following errors were encountered during evaluation.\n\n" + getErrors(result);
 			//showError("Evaluation error", msg, null);
