@@ -36,8 +36,11 @@ public class Result {
 			return valueToString;
 		StringBuilder sb = new StringBuilder();
 		sb.append(valueToString);
-		for (Effect effect: effects)
-			sb.append(", ").append(effect.toString());
+		for (Effect effect: effects) {
+			if (sb.length() != 0)
+				sb.append(", ");
+			sb.append(effect.toString());
+		}
 		return Utils.getPrintableString(sb.toString());
 	}
 

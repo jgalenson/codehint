@@ -372,7 +372,7 @@ public final class EclipseUtils {
      * the given value, except for arrays, which show their values.
      * @throws DebugException if we cannot get the value.
      */
-    public static String javaStringOfValue(IJavaValue value, IJavaStackFrame stack) throws DebugException {
+    public static String javaStringOfValue(IJavaValue value, IJavaStackFrame stack, boolean callToString) throws DebugException {
     	String sig = value.getSignature();
 		if (value.isNull())
     		return "null";
@@ -382,7 +382,7 @@ public final class EclipseUtils {
     		for (IJavaValue arrValue: ((IJavaArray)value).getValues()) {
     			if (sb.length() > 1)
     				sb.append(",");
-    			sb.append(javaStringOfValue(arrValue, stack));
+    			sb.append(javaStringOfValue(arrValue, stack, callToString));
     		}
     		sb.append("]");
     		return sb.toString();
@@ -390,14 +390,14 @@ public final class EclipseUtils {
     		return "'" + value.getValueString() + "'";
     	else if ("Ljava/lang/String;".equals(sig))
     		return "\"" + value.getValueString() + "\"";
-    	else if (value instanceof IJavaObject) {
+    	else if (callToString && value instanceof IJavaObject) {
     		try {
     			return ((IJavaObject)value).sendMessage("toString", "()Ljava/lang/String;", new IJavaValue[] { }, (IJavaThread)stack.getThread(), null).getValueString();
     		} catch (DebugException e) {
     			return value.toString();
     		}
     	}
-    	String str = value.getValueString();
+    	String str = value.toString();  // For Objects, getValueString() returns just the id and not the type.
     	if ("NaN".equals(str) && "F".equals(sig))
     		return "Float.NaN";
     	else if ("Infinity".equals(str) && "F".equals(sig))

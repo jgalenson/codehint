@@ -363,7 +363,7 @@ public final class EvaluationManager {
 				curString.append("{\n");
 			String curRHSStr = curExprStr;
 			if (isPrimitive && curValue != null)
-				curRHSStr = EclipseUtils.javaStringOfValue(curValue, stack);
+				curRHSStr = EclipseUtils.javaStringOfValue(curValue, stack, false);
 			//curString.append(" // ").append(curExpr.toString()).append("\n");
 			String valueStr = "_$curValue";
 			if (!validateStatically || !isPrimitive) {

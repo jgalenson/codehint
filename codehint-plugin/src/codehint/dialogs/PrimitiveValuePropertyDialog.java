@@ -23,7 +23,7 @@ public class PrimitiveValuePropertyDialog extends ValuePropertyDialog {
 		else {
     		try {
 		    	IJavaValue demonstrationValue = EclipseUtils.evaluate(propertyText, stack);
-		    	return PrimitiveValueProperty.fromPrimitive(EclipseUtils.javaStringOfValue(demonstrationValue, stack), demonstrationValue);
+		    	return PrimitiveValueProperty.fromPrimitive(EclipseUtils.javaStringOfValue(demonstrationValue, stack, false), demonstrationValue);
     		} catch (EvaluationError e) {
 				throw e;
 			} catch (DebugException e) {

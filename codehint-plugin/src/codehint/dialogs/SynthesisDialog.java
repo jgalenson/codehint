@@ -174,6 +174,8 @@ public abstract class SynthesisDialog extends ModelessDialog {
     private Table table;
     private int maxExprLen;
     private int maxResultLen;
+    private int maxToStringLen;
+    private int maxEffectsLen;
     protected ArrayList<FullyEvaluatedExpression> expressions;
     private ArrayList<FullyEvaluatedExpression> lastExpressions;
     protected ArrayList<FullyEvaluatedExpression> filteredExpressions;
@@ -234,6 +236,8 @@ public abstract class SynthesisDialog extends ModelessDialog {
 		this.table = null;
 		this.maxExprLen = 0;
 		this.maxResultLen = 0;
+		this.maxToStringLen = 0;
+		this.maxEffectsLen = 0;
 		this.expressions = null;
 		this.lastExpressions = null;
 		this.filteredExpressions = null;
@@ -307,7 +311,9 @@ public abstract class SynthesisDialog extends ModelessDialog {
 				item.setData(expr);
 				String exprLabel = getExpressionLabel(expr);
 				String resultLabel = getValueLabel(expr);
-				item.setText(new String[] { exprLabel, resultLabel });
+				String toStringLabel = getToStringLabel(expr);
+				String effectsLabel = getEffectsLabel(expr);
+				item.setText(new String[] { exprLabel, resultLabel, toStringLabel, effectsLabel });
 				if (exprLabel.length() > maxExprLen) {
 					table.getColumn(0).pack();
 					maxExprLen = exprLabel.length();
@@ -315,6 +321,14 @@ public abstract class SynthesisDialog extends ModelessDialog {
 				if (resultLabel.length() > maxResultLen) {
 					table.getColumn(1).pack();
 					maxResultLen = resultLabel.length();
+				}
+				if (toStringLabel.length() > maxToStringLen) {
+					table.getColumn(2).pack();
+					maxToStringLen = toStringLabel.length();
+				}
+				if (effectsLabel.length() > maxEffectsLen) {
+					table.getColumn(3).pack();
+					maxEffectsLen = effectsLabel.length();
 				}
 			}
 		});
@@ -335,7 +349,7 @@ public abstract class SynthesisDialog extends ModelessDialog {
                 }
             }
         });
-    	TableColumn column1 = addColumn("Expression", 0, TABLE_WIDTH / 2);
+    	TableColumn column1 = addColumn("Expression", 0, TABLE_WIDTH / 3);
     	(new TableViewerColumn(tableViewer, column1)).setLabelProvider(new ColumnLabelProvider() {
 			@Override
 			public String getToolTipText(Object element) {
@@ -352,7 +366,9 @@ public abstract class SynthesisDialog extends ModelessDialog {
 				return 100;
 			}
 		});
-    	addColumn("Result", 1, TABLE_WIDTH / 2);
+    	addColumn("Result", 1, TABLE_WIDTH / 3);
+    	addColumn("toString", 2, TABLE_WIDTH / 3);
+    	addColumn("Effects", 3, 0);
     	ColumnViewerToolTipSupport.enableFor(tableViewer, ToolTip.NO_RECREATE);
     	tableViewer.addDoubleClickListener(new IDoubleClickListener() {
 			@Override
@@ -822,6 +838,7 @@ public abstract class SynthesisDialog extends ModelessDialog {
 		// Reset column sort indicators.
 		table.setSortDirection(SWT.NONE);
 		table.setSortColumn(null);
+		table.getColumn(3).setWidth(handleSideEffects.getSelection() ? TABLE_WIDTH / 4 : 0);
 		// Start the synthesis
 		boolean blockNatives = isAutomatic || !searchNativeCalls.getSelection();
 		nativeHandler.enable(blockNatives);
@@ -1172,12 +1189,15 @@ public abstract class SynthesisDialog extends ModelessDialog {
 			    		int result;
 			    		if (index == 0)
 			    			result = getExpressionLabel(e1).compareTo(getExpressionLabel(e2));
-			    		else if (index == 1) {
-			    			if (e1.getValue() instanceof IJavaPrimitiveValue && e2.getValue() instanceof IJavaPrimitiveValue)
-			    				result = (int)(((IJavaPrimitiveValue)e1.getValue()).getDoubleValue() - ((IJavaPrimitiveValue)e2.getValue()).getDoubleValue());
-			    			else
-			    				result = getValueLabel(e1).compareTo(getValueLabel(e2));
-			    		} else
+			    		else if ((index == 1 || index == 2) && e1.getValue() instanceof IJavaPrimitiveValue && e2.getValue() instanceof IJavaPrimitiveValue)
+		    				result = (int)(((IJavaPrimitiveValue)e1.getValue()).getDoubleValue() - ((IJavaPrimitiveValue)e2.getValue()).getDoubleValue());
+		    			else if (index == 1)
+		    				result = getValueLabel(e1).compareTo(getValueLabel(e2));
+			    		else if (index == 2)
+		    				result = getToStringLabel(e1).compareTo(getToStringLabel(e2));
+			    		else if (index == 3)
+		    				result = getEffectsLabel(e1).compareTo(getEffectsLabel(e2));
+			    		else
 			    			throw new RuntimeException("Unexpected column: " + index);
 			    		if (direction == SWT.UP)
 			    			result = -result;
@@ -1197,8 +1217,20 @@ public abstract class SynthesisDialog extends ModelessDialog {
     	return e.getSnippet();
     }
     
-    private static String getValueLabel(FullyEvaluatedExpression e) {
-    	return e.getResult().getResultString(e.getResultString());
+    private String getValueLabel(FullyEvaluatedExpression e) {
+    	try {
+			return EclipseUtils.javaStringOfValue(e.getValue(), stack, false);
+		} catch (DebugException ex) {
+			throw new RuntimeException(ex);
+		}
+    }
+    
+    private static String getToStringLabel(FullyEvaluatedExpression e) {
+    	return e.getResultString();
+    }
+    
+    private static String getEffectsLabel(FullyEvaluatedExpression e) {
+    	return e.getResult().getResultString("");
     }
     
 	private void setAllChecked(boolean state) {

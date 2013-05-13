@@ -86,7 +86,7 @@ public class ValuePropertyDialog extends PropertyDialog {
     		try {
 		    	IJavaValue demonstrationValue = EclipseUtils.evaluate(propertyText, stack);
 		    	if (demonstrationValue instanceof IJavaPrimitiveValue)
-		    		return PrimitiveValueProperty.fromPrimitive(EclipseUtils.javaStringOfValue(demonstrationValue, stack), demonstrationValue);
+		    		return PrimitiveValueProperty.fromPrimitive(EclipseUtils.javaStringOfValue(demonstrationValue, stack, false), demonstrationValue);
 		    	else if (demonstrationValue instanceof IJavaArray)
 	    			return ArrayValueProperty.fromArray(propertyText, demonstrationValue);
 		    	else
