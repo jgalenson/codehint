@@ -32,8 +32,8 @@ public class RefinementSynthesisDialog extends SynthesisDialog {
 	@Override
 	protected Control createDialogArea(Composite parent) {
 		Composite composite = (Composite)super.createDialogArea(parent);
-		
-		showResults(initialExprs);  // Initialize the tree to show the results from the previous synthesis.
+
+		showResults(initialExprs);  // Initialize the table to show the results from the previous synthesis.
 		filterComposite.setVisible(!initialExprs.isEmpty());
 		
 		return composite;

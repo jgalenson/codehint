@@ -24,6 +24,7 @@ import org.eclipse.jdt.core.JavaModelException;
 import org.eclipse.jdt.core.dom.ASTNode;
 import org.eclipse.jdt.core.dom.ASTVisitor;
 import org.eclipse.jdt.core.dom.Expression;
+import org.eclipse.jdt.debug.core.IJavaArrayType;
 import org.eclipse.jdt.debug.core.IJavaDebugTarget;
 import org.eclipse.jdt.debug.core.IJavaPrimitiveValue;
 import org.eclipse.jdt.debug.core.IJavaStackFrame;
@@ -176,6 +177,7 @@ public abstract class SynthesisDialog extends ModelessDialog {
     private int maxResultLen;
     private int maxToStringLen;
     private int maxEffectsLen;
+    private boolean needsToStringColumn;
     protected ArrayList<FullyEvaluatedExpression> expressions;
     private ArrayList<FullyEvaluatedExpression> lastExpressions;
     protected ArrayList<FullyEvaluatedExpression> filteredExpressions;
@@ -238,6 +240,7 @@ public abstract class SynthesisDialog extends ModelessDialog {
 		this.maxResultLen = 0;
 		this.maxToStringLen = 0;
 		this.maxEffectsLen = 0;
+		this.needsToStringColumn = false;
 		this.expressions = null;
 		this.lastExpressions = null;
 		this.filteredExpressions = null;
@@ -322,7 +325,7 @@ public abstract class SynthesisDialog extends ModelessDialog {
 					table.getColumn(1).pack();
 					maxResultLen = resultLabel.length();
 				}
-				if (toStringLabel.length() > maxToStringLen) {
+				if (needsToStringColumn && toStringLabel.length() > maxToStringLen) {
 					table.getColumn(2).pack();
 					maxToStringLen = toStringLabel.length();
 				}
@@ -838,7 +841,13 @@ public abstract class SynthesisDialog extends ModelessDialog {
 		// Reset column sort indicators.
 		table.setSortDirection(SWT.NONE);
 		table.setSortColumn(null);
+		// Reset column widths.
+		table.getColumn(0).setWidth(TABLE_WIDTH / 3);
+		table.getColumn(1).setWidth(TABLE_WIDTH / 3);
+		table.getColumn(2).setWidth(TABLE_WIDTH / 3);
 		table.getColumn(3).setWidth(handleSideEffects.getSelection() ? TABLE_WIDTH / 4 : 0);
+		maxExprLen = maxResultLen = maxToStringLen = maxEffectsLen = 0;
+		needsToStringColumn = false;
 		// Start the synthesis
 		boolean blockNatives = isAutomatic || !searchNativeCalls.getSelection();
 		nativeHandler.enable(blockNatives);
@@ -904,7 +913,7 @@ public abstract class SynthesisDialog extends ModelessDialog {
     		GridData gridData = new GridData();
     		gridData.widthHint = MONITOR_WIDTH;
     		monitor.setLayoutData(gridData);
-    	} else  // Disable progress monitor.
+    	} else if (monitor != null) // Disable progress monitor.
     		monitor.dispose();
 		monitorComposite.getParent().layout(true);
 	}
@@ -1164,6 +1173,8 @@ public abstract class SynthesisDialog extends ModelessDialog {
     protected void showResults() {
 		// Set and show the results.
     	table.setItemCount(filteredExpressions.size());
+    	needsToStringColumn = needsToStringColumn || needsToStringColumn(filteredExpressions);
+		table.getColumn(2).setWidth(needsToStringColumn ? Math.max(table.getColumn(2).getWidth(), TABLE_WIDTH / 3) : 0);
     	table.clearAll();
     	// Enable/Disable check/selection buttons.
     	boolean haveResults = !filteredExpressions.isEmpty();
@@ -1231,6 +1242,24 @@ public abstract class SynthesisDialog extends ModelessDialog {
     
     private static String getEffectsLabel(FullyEvaluatedExpression e) {
     	return e.getResult().getResultString("");
+    }
+    
+    private static boolean needsToStringColumn(ArrayList<FullyEvaluatedExpression> expressions) {
+    	for (FullyEvaluatedExpression expr: expressions)
+    		if (needsToStringColumn(expr.getType()))
+    			return true;
+    	return false;
+    }
+    
+    private static boolean needsToStringColumn(IJavaType type) {
+    	try {
+    		if (type instanceof IJavaArrayType)
+    			return needsToStringColumn(((IJavaArrayType)type).getComponentType());
+    		else
+    			return EclipseUtils.isObject(type) && !"Ljava/lang/String;".equals(type.getSignature());
+    	} catch (DebugException e) {
+    		throw new RuntimeException(e);
+    	}
     }
     
 	private void setAllChecked(boolean state) {
