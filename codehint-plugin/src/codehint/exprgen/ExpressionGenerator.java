@@ -1470,14 +1470,14 @@ public final class ExpressionGenerator {
 		Set<String> typeNames = new HashSet<String>();
 		for (FullyEvaluatedExpression e: nextLevel)
 			if (ExpressionMaker.isObjectOrInterface(e.getType()) && (e.getValue() == null || !e.getValue().isNull())) {
-				checkMethods(e.getType(), typeNames);
-				checkFields(e.getType(), typeNames);
+				checkMethods(e.getType(), typeNames, false);
+				checkFields(e.getType(), typeNames, false);
 			}
 		for (IImportDeclaration imp : imports)
 			if (!imp.isOnDemand()) {
 				IJavaType impType = EclipseUtils.getTypeAndLoadIfNeeded(imp.getElementName(), stack, target, typeCache);
-				checkMethods(impType, typeNames);
-				checkFields(impType, typeNames);
+				checkMethods(impType, typeNames, true);
+				checkFields(impType, typeNames, true);
 			}
 		tryToLoad(typeNames);
 	}
@@ -1491,10 +1491,11 @@ public final class ExpressionGenerator {
 	 * the desired methods.
 	 * @param typeNames The set into which to store
 	 * the type names.
+	 * @param isImport If the receiver type comes from an import.
 	 */
-	private void checkMethods(IJavaType receiverType, Set<String> typeNames) {
+	private void checkMethods(IJavaType receiverType, Set<String> typeNames, boolean isImport) {
 		for (Method method : getMethods(receiverType, sideEffectHandler)) {
-			if (isLegalMethod(method, thisType, false) && !method.returnTypeName().equals("void")) {
+			if (isLegalMethod(method, thisType, false) && !method.returnTypeName().equals("void") && (!isImport || method.isStatic())) {
 				addTypeName(method.returnTypeName(), typeNames);
 				if (method.isStatic())
 					addTypeName(method.declaringType().name(), typeNames);
@@ -1513,10 +1514,11 @@ public final class ExpressionGenerator {
 	 * the desired fields.
 	 * @param typeNames The set into which to store
 	 * the type names.
+	 * @param isImport If the receiver type comes from an import.
 	 */
-	private void checkFields(IJavaType receiverType, Set<String> typeNames) {
+	private void checkFields(IJavaType receiverType, Set<String> typeNames, boolean isImport) {
 		for (Field field: getFields(receiverType)) {
-			if (isLegalField(field, thisType)) {
+			if (isLegalField(field, thisType) && (!isImport || field.isStatic())) {
 				addTypeName(field.typeName(), typeNames);
 				if (field.isStatic())
 					addTypeName(field.declaringType().name(), typeNames);
@@ -1546,11 +1548,20 @@ public final class ExpressionGenerator {
 		// Filter out types we've already loaded.
 		Set<String> unloadedTypeNames = new HashSet<String>();
 		for (String typeName: typeNames)
-			if (typeCache.get(typeName) == null && !typeCache.isIllegal(typeName) && !typeCache.isCheckedLegal(typeName))
+			if (typeCache.get(typeName) == null && !typeCache.isIllegal(typeName) && !typeCache.isCheckedLegal(typeName) && !isPrimitive(typeName))
 				unloadedTypeNames.add(typeName);
 		if (!unloadedTypeNames.isEmpty() && EclipseUtils.tryToLoadTypes(unloadedTypeNames, stack))
 			for (String typeName: unloadedTypeNames)  // Mark all the type names as legal so we will not have to check if they are illegal one-by-one, which is slow.
 				typeCache.markCheckedLegal(typeName);
+	}
+	
+	/**
+	 * Checks whether the given type name is that of a primitive.
+	 * @param typeName The name of a type.
+	 * @return Whether the given string is the name of a primitive type.
+	 */
+	private static boolean isPrimitive(String typeName) {
+		return "int".equals(typeName) || "boolean".equals(typeName) || "long".equals(typeName) || "byte".equals(typeName) || "char".equals(typeName) || "short".equals(typeName) || "float".equals(typeName) || "double".equals(typeName);
 	}
 	
 	/**
