@@ -86,7 +86,8 @@ public class TimeoutChecker extends Job {
 		synchronized (this) {
 			this.isEvaluating = false;
 			this.countField = null;
-			cleanupWindows();
+			if (this.killed)  // We only cleanup windows if the evaluation timed out, as otherwise opened windows were probably already closed.
+				cleanupWindows();
 		}
 	}
 
@@ -125,8 +126,6 @@ public class TimeoutChecker extends Job {
 	}
 	
 	private void cleanupWindows() {
-		if (!killed)  // We only cleanup windows if the evaluation timed out, as otherwise opened windows were probably already closed.
-			return;
 		try {
 			if (awtWindows != null) {
 				IJavaValue[] newWindows = getAWTWindows();
@@ -166,6 +165,7 @@ public class TimeoutChecker extends Job {
 	}
 	
 	public void stop() {
+		cleanupWindows();  // Cleanup any windows that might have opened but we didn't kill after timeouts.
 		cancel();
 	}
 	
