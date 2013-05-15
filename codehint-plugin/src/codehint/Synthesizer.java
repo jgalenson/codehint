@@ -508,78 +508,66 @@ public class Synthesizer {
 
    			Property initialProperty = initialDemonstrations.containsKey(curLine) ? initialDemonstrations.get(curLine) : null;
    			
-   			IJavaValue value = null;
-   			String newLine = null;
-   			boolean automatic;
    			List<FullyEvaluatedExpression> finalExprs = exprs;
-   			            			
-   			// If all expressions evaluate to the same value, use that and move on.
-   			if (allHaveSameResult(exprs)) {
-   				if (exprs.size() < typedExprs.size())  // Some expressions crashed, so remove them from the code.
-           			newLine = rewriteLine(matcher, varname, curLine, initialProperty, exprs, lineNumber);
-   				value = exprs.get(0).getValue();
-   				automatic = true;
-   			} else {
-       			// TODO: Default the box to something useful (like most common answer) when disagreement occurs
-    	    	// TODO: Do we want to ensure that the user enters a value we expect?
-   	   			// Forcibly redraw the screen to ensure we see the newest information.  I don't know why, but putting this in an async seems to work better than in a sync.
-   				Display.getDefault().asyncExec(new Runnable() {
-   	   				@Override
-					public void run() {
-   	   					Display.getDefault().update();
-   	   				}
-   	   			});
-       			// Get the new concrete value from the user.
-   				final SynthesisDialog synthesisDialog = getRefinementDialog(exprs, varname, varStaticType, varStaticTypeName, "\nPotential values are: " + getLegalValues(exprs), frame, initialProperty);
-   				Display.getDefault().syncExec(new Runnable() {
-   	   				@Override
-					public void run() {
-   	   					synthesisDialog.open();
-   	   				}
-   	   			});
-   				ArrayList<FullyEvaluatedExpression> validExprs = synthesisDialog.getExpressions();
-       			if (validExprs == null) {
-       				//The user cancelled, just drop back into the debugger and let the 
-       				//use do what they want.  Attempting to execute the line will result
-       				//in a crash anyway, so they can't screw anything up
-       				EclipseUtils.log("Ending refinement for " + curLine + " because the user told us to cancel.");
-       				DataCollector.log("refine-cancel");
-       				return;
-       			}
-       			
-       			if (validExprs.isEmpty()) {
-       				EclipseUtils.showError("Error", "No legal expressions remain after refinement.", null);
-       				throw new RuntimeException("No legal expressions remain after refinement");
-       			}
-   				value = validExprs.get(0).getValue();  // The returned values could be different, so we arbitrarily use the first one.  This might not be the best thing to do.
-       			
-   				Property newProperty = synthesisDialog.getProperty() == null ? initialProperty : synthesisDialog.getProperty();  // The user might not have entered a pdspec (e.g., they refined or just selected some things), in which case we use the old one.
-       			newLine = rewriteLine(matcher, varname, curLine, newProperty, validExprs, lineNumber);
-
-       			if (validExprs.size() == 1) {
-           			// If there's only a single possibility remaining, remove the breakpoint.
-					assert breakpoints.length > 0 : breakpoints.length;
-           			// If there are multiple breakpoints at this line, only remove one (presumably the user added the others).
-           			IBreakpoint curBreakpoint = breakpoints[0];
-           			try {
-						DebugPlugin.getDefault().getBreakpointManager().removeBreakpoint(curBreakpoint, true);
-					} catch (CoreException e) {
-						e.printStackTrace();
-						throw new RuntimeException("Cannot delete breakpoint.");
-					}
-       			} else
-    				metadata.addMetadataFor(validExprs, synthesisDialog.getExpressionMaker());
-
-   				automatic = false;
-   				finalExprs = validExprs;
+   			          
+   			// TODO: Default the box to something useful (like most common answer) when disagreement occurs
+   			// TODO: Do we want to ensure that the user enters a value we expect?
+   			// Forcibly redraw the screen to ensure we see the newest information.  I don't know why, but putting this in an async seems to work better than in a sync.
+   			Display.getDefault().asyncExec(new Runnable() {
+   				@Override
+   				public void run() {
+   					Display.getDefault().update();
+   				}
+   			});
+   			// Get the new concrete value from the user.
+   			final SynthesisDialog synthesisDialog = getRefinementDialog(exprs, varname, varStaticType, varStaticTypeName, "\nPotential values are: " + getLegalValues(exprs), frame, initialProperty);
+   			Display.getDefault().syncExec(new Runnable() {
+   				@Override
+   				public void run() {
+   					synthesisDialog.open();
+   				}
+   			});
+   			ArrayList<FullyEvaluatedExpression> validExprs = synthesisDialog.getExpressions();
+   			if (validExprs == null) {
+   				//The user cancelled, just drop back into the debugger and let the 
+   				//use do what they want.  Attempting to execute the line will result
+   				//in a crash anyway, so they can't screw anything up
+   				EclipseUtils.log("Ending refinement for " + curLine + " because the user told us to cancel.");
+   				DataCollector.log("refine-cancel");
+   				return;
    			}
+
+   			if (validExprs.isEmpty()) {
+   				EclipseUtils.showError("Error", "No legal expressions remain after refinement.", null);
+   				throw new RuntimeException("No legal expressions remain after refinement");
+   			}
+   			IJavaValue value = validExprs.get(0).getValue();  // The returned values could be different, so we arbitrarily use the first one.  This might not be the best thing to do.
+
+   			Property newProperty = synthesisDialog.getProperty() == null ? initialProperty : synthesisDialog.getProperty();  // The user might not have entered a pdspec (e.g., they refined or just selected some things), in which case we use the old one.
+   			String newLine = rewriteLine(matcher, varname, curLine, newProperty, validExprs, lineNumber);
+
+   			if (validExprs.size() == 1) {
+   				// If there's only a single possibility remaining, remove the breakpoint.
+   				assert breakpoints.length > 0 : breakpoints.length;
+   				// If there are multiple breakpoints at this line, only remove one (presumably the user added the others).
+   				IBreakpoint curBreakpoint = breakpoints[0];
+   				try {
+   					DebugPlugin.getDefault().getBreakpointManager().removeBreakpoint(curBreakpoint, true);
+   				} catch (CoreException e) {
+   					e.printStackTrace();
+   					throw new RuntimeException("Cannot delete breakpoint.");
+   				}
+   			} else
+   				metadata.addMetadataFor(validExprs, synthesisDialog.getExpressionMaker());
+
+   			finalExprs = validExprs;
    			
    			// TODO: Handle case when this is null (maybe do it above when we workaround it being null).  Creating a JDILocalVariable requires knowing about where the current scope ends, though.
    			if (lhsVar != null)
    				lhsVar.setValue(value);
 
    			
-   			EclipseUtils.log("Ending refinement for " + curLine + (automatic ? " automatically" : "") + ".  " + (newLine == null ? "Statement unchanged." : "Went from " + typedExprs.size() + " expressions to " + finalExprs.size() + ".  New statement: " + newLine));
+   			EclipseUtils.log("Ending refinement for " + curLine + ".  " + (newLine == null ? "Statement unchanged." : "Went from " + typedExprs.size() + " expressions to " + finalExprs.size() + ".  New statement: " + newLine));
    			DataCollector.log("refine-finish", "pre=" + typedExprs.size(), "post=" + finalExprs.size());
    			
    			// Immediately continue the execution.
@@ -662,20 +650,6 @@ public class Synthesizer {
 			initialExprs.put(newLine, validExprs);
 			return newLine;
 		}
-	    
-	    /**
-	     * Checks whether all the evaluated expressions have the same result.
-	     * @param exprs The list of evaluated expressions.
-	     * @return Whether or not all the given evaluated expressions
-	     * have the same result.
-	     */
-	    private static boolean allHaveSameResult(ArrayList<FullyEvaluatedExpression> exprs) { 
-	    	IJavaValue first = exprs.get(0).getValue();  // For efficiency, let's only do one cast.
-	    	for (int i = 1; i < exprs.size(); i++)
-	    		if (!first.equals(exprs.get(i).getValue()))
-	    			return false;
-	    	return true;
-	    }
 	    
 	    /**
 	     * Gets the current Document on the UI thread.
