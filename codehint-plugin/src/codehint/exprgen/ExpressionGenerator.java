@@ -2421,18 +2421,32 @@ public final class ExpressionGenerator {
 				List<?> args = node.arguments();
 				for (int i = 0; i < args.size(); i++) {
 					Expression arg = (Expression)args.get(i);
-					if (arg instanceof FieldAccess) {
-						Field field = expressionMaker.getField(arg);
-						if (field != null && field.isPublic() && field.isStatic() && field.isFinal()) {
-							if (weights.isBadConstant(method, i, field)) {
-								hasBad = true;
-								return false;
-							}
-						}
-					}
+					if (isBadConstant(method, i, arg))
+						return false;
 				}
 			}
 			return !hasBad;
+		}
+
+		/**
+		 * Checks whether using the given argument as the ith
+		 * parameter to the given method is using a bad constant.
+		 * @param method The method to call.
+		 * @param i The index of the argument.
+		 * @param arg The argument being used.
+		 * @return Whether the given call would use a bad constant.
+		 */
+		public boolean isBadConstant(Method method, int i, Expression arg) {
+			if (arg instanceof FieldAccess) {
+				Field field = expressionMaker.getField(arg);
+				if (field != null && field.isPublic() && field.isStatic() && field.isFinal()) {
+					if (weights.isBadConstant(method, i, field)) {
+						hasBad = true;
+						return true;
+					}
+				}
+			}
+			return false;
 		}
 		
 		/**
@@ -2536,10 +2550,12 @@ public final class ExpressionGenerator {
 			BadMethodFieldChecker.hasBad(receiver, badMethodFieldChecker, hasBadMethodsFields);
 			BadConstantChecker.hasBad(receiver, badConstantChecker, hasBadConstants);
     	}
-    	for (TypedExpression arg: args) {
+    	for (int i = 0; i < args.size(); i++) {
+    		TypedExpression arg = args.get(i);
     		UniqueASTChecker.isUnique(arg.getExpression(), uniqueChecker);
 			BadMethodFieldChecker.hasBad(arg.getExpression(), badMethodFieldChecker, hasBadMethodsFields);
 			BadConstantChecker.hasBad(arg.getExpression(), badConstantChecker, hasBadConstants);
+			badConstantChecker.isBadConstant(method, i, arg.getExpression());
     	}
     	Integer numBooleansSeen = uniqueValuesSeenForType.get("boolean");
     	return depth + 1 + (uniqueChecker.isUnique ? 0 : 1) + (badMethodFieldChecker.hasBad || BadMethodFieldChecker.isBadMethod(method, receiver, weights) ? 1 : 0) + (badConstantChecker.hasBad ? 1 : 0) + (numBooleansSeen != null && numBooleansSeen == 2 && "boolean".equals(method.returnTypeName()) ? 1 : 0);
