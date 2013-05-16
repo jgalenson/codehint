@@ -18,6 +18,8 @@ If you find any bugs, would like to request any features, or have any general co
     - The information collected contains data about how you use CodeHint and how it performs.  This information includes the specifications you give but none of your code.
 
 ### Brief user guide:
+A more detailed tutorial is available [here](http://www.cs.berkeley.edu/~joel/codehint/tutorial/tutorial.html).
+
 1. Open Eclipse to a Java project and navigate to where you want to add code.
 2. Set a breakpoint where you want to add code, start the debugger, and navigate to that breakpoint.
 3. If you want to change the value of a variable, right-click the variable whose value you want to change in the Variables View window in the top-right of the Debug perspective. You may also click the "Synthesize" button (labelled "CH free") in the toolbar. You can now give one of the following types of specifications:
