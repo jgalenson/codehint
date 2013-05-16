@@ -14,8 +14,8 @@ public class StringValue extends Value {
 	
 	private String stringValue;
 
-	public StringValue(IJavaValue value, IJavaThread thread) {
-		super(value, thread);
+	public StringValue(IJavaValue value, IJavaThread thread, ValueCache valueCache) {
+		super(value, thread, valueCache);
 	}
 	
 	@Override

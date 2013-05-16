@@ -19,11 +19,13 @@ public class Value {
 	protected final IJavaValue value;
 	private final int hashCode;
 	private final IJavaThread thread;
+	private final ValueCache valueCache;
 
-	protected Value(IJavaValue value, IJavaThread thread) {
+	protected Value(IJavaValue value, IJavaThread thread, ValueCache valueCache) {
 		this.value = value;
 		this.thread = thread;
 		this.hashCode = getMyHashCode();
+		this.valueCache = valueCache;
 	}
 	
 	public static Value makeValue(IJavaValue value, ValueCache valueCache, IJavaThread thread) {
@@ -32,9 +34,9 @@ public class Value {
 			if (wrapper != null)
 				return wrapper;
 			if (value != null && "Ljava/lang/String;".equals(value.getSignature()))
-				wrapper = new StringValue(value, thread);
+				wrapper = new StringValue(value, thread, valueCache);
 			else
-				wrapper = new Value(value, thread);
+				wrapper = new Value(value, thread, valueCache);
 			valueCache.addValue(wrapper);
 			return wrapper;
 		} catch (DebugException e) {
@@ -95,10 +97,10 @@ public class Value {
 	}
 	
 	protected boolean equals(Value other) {
-		return equals(value, other.value, thread);
+		return equals(value, other.value, thread, valueCache);
 	}
 	
-	private static boolean equals(IJavaValue x, IJavaValue y, IJavaThread thread) {
+	private static boolean equals(IJavaValue x, IJavaValue y, IJavaThread thread, ValueCache valueCache) {
 		try {
 			if (x == y || (x.isNull() && y.isNull()))
 				return true;
@@ -112,7 +114,7 @@ public class Value {
 				if (a.getLength() != b.getLength())
 					return false;
 				for (int i = 0; i < a.getLength(); i++)  // TODO-opt: Should I finitize this so it doesn't take too long?
-					if (!equals(a.getValue(i), b.getValue(i), thread))  // Recurse on the actual values.
+					if (!equals(a.getValue(i), b.getValue(i), thread, valueCache))  // Recurse on the actual values.
 						return false;
 				return true;
 			}
@@ -123,16 +125,18 @@ public class Value {
 				return true;
 			if (x instanceof IJavaPrimitiveValue || "Ljava/lang/String;".equals(signature))
 				return x.toString().equals(y.toString());
-			else {
-				IJavaObject o1 = (IJavaObject)x;
-				IJavaObject o2 = (IJavaObject)y;
-				if (o1.getUniqueId() == o2.getUniqueId())  // Short circuit check for == equality.
-					return true;
-				return ((IJavaPrimitiveValue)o1.sendMessage("equals", "(Ljava/lang/Object;)Z", new IJavaValue[] { o2 }, thread, null)).getBooleanValue();
-			}
+			else
+				return valueCache.checkObjectEquality((IJavaObject)x, (IJavaObject)y, thread);
 		} catch (DebugException e) {
 			throw new RuntimeException(e);
 		}
+	}
+	
+	protected static boolean objectEquals(IJavaObject o1, IJavaObject o2, IJavaThread thread) throws DebugException {
+		if (o1.getUniqueId() == o2.getUniqueId())  // Short circuit check for == equality.
+			return true;
+		System.out.println(o1 + " .equals " + o2);
+		return ((IJavaPrimitiveValue)o1.sendMessage("equals", "(Ljava/lang/Object;)Z", new IJavaValue[] { o2 }, thread, null)).getBooleanValue();
 	}
 
 	@Override

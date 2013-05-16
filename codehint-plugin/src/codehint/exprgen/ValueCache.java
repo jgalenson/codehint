@@ -7,7 +7,10 @@ import java.util.Map;
 import org.eclipse.debug.core.DebugException;
 import org.eclipse.jdt.debug.core.IJavaDebugTarget;
 import org.eclipse.jdt.debug.core.IJavaObject;
+import org.eclipse.jdt.debug.core.IJavaThread;
 import org.eclipse.jdt.debug.core.IJavaValue;
+
+import codehint.utils.UnorderedPair;
 
 /**
  * A class that caches Value wrappers.
@@ -21,6 +24,7 @@ public class ValueCache {
 	private IJavaValue t;
 	private final Map<String, IJavaValue> stringVals;
 	private final ArrayList<IJavaObject> collectionDisableds;
+	private final Map<UnorderedPair<IJavaObject, IJavaObject>, Boolean> objectEquals;
 	
 	public ValueCache(IJavaDebugTarget target) {
 		this.target = target;
@@ -30,6 +34,7 @@ public class ValueCache {
 		f = null;
 		stringVals = new HashMap<String, IJavaValue>();
 		collectionDisableds = new ArrayList<IJavaObject>();
+		objectEquals = new HashMap<UnorderedPair<IJavaObject, IJavaObject>, Boolean>();
 	}
 	
 	/**
@@ -132,6 +137,16 @@ public class ValueCache {
 		}
 		collectionDisableds.add(o);
 		return o;
+	}
+	
+	public boolean checkObjectEquality(IJavaObject x, IJavaObject y, IJavaThread thread) throws DebugException {
+		UnorderedPair<IJavaObject, IJavaObject> pair = new UnorderedPair<IJavaObject, IJavaObject>(x, y);
+		Boolean resultObj = objectEquals.get(pair);
+		if (resultObj != null)
+			return resultObj;
+		boolean result = Value.objectEquals(x, y, thread);
+		objectEquals.put(pair, result);
+		return result;
 	}
 
 }
