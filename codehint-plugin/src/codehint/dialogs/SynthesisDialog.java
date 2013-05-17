@@ -1358,7 +1358,7 @@ public abstract class SynthesisDialog extends ModelessDialog {
 				for (String filterWord: filterWords) {
 					if (exprString.contains(filterWord))
 						continue;
-					if (expr.getResultString().contains(filterWord))
+					if (expr.getResultString().toLowerCase().contains(filterWord))
 						continue;
 					if (!readJavadocs) {  // Lazily initialize for efficiency.
 						javadocs = getJavadocs(expr.getExpression(), expressionMaker, false);
