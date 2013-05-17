@@ -135,7 +135,6 @@ public class Value {
 	protected static boolean objectEquals(IJavaObject o1, IJavaObject o2, IJavaThread thread) throws DebugException {
 		if (o1.getUniqueId() == o2.getUniqueId())  // Short circuit check for == equality.
 			return true;
-		System.out.println(o1 + " .equals " + o2);
 		return ((IJavaPrimitiveValue)o1.sendMessage("equals", "(Ljava/lang/Object;)Z", new IJavaValue[] { o2 }, thread, null)).getBooleanValue();
 	}
 

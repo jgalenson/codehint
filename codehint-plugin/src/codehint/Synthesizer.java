@@ -372,13 +372,7 @@ public class Synthesizer {
 	               		if(matcher.matches()) {
 	               			IBreakpoint[] breakpoints = thread.getBreakpoints();  // Cache this, since some things I do before I use it might reset it.
 	                    	TypeCache typeCache = new TypeCache();
-	                    	TimeoutChecker timeoutChecker = new TimeoutChecker((IJavaThread)thread, frame, (IJavaDebugTarget)frame.getDebugTarget(), typeCache);
-	                    	timeoutChecker.start();
-	                    	try {
-	                    		refineExpressions(frame, matcher, thread, line, breakpoints, typeCache, timeoutChecker);
-	                    	} finally {
-	                    		timeoutChecker.stop();
-	                    	}
+                    		refineExpressions(frame, matcher, thread, line, breakpoints, typeCache);
 	               			return;  // We often get duplicate events that would trigger this, but they must all be equivalent, so only handle the first. 
 	               		}
 	               		
@@ -461,7 +455,7 @@ public class Synthesizer {
 	     * to suspend.
 	     * @throws DebugException
 	     */
-		private static void refineExpressions(IJavaStackFrame frame, Matcher matcher, IThread thread, int lineNumber, IBreakpoint[] breakpoints, TypeCache typeCache, TimeoutChecker timeoutChecker) throws DebugException {
+		private static void refineExpressions(IJavaStackFrame frame, Matcher matcher, IThread thread, int lineNumber, IBreakpoint[] breakpoints, TypeCache typeCache) throws DebugException {
 	    	String curLine = matcher.group(0).trim();
    			
 	    	EclipseUtils.log("Beginning refinement for " + curLine + ".");
@@ -491,7 +485,9 @@ public class Synthesizer {
 			IJavaDebugTarget target = (IJavaDebugTarget)frame.getDebugTarget();
 			ValueCache valueCache = new ValueCache(target);
         	// TODO: Run the following off the UI thread like above when we do the first synthesis.
+        	TimeoutChecker timeoutChecker = new TimeoutChecker((IJavaThread)thread, frame, (IJavaDebugTarget)frame.getDebugTarget(), typeCache);
         	EvaluationManager evalManager = new EvaluationManager(false, frame, new ExpressionMaker(frame, valueCache, typeCache, timeoutChecker, null, null, metadata), new SubtypeChecker(frame, target, typeCache), typeCache, valueCache, timeoutChecker);
+        	timeoutChecker.start();
         	evalManager.init();
    			ArrayList<FullyEvaluatedExpression> exprs;
    			try {
@@ -499,6 +495,7 @@ public class Synthesizer {
    			} catch (RuntimeException e) {
    				throw e;
    			} finally {
+        		timeoutChecker.stop();
    				evalManager.resetFields();
    			}
    			if (exprs.isEmpty()) {
