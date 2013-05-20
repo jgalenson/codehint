@@ -65,6 +65,7 @@ import codehint.dialogs.SynthesisDialog.SynthesisState;
 import codehint.effects.SideEffectHandler;
 import codehint.expreval.EvaluationManager;
 import codehint.expreval.EvaluationManager.StopSynthesis;
+import codehint.expreval.NativeHandler;
 import codehint.expreval.TimeoutChecker;
 import codehint.expreval.EvaluationManager.EvaluationError;
 import codehint.expreval.FullyEvaluatedExpression;
@@ -99,6 +100,8 @@ public class Synthesizer {
 	private static Map<String, String> initialFiles;
 	private static ExpressionMaker.Metadata metadata;
 	private static Map<String, List<FullyEvaluatedExpression>> initialExprs;
+	private static Set<String> handledEffects;
+	private static Set<String> blockedNatives;
 	
 	/**
 	 * Synthesizes expressions and inserts them into the code.
@@ -124,6 +127,8 @@ public class Synthesizer {
 			ExpressionSkeleton skeleton = synthesisDialog.getSkeleton();
 			List<FullyEvaluatedExpression> finalExpressions = synthesisDialog.getExpressions();
 			ExpressionMaker expressionMaker = synthesisDialog.getExpressionMaker();
+			boolean blockedNativeCalls = synthesisDialog.blockedNativeCalls();
+			boolean handledSideEffects = synthesisDialog.handledSideEffects();
 			synthesisDialog.cleanup();
 	        if (finalExpressions == null) {
 		    	if (property != null && skeleton != null) {
@@ -172,6 +177,10 @@ public class Synthesizer {
 				initialDemonstrations.put(statement, property);
 				metadata.addMetadataFor(finalExpressions, expressionMaker);
 				initialExprs.put(statement, finalExpressions);
+				if (blockedNativeCalls)
+					blockedNatives.add(statement);
+				if (handledSideEffects)
+					handledEffects.add(statement);
 			}
 
 			IJavaValue value = property instanceof ValueProperty ? ((ValueProperty)property).getValue() : finalExpressions.get(0).getValue();
@@ -226,19 +235,8 @@ public class Synthesizer {
 					EclipseUtils.log("Beginning synthesis for " + varName + " with property " + property.toString() + " and skeleton " + skeleton.toString() + " with extra depth " + extraDepth + ".");
 					DataCollector.log("start", "spec=" + property.toString(), "skel=" + skeleton.toString(), "exdep=" + extraDepth, "cons=" + searchConstructors, "ops=" + searchOperators, "block-natives=" + blockNatives, "handle-effects=" + sideEffectHandler.isEnabled());
 					boolean unfinished = false;
-					// Disable existing breakpoints
-					IBreakpoint[] breakpoints = DebugPlugin.getDefault().getBreakpointManager().getBreakpoints();
-					boolean[] breakpointsEnabled = new boolean[breakpoints.length];
-					for (int i = 0; i < breakpoints.length; i++) {
-						try {
-							boolean isEnabled = breakpoints[i].isEnabled();
-							breakpointsEnabled[i] = isEnabled;
-							if (isEnabled)
-								breakpoints[i].setEnabled(false);
-						} catch (CoreException e) {
-							e.printStackTrace();
-						}
-					}
+					BreakpointDisabler breakpointDisabler = new BreakpointDisabler();
+					breakpointDisabler.disableBreakpoints();
 					// Ensure that our evaluations do not hit "phantom" breakpoints when they crash.
 					IPreferenceStore prefStore = new ScopedPreferenceStore(InstanceScope.INSTANCE, PHANTOM_BREAKPOINT_QUALIFIER);
 					boolean oldPrefValue = prefStore.getBoolean(PHANTOM_BREAKPOINT_PREFNAME);
@@ -272,14 +270,7 @@ public class Synthesizer {
 						unfinished = true;
 						throw new RuntimeException(e);
 					} finally {
-						for (int i = 0; i < breakpoints.length; i++) {
-							try {
-								if (breakpointsEnabled[i])
-									breakpoints[i].setEnabled(true);
-							} catch (CoreException e) {
-								e.printStackTrace();
-							}
-						}
+						breakpointDisabler.reenableBreakpoints();
 						timeoutChecker.stop();
 						sideEffectHandler.stop(synthesisDialog.getProgressMonitor());
 						final InitialSynthesisDialog.SynthesisState state = unfinished ? InitialSynthesisDialog.SynthesisState.UNFINISHED : InitialSynthesisDialog.SynthesisState.END;
@@ -304,6 +295,39 @@ public class Synthesizer {
 		
 	}
 	
+	private static class BreakpointDisabler {
+		
+		private IBreakpoint[] breakpoints;
+		private boolean[] breakpointsEnabled;
+		
+		public void disableBreakpoints() {
+			breakpoints = DebugPlugin.getDefault().getBreakpointManager().getBreakpoints();
+			breakpointsEnabled = new boolean[breakpoints.length];
+			for (int i = 0; i < breakpoints.length; i++) {
+				try {
+					boolean isEnabled = breakpoints[i].isEnabled();
+					breakpointsEnabled[i] = isEnabled;
+					if (isEnabled)
+						breakpoints[i].setEnabled(false);
+				} catch (CoreException e) {
+					e.printStackTrace();
+				}
+			}
+		}
+		
+		public void reenableBreakpoints() {
+			for (int i = 0; i < breakpoints.length; i++) {
+				try {
+					if (breakpointsEnabled[i])
+						breakpoints[i].setEnabled(true);
+				} catch (CoreException e) {
+					e.printStackTrace();
+				}
+			}
+		}
+		
+	}
+	
 	/**
 	 * Class that refines the given expressions to keep only those
 	 * that meet the user's specifications.
@@ -319,7 +343,6 @@ public class Synthesizer {
 		 * @param exprs The candidate expressions to filter.
 		 * @param varType The type of the variable being
 		 * assigned.
-		 * @param evalManager The evaluation manager.
 		 */
 		public RefinementWorker(ArrayList<FullyEvaluatedExpression> exprs, IJavaType varType) {
 			this.exprs = exprs;
@@ -330,6 +353,7 @@ public class Synthesizer {
 		 * Refines the current expressions and keeps only those
 		 * that meet the user's specifications.
 		 * @param synthesisDialog The dialog controlling the synthesis.
+		 * @param evalManager The evaluation manager.
 		 */
 		public void refine(RefinementSynthesisDialog synthesisDialog, EvaluationManager evalManager) {
 			Property property = synthesisDialog.getProperty();
@@ -482,19 +506,41 @@ public class Synthesizer {
 	   				typedExprs.add(new TypedExpression((Expression)it.next(), varStaticType));
    			}
         	assert typedExprs.size() > 0;  // We must have at least one expression.
+        	IJavaThread javaThread = (IJavaThread)thread;
 			IJavaDebugTarget target = (IJavaDebugTarget)frame.getDebugTarget();
 			ValueCache valueCache = new ValueCache(target);
+			NativeHandler nativeHandler = blockedNatives.contains(curLine) ? new NativeHandler(javaThread, frame, target, typeCache) : null;
+			BreakpointDisabler breakpointDisabler = new BreakpointDisabler();
+			SideEffectHandler effectHandler = handledEffects.contains(curLine) ? new SideEffectHandler(frame, EclipseUtils.getProject(frame)) : null;
         	// TODO: Run the following off the UI thread like above when we do the first synthesis.
-        	TimeoutChecker timeoutChecker = new TimeoutChecker((IJavaThread)thread, frame, (IJavaDebugTarget)frame.getDebugTarget(), typeCache);
-        	EvaluationManager evalManager = new EvaluationManager(false, frame, new ExpressionMaker(frame, valueCache, typeCache, timeoutChecker, null, null, metadata), new SubtypeChecker(frame, target, typeCache), typeCache, valueCache, timeoutChecker);
-        	timeoutChecker.start();
+        	TimeoutChecker timeoutChecker = new TimeoutChecker(javaThread, frame, target, typeCache);
+        	EvaluationManager evalManager = new EvaluationManager(false, nativeHandler == null, frame, new ExpressionMaker(frame, valueCache, typeCache, timeoutChecker, null, null, metadata), new SubtypeChecker(frame, target, typeCache), typeCache, valueCache, timeoutChecker);
         	evalManager.init();
    			ArrayList<FullyEvaluatedExpression> exprs;
    			try {
+   	        	timeoutChecker.start();
+   				if (nativeHandler != null) {
+   					breakpointDisabler.disableBreakpoints();
+   					nativeHandler.enable(true);
+   					nativeHandler.blockNativeCalls();
+   				}
+   				if (effectHandler != null) {
+   					effectHandler.enable(true);
+   					effectHandler.start(new NullProgressMonitor());
+   					effectHandler.startHandlingSideEffects();
+   				}
    				exprs = evalManager.evaluateExpressions(typedExprs, null, null, null, new NullProgressMonitor(), "");
    			} catch (RuntimeException e) {
    				throw e;
    			} finally {
+   				if (nativeHandler != null) {
+   					breakpointDisabler.reenableBreakpoints();
+   					nativeHandler.allowNativeCalls();
+   				}
+   				if (effectHandler != null) {
+   					effectHandler.stop(new NullProgressMonitor());
+   					effectHandler.stopHandlingSideEffects();
+   				}
         		timeoutChecker.stop();
    				evalManager.resetFields();
    			}
@@ -645,6 +691,10 @@ public class Synthesizer {
 			initialDemonstrations.put(newLine, property);
 			initialExprs.remove(curLine);
 			initialExprs.put(newLine, validExprs);
+			if (blockedNatives.remove(curLine))
+				blockedNatives.add(newLine);
+			if (handledEffects.remove(curLine))
+				handledEffects.add(newLine);
 			return newLine;
 		}
 	    
@@ -829,6 +879,8 @@ public class Synthesizer {
     	initialFiles = new HashMap<String, String>();
     	metadata = ExpressionMaker.Metadata.emptyMetadata();
     	initialExprs = new HashMap<String, List<FullyEvaluatedExpression>>();
+    	handledEffects = new HashSet<String>();
+    	blockedNatives = new HashSet<String>();
     	Display.getDefault().asyncExec(new Runnable() {
 			@Override
 			public void run() {
@@ -854,6 +906,8 @@ public class Synthesizer {
     	initialFiles = null;
     	metadata = null;
     	initialExprs = null;
+    	handledEffects = null;
+    	blockedNatives = null;
     	ExpressionGenerator.clear();
     }
     

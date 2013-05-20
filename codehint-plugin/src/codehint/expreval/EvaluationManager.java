@@ -84,6 +84,7 @@ public final class EvaluationManager {
 	}
 	
 	private final boolean isFreeSearch;
+	private final boolean disableBreakpoints;
 	private final IJavaStackFrame stack;
 	private final IAstEvaluationEngine engine;
     private final ValueCache valueCache;
@@ -110,8 +111,9 @@ public final class EvaluationManager {
 	private Map<String, Integer> methodResultsMap;
 	private int skipped;
 	
-	public EvaluationManager(boolean isFreeSearch, IJavaStackFrame stack, ExpressionMaker expressionMaker, SubtypeChecker subtypeChecker, TypeCache typeCache, ValueCache valueCache, TimeoutChecker timeoutChecker) {
+	public EvaluationManager(boolean isFreeSearch, boolean disableBreakpoints, IJavaStackFrame stack, ExpressionMaker expressionMaker, SubtypeChecker subtypeChecker, TypeCache typeCache, ValueCache valueCache, TimeoutChecker timeoutChecker) {
 		this.isFreeSearch = isFreeSearch;
+		this.disableBreakpoints = disableBreakpoints;
 		this.stack = stack;
 		this.engine = EclipseUtils.getASTEvaluationEngine(stack);
 		this.valueCache = valueCache;
@@ -287,7 +289,7 @@ public final class EvaluationManager {
 			    		continue;
 			    	}
 			    	timeoutChecker.startEvaluating(fullCountField);
-			    	IEvaluationResult result = Evaluator.evaluateExpression(compiled, engine, stack);
+			    	IEvaluationResult result = Evaluator.evaluateExpression(compiled, engine, stack, disableBreakpoints);
 			    	timeoutChecker.stopEvaluating();
 			    	error = result.getException();
 		    	}
@@ -807,7 +809,7 @@ public final class EvaluationManager {
     					numNulls[0]++;
     				else {
     					Result result = expressionMaker.getExpressionResult((Expression)node, curEffects);
-    					if (result == null && node instanceof Name)  // TODO: result is null for method/constructor names, but we should have a better check for that
+    					if (result == null && (node instanceof Name || !disableBreakpoints))  // TODO: result is null for method/constructor names or crashed native calls during refinement, but we should have a better check for that
     						return;
     					IJavaValue value = result.getValue().getValue();
     					if (value != null && value.isNull())
@@ -914,9 +916,9 @@ public final class EvaluationManager {
 		 * @param stack The current stack frame.
 		 * @return The result of the evaluation.
 		 */
-	    public static IEvaluationResult evaluateExpression(ICompiledExpression compiled, IAstEvaluationEngine engine, IJavaStackFrame stack) {
+	    public static IEvaluationResult evaluateExpression(ICompiledExpression compiled, IAstEvaluationEngine engine, IJavaStackFrame stack, boolean disableBreakpoints) {
 			try {
-				engine.evaluateExpression(compiled, stack, evaluationListener, DebugEvent.EVALUATION_IMPLICIT, false);
+				engine.evaluateExpression(compiled, stack, evaluationListener, DebugEvent.EVALUATION_IMPLICIT, !disableBreakpoints);
 				semaphore.acquire();
 				return results[0];
 			} catch (InterruptedException ex) {

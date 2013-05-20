@@ -156,6 +156,8 @@ public abstract class SynthesisDialog extends ModelessDialog {
 	private Button searchOperatorsButton;
 	private Button searchNativeCalls;
 	private Button handleSideEffects;
+	private boolean blockedNativeCalls;
+	private boolean handledSideEffects;
 
     private static final int searchCancelButtonID = IDialogConstants.CLIENT_ID;
     private Button searchCancelButton;
@@ -229,6 +231,8 @@ public abstract class SynthesisDialog extends ModelessDialog {
 		this.skeletonIsValid = false;
 		this.skeletonValidator = new ExpressionSkeletonValidator(stack, varTypeName, engine);
 		this.skeletonResult = null;
+		this.blockedNativeCalls = false;
+		this.handledSideEffects = false;
 		this.searchCancelButton = null;
 		this.amSearching = false;
 		this.numSearches = 0;
@@ -257,7 +261,7 @@ public abstract class SynthesisDialog extends ModelessDialog {
 		this.nativeHandler = new NativeHandler(thread, stack, target, typeCache);
 		this.sideEffectHandler = new SideEffectHandler(stack, project);
 		this.expressionMaker = new ExpressionMaker(stack, valueCache, typeCache, timeoutChecker, nativeHandler, sideEffectHandler, Synthesizer.getMetadata());
-		this.evalManager = new EvaluationManager(varType == null, stack, expressionMaker, subtypeChecker, typeCache, valueCache, timeoutChecker);
+		this.evalManager = new EvaluationManager(varType == null, true, stack, expressionMaker, subtypeChecker, typeCache, valueCache, timeoutChecker);
 		this.staticEvaluator = new StaticEvaluator(stack, typeCache, valueCache);
 		Weights weights = new Weights();
 		this.expressionGenerator = new ExpressionGenerator(target, stack, sideEffectHandler, expressionMaker, subtypeChecker, typeCache, valueCache, evalManager, staticEvaluator, weights);
@@ -852,6 +856,8 @@ public abstract class SynthesisDialog extends ModelessDialog {
 		boolean blockNatives = isAutomatic || !searchNativeCalls.getSelection();
 		nativeHandler.enable(blockNatives);
 		sideEffectHandler.enable(handleSideEffects.getSelection());
+		blockedNativeCalls = blockNatives;
+		handledSideEffects = handleSideEffects.getSelection();
 		doWork();
 	}
 	
@@ -1166,6 +1172,14 @@ public abstract class SynthesisDialog extends ModelessDialog {
     
     public boolean searchOperators() {
     	return searchOperatorsButton.getSelection();
+    }
+    
+    public boolean blockedNativeCalls() {
+    	return blockedNativeCalls;
+    }
+    
+    public boolean handledSideEffects() {
+    	return handledSideEffects;
     }
     
     // Table code
