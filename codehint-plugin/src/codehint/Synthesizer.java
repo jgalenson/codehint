@@ -371,6 +371,12 @@ public class Synthesizer {
 							effectHandler.enable(true);
 							effectHandler.start(synthesisDialog.getProgressMonitor());
 							effectHandler.startHandlingSideEffects();
+							try {
+								for (IJavaVariable var: frame.getLocalVariables())
+									effectHandler.checkArgument((IJavaValue)var.getValue());
+							} catch (DebugException e) {
+								e.printStackTrace();
+							}
 						}
 						exprs = evalManager.evaluateExpressions(typedExprs, null, null, synthesisDialog, synthesisDialog.getProgressMonitor(), "Evaluating previous results");
 						return Status.OK_STATUS;
@@ -382,8 +388,8 @@ public class Synthesizer {
 							nativeHandler.allowNativeCalls();
 						}
 						if (effectHandler != null) {
-							effectHandler.stop(synthesisDialog.getProgressMonitor());
 							effectHandler.stopHandlingSideEffects();
+							effectHandler.stop(synthesisDialog.getProgressMonitor());
 						}
 						timeoutChecker.stop();
 						synthesisDialog.setInitialRefinementExpressions(exprs);

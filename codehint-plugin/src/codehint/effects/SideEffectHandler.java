@@ -469,13 +469,19 @@ public class SideEffectHandler {
 		if (!enabled)
 			return;
 		for (IJavaValue argValue: argValues) {
-			if (argValue instanceof IJavaArray) {
-				ArrayReference arr = (ArrayReference)((JDIObjectValue)argValue).getUnderlyingObject();
-				if (backedUpArrays.add(arr)) {
-					//System.out.println("Backing up arg arr " + (arr == null ? "null" : getValues(arr)));
-					argArrs.add(new Pair<ArrayReference, ArrayValue>(arr, ArrayValue.makeArrayValue(arr)));
-					disableCollection(arr);
-				}
+			checkArgument(argValue);
+		}
+	}
+
+	public void checkArgument(IJavaValue argValue) {
+		if (!enabled)
+			return;
+		if (argValue instanceof IJavaArray) {
+			ArrayReference arr = (ArrayReference)((JDIObjectValue)argValue).getUnderlyingObject();
+			if (backedUpArrays.add(arr)) {
+				//System.out.println("Backing up arg arr " + (arr == null ? "null" : getValues(arr)));
+				argArrs.add(new Pair<ArrayReference, ArrayValue>(arr, ArrayValue.makeArrayValue(arr)));
+				disableCollection(arr);
 			}
 		}
 	}
