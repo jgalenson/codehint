@@ -277,13 +277,7 @@ public class Synthesizer {
 						if (oldPrefValue)
 							prefStore.setValue(PHANTOM_BREAKPOINT_PREFNAME, oldPrefValue);
 	                	synthesisDialog.endSynthesis(state);
-						if (!evalManager.resetFields())
-							Display.getDefault().asyncExec(new Runnable(){
-								@Override
-								public void run() {
-									synthesisDialog.close();
-								}
-				        	});
+						tryToResetEvalManager(synthesisDialog, evalManager);
 					}
 				}
 			};
@@ -334,19 +328,71 @@ public class Synthesizer {
 	 */
 	public static class RefinementWorker {
 		
-		private final ArrayList<FullyEvaluatedExpression> exprs;
-		private IJavaType varType;
+		private final ArrayList<TypedExpression> typedExprs;
+		private final IJavaType varType;
+		private final TypeCache typeCache;
+		private ArrayList<FullyEvaluatedExpression> exprs;
 		
 		/**
 		 * Creates a new RefinementWorker that will filter
 		 * the given expressions.
-		 * @param exprs The candidate expressions to filter.
+		 * @param typedExprs The candidate expressions to filter.
 		 * @param varType The type of the variable being
 		 * assigned.
+		 * @param typeCache The type cache.
 		 */
-		public RefinementWorker(ArrayList<FullyEvaluatedExpression> exprs, IJavaType varType) {
-			this.exprs = exprs;
+		public RefinementWorker(ArrayList<TypedExpression> typedExprs, IJavaType varType, TypeCache typeCache) {
+			this.typeCache = typeCache;
+			this.typedExprs = typedExprs;
 			this.varType = varType;
+		}
+		
+		public void evaluateLine(final boolean blockedNatives, final boolean handledEffects, final RefinementSynthesisDialog synthesisDialog, final IJavaStackFrame frame, final IJavaThread thread) {
+			Job job = new Job("Expression generation") {
+				@Override
+				protected IStatus run(IProgressMonitor monitor) {
+					IJavaDebugTarget target = (IJavaDebugTarget)frame.getDebugTarget();
+					ValueCache valueCache = new ValueCache(target);
+					NativeHandler nativeHandler = blockedNatives ? new NativeHandler(thread, frame, target, typeCache) : null;
+					BreakpointDisabler breakpointDisabler = new BreakpointDisabler();
+					SideEffectHandler effectHandler = handledEffects ? new SideEffectHandler(frame, EclipseUtils.getProject(frame)) : null;
+					// TODO: Run the following off the UI thread like above when we do the first synthesis.
+					TimeoutChecker timeoutChecker = new TimeoutChecker(thread, frame, target, typeCache);
+					EvaluationManager evalManager = new EvaluationManager(false, nativeHandler == null, frame, new ExpressionMaker(frame, valueCache, typeCache, timeoutChecker, null, null, metadata), new SubtypeChecker(frame, target, typeCache), typeCache, valueCache, timeoutChecker);
+					evalManager.init();
+					try {
+						timeoutChecker.start();
+						if (nativeHandler != null) {
+							breakpointDisabler.disableBreakpoints();
+							nativeHandler.enable(true);
+							nativeHandler.blockNativeCalls();
+						}
+						if (effectHandler != null) {
+							effectHandler.enable(true);
+							effectHandler.start(synthesisDialog.getProgressMonitor());
+							effectHandler.startHandlingSideEffects();
+						}
+						exprs = evalManager.evaluateExpressions(typedExprs, null, null, synthesisDialog, synthesisDialog.getProgressMonitor(), "Evaluating previous results");
+						return Status.OK_STATUS;
+					} catch (RuntimeException e) {
+						throw e;
+					} finally {
+						if (nativeHandler != null) {
+							breakpointDisabler.reenableBreakpoints();
+							nativeHandler.allowNativeCalls();
+						}
+						if (effectHandler != null) {
+							effectHandler.stop(synthesisDialog.getProgressMonitor());
+							effectHandler.stopHandlingSideEffects();
+						}
+						timeoutChecker.stop();
+						synthesisDialog.setInitialRefinementExpressions(exprs);
+						tryToResetEvalManager(synthesisDialog, evalManager);
+					}
+				}
+			};
+			job.setPriority(Job.LONG);
+			job.schedule();
 		}
 
 		/**
@@ -366,6 +412,16 @@ public class Synthesizer {
 			}
 		}
 		
+	}
+
+	private static void tryToResetEvalManager(final SynthesisDialog synthesisDialog, final EvaluationManager evalManager) {
+		if (!evalManager.resetFields())
+			Display.getDefault().asyncExec(new Runnable(){
+				@Override
+				public void run() {
+					synthesisDialog.close();
+				}
+			});
 	}
 
 	/**
@@ -506,52 +562,8 @@ public class Synthesizer {
 	   				typedExprs.add(new TypedExpression((Expression)it.next(), varStaticType));
    			}
         	assert typedExprs.size() > 0;  // We must have at least one expression.
-        	IJavaThread javaThread = (IJavaThread)thread;
-			IJavaDebugTarget target = (IJavaDebugTarget)frame.getDebugTarget();
-			ValueCache valueCache = new ValueCache(target);
-			NativeHandler nativeHandler = blockedNatives.contains(curLine) ? new NativeHandler(javaThread, frame, target, typeCache) : null;
-			BreakpointDisabler breakpointDisabler = new BreakpointDisabler();
-			SideEffectHandler effectHandler = handledEffects.contains(curLine) ? new SideEffectHandler(frame, EclipseUtils.getProject(frame)) : null;
-        	// TODO: Run the following off the UI thread like above when we do the first synthesis.
-        	TimeoutChecker timeoutChecker = new TimeoutChecker(javaThread, frame, target, typeCache);
-        	EvaluationManager evalManager = new EvaluationManager(false, nativeHandler == null, frame, new ExpressionMaker(frame, valueCache, typeCache, timeoutChecker, null, null, metadata), new SubtypeChecker(frame, target, typeCache), typeCache, valueCache, timeoutChecker);
-        	evalManager.init();
-   			ArrayList<FullyEvaluatedExpression> exprs;
-   			try {
-   	        	timeoutChecker.start();
-   				if (nativeHandler != null) {
-   					breakpointDisabler.disableBreakpoints();
-   					nativeHandler.enable(true);
-   					nativeHandler.blockNativeCalls();
-   				}
-   				if (effectHandler != null) {
-   					effectHandler.enable(true);
-   					effectHandler.start(new NullProgressMonitor());
-   					effectHandler.startHandlingSideEffects();
-   				}
-   				exprs = evalManager.evaluateExpressions(typedExprs, null, null, null, new NullProgressMonitor(), "");
-   			} catch (RuntimeException e) {
-   				throw e;
-   			} finally {
-   				if (nativeHandler != null) {
-   					breakpointDisabler.reenableBreakpoints();
-   					nativeHandler.allowNativeCalls();
-   				}
-   				if (effectHandler != null) {
-   					effectHandler.stop(new NullProgressMonitor());
-   					effectHandler.stopHandlingSideEffects();
-   				}
-        		timeoutChecker.stop();
-   				evalManager.resetFields();
-   			}
-   			if (exprs.isEmpty()) {
-   				EclipseUtils.showError("No valid expressions", "No valid expressions were found.", null);
-   				throw new RuntimeException("No valid expressions");
-   			}
 
    			Property initialProperty = initialDemonstrations.containsKey(curLine) ? initialDemonstrations.get(curLine) : null;
-   			
-   			List<FullyEvaluatedExpression> finalExprs = exprs;
    			          
    			// TODO: Default the box to something useful (like most common answer) when disagreement occurs
    			// TODO: Do we want to ensure that the user enters a value we expect?
@@ -563,7 +575,7 @@ public class Synthesizer {
    				}
    			});
    			// Get the new concrete value from the user.
-   			final SynthesisDialog synthesisDialog = getRefinementDialog(exprs, varname, varStaticType, varStaticTypeName, "\nPotential values are: " + getLegalValues(exprs), frame, initialProperty);
+   			final SynthesisDialog synthesisDialog = getRefinementDialog(curLine, typedExprs, varname, varStaticType, varStaticTypeName, frame, typeCache, initialProperty);
    			Display.getDefault().syncExec(new Runnable() {
    				@Override
    				public void run() {
@@ -602,16 +614,14 @@ public class Synthesizer {
    				}
    			} else
    				metadata.addMetadataFor(validExprs, synthesisDialog.getExpressionMaker());
-
-   			finalExprs = validExprs;
    			
    			// TODO: Handle case when this is null (maybe do it above when we workaround it being null).  Creating a JDILocalVariable requires knowing about where the current scope ends, though.
    			if (lhsVar != null)
    				lhsVar.setValue(value);
 
    			
-   			EclipseUtils.log("Ending refinement for " + curLine + ".  " + (newLine == null ? "Statement unchanged." : "Went from " + typedExprs.size() + " expressions to " + finalExprs.size() + ".  New statement: " + newLine));
-   			DataCollector.log("refine-finish", "pre=" + typedExprs.size(), "post=" + finalExprs.size());
+   			EclipseUtils.log("Ending refinement for " + curLine + ".  " + (newLine == null ? "Statement unchanged." : "Went from " + typedExprs.size() + " expressions to " + validExprs.size() + ".  New statement: " + newLine));
+   			DataCollector.log("refine-finish", "pre=" + typedExprs.size(), "post=" + validExprs.size());
    			
    			// Immediately continue the execution.
    			thread.resume();
@@ -747,35 +757,36 @@ public class Synthesizer {
 	     * Gets the proper dialog to use for the refinement.  This
 	     * dialog will default to asking for the type of pdspec the
 	     * user gave the last time at this line.
+	     * @param curLine The current line.
 	     * @param exprs The initial set of expressions.
 	     * @param varName The name of the variable being assigned
 	     * the expressions.
 	     * @param varStaticType The static type of the variable.
 	     * @param varStaticTypeName The name of the type of the variable.
-	     * @param extraMessage An extra message to display to the user.
 	     * @param stackFrame The stack frame.
+	     * @param typeCache The type cache.
 	     * @param oldProperty The property the user gave the last time
 	     * at this line.
 	     * @return A dialog that defaults to asking for the type of
 	     * pdspec the user gave the last time at this line.
 	     * @throws DebugException
 	     */
-	    private static RefinementSynthesisDialog getRefinementDialog(ArrayList<FullyEvaluatedExpression> exprs, String varName, IJavaType varStaticType, String varStaticTypeName, String extraMessage, IJavaStackFrame stackFrame, Property oldProperty) throws DebugException {
+	    private static RefinementSynthesisDialog getRefinementDialog(String curLine, ArrayList<TypedExpression> exprs, String varName, IJavaType varStaticType, String varStaticTypeName, IJavaStackFrame stackFrame, TypeCache typeCache, Property oldProperty) throws DebugException {
 			Shell shell = getShell();
 			PropertyDialog propertyDialog = null;
 			if (oldProperty == null || oldProperty instanceof StateProperty)
-				propertyDialog = new StatePropertyDialog(varName, stackFrame, oldProperty == null ? "" : oldProperty.toString(), extraMessage);
+				propertyDialog = new StatePropertyDialog(varName, stackFrame, oldProperty == null ? "" : oldProperty.toString(), null);
 			else if (oldProperty instanceof PrimitiveValueProperty)
-				propertyDialog = new PrimitiveValuePropertyDialog(varName, varStaticTypeName, stackFrame, "", extraMessage);
+				propertyDialog = new PrimitiveValuePropertyDialog(varName, varStaticTypeName, stackFrame, "", null);
 			else if (oldProperty instanceof ObjectValueProperty)
-				propertyDialog = new ObjectValuePropertyDialog(varName, varStaticTypeName, stackFrame, "", extraMessage);
+				propertyDialog = new ObjectValuePropertyDialog(varName, varStaticTypeName, stackFrame, "", null);
 			else if (oldProperty instanceof TypeProperty)
-				propertyDialog = new TypePropertyDialog(varName, varStaticTypeName, stackFrame, ((TypeProperty)oldProperty).getTypeName(), extraMessage);
+				propertyDialog = new TypePropertyDialog(varName, varStaticTypeName, stackFrame, ((TypeProperty)oldProperty).getTypeName(), null);
 			/*else if (oldProperty instanceof LambdaProperty)
 				propertyDialog = new LambdaPropertyDialog(varName, varStaticType.getName(), varStaticType, stackFrame, oldProperty.toString(), extraMessage);*/
 			else
 				throw new IllegalArgumentException(oldProperty.toString());
-			return new RefinementSynthesisDialog(exprs, shell, varStaticTypeName, varStaticType, stackFrame, propertyDialog, new SynthesisWorker(varName, varStaticType), new RefinementWorker(exprs, varStaticType));
+			return new RefinementSynthesisDialog(shell, varStaticTypeName, varStaticType, stackFrame, propertyDialog, new SynthesisWorker(varName, varStaticType), new RefinementWorker(exprs, varStaticType, typeCache), blockedNatives.contains(curLine), handledEffects.contains(curLine));
 	    }
 	    
 	    /**

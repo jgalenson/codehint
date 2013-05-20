@@ -8,6 +8,7 @@ import org.eclipse.jface.dialogs.IDialogConstants;
 import org.eclipse.swt.widgets.Button;
 import org.eclipse.swt.widgets.Composite;
 import org.eclipse.swt.widgets.Control;
+import org.eclipse.swt.widgets.Display;
 import org.eclipse.swt.widgets.Shell;
 import codehint.Synthesizer.RefinementWorker;
 import codehint.Synthesizer.SynthesisWorker;
@@ -15,26 +16,29 @@ import codehint.expreval.FullyEvaluatedExpression;
 
 public class RefinementSynthesisDialog extends SynthesisDialog {
 	
-	private final ArrayList<FullyEvaluatedExpression> initialExprs;
+	private ArrayList<FullyEvaluatedExpression> initialExprs;
 	private final RefinementWorker worker;
+	private final boolean blockedNatives;
+	private final boolean handledEffects;
 
     private static final int refineCancelButtonID = IDialogConstants.CLIENT_ID + 100;
     private static final int clearButtonID = IDialogConstants.CLIENT_ID + 101;
 	private Button refineCancelButton;
 	private Button clearButton;
 
-	public RefinementSynthesisDialog(ArrayList<FullyEvaluatedExpression> initialExprs, Shell parentShell, String varTypeName, IJavaType varType, IJavaStackFrame stack, PropertyDialog propertyDialog, SynthesisWorker synthesisWorker, RefinementWorker worker) {
+	public RefinementSynthesisDialog(Shell parentShell, String varTypeName, IJavaType varType, IJavaStackFrame stack, PropertyDialog propertyDialog, SynthesisWorker synthesisWorker, RefinementWorker worker, boolean blockedNatives, boolean handledEffects) {
 		super(parentShell, varTypeName, varType, stack, propertyDialog, synthesisWorker);
-		this.initialExprs = initialExprs;
 		this.worker = worker;
+		this.blockedNatives = blockedNatives;
+		this.handledEffects = handledEffects;
 	}
 
 	@Override
 	protected Control createDialogArea(Composite parent) {
 		Composite composite = (Composite)super.createDialogArea(parent);
 
-		showResults(initialExprs);  // Initialize the table to show the results from the previous synthesis.
-		filterComposite.setVisible(!initialExprs.isEmpty());
+		searchNativeCalls.setSelection(!blockedNatives);
+		handleSideEffects.setSelection(handledEffects);
 		
 		return composite;
 	}
@@ -69,7 +73,12 @@ public class RefinementSynthesisDialog extends SynthesisDialog {
 	protected void startOrEndWork(boolean isStarting, String message) {
 		super.startOrEndWork(isStarting, message);
 		setButtonText(refineCancelButton, isStarting ? "Cancel" : "Refine");
-		clearButton.setEnabled(!isStarting && !(initialExprs.size() == expressions.size() && initialExprs.equals(expressions)));
+		clearButton.setEnabled(!isStarting && initialExprs != null && !(initialExprs.size() == expressions.size() && initialExprs.equals(expressions)));
+	}
+
+	public void setInitialRefinementExpressions(ArrayList<FullyEvaluatedExpression> exprs) {
+		initialExprs = exprs;
+		endSynthesis(SynthesisState.END);
 	}
 
 	@Override
@@ -79,6 +88,14 @@ public class RefinementSynthesisDialog extends SynthesisDialog {
 		else
 			super.doWork();
 	}
+	
+	@Override
+    protected void opened() {
+		filteredExpressions = expressions = new ArrayList<FullyEvaluatedExpression>();
+		startEndSynthesis(SynthesisState.START);
+		searchCancelButton.setEnabled(false);
+		worker.evaluateLine(blockedNatives, handledEffects, this, stack, thread);
+	}
 
 	@Override
 	public void cleanup() {
@@ -87,5 +104,4 @@ public class RefinementSynthesisDialog extends SynthesisDialog {
 		refineCancelButton = null;
 		clearButton = null;
 	}
-
 }

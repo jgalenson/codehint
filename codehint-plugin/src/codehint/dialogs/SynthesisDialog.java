@@ -154,13 +154,13 @@ public abstract class SynthesisDialog extends ModelessDialog {
 	private String skeletonResult;
 	private Button searchConstructorsButton;
 	private Button searchOperatorsButton;
-	private Button searchNativeCalls;
-	private Button handleSideEffects;
+	protected Button searchNativeCalls;
+	protected Button handleSideEffects;
 	private boolean blockedNativeCalls;
 	private boolean handledSideEffects;
 
     private static final int searchCancelButtonID = IDialogConstants.CLIENT_ID;
-    private Button searchCancelButton;
+    protected Button searchCancelButton;
     private boolean amSearching;
     protected int numSearches;
     private boolean shouldContinue;
@@ -199,6 +199,7 @@ public abstract class SynthesisDialog extends ModelessDialog {
     protected final SynthesisWorker synthesisWorker;
     private final IJavaProject project;
     private final IJavaDebugTarget target;
+    protected final IJavaThread thread;
     private final IAstEvaluationEngine evaluationEngine;
     private TypeCache typeCache;
     private ValueCache valueCache;
@@ -252,11 +253,11 @@ public abstract class SynthesisDialog extends ModelessDialog {
 		this.synthesisWorker = synthesisWorker;
 		this.project = EclipseUtils.getProject(stack);
 		this.target = (IJavaDebugTarget)stack.getDebugTarget();
+		this.thread = (IJavaThread)stack.getThread();
 		this.evaluationEngine = engine;
 		this.typeCache = new TypeCache();
 		this.valueCache = new ValueCache(target);
 		this.subtypeChecker = new SubtypeChecker(stack, target, typeCache);
-		IJavaThread thread = (IJavaThread)stack.getThread();
 		this.timeoutChecker = new TimeoutChecker(thread, stack, target, typeCache);
 		this.nativeHandler = new NativeHandler(thread, stack, target, typeCache);
 		this.sideEffectHandler = new SideEffectHandler(stack, project);
@@ -882,7 +883,7 @@ public abstract class SynthesisDialog extends ModelessDialog {
     	});
 	}
 
-	private void startEndSynthesis(SynthesisState state) {
+	protected void startEndSynthesis(SynthesisState state) {
 		boolean isStarting = isStart(state);
         getButton(IDialogConstants.CANCEL_ID).setEnabled(!isStarting);
 		if (state == SynthesisState.END && searchButtonId == searchCancelButtonID && shouldContinue)
