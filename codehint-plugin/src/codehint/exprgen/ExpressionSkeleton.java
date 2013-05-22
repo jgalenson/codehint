@@ -444,11 +444,11 @@ public final class ExpressionSkeleton {
 				DataCollector.log("skel-start", "spec=" + property.toString(), "skel=" + sugaredString, "exdep=" + extraDepth, "num=" + exprs.size());
 				evalManager.cacheMethodResults(exprs);
 				results = evalManager.evaluateExpressions(exprs, property, varStaticType, synthesisDialog, monitor, " of filled-in skeletons");
-				long time = System.currentTimeMillis() - startTime;
-				EclipseUtils.log("Synthesis found " + exprs.size() + " expressions of which " + results.size() + " were valid and took " + time + " milliseconds.");
-				DataCollector.log("skel-finish", "spec=" + property.toString(), "skel=" + sugaredString, "exdep=" + extraDepth, "num=" + exprs.size(), "valid=" + results.size(), "time=" + time);
 		    	monitor.done();
 			}
+			long time = System.currentTimeMillis() - startTime;
+			EclipseUtils.log("Synthesis found " + results.size() + " valid expressions and took " + time + " milliseconds.");
+			DataCollector.log("syn-finish", "spec=" + property.toString(), "skel=" + sugaredString, "exdep=" + extraDepth, "valid=" + results.size(), "time=" + time);
 			return results;
 		} catch (DebugException e) {
 			throw new RuntimeException(e);
