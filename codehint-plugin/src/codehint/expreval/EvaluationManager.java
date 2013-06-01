@@ -809,7 +809,7 @@ public final class EvaluationManager {
     					numNulls[0]++;
     				else {
     					Result result = expressionMaker.getExpressionResult((Expression)node, curEffects);
-    					if (result == null && (node instanceof Name || !disableBreakpoints))  // TODO: result is null for method/constructor names or crashed native calls during refinement, but we should have a better check for that
+    					if (result == null || result.getValue() == null)  // TODO: result is null for method/constructor names or crashed native calls or after side effects during refinement.
     						return;
     					IJavaValue value = result.getValue().getValue();
     					if (value != null && value.isNull())
