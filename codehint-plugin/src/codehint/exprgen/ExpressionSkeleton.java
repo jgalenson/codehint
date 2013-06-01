@@ -447,7 +447,7 @@ public final class ExpressionSkeleton {
 		    	monitor.done();
 			}
 			long time = System.currentTimeMillis() - startTime;
-			EclipseUtils.log("Synthesis found " + results.size() + " valid expressions and took " + time + " milliseconds.");
+			EclipseUtils.log("Synthesis " + (results.isEmpty() && extraDepth == 0 ? "(incomplete) " : "") + "found " + results.size() + " valid expressions and took " + time + " milliseconds.");
 			DataCollector.log("syn-finish", "spec=" + property.toString(), "skel=" + sugaredString, "exdep=" + extraDepth, "valid=" + results.size(), "time=" + time);
 			return results;
 		} catch (DebugException e) {
