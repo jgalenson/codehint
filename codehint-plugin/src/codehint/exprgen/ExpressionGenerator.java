@@ -576,18 +576,6 @@ public final class ExpressionGenerator {
     				curLevel.add(downcast(e));
     		}
     		
-    		// Add calls to the desired type's (and those of its subtypes in the same package (for efficiency)) constructors (but only at the top-level).
-    		if (searchConstructors && depth == maxDepth) {
-    			for (IJavaType type: constraintTypes) {
-    				List<IJavaType> subtypes = EclipseUtils.getPublicSubtypesInSamePackage(type, project, stack, target, typeCache, monitor, taskName);
-        			curMonitor = SubMonitor.convert(monitor, taskName + ": calling constructors", subtypes.size());
-    				for (IJavaType subtype: subtypes) {
-    					addMethodCalls(new TypedExpression(null, subtype), nextLevel, curLevel, depth, maxDepth, null);
-    					curMonitor.worked(1);
-    				}
-    			}
-    		}
-    		
     		if (depth == 0) {
         		// Add zero and null.
     			boolean hasObject = false;
@@ -608,9 +596,20 @@ public final class ExpressionGenerator {
 				if (isHelpfulType(thisType, depth, maxDepth) && !stack.isStatic())
 					addUniqueExpressionToList(curLevel, expressionMaker.makeThis(stack.getThis(), thisType, valueCache, thread), depth, maxDepth);
     		} else {
-    			Set<IJavaReferenceType> objectInterfaceTypes = new HashSet<IJavaReferenceType>();
 				if (!sideEffectHandler.isHandlingSideEffects())  // TODO: Without this, the below line makes us crash on S1 at depth 2 with effect handling on.  Why?  But it's still helpful when effects are off (speeds up S1 at depth 1 noticeably), so I'm keeping it.
 					loadTypesFromMethods(nextLevel, imports);
+	    		// Add calls to the desired type's (and those of its subtypes in the same package (for efficiency)) constructors (but only at the top-level).
+	    		if (searchConstructors && depth == maxDepth) {
+	    			for (IJavaType type: constraintTypes) {
+	    				List<IJavaType> subtypes = EclipseUtils.getPublicSubtypesInSamePackage(type, project, stack, target, typeCache, monitor, taskName);
+	        			curMonitor = SubMonitor.convert(monitor, taskName + ": calling constructors", subtypes.size());
+	    				for (IJavaType subtype: subtypes) {
+	    					addMethodCalls(new TypedExpression(null, subtype), nextLevel, curLevel, depth, maxDepth, null);
+	    					curMonitor.worked(1);
+	    				}
+	    			}
+	    		}
+    			Set<IJavaReferenceType> objectInterfaceTypes = new HashSet<IJavaReferenceType>();
 				this.staticAccesses = new HashSet<String>();  // Reset the list of static accesses to ensure that while we don't generate duplicate ones in a given depth, we can generate them again in different depths.
     			curMonitor = SubMonitor.convert(monitor, taskName, nextLevel.size() * 2 + imports.length);
     			addLocals(depth, maxDepth, curLevel);
