@@ -256,6 +256,8 @@ public final class EclipseUtils {
      */
     public static ITextEditor getActiveTextEditor() {
     	IEditorPart editorPart = getActiveEditorPart();
+    	if (editorPart == null)
+    		return null;
     	ITextEditor editor = (ITextEditor) editorPart.getAdapter(ITextEditor.class);
     	assert editor != null;
     	return editor;
