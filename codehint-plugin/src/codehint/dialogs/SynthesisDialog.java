@@ -301,6 +301,8 @@ public abstract class SynthesisDialog extends ModelessDialog {
 		handleSideEffects = createCheckBoxButton(searchOptionsComposite, "Log and undo side effects (sound but slow)");
 		handleSideEffects.setSelection(false);
         PlatformUI.getWorkbench().getHelpSystem().setHelp(handleSideEffects, Activator.PLUGIN_ID + "." + "handle-side-effects");
+        if (!sideEffectHandler.canHandleSideEffects())
+        	handleSideEffects.setEnabled(false);
 		
 		Composite topButtonComposite = makeChildComposite(composite, GridData.HORIZONTAL_ALIGN_CENTER, 0);
 		addSearchButtons(topButtonComposite);

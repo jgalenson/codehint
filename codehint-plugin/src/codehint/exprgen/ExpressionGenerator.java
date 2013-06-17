@@ -852,8 +852,10 @@ public final class ExpressionGenerator {
 			if (targetName != null && !targetName.equals(field.name()))
 				continue;
             IField ifield = EclipseUtils.getIField(field, project);
-            if (ifield != null && Flags.isDeprecated(ifield.getFlags()))
-            	continue;
+            try {
+            	if (ifield != null && Flags.isDeprecated(ifield.getFlags()))
+            		continue;
+            } catch (JavaModelException ex) { }  // We need this for Android for some reason.
 			IJavaType fieldType = EclipseUtils.getTypeAndLoadIfNeeded(field.typeName(), stack, target, typeCache);
 			/*if (fieldType == null)
 				System.err.println("I cannot get the class of " + objTypeImpl.name() + "." + field.name() + "(" + field.typeName() + ")");*/
