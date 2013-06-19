@@ -26,6 +26,7 @@ import org.eclipse.jdt.core.IType;
 import org.eclipse.jdt.core.JavaModelException;
 import org.eclipse.jdt.debug.core.IJavaArray;
 import org.eclipse.jdt.debug.core.IJavaClassPrepareBreakpoint;
+import org.eclipse.jdt.debug.core.IJavaDebugTarget;
 import org.eclipse.jdt.debug.core.IJavaMethodEntryBreakpoint;
 import org.eclipse.jdt.debug.core.IJavaObject;
 import org.eclipse.jdt.debug.core.IJavaStackFrame;
@@ -55,7 +56,6 @@ import com.sun.jdi.StackFrame;
 import com.sun.jdi.StringReference;
 import com.sun.jdi.ThreadReference;
 import com.sun.jdi.Value;
-import com.sun.jdi.VirtualMachine;
 import com.sun.jdi.event.AccessWatchpointEvent;
 import com.sun.jdi.event.ClassPrepareEvent;
 import com.sun.jdi.event.Event;
@@ -77,8 +77,8 @@ public class SideEffectHandler {
 	
 	// TODO: I could easily remove the requirement that we can get instance info.
 	public boolean canHandleSideEffects() {
-		VirtualMachine vm = ((JDIDebugTarget)stack.getDebugTarget()).getVM();
-		return vm.canWatchFieldModification() && vm.canWatchFieldAccess() && vm.canGetInstanceInfo();
+		IJavaDebugTarget target = (IJavaDebugTarget)stack.getDebugTarget();
+		return target.supportsModificationWatchpoints() && target.supportsAccessWatchpoints() && target.supportsInstanceRetrieval();
 	}
 	
 	// TODO: Call this in the constructor to reduce the slowness?  If so, change Synthesizer so it doesn't disable or double-delete these breakpoints.  Also ensure we always delete these breakpoints.
