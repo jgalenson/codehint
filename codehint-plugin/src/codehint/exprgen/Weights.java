@@ -27,6 +27,7 @@ public class Weights {
 	private final Map<String, Map<String, Integer>> methodsForConstants;
 	private final double averageWeight;
 	private final long total;
+	private final double fieldWeight;
 
 	public Weights() {
 		try {
@@ -35,6 +36,7 @@ public class Weights {
 			methodsForConstants = (Map<String, Map<String, Integer>>)is.readObject();
 			averageWeight = is.readDouble();
 			total = is.readLong();
+			fieldWeight = is.readDouble();
 			is.close();
 		} catch (FileNotFoundException e) {
 			throw new RuntimeException(e);
@@ -51,6 +53,10 @@ public class Weights {
 	
 	private long getTotal() {
 		return total;
+	}
+	
+	public double getFieldWeight() {
+		return fieldWeight;
 	}
 	
 	// Note: Type keys do not use $ for nested types but method/field keys do.
