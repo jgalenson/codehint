@@ -2112,7 +2112,40 @@ public final class ExpressionGenerator {
 			results.add(new EvaluatedExpression(curExpr, result.getValue().getValue().getJavaType(), result));
 		if (equivs == null && expressionMaker.isStatic(curExpr))
 			results.add(new EvaluatedExpression(curExpr, result.getValue().getValue().getJavaType(), result));
+		filterBadCasts(results);
 		return results;
+	}
+	
+	/**
+	 * If the given list contains some expressions that do not contain
+	 * bad casts, removes all the expressions that do contain bad casts.
+	 * Bad casts are casts added by getEquivalentExpressions when we
+	 * already have a non-cast that is equivalent.
+	 * This heuristic allows us to avoid using downcast expressions when
+	 * we have equivalent non-downcast expressions.
+	 * @param args The list of expressions from which to remove bad casts.
+	 */
+	private static void filterBadCasts(ArrayList<? extends UntypedExpression> exprs) {
+		boolean hasNonCast = false;
+		boolean hasCast = false;
+		for (UntypedExpression e: exprs) {
+			if (hasCast && hasNonCast)  // Short-circuit the loop
+				break;
+			if (e.getExpression() == null)
+				continue;
+			boolean isCast = e.getExpression() instanceof ParenthesizedExpression && ((ParenthesizedExpression)e.getExpression()).getExpression() instanceof CastExpression;
+			if (isCast)
+				hasCast = true;
+			else
+				hasNonCast = true;
+		}
+		if (hasCast && hasNonCast) {  // Remove all expressions with casts,
+			for (Iterator<? extends UntypedExpression> it = exprs.iterator(); it.hasNext();) {
+				UntypedExpression e = it.next();
+				if (e.getExpression() != null && e.getExpression() instanceof ParenthesizedExpression && ((ParenthesizedExpression)e.getExpression()).getExpression() instanceof CastExpression)
+					it.remove();
+			}
+		}
 	}
 	
 	/**
