@@ -2002,9 +2002,9 @@ public final class ExpressionGenerator {
 			FieldAccess fieldAccess = (FieldAccess)expr;
 			Field field = expressionMaker.getField(fieldAccess);
 			expandEquivalencesRec(fieldAccess.getExpression(), newlyExpanded, curEffects);
-			for (Expression e : getEquivalentExpressionsOrGiven(fieldAccess.getExpression(), new FieldConstraint(fieldAccess.getName().getIdentifier(), UnknownConstraint.getUnknownConstraint()), curEffects))
+			for (UntypedExpression e : getEquivalentExpressionsOrGiven(fieldAccess.getExpression(), new FieldConstraint(fieldAccess.getName().getIdentifier(), UnknownConstraint.getUnknownConstraint()), curEffects))
 				if (getDepth(e) < curDepth)
-					addIfNew(curEquivalences, new EvaluatedExpression(expressionMaker.makeFieldAccess(e, fieldAccess.getName().getIdentifier(), field), type, result), valued);
+					addIfNew(curEquivalences, new EvaluatedExpression(expressionMaker.makeFieldAccess(e.getExpression(), fieldAccess.getName().getIdentifier(), field), type, result), valued);
 		} else if (expr instanceof PrefixExpression) {
 			PrefixExpression prefix = (PrefixExpression)expr;
 			expandEquivalencesRec(prefix.getOperand(), newlyExpanded, curEffects);
@@ -2041,7 +2041,8 @@ public final class ExpressionGenerator {
 	/**
 	 * Returns expressions that are equivalent to the given expression.
 	 * If the expression is null or we do not know its value (and thus
-	 * is not in our equivalences map), we simply return it.
+	 * is not in our equivalences map), we simply return it wrapped in
+	 * an UntypedExpression.
 	 * @param expr The expression for which we want to find equivalent
 	 * expressions.
 	 * @param constraint The constraint that should hold for the expressions.
@@ -2049,15 +2050,13 @@ public final class ExpressionGenerator {
 	 * or itself if it is not in our equivalences map.
 	 * @throws DebugException
 	 */
-	private Expression[] getEquivalentExpressionsOrGiven(Expression expr, TypeConstraint constraint, Set<Effect> curEffects) throws DebugException {
-		if (expr == null || expressionMaker.getExpressionResult(expr, curEffects) == null)
-			return new Expression[] { expr };
-		else {
-			List<EvaluatedExpression> allPossibleExpressions = getEquivalentExpressions(expr, constraint, curEffects);
-			Expression[] result = new Expression[allPossibleExpressions.size()];
-			for (int i = 0; i < result.length; i++)
-				result[i] = allPossibleExpressions.get(i).getExpression();
+	private ArrayList<? extends UntypedExpression> getEquivalentExpressionsOrGiven(Expression expr, TypeConstraint constraint, Set<Effect> curEffects) throws DebugException {
+		if (expr == null || expressionMaker.getExpressionResult(expr, curEffects) == null) {
+			ArrayList<UntypedExpression> result = new ArrayList<UntypedExpression>(1);
+			result.add(new UntypedExpression(expr));
 			return result;
+		} else {
+			return getEquivalentExpressions(expr, constraint, curEffects);
 		}
 	}
 
@@ -2220,9 +2219,9 @@ public final class ExpressionGenerator {
 		}
 		pruneManyArgCalls(newArguments, curDepth, curDepth - 1, method);
 		List<Expression> newCalls = new ArrayList<Expression>();
-		for (Expression e : getEquivalentExpressionsOrGiven(expression, new MethodConstraint(name, UnknownConstraint.getUnknownConstraint(), argConstraints, sideEffectHandler.isHandlingSideEffects()), curEffects))
-			if (e instanceof TypeLiteral || getDepth(e) < curDepth)
-				makeAllCalls(method, name, e, newCalls, newArguments, new ArrayList<TypedExpression>(newArguments.size()), curDepth, curEffects, result);
+		for (UntypedExpression e : getEquivalentExpressionsOrGiven(expression, new MethodConstraint(name, UnknownConstraint.getUnknownConstraint(), argConstraints, sideEffectHandler.isHandlingSideEffects()), curEffects))
+			if (e.getExpression() instanceof TypeLiteral || getDepth(e) < curDepth)
+				makeAllCalls(method, name, e.getExpression(), newCalls, newArguments, new ArrayList<TypedExpression>(newArguments.size()), curDepth, curEffects, result);
 		for (Expression newCall : newCalls)
 			addIfNew(curEquivalences, new EvaluatedExpression(newCall, type, result), valued);
 	}
@@ -2498,7 +2497,7 @@ public final class ExpressionGenerator {
      * @param expr The expression whose depth we want.
      * @return The depth of the given expression.
      */
-    private int getDepth(TypedExpression expr) {
+    private int getDepth(UntypedExpression expr) {
 		return getDepth(expr.getExpression());
     }
 
