@@ -436,7 +436,7 @@ public class Synthesizer {
 	private static class ChoiceBreakpointListener implements IDebugEventSetListener {
 	    
 	    private final static ASTParser parser = ASTParser.newParser(AST.JLS4);
-	    private final static Pattern choosePattern = Pattern.compile("\\s*(?:(\\w+)\\s+)?([\\w\\]\\[.]+)\\s*=\\s*(CodeHint.choose.*);\\s*\\r?\\n\\s*");
+	    private final static Pattern choosePattern = Pattern.compile("\\s*(?:(?:(\\w+)\\s+)?([\\w\\]\\[.]+)\\s*=\\s*)?(CodeHint.choose.*);\\s*\\r?\\n\\s*");
 	    
 	    @Override
 		public void handleDebugEvents(DebugEvent[] events) {
@@ -549,7 +549,7 @@ public class Synthesizer {
 	    	
    			final String varname = matcher.group(2);
    			// TODO: Ensure lhsVar is always non-null by using JDIPlaceholderVariable if necessary?
-	    	final IJavaVariable lhsVar = getLHSVariable(EclipseUtils.parseExpr(parser, varname), frame);
+	    	final IJavaVariable lhsVar = varname != null ? getLHSVariable(EclipseUtils.parseExpr(parser, varname), frame) : null;
    			// This is the declared type while vartype is the type of the array.  The difference is that if the static type is a primitive, the array type is the wrapper class.
 	    	IJavaType varStaticType = lhsVar != null ? lhsVar.getJavaType() : null;
    			String varStaticTypeName = lhsVar != null ? EclipseUtils.sanitizeTypename(lhsVar.getReferenceTypeName()) : matcher.group(1);
