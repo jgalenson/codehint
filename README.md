@@ -8,7 +8,7 @@ If you find any bugs, would like to request any features, or have any general co
 
 ### Requirements:
 - Java (tested with Oracle's VM versions 6 and 7, though 5 should work).
-- A new version of Eclipse (3.7/Indigo or 4.2/Juno) with the Java plugins.
+- A new version of Eclipse (3.7/Indigo, 4.2/Juno, or 4.3/Kepler) with the Java plugins.
 
 ### Installing the plugin:
 1. Open Eclipse and choose the "Help -> Install New Software" menu item.

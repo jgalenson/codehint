@@ -1036,7 +1036,7 @@ public abstract class SynthesisDialog extends ModelessDialog {
     				if (javadoc != null) {
     					if (javadocs.length() > 0)
     						javadocs.append("\n\n-----\n\n");
-    					javadocs.append(javadoc);
+    					javadocs.append(javadoc.trim());
     				}
     			}
     		}
