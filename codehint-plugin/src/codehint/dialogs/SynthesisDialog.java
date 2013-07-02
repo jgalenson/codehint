@@ -161,7 +161,7 @@ public abstract class SynthesisDialog extends ModelessDialog {
 
     private static final int searchCancelButtonID = IDialogConstants.CLIENT_ID;
     protected Button searchCancelButton;
-    private boolean amSearching;
+    protected boolean amSearching;
     protected int numSearches;
     private boolean shouldContinue;
     protected int searchButtonId;

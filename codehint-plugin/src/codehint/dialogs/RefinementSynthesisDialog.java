@@ -8,7 +8,6 @@ import org.eclipse.jface.dialogs.IDialogConstants;
 import org.eclipse.swt.widgets.Button;
 import org.eclipse.swt.widgets.Composite;
 import org.eclipse.swt.widgets.Control;
-import org.eclipse.swt.widgets.Display;
 import org.eclipse.swt.widgets.Shell;
 import codehint.Synthesizer.RefinementWorker;
 import codehint.Synthesizer.SynthesisWorker;
@@ -55,14 +54,14 @@ public class RefinementSynthesisDialog extends SynthesisDialog {
 	@Override
 	protected void enableDisableSearchButtons(boolean isStartingSearch, boolean pdspecAndSkeletonAreValid) {
 		super.enableDisableSearchButtons(isStartingSearch, pdspecAndSkeletonAreValid);
-		refineCancelButton.setEnabled(isStartingSearch || pdspecAndSkeletonAreValid);
+		refineCancelButton.setEnabled(isStartingSearch || pdspecAndSkeletonAreValid || initialExprs == null);
 	}
 
     @Override
 	protected void buttonPressed(int buttonId) {
-        if (buttonId == refineCancelButtonID) {
+        if (buttonId == refineCancelButtonID)
         	searchCancelButtonPressed(buttonId);
-        } else if (buttonId == clearButtonID) {
+        else if (buttonId == clearButtonID) {
         	showResults(initialExprs);
         	clearButton.setEnabled(false);
         } else
@@ -70,9 +69,17 @@ public class RefinementSynthesisDialog extends SynthesisDialog {
     }
 
 	@Override
+	protected void searchCancelButtonPressed(int buttonId) {
+        if (!amSearching && initialExprs == null)
+			evalCandidates();
+        else
+        	super.searchCancelButtonPressed(buttonId);
+	}
+
+	@Override
 	protected void startOrEndWork(boolean isStarting, String message) {
 		super.startOrEndWork(isStarting, message);
-		setButtonText(refineCancelButton, isStarting ? "Cancel" : "Refine");
+		setButtonText(refineCancelButton, isStarting ? "Cancel" : initialExprs == null ? "Init" : "Refine");
 		clearButton.setEnabled(!isStarting && initialExprs != null && !(initialExprs.size() == expressions.size() && initialExprs.equals(expressions)));
 	}
 
@@ -91,6 +98,10 @@ public class RefinementSynthesisDialog extends SynthesisDialog {
 	
 	@Override
     protected void opened() {
+		evalCandidates();
+	}
+	
+    private void evalCandidates() {
 		filteredExpressions = expressions = new ArrayList<FullyEvaluatedExpression>();
 		startEndSynthesis(SynthesisState.START);
 		searchCancelButton.setEnabled(false);
