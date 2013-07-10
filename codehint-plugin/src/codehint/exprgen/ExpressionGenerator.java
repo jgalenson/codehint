@@ -620,6 +620,11 @@ public final class ExpressionGenerator {
     				if (curMonitor.isCanceled())
     					throw new OperationCanceledException();
     				for (TypedExpression r: getUniqueExpressions(l, l.getResult().getEffects(), intType, depth, nextLevel)) {
+    					if (l.getWrapperValue().equals(r.getWrapperValue()) && l.getExpression().toString().compareTo(r.getExpression().toString()) > 0) {
+    						TypedExpression tmp = l;  // Swap l and r if they have the same value (if not, we will consider both orderings) so that l's toString lexographically precedes r's so that we always consider e.g., l*r. 
+    						l = r;
+    						r = tmp;
+    					}
     					// Arithmetic operations, e.g., +,*.
     					if (searchOperators && ExpressionMaker.isInt(l.getType()) && ExpressionMaker.isInt(r.getType()) && isHelpfulType(intType, depth, maxDepth)
     							&& !isConstant(l.getExpression()) && !isConstant(r.getExpression())) {
@@ -652,19 +657,31 @@ public final class ExpressionGenerator {
     				}
 					// Boolean connectives, &&,||.
     				if (searchOperators && isHelpfulType(booleanType, depth, maxDepth) && ExpressionMaker.isBoolean(l.getType()))
-    					for (TypedExpression r: getUniqueExpressions(l, l.getResult().getEffects(), booleanType, depth, nextLevel))
+    					for (TypedExpression r: getUniqueExpressions(l, l.getResult().getEffects(), booleanType, depth, nextLevel)) {
+        					if (l.getWrapperValue().equals(r.getWrapperValue()) && l.getExpression().toString().compareTo(r.getExpression().toString()) > 0) {
+        						TypedExpression tmp = l;
+        						l = r;
+        						r = tmp;
+        					}
     						if (ExpressionMaker.isBoolean(r.getType()))
     							if (mightNotCommute(l, r) || l.getExpression().toString().compareTo(r.getExpression().toString()) < 0)
     								for (InfixExpression.Operator op : BOOLEAN_COMPARE_OPS)
     									addUniqueExpressionToList(curLevel, expressionMaker.makeInfix(l, op, r, booleanType, valueCache, thread, target), depth, maxDepth);
+    					}
 					// Object/array comparisons
     				if (searchOperators && isHelpfulType(booleanType, depth, maxDepth) && l.getType() instanceof IJavaReferenceType)
-    					for (TypedExpression r: getUniqueExpressions(l, l.getResult().getEffects(), objectType, depth, nextLevel))
+    					for (TypedExpression r: getUniqueExpressions(l, l.getResult().getEffects(), objectType, depth, nextLevel)) {
+        					if (l.getWrapperValue().equals(r.getWrapperValue()) && l.getExpression().toString().compareTo(r.getExpression().toString()) > 0) {
+        						TypedExpression tmp = l;
+        						l = r;
+        						r = tmp;
+        					}
     						if (r.getType() instanceof IJavaReferenceType
     								&& (subtypeChecker.isSubtypeOf(l.getType(), r.getType()) || subtypeChecker.isSubtypeOf(r.getType(), l.getType())))
     							if (mightNotCommute(l, r) || l.getExpression().toString().compareTo(r.getExpression().toString()) < 0)
     								for (InfixExpression.Operator op : REF_COMPARE_OPS)
     									addUniqueExpressionToList(curLevel, expressionMaker.makeInfix(l, op, r, booleanType, valueCache, thread, target), depth, maxDepth);
+    					}
     				curMonitor.worked(1);
     			}
     			// Get unary ops
