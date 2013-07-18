@@ -370,7 +370,7 @@ public final class EvaluationManager {
 			String valueStr = "_$curValue";
 			if (!validateStatically || !isPrimitive) {
 				if (isFreeSearch && !isPrimitive)
-					curString.append(" ").append(curTypedExpr.getType() == null ? "Object" : curTypedExpr.getType().getName());
+					curString.append(" ").append(curTypedExpr.getType() == null ? "Object" : EclipseUtils.sanitizeTypename(curTypedExpr.getType().getName()));
 				curString.append(" _$curValue = ").append(curRHSStr).append(";\n");
 			} else
 				valueStr = curRHSStr;
