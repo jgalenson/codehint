@@ -118,8 +118,11 @@ public class Utils {
 	 */
 	public static long getNumCalls(ArrayList<? extends ArrayList<?>> allPossibleActuals) {
 		long total = 1L;
-		for (ArrayList<?> possibleActuals: allPossibleActuals)
+		for (ArrayList<?> possibleActuals: allPossibleActuals) {
 			total *= possibleActuals.size();
+			if (total < 0)  // Detect overflows.
+				return Long.MAX_VALUE;
+		}
 		return total;
 	}
 

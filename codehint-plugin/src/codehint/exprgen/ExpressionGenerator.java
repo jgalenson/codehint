@@ -1131,12 +1131,13 @@ public final class ExpressionGenerator {
 		if (numCombinations > getPruneThreshold(curDepth, method)) {
 			for (ArrayList<? extends TypedExpression> possibleActuals: allPossibleActuals)
 				for (Iterator<? extends TypedExpression> it = possibleActuals.iterator(); it.hasNext(); )
-					if (getDepth(it.next()) == curMaxArgDepth)
+					if (getDepth(it.next()) >= curMaxArgDepth)  // We need >= not > since we use this during equivalence expansion.
 						it.remove();
 			//System.out.println("Pruned call to " + (method.declaringType().name() + "." + method.name()) + " from " + numCombinations + " to " + getNumCalls(allPossibleActuals));
 			//if (numCombinations <= 50 * Math.pow(10, Math.max(0, curDepth - 1)))
 			//	System.out.println("Helpfully reduced prune threshold for " + method.declaringType() + "." + Weights.getMethodKey(method));
-			return pruneManyArgCalls(allPossibleActuals, curDepth, curMaxArgDepth - 1, method);
+			if (curMaxArgDepth > 0)  // Without this, we can recurse forever.
+				return pruneManyArgCalls(allPossibleActuals, curDepth, curMaxArgDepth - 1, method);
 		}
 		return curMaxArgDepth;
 	}
