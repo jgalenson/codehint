@@ -1812,20 +1812,23 @@ public final class ExpressionGenerator {
 	 * up through recursion.
 	 * @param effects The current side effects.
 	 * @param The result of all these calls.
+	 * @param maxDepth The maximum expression depth to find.
 	 */
-	private void makeAllCalls(Method method, String name, Expression receiver, List<Expression> results, ArrayList<ArrayList<TypedExpression>> possibleActuals, ArrayList<TypedExpression> curActuals, Set<Effect> effects, Result result) {
+	private void makeAllCalls(Method method, String name, Expression receiver, List<Expression> results, ArrayList<ArrayList<TypedExpression>> possibleActuals, ArrayList<TypedExpression> curActuals, Set<Effect> effects, Result result, int maxDepth) {
 		if (curMonitor.isCanceled())
 			throw new OperationCanceledException();
 		if (curActuals.size() == possibleActuals.size()) {
-			if ("<init>".equals(name))
-				results.add(expressionMaker.makeClassInstanceCreation(((TypeLiteral)receiver).getType(), curActuals, method, effects, result));
-			else
-				results.add(expressionMaker.makeCall(name, receiver, curActuals, method, effects, result));
+			if (getDepthOfCall(receiver, curActuals, method) <= maxDepth) {  // Optimization: Do an early check to ensure we don't generate expressions that are too large.  We would filter it out later, but this would cause us to create lots of new ASTS, which can be very slow.
+				if ("<init>".equals(name))
+					results.add(expressionMaker.makeClassInstanceCreation(((TypeLiteral)receiver).getType(), curActuals, method, effects, result));
+				else
+					results.add(expressionMaker.makeCall(name, receiver, curActuals, method, effects, result));
+			}
 		} else {
 			int depth = curActuals.size();
 			for (TypedExpression e : possibleActuals.get(depth)) {
 				curActuals.add(e);
-				makeAllCalls(method, name, receiver, results, possibleActuals, curActuals, effects, result);
+				makeAllCalls(method, name, receiver, results, possibleActuals, curActuals, effects, result, maxDepth);
 				curActuals.remove(depth);
 			}
 		}
@@ -2289,7 +2292,7 @@ public final class ExpressionGenerator {
 		pruneManyArgCalls(newArguments, curDepth, curDepth - 1, method);
 		List<Expression> newCalls = new ArrayList<Expression>();
 		for (UntypedExpression e : getEquivalentExpressionsOrGiven(expression, new MethodConstraint(name, UnknownConstraint.getUnknownConstraint(), argConstraints, sideEffectHandler.isHandlingSideEffects()), curEffects, maxDepth - 1))
-			makeAllCalls(method, name, e.getExpression(), newCalls, newArguments, new ArrayList<TypedExpression>(newArguments.size()), curEffects, result);
+			makeAllCalls(method, name, e.getExpression(), newCalls, newArguments, new ArrayList<TypedExpression>(newArguments.size()), curEffects, result, maxDepth);
 		for (Expression newCall : newCalls)
 			addIfNew(curEquivalences, new EvaluatedExpression(newCall, type, result), valued, maxDepth);
 	}
