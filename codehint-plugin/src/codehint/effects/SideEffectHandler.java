@@ -118,6 +118,11 @@ public class SideEffectHandler {
 		List<ReferenceType> loadedTypes = getAllLoadedTypes(stack);
 		monitor.setWorkRemaining(loadedTypes.size());
 		//long startTime = System.currentTimeMillis();
+		/*long num = 0;
+		for (Long l: target.getVM().instanceCounts(loadedTypes))
+			num += l;
+		System.out.println("Max num: " + num);
+		//System.out.println("refcounts: " + (System.currentTimeMillis() - startTime));*/
 		long maxID = Long.MIN_VALUE;
 		List<IField> fields = new ArrayList<IField>();
 		for (ReferenceType type: loadedTypes) {
@@ -167,7 +172,13 @@ public class SideEffectHandler {
 				monitor.worked(1);
 			}
 		}
+		/*try {
+			System.out.println("New object id: " + ((IJavaClassType)target.getJavaTypes("java.lang.Object")[0]).newInstance("()V", new IJavaValue[] { }, (IJavaThread)stack.getThread()).getUniqueId());  // This number seems to be affected by how many instanceCounts/instances calls I make into the VM, so it isn't very useful.
+		} catch (DebugException e) {
+			e.printStackTrace();
+		}*/
 		this.maxID = maxID;
+		//System.out.println("maxID: " + maxID);
 		//System.out.println("fields: " + (System.currentTimeMillis() - startTime));
 		/*for (IField field: fields)
 			System.out.println(field);*/
@@ -201,15 +212,17 @@ public class SideEffectHandler {
 				public void run(IProgressMonitor monitor) throws CoreException {
 					for (IField field: fields) {
 						List<IJavaObject> instances = instancesCache == null ? null : instancesCache.get(field.getDeclaringType().getFullyQualifiedName());
-						watchpoints.add(new MyJavaWatchpoint(field, instances == null || instances.size() != 1 ? null : Utils.singleton(instances)));  // It seems like you can only add one instance filter.
+						watchpoints.add(new MyJavaWatchpoint(field, instances));
 					}
 					DebugPlugin.getDefault().getBreakpointManager().addBreakpoints(watchpoints.toArray(new IBreakpoint[watchpoints.size()]));
 				}
 			};
-			//long startTime = System.currentTimeMillis();
-			if (!fields.isEmpty())
+			if (!fields.isEmpty()) {
+				//long startTime = System.currentTimeMillis();
 				ResourcesPlugin.getWorkspace().run(wr, null);
-			//System.out.println("run: " + (System.currentTimeMillis() - startTime));
+				/*if (instancesCache != null)  // Only print time for initial installation, not ones on load.
+					System.out.println("run: " + (System.currentTimeMillis() - startTime));*/
+			}
 			//System.out.println("Installed " + watchpoints.size() + " breakpoints.");
 			return watchpoints;
 		} catch (CoreException ex) {
@@ -243,7 +256,7 @@ public class SideEffectHandler {
 		private final boolean canBeArray;
 		private final boolean isFinal;
 		
-		public MyJavaWatchpoint(IField field, IJavaObject uniqueInstance) throws CoreException {
+		public MyJavaWatchpoint(IField field, List<IJavaObject> instances) throws CoreException {
 			//super(BreakpointUtils.getBreakpointResource(field.getDeclaringType()), field.getDeclaringType().getElementName(), field.getElementName(), -1, -1, -1, 0, false, new HashMap<String, Object>(10));
 			
 			canBeArray = canBeArray(field);
@@ -264,8 +277,8 @@ public class SideEffectHandler {
 			addDefaultAccessAndModification(attributes);
 			ensureMarker().setAttributes(attributes);
 			
-			if (uniqueInstance != null)
-				addInstanceFilter(uniqueInstance);
+			if (instances != null && instances.size() == 1)  // It seems like you can only add one instance filter (https://bugs.eclipse.org/bugs/show_bug.cgi?id=32842).  I could presumably separate these into different watchpoints if I wanted.
+				addInstanceFilter(Utils.singleton(instances));
 		}
 
 		@Override
