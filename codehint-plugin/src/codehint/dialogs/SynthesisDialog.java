@@ -213,6 +213,8 @@ public abstract class SynthesisDialog extends ModelessDialog {
     private ExpressionGenerator expressionGenerator;
     private ExpressionSkeleton skeleton;
     private ExpressionSorter expressionSorter;
+    
+    //private SideEffectStartStopper sideEffectStartStopper;
 
 	public SynthesisDialog(Shell parentShell, String varTypeName, IJavaType varType, IJavaStackFrame stack, PropertyDialog propertyDialog, SynthesisWorker synthesisWorker) {
 		super(parentShell);
@@ -896,7 +898,7 @@ public abstract class SynthesisDialog extends ModelessDialog {
     		javadocPrefetcher = new JavadocPrefetcher(this.filteredExpressions, this.expressionMaker);
     		javadocPrefetcher.setPriority(Job.DECORATE);
     		javadocPrefetcher.schedule();
-    		if (expressions.isEmpty() && numSearches == 1)  // Automatically continue search if no results were found at depth 1.
+    		if (expressions.isEmpty() && numSearches == 1 && !handledSideEffects)  // Automatically continue search if no results were found at depth 1.
     			startSearch(property, searchButtonId);
     		else
     			searchButtonId = -1;
@@ -1408,10 +1410,74 @@ public abstract class SynthesisDialog extends ModelessDialog {
 		
 	}
 	
+	/*
+	 * The commented code below tries to automatically install
+	 * side-effect-handling breakpoints when the CodeHint dialog opens
+	 * and deletes them when it closes.
+	 * To use it, uncomment the SideEffectStarterStopper class and all
+	 * the code that uses it.  Also in Synthesize comment out the calls
+	 * to SideEffectHandler.{start,stop}.
+	 * Note that this is somewhat buggy w.r.t. the GUI.  Disabling the
+	 * search button until the breakpoints are installed is broken (as
+	 * we just disable it, but anything else that can enable it will,
+	 * e.g., by typing a new pdspec) and when users close the GUI we
+	 * block the SWT thread on the closing, which stops the progress
+	 * monitor from updating.
+	 */
+	
+	/*private final class SideEffectStartStopper extends Job {
+		
+		private final boolean isStart;
+
+		public SideEffectStartStopper(boolean isStart) {
+			super("Side effect " + (isStart ? "setup" : "stop"));
+			this.isStart = isStart;
+		}
+
+		@Override
+		protected IStatus run(IProgressMonitor monitor) {
+			sideEffectHandler.enable(true);
+			if (isStart)
+				sideEffectHandler.start(monitor);
+			else
+				sideEffectHandler.stop(monitor);
+			if (isStart)
+				Display.getDefault().asyncExec(new Runnable(){
+					@Override
+					public void run() {
+						searchCancelButton.setEnabled(true);
+					}
+		    	});
+			return Status.OK_STATUS;
+		}
+		
+		public void start() {
+			setPriority(Job.LONG);
+			schedule();
+		}
+		
+	}*/
+	
 	@Override
     protected void opened() {
 		automaticallyStartSynthesisIfPossible();
+		/*searchCancelButton.setEnabled(false);
+		sideEffectStartStopper = new SideEffectStartStopper(true);
+		sideEffectStartStopper.start();*/
 	}
+	
+	/*@Override
+	public boolean close() {
+		if (sideEffectStartStopper != null)
+			try {
+				sideEffectStartStopper.join();
+			} catch (InterruptedException e) {
+				e.printStackTrace();
+			}
+		sideEffectStartStopper = new SideEffectStartStopper(false);
+		sideEffectStartStopper.start();
+		return super.close();
+	}*/
 
     /**
      * Called when the user changes the type of the pdspec
