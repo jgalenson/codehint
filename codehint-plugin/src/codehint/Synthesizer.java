@@ -299,7 +299,7 @@ public class Synthesizer {
 			breakpointsEnabled = new boolean[breakpoints.length];
 			for (int i = 0; i < breakpoints.length; i++) {
 				try {
-					boolean isEnabled = breakpoints[i].isEnabled();
+					boolean isEnabled = breakpoints[i].isEnabled() && !(breakpoints[i] instanceof SideEffectHandler.SideEffectBreakpoint);
 					breakpointsEnabled[i] = isEnabled;
 					if (isEnabled)
 						breakpoints[i].setEnabled(false);

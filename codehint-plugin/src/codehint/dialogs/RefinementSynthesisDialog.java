@@ -98,6 +98,7 @@ public class RefinementSynthesisDialog extends SynthesisDialog {
 	
 	@Override
     protected void opened() {
+		super.opened();
 		evalCandidates();
 	}
 	

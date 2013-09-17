@@ -212,7 +212,11 @@ public class SideEffectHandler {
 				public void run(IProgressMonitor monitor) throws CoreException {
 					for (IField field: fields) {
 						List<IJavaObject> instances = instancesCache == null ? null : instancesCache.get(field.getDeclaringType().getFullyQualifiedName());
-						watchpoints.add(new MyJavaWatchpoint(field, instances));
+						if (instances != null && (instances.size() == 1 || field.getDeclaringType().getFullyQualifiedName().equals("java.lang.AbstractStringBuilder")))  // Special case: Use instance filters for StringBuilders, since they come up a lot and slow us down a lot.
+							for (IJavaObject instance: instances)
+								watchpoints.add(new MyJavaWatchpoint(field, instance));
+						else
+							watchpoints.add(new MyJavaWatchpoint(field, null));
 					}
 					DebugPlugin.getDefault().getBreakpointManager().addBreakpoints(watchpoints.toArray(new IBreakpoint[watchpoints.size()]));
 				}
@@ -251,12 +255,17 @@ public class SideEffectHandler {
 		}
 	}
 	
-	private class MyJavaWatchpoint extends JavaWatchpoint {
+	// Use a common interface so we can recognize our own breakpoints.
+	public static interface SideEffectBreakpoint {
+		
+	}
+	
+	private class MyJavaWatchpoint extends JavaWatchpoint implements SideEffectBreakpoint {
 		
 		private final boolean canBeArray;
 		private final boolean isFinal;
 		
-		public MyJavaWatchpoint(IField field, List<IJavaObject> instances) throws CoreException {
+		public MyJavaWatchpoint(IField field, IJavaObject instance) throws CoreException {
 			//super(BreakpointUtils.getBreakpointResource(field.getDeclaringType()), field.getDeclaringType().getElementName(), field.getElementName(), -1, -1, -1, 0, false, new HashMap<String, Object>(10));
 			
 			canBeArray = canBeArray(field);
@@ -277,8 +286,8 @@ public class SideEffectHandler {
 			addDefaultAccessAndModification(attributes);
 			ensureMarker().setAttributes(attributes);
 			
-			if (instances != null && instances.size() == 1)  // It seems like you can only add one instance filter (https://bugs.eclipse.org/bugs/show_bug.cgi?id=32842).  I could presumably separate these into different watchpoints if I wanted.
-				addInstanceFilter(Utils.singleton(instances));
+			if (instance != null)  // It seems like you can only add one instance filter (https://bugs.eclipse.org/bugs/show_bug.cgi?id=32842).
+				addInstanceFilter(instance);
 		}
 
 		@Override
@@ -427,7 +436,7 @@ public class SideEffectHandler {
 	
 	// Dealing with array values, which can be nested.
 	
-	private class MyClassPrepareBreakpoint extends JavaClassPrepareBreakpoint {
+	private class MyClassPrepareBreakpoint extends JavaClassPrepareBreakpoint implements SideEffectBreakpoint {
 		
 		private final IJavaProject project;
 		
@@ -620,7 +629,7 @@ public class SideEffectHandler {
 		redoEffects(effects);
 	}
 	
-	private class ReflectionBreakpoint extends JavaMethodEntryBreakpoint {
+	private class ReflectionBreakpoint extends JavaMethodEntryBreakpoint implements SideEffectBreakpoint {
 		
 		public ReflectionBreakpoint(IMethod method) throws JavaModelException, CoreException {
 			super(BreakpointUtils.getBreakpointResource(method.getDeclaringType()), method.getDeclaringType().getFullyQualifiedName(), method.getElementName(), method.getSignature(), -1, -1, -1, 0, true, new HashMap<String, Object>(10));
