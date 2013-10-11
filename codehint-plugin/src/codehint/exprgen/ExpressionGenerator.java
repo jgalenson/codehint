@@ -2266,7 +2266,10 @@ public final class ExpressionGenerator {
 	private void expandCall(Expression call, Expression expression, Method method, List<?> arguments, Set<EvaluatedExpression> newlyExpanded, Result result, IJavaType type, EvaluatedExpression valued, int maxDepth, ArrayList<EvaluatedExpression> curEquivalences, Set<Effect> curEffects) throws DebugException {
 		String name = method.name();
 		expandEquivalencesRec(expression, newlyExpanded, curEffects, maxDepth);
-		OverloadChecker overloadChecker = new OverloadChecker(EclipseUtils.getTypeAndLoadIfNeeded(method.declaringType().name(), stack, target, typeCache), stack, target, typeCache, subtypeChecker);
+		IJavaType receiverType = EclipseUtils.getTypeAndLoadIfNeeded(method.declaringType().name(), stack, target, typeCache);
+		if (receiverType == null)  // The above line will fail for anonymous classes.
+			receiverType = (expression == null ? stack.getThis() : expressionMaker.getExpressionValue(expression, curEffects)).getJavaType(); 
+		OverloadChecker overloadChecker = new OverloadChecker(receiverType, stack, target, typeCache, subtypeChecker);
 		overloadChecker.setMethod(method);
 		ArrayList<ArrayList<TypedExpression>> newArguments = new ArrayList<ArrayList<TypedExpression>>(arguments.size());
 		ArrayList<TypeConstraint> argConstraints = new ArrayList<TypeConstraint>(arguments.size());
