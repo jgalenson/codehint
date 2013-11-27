@@ -14,7 +14,6 @@ import org.eclipse.core.resources.IResource;
 import org.eclipse.core.runtime.CoreException;
 import org.eclipse.core.runtime.IProgressMonitor;
 import org.eclipse.core.runtime.IStatus;
-import org.eclipse.core.runtime.NullProgressMonitor;
 import org.eclipse.core.runtime.OperationCanceledException;
 import org.eclipse.core.runtime.Status;
 import org.eclipse.core.runtime.jobs.Job;
@@ -88,7 +87,6 @@ import codehint.property.StateProperty;
 import codehint.property.TypeProperty;
 import codehint.property.ValueProperty;
 import codehint.utils.EclipseUtils;
-import codehint.utils.Utils;
 
 public class Synthesizer {
 
@@ -826,27 +824,6 @@ public class Synthesizer {
 	    		return ((IJavaObject)parentVar.getValue()).getField(access.getName().getIdentifier(), false);
 	    	}
 	    	return null;
-	    }
-	    
-	    /**
-	     * Gets a nice string representing the legal values
-	     * with duplicates removed.
-	     * @param exprs The legal strings.
-	     * @return A nice string representation of the legal values.
-	     */
-	    private static String getLegalValues(List<FullyEvaluatedExpression> exprs) {
-	    	// Remove duplicates.
-	    	Set<String> values = new HashSet<String>();
-	    	for (FullyEvaluatedExpression e: exprs)
-	    		values.add(e.getResultString());
-	    	// Build a string.
-	    	StringBuilder sb = new StringBuilder();
-	    	for (String value: values) {
-	    		if (sb.length() > 0)
-	    			sb.append(", ");
-	    		sb.append(Utils.truncate(value, 50));
-	    	}
-	    	return sb.toString();
 	    }
 	    
 	}

@@ -112,7 +112,7 @@ public class Utils {
 	/**
 	 * Gets the number of calls that will be created from
 	 * the given list of possible actuals.
-	 * @param possibleActuals A list of all the possible
+	 * @param allPossibleActuals A list of all the possible
 	 * actuals for each argument.
 	 * @return The number of calls with the given possible actuals.
 	 */

@@ -22,7 +22,6 @@ import org.eclipse.jdt.core.dom.ClassInstanceCreation;
 import org.eclipse.jdt.core.dom.Expression;
 import org.eclipse.jdt.core.dom.FieldAccess;
 import org.eclipse.jdt.core.dom.MethodInvocation;
-import org.eclipse.jdt.core.dom.Name;
 import org.eclipse.jdt.core.dom.NullLiteral;
 import org.eclipse.jdt.core.dom.SimpleName;
 import org.eclipse.jdt.core.dom.SuperMethodInvocation;
@@ -914,6 +913,8 @@ public final class EvaluationManager {
 		 * @param compiled The compiled expression to evaluate.
 		 * @param engine The evaluation engine.
 		 * @param stack The current stack frame.
+		 * @param disableBreakpoints Whether to disable breakpoints
+		 * during evaluation.
 		 * @return The result of the evaluation.
 		 */
 	    public static IEvaluationResult evaluateExpression(ICompiledExpression compiled, IAstEvaluationEngine engine, IJavaStackFrame stack, boolean disableBreakpoints) {

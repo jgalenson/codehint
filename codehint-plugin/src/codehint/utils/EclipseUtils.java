@@ -370,6 +370,8 @@ public final class EclipseUtils {
      * where we show a debug-like view of them.
      * @param value The value whose string representation is desired.
      * @param stack The current stack frame.
+     * @param callToString Whether we should call toString on
+     * objects or simply use their default strings in Eclipse.
      * @return A string that is the legal Java expression of
      * the given value, except for arrays, which show their values.
      * @throws DebugException if we cannot get the value.

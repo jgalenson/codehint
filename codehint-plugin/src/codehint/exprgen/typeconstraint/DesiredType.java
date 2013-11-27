@@ -42,7 +42,7 @@ public class DesiredType extends SingleTypeConstraint {
 	@Override
 	public String toString() {
 		try {
-			return "=" + typeConstraint == null ? "null" : typeConstraint.getName();
+			return "=" + (typeConstraint == null ? "null" : typeConstraint.getName());
 		} catch (DebugException e) {
 			e.printStackTrace();
 			return "=" + typeConstraint.toString();
