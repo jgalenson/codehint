@@ -148,5 +148,40 @@ public class Utils {
 	public static String getPrintableString(String s) {
 		return s.replace("\n", "\\n").replace("\r", "\\r");
 	}
+	
+    public static String arrayToString(Object[] a) {
+        if (a == null)
+            return "null";
+        int iMax = a.length - 1;
+        if (iMax == -1)
+            return "";
+        StringBuilder b = new StringBuilder();
+        for (int i = 0; ; i++) {
+            b.append(String.valueOf(a[i]));
+            if (i == iMax)
+                return b.toString();
+            b.append(", ");
+        }
+    }
+	
+	public static String getEscapedValue(char ch) {
+		if (ch == '\b')
+			return "\\b";
+		if (ch == '\t')
+			return "\\t";
+		if (ch == '\n')
+			return "\\n";
+		if (ch == '\f')
+			return "\\f";
+		if (ch == '\r')
+			return "\\r";
+		if (ch == '"')
+			return "\\\"";
+		if (ch == '\'')
+			return "\\'";
+		if (ch == '\\')
+			return "\\";
+		return String.valueOf(ch);
+	}
 
 }
