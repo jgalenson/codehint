@@ -1,7 +1,8 @@
 package codehint.property;
 
-import org.eclipse.jdt.core.dom.Expression;
 import org.eclipse.jdt.debug.core.IJavaValue;
+
+import codehint.ast.Expression;
 
 public abstract class ValueProperty extends LambdaProperty {
 	

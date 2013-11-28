@@ -7,16 +7,17 @@ import org.eclipse.debug.core.DebugException;
 import org.eclipse.jdt.core.IJavaProject;
 import org.eclipse.jdt.core.IType;
 import org.eclipse.jdt.core.dom.AST;
-import org.eclipse.jdt.core.dom.ASTNode;
 import org.eclipse.jdt.core.dom.ASTParser;
-import org.eclipse.jdt.core.dom.CompilationUnit;
-import org.eclipse.jdt.core.dom.Expression;
-import org.eclipse.jdt.core.dom.SimpleName;
 import org.eclipse.jdt.debug.core.IJavaStackFrame;
 import org.eclipse.jdt.debug.eval.IAstEvaluationEngine;
 
+import codehint.ast.ASTConverter;
+import codehint.ast.ASTFlattener;
+import codehint.ast.ASTNode;
+import codehint.ast.CompilationUnit;
+import codehint.ast.Expression;
+import codehint.ast.SimpleName;
 import codehint.utils.EclipseUtils;
-import codehint.property.Property;
 
 /**
  * Class that stores a user-entered property (essentially
@@ -46,7 +47,7 @@ public class LambdaProperty extends Property {
 		matcher.matches();
 		String lhs = matcher.group(1);
 		String typeName = matcher.group(2);
-		Expression rhs = (Expression)EclipseUtils.parseExpr(parser, matcher.group(3));
+		Expression rhs = (Expression)ASTConverter.parseExpr(parser, matcher.group(3));
 		return new LambdaProperty(lhs, typeName, rhs);
 	}
 	
@@ -60,7 +61,7 @@ public class LambdaProperty extends Property {
 	    	if (typeError != null)
 	    		return typeError;
     	}
-    	ASTNode rhs = EclipseUtils.parseExpr(parser, matcher.group(3));
+    	ASTNode rhs = ASTConverter.parseExpr(parser, matcher.group(3));
     	if (rhs instanceof CompilationUnit)
     		return "Enter a valid expression on the RHS: " + ((CompilationUnit)rhs).getProblems()[0].getMessage();
     	String lhs = matcher.group(1);

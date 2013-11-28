@@ -6,25 +6,25 @@ import java.util.Map;
 import java.util.Set;
 
 import org.eclipse.debug.core.DebugException;
-import org.eclipse.jdt.core.dom.CastExpression;
-import org.eclipse.jdt.core.dom.Expression;
-import org.eclipse.jdt.core.dom.MethodInvocation;
 import org.eclipse.jdt.debug.core.IJavaObject;
 import org.eclipse.jdt.debug.core.IJavaPrimitiveValue;
 import org.eclipse.jdt.debug.core.IJavaValue;
 
-import com.sun.jdi.Method;
-
+import codehint.ast.ASTFlattener;
+import codehint.ast.CastExpression;
+import codehint.ast.Expression;
+import codehint.ast.MethodInvocation;
 import codehint.effects.Effect;
 import codehint.exprgen.ExpressionMaker;
 import codehint.exprgen.Result;
 import codehint.exprgen.StringValue;
 import codehint.exprgen.Value;
 import codehint.exprgen.ValueCache;
-import codehint.property.ASTFlattener;
 import codehint.utils.EclipseUtils;
 import codehint.utils.Pair;
 import codehint.utils.Utils;
+
+import com.sun.jdi.Method;
 
 /**
  * Gets the String representation of a node, substituting in
@@ -52,9 +52,7 @@ public class ValueFlattener extends ASTFlattener {
 	protected void flatten(Expression node, StringBuilder sb) {
 		try {
 			Result result = null;
-			Object idObj = ExpressionMaker.getIDOpt(node);
-			if (idObj != null)
-				result = expressionMaker.getExpressionResult((Integer)idObj, curEffects);
+			result = expressionMaker.getExpressionResult(ExpressionMaker.getID(node), curEffects);
 			if (result != null) {
 				IJavaValue value = result.getValue().getValue();
 				if (value instanceof IJavaPrimitiveValue) {
@@ -135,7 +133,7 @@ public class ValueFlattener extends ASTFlattener {
 			sb.append("_$tmp").append(newTemporaries.get(toString).first);
 			return;
 		} else {
-			Method method = expressionMaker.getMethodOpt(node);
+			Method method = expressionMaker.getMethod(node);
 			if (method != null && methodResultsMap != null && methodResultsMap.containsKey(toString)) {  // The method should only be null or the call should not be cached in the methodResultsMap during refinement.
 				String typeStr = EclipseUtils.sanitizeTypename(method.returnTypeName());
 				int newIndex = temporaries.size() + newTemporaries.size();

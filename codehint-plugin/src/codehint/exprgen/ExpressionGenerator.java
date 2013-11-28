@@ -25,26 +25,30 @@ import org.eclipse.jdt.core.IJavaProject;
 import org.eclipse.jdt.core.IMethod;
 import org.eclipse.jdt.core.IType;
 import org.eclipse.jdt.core.JavaModelException;
-import org.eclipse.jdt.core.dom.ASTNode;
-import org.eclipse.jdt.core.dom.ASTVisitor;
-import org.eclipse.jdt.core.dom.ArrayAccess;
-import org.eclipse.jdt.core.dom.BooleanLiteral;
-import org.eclipse.jdt.core.dom.CastExpression;
-import org.eclipse.jdt.core.dom.ClassInstanceCreation;
-import org.eclipse.jdt.core.dom.Expression;
-import org.eclipse.jdt.core.dom.FieldAccess;
-import org.eclipse.jdt.core.dom.InfixExpression;
-import org.eclipse.jdt.core.dom.MethodInvocation;
-import org.eclipse.jdt.core.dom.Name;
-import org.eclipse.jdt.core.dom.NullLiteral;
-import org.eclipse.jdt.core.dom.NumberLiteral;
-import org.eclipse.jdt.core.dom.ParenthesizedExpression;
-import org.eclipse.jdt.core.dom.PrefixExpression;
-import org.eclipse.jdt.core.dom.SimpleName;
-import org.eclipse.jdt.core.dom.SimpleType;
-import org.eclipse.jdt.core.dom.StringLiteral;
-import org.eclipse.jdt.core.dom.ThisExpression;
-import org.eclipse.jdt.core.dom.TypeLiteral;
+
+import codehint.ast.ASTNode;
+import codehint.ast.ASTVisitor;
+import codehint.ast.ArrayAccess;
+import codehint.ast.BooleanLiteral;
+import codehint.ast.CastExpression;
+import codehint.ast.ClassInstanceCreation;
+import codehint.ast.Expression;
+import codehint.ast.FieldAccess;
+import codehint.ast.InfixExpression;
+import codehint.ast.IntLiteral;
+import codehint.ast.MethodInvocation;
+import codehint.ast.Name;
+import codehint.ast.NullLiteral;
+import codehint.ast.NumberLiteral;
+import codehint.ast.ParentASTVisitor;
+import codehint.ast.ParenthesizedExpression;
+import codehint.ast.PrefixExpression;
+import codehint.ast.SimpleName;
+import codehint.ast.SimpleType;
+import codehint.ast.StringLiteral;
+import codehint.ast.ThisExpression;
+import codehint.ast.TypeLiteral;
+
 import org.eclipse.jdt.debug.core.IJavaArrayType;
 import org.eclipse.jdt.debug.core.IJavaClassType;
 import org.eclipse.jdt.debug.core.IJavaDebugTarget;
@@ -57,6 +61,7 @@ import org.eclipse.jdt.debug.core.IJavaValue;
 import org.eclipse.jdt.debug.core.IJavaVariable;
 import org.eclipse.jdt.internal.debug.core.model.JDIStackFrame;
 import org.eclipse.jdt.internal.debug.core.model.JDIType;
+
 import codehint.DataCollector;
 import codehint.dialogs.SynthesisDialog;
 import codehint.effects.Effect;
@@ -298,9 +303,9 @@ public final class ExpressionGenerator {
 		this.intType = EclipseUtils.getFullyQualifiedType("int", stack, target, typeCache);
 		this.booleanType = EclipseUtils.getFullyQualifiedType("boolean", stack, target, typeCache);
 		this.objectType = EclipseUtils.getFullyQualifiedType("java.lang.Object", stack, target, typeCache);
-		this.zero = expressionMaker.makeNumber("0", target.newValue(0), intType, valueCache, thread);
-		this.one = expressionMaker.makeNumber("1", target.newValue(1), intType, valueCache, thread);
-		this.two = expressionMaker.makeNumber("2", target.newValue(2), intType, valueCache, thread);
+		this.zero = expressionMaker.makeInt(0, target.newValue(0), intType, valueCache, thread);
+		this.one = expressionMaker.makeInt(1, target.newValue(1), intType, valueCache, thread);
+		this.two = expressionMaker.makeInt(2, target.newValue(2), intType, valueCache, thread);
 		this.realDepths = new HashMap<Integer, Integer>();
 		this.hasBadMethodsFields = new HashMap<Integer, Boolean>();
 		this.hasBadConstants = new HashMap<Integer, Boolean>();
@@ -2146,7 +2151,7 @@ public final class ExpressionGenerator {
 			}
 		}
 		// 0 is already in the equivalences map, but no other int constants are.
-		if ((curExpr instanceof NumberLiteral && !"0".equals(((NumberLiteral)curExpr).getToken())) || curExpr instanceof StringLiteral || curExpr instanceof BooleanLiteral)
+		if ((curExpr instanceof IntLiteral && ((IntLiteral)curExpr).getNumber() != 0) || curExpr instanceof StringLiteral || curExpr instanceof BooleanLiteral)
 			results.add(new EvaluatedExpression(curExpr, result.getValue().getValue().getJavaType(), result));
 		if (equivs == null && expressionMaker.isStatic(curExpr) && getDepth(curExpr) <= maxDepth)
 			results.add(new EvaluatedExpression(curExpr, result.getValue().getValue().getJavaType(), result));
@@ -2263,7 +2268,7 @@ public final class ExpressionGenerator {
 	 * @param curEffects The current effects.
 	 * @throws DebugException
 	 */
-	private void expandCall(Expression call, Expression expression, Method method, List<?> arguments, Set<EvaluatedExpression> newlyExpanded, Result result, IJavaType type, EvaluatedExpression valued, int maxDepth, ArrayList<EvaluatedExpression> curEquivalences, Set<Effect> curEffects) throws DebugException {
+	private void expandCall(Expression call, Expression expression, Method method, Expression[] arguments, Set<EvaluatedExpression> newlyExpanded, Result result, IJavaType type, EvaluatedExpression valued, int maxDepth, ArrayList<EvaluatedExpression> curEquivalences, Set<Effect> curEffects) throws DebugException {
 		String name = method.name();
 		expandEquivalencesRec(expression, newlyExpanded, curEffects, maxDepth);
 		IJavaType receiverType = EclipseUtils.getTypeAndLoadIfNeeded(method.declaringType().name(), stack, target, typeCache);
@@ -2271,11 +2276,11 @@ public final class ExpressionGenerator {
 			receiverType = (expression == null ? stack.getThis() : expressionMaker.getExpressionValue(expression, curEffects)).getJavaType(); 
 		OverloadChecker overloadChecker = new OverloadChecker(receiverType, stack, target, typeCache, subtypeChecker);
 		overloadChecker.setMethod(method);
-		ArrayList<ArrayList<TypedExpression>> newArguments = new ArrayList<ArrayList<TypedExpression>>(arguments.size());
-		ArrayList<TypeConstraint> argConstraints = new ArrayList<TypeConstraint>(arguments.size());
+		ArrayList<ArrayList<TypedExpression>> newArguments = new ArrayList<ArrayList<TypedExpression>>(arguments.length);
+		ArrayList<TypeConstraint> argConstraints = new ArrayList<TypeConstraint>(arguments.length);
 		Set<Effect> curArgEffects = expression == null || method.isConstructor() ? Collections.<Effect>emptySet() : expressionMaker.getExpressionResult(expression, curEffects).getEffects();
-		for (int i = 0; i < arguments.size(); i++) {
-			Expression curArg = (Expression)arguments.get(i);
+		for (int i = 0; i < arguments.length; i++) {
+			Expression curArg = (Expression)arguments[i];
 			expandEquivalencesRec(curArg, newlyExpanded, curArgEffects, maxDepth);
 			ArrayList<TypedExpression> allCurArgPossibilities = new ArrayList<TypedExpression>();
 			IJavaType argType = EclipseUtils.getTypeAndLoadIfNeeded((String)method.argumentTypeNames().get(i), stack, target, typeCache);
@@ -2283,7 +2288,7 @@ public final class ExpressionGenerator {
 			for (TypedExpression arg : getEquivalentExpressions(curArg, argConstraint, curArgEffects, maxDepth - 1)) {
 				if (overloadChecker.needsCast(argType, arg.getType(), newArguments.size()))  // If the method is overloaded, when executing the expression we might get "Ambiguous call" compile errors, so we put in a cast to remove the ambiguity.
 					arg = expressionMaker.makeCast(arg, argType, arg.getValue(), valueCache, thread);
-				if (arg.getExpression() instanceof NullLiteral && method.isVarArgs() && newArguments.size() == arguments.size() - 1)
+				if (arg.getExpression() instanceof NullLiteral && method.isVarArgs() && newArguments.size() == arguments.length - 1)
 					continue;//arg = expressionMaker.makeCast(arg, ((IJavaArrayType)argType).getComponentType(), arg.getValue(), valueCache, thread);
 				allCurArgPossibilities.add(arg);
 			}
@@ -2306,16 +2311,12 @@ public final class ExpressionGenerator {
 	 * @return Whether the given expression is a constant.
 	 */
 	private static boolean isConstant(Expression e) {
-		switch (e.getNodeType()) {
-			case ASTNode.NULL_LITERAL:
-			case ASTNode.NUMBER_LITERAL:
-			case ASTNode.BOOLEAN_LITERAL:
-				return true;
-			case ASTNode.PARENTHESIZED_EXPRESSION:
-				return isConstant(((ParenthesizedExpression)e).getExpression());
-			default:
-				return false;
-		}
+		if (e instanceof NullLiteral || e instanceof NumberLiteral || e instanceof BooleanLiteral)
+			return true;
+		else if (e instanceof ParenthesizedExpression)
+			return isConstant(((ParenthesizedExpression)e).getExpression());
+		else
+			return false;
 	}
 	
 	/**
@@ -2354,8 +2355,8 @@ public final class ExpressionGenerator {
     	}
     	
     	@Override
-    	public boolean visit(NumberLiteral node) {
-    		visit(node.getToken());
+    	public boolean visit(IntLiteral node) {
+    		visit(String.valueOf(node.getID()));
     		return true;
     	}
     	
@@ -2488,7 +2489,7 @@ public final class ExpressionGenerator {
      * that is mis-using a constant field or an infix expression
      * using a constant field that is not inside a call.
      */
-    private static class BadConstantChecker extends ASTVisitor {
+    private static class BadConstantChecker extends ParentASTVisitor {
     	
     	private final ExpressionMaker expressionMaker;
     	private final Weights weights;
@@ -2504,9 +2505,9 @@ public final class ExpressionGenerator {
 		public boolean visit(MethodInvocation node) {
 			Method method = expressionMaker.getMethod(node);
 			if (weights.seenMethod(method)) {
-				List<?> args = node.arguments();
-				for (int i = 0; i < args.size(); i++) {
-					Expression arg = (Expression)args.get(i);
+				Expression[] args = node.arguments();
+				for (int i = 0; i < args.length; i++) {
+					Expression arg = args[i];
 					if (isBadConstant(method, i, arg))
 						return false;
 				}
@@ -2571,8 +2572,8 @@ public final class ExpressionGenerator {
 		 * @return Whether the given expression is contained
 		 * within a call or a constructor.
 		 */
-		private static boolean hasCallParent(Expression e) {
-			for (ASTNode cur = e.getParent(); cur != null; cur = cur.getParent())
+		private boolean hasCallParent(Expression e) {
+			for (ASTNode cur: parents)
 				if (cur instanceof MethodInvocation || cur instanceof ClassInstanceCreation)
 					return true;
 			return false;
@@ -2721,8 +2722,7 @@ public final class ExpressionGenerator {
 		} else if (expr instanceof MethodInvocation) {
 			MethodInvocation call = (MethodInvocation)expr;
 			int maxChildDepth = call.getExpression() == null ? 0 : getDepthImpl(call.getExpression());
-			for (int i = 0; i < call.arguments().size(); i++) {
-				Expression curArg = (Expression)call.arguments().get(i);
+			for (Expression curArg: call.arguments()) {
 				int curArgDepth = getDepthImpl(curArg);
 				if (curArgDepth > maxChildDepth)
 					maxChildDepth = curArgDepth;
@@ -2731,8 +2731,7 @@ public final class ExpressionGenerator {
 		} else if (expr instanceof ClassInstanceCreation) {
 			ClassInstanceCreation call = (ClassInstanceCreation)expr;
 			int maxChildDepth = call.getExpression() == null ? 0 : getDepthImpl(call.getExpression());
-			for (int i = 0; i < call.arguments().size(); i++) {
-				Expression curArg = (Expression)call.arguments().get(i);
+			for (Expression curArg: call.arguments()) {
 				int curArgDepth = getDepthImpl(curArg);
 				if (curArgDepth > maxChildDepth)
 					maxChildDepth = curArgDepth;
@@ -2791,42 +2790,42 @@ public final class ExpressionGenerator {
     	Map<Integer, ArrayList<Expression>> buckets = new HashMap<Integer, ArrayList<Expression>>();
 		for (ArrayList<EvaluatedExpression> exprs: equivalences.get(Collections.<Effect>emptySet()).values())
 			for (EvaluatedExpression e: exprs)
-				Utils.addToListMap(buckets, getMaxLines(e.getExpression()), e.getExpression());
+				Utils.addToListMap(buckets, getMaxLines(e.getExpression(), null), e.getExpression());
     	for (Integer bucket: new java.util.TreeSet<Integer>(buckets.keySet()))
     		System.out.println(bucket + " -> " + buckets.get(bucket).size() + " (e.g., " + buckets.get(bucket).get(0) + ")");
 	}
 	
-	private int getMaxLines(Expression expr) {
+	private int getMaxLines(Expression expr, Expression parent) {
 		if (expr == null)
 			return 0;
     	if (expr instanceof NumberLiteral || expr instanceof BooleanLiteral || expr instanceof Name || expr instanceof ThisExpression || expr instanceof NullLiteral || expr instanceof TypeLiteral)
-			return expr.getParent() == null ? 1 : 0;
+			return parent == null ? 1 : 0;
     	else if (expr instanceof ParenthesizedExpression)
-    		return getMaxLines(((ParenthesizedExpression)expr).getExpression());
+    		return getMaxLines(((ParenthesizedExpression)expr).getExpression(), expr);
 		else if (expr instanceof InfixExpression) {
 			InfixExpression infix = (InfixExpression)expr;
-			return getMaxLines(infix.getLeftOperand()) + getMaxLines(infix.getRightOperand()) + 1;
+			return getMaxLines(infix.getLeftOperand(), expr) + getMaxLines(infix.getRightOperand(), expr) + 1;
 		} else if (expr instanceof ArrayAccess) {
 			ArrayAccess array = (ArrayAccess)expr;
-			return getMaxLines(array.getArray()) + getMaxLines(array.getIndex()) + 1;
+			return getMaxLines(array.getArray(), expr) + getMaxLines(array.getIndex(), expr) + 1;
 		} else if (expr instanceof FieldAccess) {
-			return getMaxLines(((FieldAccess)expr).getExpression()) + 1;
+			return getMaxLines(((FieldAccess)expr).getExpression(), expr) + 1;
 		} else if (expr instanceof PrefixExpression) {
-			return getMaxLines(((PrefixExpression)expr).getOperand()) + 1;
+			return getMaxLines(((PrefixExpression)expr).getOperand(), expr) + 1;
 		} else if (expr instanceof MethodInvocation) {
 			MethodInvocation call = (MethodInvocation)expr;
-			int curNumLines = getMaxLines(call.getExpression());
-			for (int i = 0; i < call.arguments().size(); i++)
-				curNumLines += getMaxLines((Expression)call.arguments().get(i));
+			int curNumLines = getMaxLines(call.getExpression(), expr);
+			for (Expression arg: call.arguments())
+				curNumLines += getMaxLines(arg, expr);
 			return curNumLines + 1;
 		} else if (expr instanceof ClassInstanceCreation) {
 			ClassInstanceCreation call = (ClassInstanceCreation)expr;
-			int curNumLines = getMaxLines(call.getExpression());
-			for (int i = 0; i < call.arguments().size(); i++)
-				curNumLines += getMaxLines((Expression)call.arguments().get(i));
+			int curNumLines = getMaxLines(call.getExpression(), expr);
+			for (Expression arg: call.arguments())
+				curNumLines += getMaxLines(arg, expr);
 			return curNumLines + 1;
 		} else if (expr instanceof CastExpression) {
-			return getMaxLines(((CastExpression)expr).getExpression());
+			return getMaxLines(((CastExpression)expr).getExpression(), expr);
 		} else
 			throw new RuntimeException("Unexpected expression " + expr.toString());
 	}

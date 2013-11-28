@@ -1,7 +1,8 @@
 package codehint.exprgen;
 
-import org.eclipse.jdt.core.dom.Expression;
 import org.eclipse.jdt.debug.core.IJavaType;
+
+import codehint.ast.Expression;
 
 /**
  * Wrapper class that stores an expression and its type.

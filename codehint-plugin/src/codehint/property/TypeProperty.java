@@ -1,10 +1,10 @@
 package codehint.property;
 
-import org.eclipse.jdt.core.dom.Expression;
+import codehint.ast.ASTConverter;
+import codehint.ast.Expression;
+
 import org.eclipse.jdt.debug.core.IJavaReferenceType;
 import org.eclipse.jdt.debug.core.IJavaType;
-
-import codehint.utils.EclipseUtils;
 
 public class TypeProperty extends LambdaProperty {
 	
@@ -19,7 +19,7 @@ public class TypeProperty extends LambdaProperty {
 	
 	public static TypeProperty fromType(String typeName, IJavaType type) {
 		String lhs = DEFAULT_LHS;
-		Expression rhs = (Expression)EclipseUtils.parseExpr(parser, type instanceof IJavaReferenceType ? lhs + " instanceof " + typeName : "true");
+		Expression rhs = (Expression)ASTConverter.parseExpr(parser, type instanceof IJavaReferenceType ? lhs + " instanceof " + typeName : "true");
 		return new TypeProperty(lhs, rhs, typeName, type);
 	}
 	

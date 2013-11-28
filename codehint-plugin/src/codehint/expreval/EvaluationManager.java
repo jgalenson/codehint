@@ -4,7 +4,6 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.Semaphore;
@@ -15,16 +14,7 @@ import org.eclipse.core.runtime.SubMonitor;
 import org.eclipse.debug.core.DebugEvent;
 import org.eclipse.debug.core.DebugException;
 import org.eclipse.jdt.core.dom.AST;
-import org.eclipse.jdt.core.dom.ASTNode;
 import org.eclipse.jdt.core.dom.ASTParser;
-import org.eclipse.jdt.core.dom.ASTVisitor;
-import org.eclipse.jdt.core.dom.ClassInstanceCreation;
-import org.eclipse.jdt.core.dom.Expression;
-import org.eclipse.jdt.core.dom.FieldAccess;
-import org.eclipse.jdt.core.dom.MethodInvocation;
-import org.eclipse.jdt.core.dom.NullLiteral;
-import org.eclipse.jdt.core.dom.SimpleName;
-import org.eclipse.jdt.core.dom.SuperMethodInvocation;
 import org.eclipse.jdt.debug.core.IJavaArray;
 import org.eclipse.jdt.debug.core.IJavaArrayType;
 import org.eclipse.jdt.debug.core.IJavaClassType;
@@ -40,8 +30,17 @@ import org.eclipse.jdt.debug.eval.IAstEvaluationEngine;
 import org.eclipse.jdt.debug.eval.ICompiledExpression;
 import org.eclipse.jdt.debug.eval.IEvaluationListener;
 import org.eclipse.jdt.debug.eval.IEvaluationResult;
-import com.sun.jdi.Method;
 
+import codehint.ast.ASTConverter;
+import codehint.ast.ASTNode;
+import codehint.ast.ASTVisitor;
+import codehint.ast.ClassInstanceCreation;
+import codehint.ast.Expression;
+import codehint.ast.FieldAccess;
+import codehint.ast.MethodInvocation;
+import codehint.ast.NullLiteral;
+import codehint.ast.SimpleName;
+import codehint.ast.SuperMethodInvocation;
 import codehint.dialogs.SynthesisDialog;
 import codehint.effects.Effect;
 import codehint.exprgen.ExpressionMaker;
@@ -52,13 +51,15 @@ import codehint.exprgen.TypedExpression;
 import codehint.exprgen.ValueCache;
 import codehint.property.ObjectValueProperty;
 import codehint.property.PrimitiveValueProperty;
-import codehint.property.StateProperty;
 import codehint.property.Property;
+import codehint.property.StateProperty;
 import codehint.property.TypeProperty;
 import codehint.property.ValueProperty;
 import codehint.utils.EclipseUtils;
 import codehint.utils.Pair;
 import codehint.utils.Utils;
+
+import com.sun.jdi.Method;
 
 /**
  * Class for evaluating expressions.
@@ -159,7 +160,7 @@ public final class EvaluationManager {
 			validVal = property == null ? "true" : property.getReplacedString("_$curValue", stack);
 			preVarsString = getPreVarsString(stack, property);
 			PropertyPreconditionFinder pf = new PropertyPreconditionFinder();
-    		EclipseUtils.parseExpr(parser, validVal).accept(pf);
+    		ASTConverter.parseExpr(parser, validVal).accept(pf);
     		propertyPreconditions = property instanceof ValueProperty ? "" : pf.getPreconditions();  // TODO: This will presumably fail if the user does their own null check.
     		boolean validateStatically = canEvaluateStatically(property);
 			Map<String, ArrayList<TypedExpression>> expressionsByType = getNonKnownCrashingExpressionByType(exprs);
@@ -689,10 +690,7 @@ public final class EvaluationManager {
 	 */
 	private int skipLikelyCrashes(ArrayList<TypedExpression> exprs, DebugException error, int crashingIndex, Expression crashedExpr) throws DebugException {
 		int numToSkip = 1;
-		Object idObj = ExpressionMaker.getIDOpt(crashedExpr);
-		if (idObj == null)
-			return numToSkip;
-		Method crashedMethod = expressionMaker.getMethod((Integer)idObj);
+		Method crashedMethod = expressionMaker.getMethod(crashedExpr);
 		String errorName = EclipseUtils.getExceptionName(error);
 		int numNulls = getNumNulls(crashedExpr);
 		if (crashedMethod != null && "java.lang.NullPointerException".equals(errorName) && numNulls > 0) {
@@ -708,13 +706,13 @@ public final class EvaluationManager {
 			}
 		} else if (crashedMethod != null && ("java.lang.ArrayIndexOutOfBoundsException".equals(errorName) || "java.lang.IndexOutOfBoundsException".equals(errorName)) && crashedMethod.argumentTypeNames().size() == 1) {
 			// Skip methods that throw out-of-bounds exception if the new value is further from 0.
-			IJavaValue argValue = expressionMaker.getExpressionValue((Expression)getArguments(crashedExpr).get(0), getReceiverEffects(crashedExpr));
+			IJavaValue argValue = expressionMaker.getExpressionValue(getArguments(crashedExpr)[0], getReceiverEffects(crashedExpr));
 			if ("int".equals(argValue.getJavaType().getName())) {
 				int argVal = ((IJavaPrimitiveValue)argValue).getIntValue();
 				while (crashingIndex + numToSkip < exprs.size()) {
 					Expression newExpr = exprs.get(crashingIndex + numToSkip).getExpression();
 					if (crashedMethod.equals(expressionMaker.getMethod(newExpr))) {
-						int curVal = ((IJavaPrimitiveValue)expressionMaker.getExpressionValue((Expression)getArguments(newExpr).get(0), getReceiverEffects(newExpr))).getIntValue();
+						int curVal = ((IJavaPrimitiveValue)expressionMaker.getExpressionValue(getArguments(newExpr)[0], getReceiverEffects(newExpr))).getIntValue();
 						if ((argVal < 0 && curVal < 0) || (argVal >= 0 && curVal > argVal)) {
 							//System.out.println("Skipping " + newExpr.toString() + ".");
 							numToSkip++;
@@ -727,16 +725,16 @@ public final class EvaluationManager {
 		} else if (crashedMethod != null && (/*"java.lang.IllegalArgumentException".equals(errorName) || */"java.lang.ClassCastException".equals(errorName))) {
 			// Skip wrong type exceptions if the arguments have the same type.
 			// Note that I don't need to get the correct effects here because I only care about the type of the arguments.
-			List<?> args = getArguments(crashedExpr);
-			String[] argTypes = new String[args.size()];
+			Expression[] args = getArguments(crashedExpr);
+			String[] argTypes = new String[args.length];
 			for (int i = 0; i < argTypes.length; i++)
-				argTypes[i] = String.valueOf(expressionMaker.getExpressionValue((Expression)args.get(i), Collections.<Effect>emptySet()).getJavaType());
+				argTypes[i] = String.valueOf(expressionMaker.getExpressionValue(args[i], Collections.<Effect>emptySet()).getJavaType());
 			exprLoop: while (crashingIndex + numToSkip < exprs.size()) {
 				Expression newExpr = exprs.get(crashingIndex + numToSkip).getExpression();
 				if (crashedMethod.equals(expressionMaker.getMethod(newExpr))) {
-					List<?> curArgs = getArguments(newExpr);
+					Expression[] curArgs = getArguments(newExpr);
 					for (int i = 0; i < argTypes.length; i++)
-						if (!argTypes[i].equals(String.valueOf(expressionMaker.getExpressionValue((Expression)curArgs.get(i), Collections.<Effect>emptySet()).getJavaType())))
+						if (!argTypes[i].equals(String.valueOf(expressionMaker.getExpressionValue(curArgs[i], Collections.<Effect>emptySet()).getJavaType())))
 							break exprLoop;
 					//System.out.println("Skipping " + newExpr.toString() + ".");
 					numToSkip++;
@@ -765,7 +763,7 @@ public final class EvaluationManager {
 	 * @param expr The call or constructor invocation.
 	 * @return The arguments to the given call/constructor.
 	 */
-	private static List<?> getArguments(Expression expr) {
+	private static Expression[] getArguments(Expression expr) {
 		if (expr instanceof MethodInvocation)
 			return ((MethodInvocation)expr).arguments();
 		if (expr instanceof SuperMethodInvocation)

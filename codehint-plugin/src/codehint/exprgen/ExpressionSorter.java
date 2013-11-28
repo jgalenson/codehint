@@ -1,15 +1,16 @@
 package codehint.exprgen;
 
 import java.util.Comparator;
-import org.eclipse.jdt.core.dom.ASTVisitor;
-import org.eclipse.jdt.core.dom.ArrayAccess;
-import org.eclipse.jdt.core.dom.ClassInstanceCreation;
-import org.eclipse.jdt.core.dom.Expression;
-import org.eclipse.jdt.core.dom.FieldAccess;
-import org.eclipse.jdt.core.dom.InfixExpression;
-import org.eclipse.jdt.core.dom.MethodInvocation;
-import org.eclipse.jdt.core.dom.PrefixExpression;
-import org.eclipse.jdt.core.dom.SimpleName;
+
+import codehint.ast.ASTVisitor;
+import codehint.ast.ArrayAccess;
+import codehint.ast.ClassInstanceCreation;
+import codehint.ast.Expression;
+import codehint.ast.FieldAccess;
+import codehint.ast.InfixExpression;
+import codehint.ast.MethodInvocation;
+import codehint.ast.PrefixExpression;
+import codehint.ast.SimpleName;
 
 import com.sun.jdi.Field;
 import com.sun.jdi.Method;
@@ -67,7 +68,7 @@ public class ExpressionSorter implements Comparator<TypedExpression> {
 		}
 		
 		private boolean visitMethod(Expression node) {
-			Method method = expressionMaker.getMethodOpt(node);
+			Method method = expressionMaker.getMethod(node);
 			if (method == null)  // During refinement, we might not have an id.
 				prob *= weights.getAverageWeight();
 			else
@@ -77,7 +78,7 @@ public class ExpressionSorter implements Comparator<TypedExpression> {
 		
 		@Override
 		public boolean visit(FieldAccess node) {
-			Field field = expressionMaker.getFieldOpt(node);
+			Field field = expressionMaker.getField(node);
 			if (field == null)  // Array length
 				prob *= weights.getAverageWeight();
 			else
@@ -87,7 +88,7 @@ public class ExpressionSorter implements Comparator<TypedExpression> {
 		
 		@Override
 		public boolean visit(SimpleName node) {
-			Field field = expressionMaker.getFieldOpt(node);
+			Field field = expressionMaker.getField(node);
 			if (field != null && field.isPublic())  // Don't count unqualified non-public field accesses.
 				visitField(field);
 			return true;

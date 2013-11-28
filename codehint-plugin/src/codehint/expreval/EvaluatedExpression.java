@@ -1,6 +1,6 @@
 package codehint.expreval;
 
-import org.eclipse.jdt.core.dom.Expression;
+import codehint.ast.Expression;
 import org.eclipse.jdt.debug.core.IJavaType;
 import org.eclipse.jdt.debug.core.IJavaValue;
 

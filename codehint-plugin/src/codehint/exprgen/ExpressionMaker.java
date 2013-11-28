@@ -8,38 +8,42 @@ import java.util.Map;
 import java.util.Set;
 
 import org.eclipse.debug.core.DebugException;
-import org.eclipse.jdt.core.dom.AST;
-import org.eclipse.jdt.core.dom.ASTNode;
-import org.eclipse.jdt.core.dom.ASTVisitor;
-import org.eclipse.jdt.core.dom.ArrayAccess;
-import org.eclipse.jdt.core.dom.ArrayType;
-import org.eclipse.jdt.core.dom.BooleanLiteral;
-import org.eclipse.jdt.core.dom.CastExpression;
-import org.eclipse.jdt.core.dom.CharacterLiteral;
-import org.eclipse.jdt.core.dom.ClassInstanceCreation;
-import org.eclipse.jdt.core.dom.ConditionalExpression;
-import org.eclipse.jdt.core.dom.Expression;
-import org.eclipse.jdt.core.dom.FieldAccess;
-import org.eclipse.jdt.core.dom.InfixExpression;
-import org.eclipse.jdt.core.dom.InstanceofExpression;
-import org.eclipse.jdt.core.dom.MethodInvocation;
-import org.eclipse.jdt.core.dom.Name;
-import org.eclipse.jdt.core.dom.NullLiteral;
-import org.eclipse.jdt.core.dom.NumberLiteral;
-import org.eclipse.jdt.core.dom.ParenthesizedExpression;
-import org.eclipse.jdt.core.dom.PostfixExpression;
-import org.eclipse.jdt.core.dom.PrefixExpression;
-import org.eclipse.jdt.core.dom.PrimitiveType;
-import org.eclipse.jdt.core.dom.QualifiedName;
-import org.eclipse.jdt.core.dom.QualifiedType;
-import org.eclipse.jdt.core.dom.SimpleName;
-import org.eclipse.jdt.core.dom.SimpleType;
-import org.eclipse.jdt.core.dom.StringLiteral;
-import org.eclipse.jdt.core.dom.SuperFieldAccess;
-import org.eclipse.jdt.core.dom.SuperMethodInvocation;
-import org.eclipse.jdt.core.dom.ThisExpression;
-import org.eclipse.jdt.core.dom.Type;
-import org.eclipse.jdt.core.dom.TypeLiteral;
+
+import codehint.ast.ASTNode;
+import codehint.ast.ASTVisitor;
+import codehint.ast.ArrayAccess;
+import codehint.ast.ArrayType;
+import codehint.ast.BooleanLiteral;
+import codehint.ast.CastExpression;
+import codehint.ast.CharacterLiteral;
+import codehint.ast.ClassInstanceCreation;
+import codehint.ast.ConditionalExpression;
+import codehint.ast.DoubleLiteral;
+import codehint.ast.Expression;
+import codehint.ast.FieldAccess;
+import codehint.ast.FloatLiteral;
+import codehint.ast.InfixExpression;
+import codehint.ast.InstanceofExpression;
+import codehint.ast.IntLiteral;
+import codehint.ast.LongLiteral;
+import codehint.ast.MethodInvocation;
+import codehint.ast.Name;
+import codehint.ast.NullLiteral;
+import codehint.ast.NumberLiteral;
+import codehint.ast.ParenthesizedExpression;
+import codehint.ast.PostfixExpression;
+import codehint.ast.PrefixExpression;
+import codehint.ast.PrimitiveType;
+import codehint.ast.QualifiedName;
+import codehint.ast.SimpleName;
+import codehint.ast.SimpleType;
+import codehint.ast.StringLiteral;
+import codehint.ast.SuperFieldAccess;
+import codehint.ast.SuperMethodInvocation;
+import codehint.ast.ThisExpression;
+import codehint.ast.Type;
+import codehint.ast.TypeLiteral;
+
 import org.eclipse.jdt.debug.core.IJavaArray;
 import org.eclipse.jdt.debug.core.IJavaArrayType;
 import org.eclipse.jdt.debug.core.IJavaClassObject;
@@ -67,8 +71,6 @@ import com.sun.jdi.Field;
 import com.sun.jdi.Method;
 
 public class ExpressionMaker {
-
-	private final static AST ast = AST.newAST(AST.JLS4);
 
 	private final IJavaStackFrame stack;
 	private final IJavaDebugTarget target;
@@ -457,11 +459,11 @@ public class ExpressionMaker {
 		} else if (e instanceof MethodInvocation || e instanceof ClassInstanceCreation) {
 			Method method = getMethod(e);
 			TypedExpression receiver = null;
-			List<?> argExprs = null;
+			Expression[] argExprs = null;
 			Set<Effect> curArgEffects = null;
 			if (e instanceof MethodInvocation) {
 				MethodInvocation call = (MethodInvocation)e;
-				Expression receiverExpr = call.getExpression() == null ? ast.newThisExpression() : call.getExpression();
+				Expression receiverExpr = call.getExpression() == null ? new ThisExpression() : call.getExpression();
 				Result receiverResult = call.getExpression() == null ? new Result(stack.getThis() == null ? stack.getReferenceType().getClassObject() : stack.getThis(), effects, valueCache, thread) : reEvaluateExpression(receiverExpr, effects, thread, target);
 				IJavaType receiverType = call.getExpression() == null ? stack.getReferenceType() : receiverResult.getValue().getValue().getJavaType();
 				receiver = new EvaluatedExpression(receiverExpr, receiverType, receiverResult);
@@ -474,10 +476,9 @@ public class ExpressionMaker {
 				curArgEffects = Collections.<Effect>emptySet();
 			}
 			// TODO: I think the work below (and some of the receiver stuff above) duplicates getArgValues (e.g., re-computing results).
-			ArrayList<EvaluatedExpression> args = new ArrayList<EvaluatedExpression>(argExprs.size());
+			ArrayList<EvaluatedExpression> args = new ArrayList<EvaluatedExpression>(argExprs.length);
 			boolean hasCrash = receiver.getValue() != null && "V".equals(receiver.getValue().getSignature());
-			for (int i = 0; i < argExprs.size(); i++) {
-				Expression arg = (Expression)argExprs.get(i);
+			for (Expression arg: argExprs) {
 				Result argResult = reEvaluateExpression(arg, curArgEffects, thread, target);
 				args.add(new EvaluatedExpression(arg, null, argResult));
 				hasCrash = hasCrash || "V".equals(argResult.getValue().getValue().getSignature());
@@ -523,41 +524,66 @@ public class ExpressionMaker {
 
 	private EvaluatedExpression initSimple(Expression e, IJavaValue value, IJavaType type, ValueCache valueCache, IJavaThread thread) {
 		//e.setProperty("isConstant", true);
-		setID(e);
 		setExpressionValue(e, value, Collections.<Effect>emptySet(), valueCache, thread);
 		return new EvaluatedExpression(e, type, new Result(value, valueCache, thread));
 	}
 
 	// Pass in cached int type for efficiency.
 	public EvaluatedExpression makeNumber(String val, IJavaValue value, IJavaType type, ValueCache valueCache, IJavaThread thread) {
-		Expression e = ast.newNumberLiteral(val);
+		int lastChar = val.charAt(val.length() - 1);
+		// Rules taken from: http://docs.oracle.com/javase/tutorial/java/nutsandbolts/datatypes.html.
+		if (lastChar == 'l' || lastChar == 'L')
+			return makeLong(Long.parseLong(val), value, type, valueCache, thread);
+		else if (lastChar == 'f' || lastChar == 'F')
+			return makeFloat(Float.parseFloat(val), value, type, valueCache, thread);
+		else if (lastChar == 'd' || lastChar == 'D')
+			return makeDouble(Double.parseDouble(val), value, type, valueCache, thread);
+		else
+			return makeInt(Integer.parseInt(val), value, type, valueCache, thread);
+	}
+	// Pass in cached int type for efficiency.
+	public EvaluatedExpression makeInt(int num, IJavaValue value, IJavaType type, ValueCache valueCache, IJavaThread thread) {
+		Expression e = new IntLiteral(num);
+		return initSimple(e, value, type, valueCache, thread);
+	}
+	// Pass in cached int type for efficiency.
+	public EvaluatedExpression makeLong(long num, IJavaValue value, IJavaType type, ValueCache valueCache, IJavaThread thread) {
+		Expression e = new LongLiteral(num);
+		return initSimple(e, value, type, valueCache, thread);
+	}
+	// Pass in cached int type for efficiency.
+	public EvaluatedExpression makeFloat(float num, IJavaValue value, IJavaType type, ValueCache valueCache, IJavaThread thread) {
+		Expression e = new FloatLiteral(num);
+		return initSimple(e, value, type, valueCache, thread);
+	}
+	// Pass in cached int type for efficiency.
+	public EvaluatedExpression makeDouble(double num, IJavaValue value, IJavaType type, ValueCache valueCache, IJavaThread thread) {
+		Expression e = new DoubleLiteral(num);
 		return initSimple(e, value, type, valueCache, thread);
 	}
 	// Pass in cached boolean type for efficiency.
 	public EvaluatedExpression makeBoolean(boolean val, IJavaValue value, IJavaType type, ValueCache valueCache, IJavaThread thread) {
-		Expression e = ast.newBooleanLiteral(val);
+		Expression e = new BooleanLiteral(val);
 		return initSimple(e, value, type, valueCache, thread);
 	}
 
 	public EvaluatedExpression makeChar(char val, IJavaValue value, IJavaType type, ValueCache valueCache, IJavaThread thread) {
-		CharacterLiteral e = ast.newCharacterLiteral();
-		e.setCharValue(val);
+		CharacterLiteral e = new CharacterLiteral(val);
 		return initSimple(e, value, type, valueCache, thread);
 	}
 
 	public EvaluatedExpression makeString(String val, IJavaValue value, IJavaType type, ValueCache valueCache, IJavaThread thread) {
-		StringLiteral e = ast.newStringLiteral();
-		e.setLiteralValue(val);
+		StringLiteral e = new StringLiteral(val);
 		return initSimple(e, value, type, valueCache, thread);
 	}
 
 	public EvaluatedExpression makeNull(IJavaDebugTarget target, ValueCache valueCache, IJavaThread thread) {
-		Expression e = ast.newNullLiteral();
+		Expression e = NullLiteral.getNullLiteral();
 		return initSimple(e, target.nullValue(), null, valueCache, thread);
 	}
 
 	public TypedExpression makeVar(String name, IJavaValue value, IJavaType type, ValueCache valueCache, IJavaThread thread) {
-		Expression e = ast.newSimpleName(name);
+		Expression e = new SimpleName(name);
 		return initSimple(e, value, type, valueCache, thread);
 	}
 
@@ -589,7 +615,7 @@ public class ExpressionMaker {
 	}
 
 	public TypedExpression makeThis(IJavaValue value, IJavaType type, ValueCache valueCache, IJavaThread thread) {
-		ThisExpression e = ast.newThisExpression();
+		ThisExpression e = new ThisExpression();
 		return initSimple(e, value, type, valueCache, thread);
 	}
 
@@ -605,11 +631,7 @@ public class ExpressionMaker {
 	}
 
 	public InfixExpression makeInfix(Expression l, InfixExpression.Operator op, Expression r) {
-		InfixExpression e = ast.newInfixExpression();
-		e.setLeftOperand(parenIfNeeded(ASTCopyer.copy(l)));
-		e.setOperator(op);
-		e.setRightOperand(parenIfNeeded(ASTCopyer.copy(r)));
-		setID(e);
+		InfixExpression e = new InfixExpression(parenIfNeeded(l), op, parenIfNeeded(r));
 		return e;
 	}
 
@@ -630,10 +652,7 @@ public class ExpressionMaker {
 	}
 
 	public ArrayAccess makeArrayAccess(Expression array, Expression index) {
-		ArrayAccess e = ast.newArrayAccess();
-		e.setArray(ASTCopyer.copy(array));
-		e.setIndex(ASTCopyer.copy(index));
-		setID(e);
+		ArrayAccess e = new ArrayAccess(array, index);
 		return e;
 	}
 
@@ -650,10 +669,7 @@ public class ExpressionMaker {
 	}
 
 	public FieldAccess makeFieldAccess(Expression obj, String name, Field field) {
-		FieldAccess e = ast.newFieldAccess();
-		e.setExpression(ASTCopyer.copy(obj));
-		e.setName(makeSimpleName(name));
-		setID(e);
+		FieldAccess e = new FieldAccess(obj, makeSimpleName(name));
 		setField(e, field);
 		return e;
 	}
@@ -671,10 +687,7 @@ public class ExpressionMaker {
 	}
 
 	public PrefixExpression makePrefix(Expression operand, PrefixExpression.Operator op) {
-		PrefixExpression e = ast.newPrefixExpression();
-		e.setOperand(parenIfNeeded(ASTCopyer.copy(operand)));
-		e.setOperator(op);
-		setID(e);
+		PrefixExpression e = new PrefixExpression(op, operand);
 		return e;
 	}
 
@@ -686,11 +699,8 @@ public class ExpressionMaker {
 		return EvaluatedExpression.makeTypedOrEvaluatedExpression(e, type, result);
 	}
 
-	private PostfixExpression makePostfix(Expression operand, PostfixExpression.Operator op) {
-		PostfixExpression e = ast.newPostfixExpression();
-		e.setOperand(parenIfNeeded(ASTCopyer.copy(operand)));
-		e.setOperator(op);
-		setID(e);
+	private static PostfixExpression makePostfix(Expression operand, PostfixExpression.Operator op) {
+		PostfixExpression e = new PostfixExpression(operand, op);
 		return e;
 	}
 
@@ -707,7 +717,7 @@ public class ExpressionMaker {
 		} else {
 			if (receiver.getExpression() instanceof ThisExpression || receiver.getType().equals(thisType))
 				receiver = null;  // Don't use a receiver if it is null or the this type.
-			e = makeCall(name, receiver == null ? null : ASTCopyer.copy(receiver.getExpression()), args, returnType, result);
+			e = makeCall(name, receiver == null ? null : receiver.getExpression(), args, returnType, result);
 		}
 		setMethod(e.getExpression(), method);
 		return e;
@@ -715,25 +725,19 @@ public class ExpressionMaker {
 	/*private TypedExpression makeCall(String name, String classname, ArrayList<TypedExpression> args, IJavaType returnType) {
     	return makeCall(name, newStaticName(classname), args, returnType, null);
     }*/
-	@SuppressWarnings("unchecked")
 	private TypedExpression makeCall(String name, Expression receiver, ArrayList<? extends TypedExpression> args, IJavaType returnType, Result result) {
-		MethodInvocation e = ast.newMethodInvocation();
-		e.setName(makeSimpleName(name));
-		e.setExpression(receiver);
-		for (TypedExpression ex: args)
-			e.arguments().add(ASTCopyer.copy(ex.getExpression()));
-		setID(e);
+		Expression[] newArgs = new Expression[args.size()];
+		for (int i = 0; i < args.size(); i++)
+			newArgs[i] = args.get(i).getExpression();
+		MethodInvocation e = new MethodInvocation(receiver, makeSimpleName(name), newArgs);
 		setExpressionResult(e, result, Collections.<Effect>emptySet());
 		return EvaluatedExpression.makeTypedOrEvaluatedExpression(e, returnType, result);
 	}
-	@SuppressWarnings("unchecked")
 	public Expression makeCall(String name, Expression receiver, ArrayList<TypedExpression> args, Method method, Set<Effect> effects, Result result) {
-    	MethodInvocation e = ast.newMethodInvocation();
-    	e.setName(makeSimpleName(name));
-    	e.setExpression(ASTCopyer.copy(receiver));
-    	for (TypedExpression ex: args)
-    		e.arguments().add(ASTCopyer.copy(ex.getExpression()));
-		setID(e);
+		Expression[] newArgs = new Expression[args.size()];
+		for (int i = 0; i < args.size(); i++)
+			newArgs[i] = args.get(i).getExpression();
+		MethodInvocation e = new MethodInvocation(receiver, makeSimpleName(name), newArgs);
 		setMethod(e, method);
 		setExpressionResult(e, result, effects);
     	return e;
@@ -750,10 +754,7 @@ public class ExpressionMaker {
 	}
 
 	public CastExpression makeCast(Expression obj, String targetTypeName) {
-		CastExpression e = ast.newCastExpression();
-		e.setExpression(ASTCopyer.copy(obj));
-		e.setType(makeType(EclipseUtils.sanitizeTypename(targetTypeName)));
-		setID(e);
+		CastExpression e = new CastExpression(makeType(EclipseUtils.sanitizeTypename(targetTypeName)), obj);
 		copyExpressionResults(obj, e);
 		return e;
 	}
@@ -765,11 +766,8 @@ public class ExpressionMaker {
 		return EvaluatedExpression.makeTypedOrEvaluatedExpression(e, targetType, result);
 	}
 
-	private InstanceofExpression makeInstanceOf(Expression expr, Type targetDomType) {
-		InstanceofExpression e = ast.newInstanceofExpression();
-		e.setLeftOperand(ASTCopyer.copy(expr));
-		e.setRightOperand(ASTCopyer.copy(targetDomType));
-		setID(e);
+	private static InstanceofExpression makeInstanceOf(Expression expr, Type targetDomType) {
+		InstanceofExpression e = new InstanceofExpression(expr, targetDomType);
 		return e;
 	}
 
@@ -784,33 +782,25 @@ public class ExpressionMaker {
 		}
 	}
 
-	private ConditionalExpression makeConditional(Expression cond, Expression t, Expression e) {
-		ConditionalExpression ex = ast.newConditionalExpression();
-		ex.setExpression(ASTCopyer.copy(cond));
-		ex.setThenExpression(ASTCopyer.copy(t));
-		ex.setElseExpression(ASTCopyer.copy(e));
-		setID(ex);
+	private static ConditionalExpression makeConditional(Expression cond, Expression t, Expression e) {
+		ConditionalExpression ex = new ConditionalExpression(cond, t, e);
 		return ex;
 	}
 
-	@SuppressWarnings("unchecked")
 	private TypedExpression makeClassInstanceCreation(IJavaType type, String name, ArrayList<? extends TypedExpression> args, Result result) {
-		ClassInstanceCreation e = ast.newClassInstanceCreation();
-		e.setType(ast.newSimpleType(makeName(EclipseUtils.sanitizeTypename(name))));
-		for (TypedExpression ex: args)
-			e.arguments().add(ASTCopyer.copy(ex.getExpression()));
-		setID(e);
+		Expression[] newArgs = new Expression[args.size()];
+		for (int i = 0; i < args.size(); i++)
+			newArgs[i] = args.get(i).getExpression();
+		ClassInstanceCreation e = new ClassInstanceCreation(new SimpleType(makeName(EclipseUtils.sanitizeTypename(name))), newArgs);
 		setExpressionResult(e, result, Collections.<Effect>emptySet());
 		return EvaluatedExpression.makeTypedOrEvaluatedExpression(e, type, result);
 	}
 
-	@SuppressWarnings("unchecked")
 	public ClassInstanceCreation makeClassInstanceCreation(Type type, ArrayList<TypedExpression> args, Method method, Set<Effect> effects, Result result) {
-    	ClassInstanceCreation e = ast.newClassInstanceCreation();
-    	e.setType(ASTCopyer.copy(type));
-    	for (TypedExpression ex: args)
-    		e.arguments().add(ASTCopyer.copy(ex.getExpression()));
-		setID(e);
+		Expression[] newArgs = new Expression[args.size()];
+		for (int i = 0; i < args.size(); i++)
+			newArgs[i] = args.get(i).getExpression();
+		ClassInstanceCreation e = new ClassInstanceCreation(type, newArgs);
 		setMethod(e, method);
 		setExpressionResult(e, result, effects);
     	return e;
@@ -822,9 +812,7 @@ public class ExpressionMaker {
 	}
 
 	private ParenthesizedExpression makeParenthesized(Expression e) {
-		ParenthesizedExpression p = ast.newParenthesizedExpression();
-		p.setExpression(e);
-		setID(p);
+		ParenthesizedExpression p = new ParenthesizedExpression(e);
 		copyExpressionResults(e, p);
 		return p;
 	}
@@ -842,102 +830,73 @@ public class ExpressionMaker {
 		}
 	}
 
-	private SuperFieldAccess makeSuperFieldAccess(Name qualifier, String name) {
-		SuperFieldAccess e = ast.newSuperFieldAccess();
-		e.setQualifier((Name)ASTCopyer.copy(qualifier));
-		e.setName(makeSimpleName(name));
-		setID(e);
+	private static SuperFieldAccess makeSuperFieldAccess(Name qualifier, String name) {
+		SuperFieldAccess e = new SuperFieldAccess(qualifier, makeSimpleName(name));
 		return e;
 	}
 
-	@SuppressWarnings("unchecked")
 	public TypedExpression makeSuperCall(String name, Name qualifier, ArrayList<TypedExpression> args, IJavaType returnType, Result result, Method method) {
-		SuperMethodInvocation e = ast.newSuperMethodInvocation();
-		e.setName(makeSimpleName(name));
-		e.setQualifier(qualifier);
-		for (TypedExpression ex: args)
-			e.arguments().add(ASTCopyer.copy(ex.getExpression()));
-		setID(e);
+		Expression[] newArgs = new Expression[args.size()];
+		for (int i = 0; i < args.size(); i++)
+			newArgs[i] = args.get(i).getExpression();
+		SuperMethodInvocation e = new SuperMethodInvocation(qualifier, makeSimpleName(name), newArgs);
 		setExpressionResult(e, result, Collections.<Effect>emptySet());
 		setMethod(e, method);
 		return EvaluatedExpression.makeTypedOrEvaluatedExpression(e, returnType, result);
 	}
 	
 	public TypeLiteral makeTypeLiteral(Type type) {
-		TypeLiteral e = ast.newTypeLiteral();
-		e.setType(ASTCopyer.copy(type));
-		setID(e);
+		TypeLiteral e = new TypeLiteral(type);
 		return e;
 	}
 
 	private Type makeType(String typeName) {
 		if (typeName.endsWith("[]"))
-			return ast.newArrayType(makeType(typeName.substring(0, typeName.length() - 2)));
+			return new ArrayType(makeType(typeName.substring(0, typeName.length() - 2)));
 		else if (typeName.equals("int"))
-			return ast.newPrimitiveType(PrimitiveType.INT);
+			return new PrimitiveType(PrimitiveType.INT);
 		else if (typeName.equals("boolean"))
-			return ast.newPrimitiveType(PrimitiveType.BOOLEAN);
+			return new PrimitiveType(PrimitiveType.BOOLEAN);
 		else if (typeName.equals("long"))
-			return ast.newPrimitiveType(PrimitiveType.LONG);
+			return new PrimitiveType(PrimitiveType.LONG);
 		else if (typeName.equals("byte"))
-			return ast.newPrimitiveType(PrimitiveType.BYTE);
+			return new PrimitiveType(PrimitiveType.BYTE);
 		else if (typeName.equals("char"))
-			return ast.newPrimitiveType(PrimitiveType.CHAR);
+			return new PrimitiveType(PrimitiveType.CHAR);
 		else if (typeName.equals("short"))
-			return ast.newPrimitiveType(PrimitiveType.SHORT);
+			return new PrimitiveType(PrimitiveType.SHORT);
 		else if (typeName.equals("float"))
-			return ast.newPrimitiveType(PrimitiveType.FLOAT);
+			return new PrimitiveType(PrimitiveType.FLOAT);
 		else if (typeName.equals("double"))
-			return ast.newPrimitiveType(PrimitiveType.DOUBLE);
+			return new PrimitiveType(PrimitiveType.DOUBLE);
 		else
-			return ast.newSimpleType(makeName(EclipseUtils.sanitizeTypename(typeName)));
+			return new SimpleType(makeName(EclipseUtils.sanitizeTypename(typeName)));
 	}
 	
-	public void setID(Type type) {
-		if (type instanceof SimpleType)
-			setID(((SimpleType)type).getName());
-		else if (type instanceof QualifiedType) {
-			QualifiedType q = (QualifiedType)type;
-			setID(q.getQualifier());
-			setID(q.getName());
-		} else if (type instanceof ArrayType)
-			setID(((ArrayType)type).getComponentType());
-	}
-	
-	private SimpleName makeSimpleName(String name) {
-		SimpleName e = ast.newSimpleName(name);
-		setID(e);
+	private static SimpleName makeSimpleName(String name) {
+		SimpleName e = new SimpleName(name);
 		return e;
 	}
 	
-	private Name makeName(String name) {
-		Name e = ast.newName(name);
-		for (Name cur = e; true; ) {
-			setID(cur);
-			if (cur instanceof QualifiedName) {
-				setID(((QualifiedName)cur).getName());
-				cur = ((QualifiedName)cur).getQualifier();
-			} else
-				break;
+	private static Name makeName(String name) {
+		int index = 0;
+		Name result = null;
+		while (index < name.length()) {
+			int nextIndex = name.indexOf('.', index);
+			if (nextIndex == -1)
+				nextIndex = name.length();
+			SimpleName simpleName = makeSimpleName(name.substring(index, nextIndex));
+			if (result == null)
+				result = simpleName;
+			else
+				result = new QualifiedName(result, simpleName);
+			index = nextIndex + 1;
 		}
-		return e;
-	}
-
-	public void setID(Expression e) {
-		e.setProperty("id", id++);
+		return result;
 	}
 
 	public static int getID(Expression e) {
-		return (Integer)e.getProperty("id");
-	}
-	
-	public void setIDIfNeeded(Expression e) {
-		if (e.getProperty("id") == null)
-			setID(e);
-	}
-
-	public static Object getIDOpt(Expression e) {
-		return e.getProperty("id");
+		return e.getID();
 	}
 
 	private void setExpressionValue(Expression e, IJavaValue v, Set<Effect> effects, ValueCache valueCache, IJavaThread thread) {
@@ -1004,13 +963,6 @@ public class ExpressionMaker {
 	public Method getMethod(int id) {
 		return methods.get(id);
 	}
-	
-	public Method getMethodOpt(Expression e) {
-		Object idObj = getIDOpt(e);
-		if (idObj == null)
-			return null;
-		return getMethod((Integer)idObj);
-	}
 
 	private void setField(Expression e, Field field) {
 		fields.put(getID(e), field);
@@ -1022,13 +974,6 @@ public class ExpressionMaker {
 
 	public Field getField(int id) {
 		return fields.get(id);
-	}
-	
-	public Field getFieldOpt(Expression e) {
-		Object idObj = getIDOpt(e);
-		if (idObj == null)
-			return null;
-		return getField((Integer)idObj);
 	}
 
 	/**
@@ -1060,35 +1005,6 @@ public class ExpressionMaker {
 				throw new RuntimeException(e);
 		}
 	}
-
-	/**
-	 * Make a copy of the given node so that it uses
-	 * the AST object of this class.  We need to do
-	 * this because we cannot combine nodes that come
-	 * from different AST objects.
-	 * @param node The AST node to copy.
-	 * @return A copy of the given AST node that is
-	 * set to use the AST object of this class.
-	 */
-	public static ASTNode resetAST(ASTNode node) {
-		return ASTNode.copySubtree(ast, node);
-	}
-	
-	/**
-	 * Sets the IDs of all subexpressions of the given
-	 * expression.
-	 * @param expr The expression.
-	 */
-	public void setSubexpressionIDs(Expression expr) {
-    	expr.accept(new ASTVisitor() {
-    		@Override
-    		public void postVisit(ASTNode node) {
-    			if (node instanceof Expression) {
-    				setID((Expression)node);
-    			}
-    		}
-    	});
-	}
 	
 	public int getNumCrashes() {
 		return numCrashes;
@@ -1115,16 +1031,13 @@ public class ExpressionMaker {
 	    		@Override
 	    		public void postVisit(ASTNode node) {
 	    			if (node instanceof Expression) {
-	    				Object idObj = ExpressionMaker.getIDOpt((Expression)node);
-	    				if (idObj != null) {
-	    					int id = (Integer)idObj;
-	    					Method method = expressionMaker.getMethod(id);
-	    					if (method != null)
-	    						subsetMethods.put(id, method);
-	    					Field field = expressionMaker.getField(id);
-	    					if (field != null)
-	    						subsetFields.put(id, field);
-	    				}
+	    				int id = ExpressionMaker.getID((Expression)node);
+    					Method method = expressionMaker.getMethod(id);
+    					if (method != null)
+    						subsetMethods.put(id, method);
+    					Field field = expressionMaker.getField(id);
+    					if (field != null)
+    						subsetFields.put(id, field);
 	    			}
 	    		}
 			};

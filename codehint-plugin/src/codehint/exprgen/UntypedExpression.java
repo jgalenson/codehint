@@ -1,9 +1,9 @@
 package codehint.exprgen;
 
-import org.eclipse.jdt.core.dom.ASTMatcher;
-import org.eclipse.jdt.core.dom.Expression;
 import org.eclipse.jdt.debug.core.IJavaType;
 import org.eclipse.jdt.debug.core.IJavaValue;
+
+import codehint.ast.Expression;
 
 public class UntypedExpression {
 	
@@ -47,7 +47,7 @@ public class UntypedExpression {
 	public int hashCode() {
 		final int prime = 31;
 		int result = 1;
-		result = prime * result + ((expression == null) ? 0 : expression.toString().hashCode());  // Hash the toString not the expression (which uses the address)....
+		result = prime * result + ((expression == null) ? 0 : expression.hashCode());
 		return result;
 	}
 
@@ -65,8 +65,7 @@ public class UntypedExpression {
 			if (other.expression != null)
 				return false;
 		} else {
-			ASTMatcher astMatcher = new ASTMatcher();
-			if (!expression.subtreeMatch(astMatcher, other.expression))  // ASTNode.equals uses reference equality....
+			if (!expression.equals(other.expression))
 				return false;
 		}
 		return true;

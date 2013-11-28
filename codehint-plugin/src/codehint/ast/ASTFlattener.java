@@ -106,7 +106,7 @@ public abstract class ASTFlattener extends ASTVisitor {
 
 	protected void flatten(ClassInstanceCreation node, StringBuilder sb) {
 		sb.append("new ");
-		if (node.typeArguments().length > 0) {
+		if (node.typeArguments() != null && node.typeArguments().length > 0) {
 			sb.append("<");
 			doList(node.typeArguments(), sb);
 			sb.append(">");
@@ -154,7 +154,7 @@ public abstract class ASTFlattener extends ASTVisitor {
 			flatten(node.getExpression(), sb);
 			sb.append(".");
 		}
-		if (node.typeArguments().length > 0) {
+		if (node.typeArguments() != null && node.typeArguments().length > 0) {
 			sb.append("<");
 			doList(node.typeArguments(), sb);
 			sb.append(">");
@@ -215,7 +215,7 @@ public abstract class ASTFlattener extends ASTVisitor {
 			sb.append(".");
 		}
 		sb.append("super.");
-		if (node.typeArguments().length > 0) {
+		if (node.typeArguments() != null && node.typeArguments().length > 0) {
 			sb.append("<");
 			doList(node.typeArguments(), sb);
 			sb.append(">");
@@ -270,13 +270,15 @@ public abstract class ASTFlattener extends ASTVisitor {
 	}
 	
 	protected void doList(Expression[] children, StringBuilder sb) {
-        int iMax = children.length - 1;
-        for (int i = 0; ; i++) {
-            flatten(children[i], sb);
-            if (i == iMax)
-                break;
-            sb.append(",");
-        }
+		if (children.length > 0) {
+			int iMax = children.length - 1;
+			for (int i = 0; ; i++) {
+				flatten(children[i], sb);
+				if (i == iMax)
+					break;
+				sb.append(",");
+			}
+		}
 	}
 
 }

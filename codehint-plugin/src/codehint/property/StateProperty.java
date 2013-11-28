@@ -1,23 +1,25 @@
 package codehint.property;
 
+import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Set;
 
 import org.eclipse.debug.core.DebugException;
 import org.eclipse.jdt.core.compiler.IProblem;
 import org.eclipse.jdt.core.dom.AST;
-import org.eclipse.jdt.core.dom.ASTNode;
 import org.eclipse.jdt.core.dom.ASTParser;
-import org.eclipse.jdt.core.dom.ASTVisitor;
-import org.eclipse.jdt.core.dom.CompilationUnit;
-import org.eclipse.jdt.core.dom.Expression;
-import org.eclipse.jdt.core.dom.MethodInvocation;
-import org.eclipse.jdt.core.dom.SimpleName;
 import org.eclipse.jdt.debug.core.IJavaStackFrame;
 import org.eclipse.jdt.debug.eval.IAstEvaluationEngine;
 
+import codehint.ast.ASTConverter;
+import codehint.ast.ASTFlattener;
+import codehint.ast.ASTNode;
+import codehint.ast.ASTVisitor;
+import codehint.ast.CompilationUnit;
+import codehint.ast.Expression;
+import codehint.ast.MethodInvocation;
+import codehint.ast.SimpleName;
 import codehint.utils.EclipseUtils;
-import codehint.property.Property;
 
 /**
  * Note that variables without primes default to pre.
@@ -56,7 +58,7 @@ public class StateProperty extends Property {
 	
 	private static ASTNode rewritePrimeSyntax(String str) {
 		while (true) {
-			ASTNode node = EclipseUtils.parseExpr(parser, str);
+			ASTNode node = ASTConverter.parseExpr(parser, str);
 	    	if (node instanceof CompilationUnit) {
 	    		IProblem problem = ((CompilationUnit)node).getProblems()[0];
 	    		int problemStart = problem.getSourceStart();
@@ -135,10 +137,10 @@ public class StateProperty extends Property {
     	@Override
     	public boolean visit(MethodInvocation node) {
     		if (isPre(node) || isPost(node)) {
-	    		if (node.arguments().size() != 1)
-	    			error = "Call to " + node.getName() + " must take in only a variable, not " + node.arguments().toString();
-	    		else if (!(node.arguments().get(0) instanceof SimpleName))
-	    			error = "Call to " + node.getName() + " must take in only a variable, not " + node.arguments().get(0).toString();
+	    		if (node.arguments().length != 1)
+	    			error = "Call to " + node.getName() + " must take in only a variable, not " + Arrays.toString(node.arguments());
+	    		else if (!(node.arguments()[0] instanceof SimpleName))
+	    			error = "Call to " + node.getName() + " must take in only a variable, not " + node.arguments()[0].toString();
     		}
     		return true;
     	}
@@ -164,7 +166,7 @@ public class StateProperty extends Property {
 		@Override
     	public boolean visit(MethodInvocation node) {
     		if (isPre(node)) {
-	    		preVariables.add(((SimpleName)node.arguments().get(0)).getIdentifier());
+	    		preVariables.add(((SimpleName)node.arguments()[0]).getIdentifier());
 	    		return false;
     		}else if (isPost(node))
     			return false;
@@ -203,9 +205,9 @@ public class StateProperty extends Property {
 		@Override
     	protected void flatten(MethodInvocation node, StringBuilder sb) {
 			if (isPre(node)) {
-				sb.append(getRenamedVar(((SimpleName)node.arguments().get(0)).getIdentifier()));
+				sb.append(getRenamedVar(((SimpleName)node.arguments()[0]).getIdentifier()));
 			} else if (isPost(node)) {
-				String nodeId = ((SimpleName)node.arguments().get(0)).getIdentifier();
+				String nodeId = ((SimpleName)node.arguments()[0]).getIdentifier();
 				sb.append(nodeId.equals(lhs) ? arg : nodeId);
 			} else
 				super.flatten(node, sb);

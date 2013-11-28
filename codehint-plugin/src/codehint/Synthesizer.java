@@ -3,7 +3,6 @@ package codehint;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -26,15 +25,7 @@ import org.eclipse.debug.core.model.IBreakpoint;
 import org.eclipse.debug.core.model.IThread;
 import org.eclipse.debug.core.model.IVariable;
 import org.eclipse.jdt.core.dom.AST;
-import org.eclipse.jdt.core.dom.ASTNode;
 import org.eclipse.jdt.core.dom.ASTParser;
-import org.eclipse.jdt.core.dom.ArrayAccess;
-import org.eclipse.jdt.core.dom.Expression;
-import org.eclipse.jdt.core.dom.FieldAccess;
-import org.eclipse.jdt.core.dom.MethodInvocation;
-import org.eclipse.jdt.core.dom.NumberLiteral;
-import org.eclipse.jdt.core.dom.QualifiedName;
-import org.eclipse.jdt.core.dom.SimpleName;
 import org.eclipse.jdt.debug.core.IJavaArray;
 import org.eclipse.jdt.debug.core.IJavaDebugTarget;
 import org.eclipse.jdt.debug.core.IJavaObject;
@@ -52,6 +43,15 @@ import org.eclipse.swt.widgets.Shell;
 import org.eclipse.ui.preferences.ScopedPreferenceStore;
 import org.eclipse.ui.texteditor.ITextEditor;
 
+import codehint.ast.ASTConverter;
+import codehint.ast.ASTNode;
+import codehint.ast.ArrayAccess;
+import codehint.ast.Expression;
+import codehint.ast.FieldAccess;
+import codehint.ast.IntLiteral;
+import codehint.ast.MethodInvocation;
+import codehint.ast.QualifiedName;
+import codehint.ast.SimpleName;
 import codehint.dialogs.InitialSynthesisDialog;
 import codehint.dialogs.ObjectValuePropertyDialog;
 import codehint.dialogs.PrimitiveValuePropertyDialog;
@@ -59,15 +59,15 @@ import codehint.dialogs.PropertyDialog;
 import codehint.dialogs.RefinementSynthesisDialog;
 import codehint.dialogs.StatePropertyDialog;
 import codehint.dialogs.SynthesisDialog;
-import codehint.dialogs.TypePropertyDialog;
 import codehint.dialogs.SynthesisDialog.SynthesisState;
+import codehint.dialogs.TypePropertyDialog;
 import codehint.effects.SideEffectHandler;
 import codehint.expreval.EvaluationManager;
+import codehint.expreval.EvaluationManager.EvaluationError;
 import codehint.expreval.EvaluationManager.StopSynthesis;
+import codehint.expreval.FullyEvaluatedExpression;
 import codehint.expreval.NativeHandler;
 import codehint.expreval.TimeoutChecker;
-import codehint.expreval.EvaluationManager.EvaluationError;
-import codehint.expreval.FullyEvaluatedExpression;
 import codehint.exprgen.ExpressionGenerator;
 import codehint.exprgen.ExpressionMaker;
 import codehint.exprgen.ExpressionSkeleton;
@@ -547,7 +547,7 @@ public class Synthesizer {
 	    	
    			final String varname = matcher.group(2);
    			// TODO: Ensure lhsVar is always non-null by using JDIPlaceholderVariable if necessary?
-	    	final IJavaVariable lhsVar = varname != null ? getLHSVariable(EclipseUtils.parseExpr(parser, varname), frame) : null;
+	    	final IJavaVariable lhsVar = varname != null ? getLHSVariable(ASTConverter.parseExpr(parser, varname), frame) : null;
    			// This is the declared type while vartype is the type of the array.  The difference is that if the static type is a primitive, the array type is the wrapper class.
 	    	IJavaType varStaticType = lhsVar != null ? lhsVar.getJavaType() : null;
    			String varStaticTypeName = lhsVar != null ? EclipseUtils.sanitizeTypename(lhsVar.getReferenceTypeName()) : matcher.group(1);
@@ -559,11 +559,10 @@ public class Synthesizer {
    					typedExprs.add(new TypedExpression(e.getExpression(), e.getType()));
    			} else {
 	   			// Parse the expression.
-	   			ASTNode node = EclipseUtils.parseExpr(parser, matcher.group(3));
+	   			ASTNode node = ASTConverter.parseExpr(parser, matcher.group(3));
 	   			// Get the possible expressions in a generic list.
-	   			Iterator<?> it = ((MethodInvocation)node).arguments().iterator();
-	   			while (it.hasNext())
-	   				typedExprs.add(new TypedExpression((Expression)it.next(), varStaticType));
+	   			for (Expression expr: ((MethodInvocation)node).arguments())
+	   				typedExprs.add(new TypedExpression(expr, varStaticType));
    			}
         	assert typedExprs.size() > 0;  // We must have at least one expression.
 
@@ -808,8 +807,8 @@ public class Synthesizer {
 	    		return frame.findVariable(((SimpleName)curNode).getIdentifier());
 	    	else if (curNode instanceof ArrayAccess) {
 	    		ArrayAccess array = (ArrayAccess)curNode;
-	    		if (array.getIndex() instanceof NumberLiteral) {
-	    			int index = Integer.parseInt(((NumberLiteral)array.getIndex()).getToken());
+	    		if (array.getIndex() instanceof IntLiteral) {
+	    			int index = ((IntLiteral)array.getIndex()).getNumber();
 	    			IJavaVariable parentVar = getLHSVariable(array.getArray(), frame);
 	    			return (IJavaVariable)((IJavaArray)parentVar.getValue()).getVariable(index);
 	    		} else  // Non-constant index, so we can't do anything.

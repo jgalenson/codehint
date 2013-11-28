@@ -3,9 +3,9 @@ package codehint.expreval;
 import java.util.ArrayList;
 import java.util.List;
 
-import org.eclipse.jdt.core.dom.Expression;
 import org.eclipse.jdt.debug.core.IJavaType;
 
+import codehint.ast.Expression;
 import codehint.exprgen.Result;
 
 /**

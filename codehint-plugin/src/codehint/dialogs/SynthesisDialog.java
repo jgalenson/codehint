@@ -21,9 +21,6 @@ import org.eclipse.jdt.core.IMember;
 import org.eclipse.jdt.core.IMethod;
 import org.eclipse.jdt.core.ISourceRange;
 import org.eclipse.jdt.core.JavaModelException;
-import org.eclipse.jdt.core.dom.ASTNode;
-import org.eclipse.jdt.core.dom.ASTVisitor;
-import org.eclipse.jdt.core.dom.Expression;
 import org.eclipse.jdt.debug.core.IJavaArrayType;
 import org.eclipse.jdt.debug.core.IJavaDebugTarget;
 import org.eclipse.jdt.debug.core.IJavaPrimitiveValue;
@@ -102,12 +99,12 @@ import org.eclipse.ui.keys.IBindingService;
 import org.eclipse.ui.texteditor.ITextEditor;
 import org.eclipse.ui.texteditor.ITextEditorActionDefinitionIds;
 
-import com.sun.jdi.Field;
-import com.sun.jdi.Method;
-
 import codehint.Activator;
 import codehint.Synthesizer;
 import codehint.Synthesizer.SynthesisWorker;
+import codehint.ast.ASTNode;
+import codehint.ast.ASTVisitor;
+import codehint.ast.Expression;
 import codehint.effects.SideEffectHandler;
 import codehint.expreval.EvaluationManager;
 import codehint.expreval.FullyEvaluatedExpression;
@@ -124,6 +121,9 @@ import codehint.exprgen.ValueCache;
 import codehint.exprgen.Weights;
 import codehint.property.Property;
 import codehint.utils.EclipseUtils;
+
+import com.sun.jdi.Field;
+import com.sun.jdi.Method;
 
 public abstract class SynthesisDialog extends ModelessDialog {
 	
@@ -971,16 +971,14 @@ public abstract class SynthesisDialog extends ModelessDialog {
 	
 	private String getJavadoc(Expression expr, ExpressionMaker expressionMaker, boolean prettify) {
 		try {
-			Object idObj = ExpressionMaker.getIDOpt(expr);
-			if (idObj == null)
-				return null;
-			Method method = expressionMaker.getMethod((Integer)idObj);
+			int id = ExpressionMaker.getID(expr);
+			Method method = expressionMaker.getMethod(id);
 			if (method != null) {
 				IMethod imethod = EclipseUtils.getIMethod(method, project);
 				if (imethod != null)
 					return getJavadocFast(imethod, prettify);
 			}
-			Field field = expressionMaker.getField((Integer)idObj);
+			Field field = expressionMaker.getField(id);
 			if (field != null) {
 				IField ifield = EclipseUtils.getIField(field, project);
 				if (ifield != null)
