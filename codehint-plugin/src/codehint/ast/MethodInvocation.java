@@ -2,6 +2,8 @@ package codehint.ast;
 
 import java.util.Arrays;
 
+import org.eclipse.jdt.debug.core.IJavaType;
+
 import codehint.utils.Utils;
 
 public class MethodInvocation extends Expression {
@@ -11,15 +13,16 @@ public class MethodInvocation extends Expression {
 	private final Expression[] arguments;
 	private final Expression[] typeArguments;
 	
-	public MethodInvocation(Expression expression, SimpleName name, Expression[] arguments, Expression[] typeArguments) {
+	public MethodInvocation(IJavaType staticType, Expression expression, SimpleName name, Expression[] arguments, Expression[] typeArguments) {
+		super(staticType);
 		this.expression = expression;
 		this.name = name;
 		this.arguments = arguments;
 		this.typeArguments = typeArguments;
 	}
 	
-	public MethodInvocation(Expression expression, SimpleName name, Expression[] arguments) {
-		this(expression, name, arguments, null);
+	public MethodInvocation(IJavaType staticType, Expression expression, SimpleName name, Expression[] arguments) {
+		this(staticType, expression, name, arguments, null);
 	}
 
 	public Expression getExpression() {

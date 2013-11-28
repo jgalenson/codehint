@@ -1,5 +1,7 @@
 package codehint.ast;
 
+import org.eclipse.jdt.debug.core.IJavaType;
+
 public class Assignment extends Expression {
 	
 	public static class Operator {
@@ -35,7 +37,8 @@ public class Assignment extends Expression {
 	private final Operator operator; 
 	private final Expression rhs;
 	
-	public Assignment(Expression lhs, Operator operator, Expression rhs) {
+	public Assignment(IJavaType staticType, Expression lhs, Operator operator, Expression rhs) {
+		super(staticType);
 		this.lhs = lhs;
 		this.operator = operator;
 		this.rhs = rhs;

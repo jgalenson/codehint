@@ -87,6 +87,8 @@ public final class ASTConverter extends ASTVisitor {
 			return copy((org.eclipse.jdt.core.dom.InstanceofExpression)node);
 		} else if (node instanceof org.eclipse.jdt.core.dom.MethodInvocation) {
 			return copy((org.eclipse.jdt.core.dom.MethodInvocation)node);
+		} else if (node instanceof org.eclipse.jdt.core.dom.Name) {
+			return copy((org.eclipse.jdt.core.dom.Name)node);
 		} else if (node instanceof org.eclipse.jdt.core.dom.NullLiteral) {
 			return copy((org.eclipse.jdt.core.dom.NullLiteral)node);
 		} else if (node instanceof org.eclipse.jdt.core.dom.NumberLiteral) {
@@ -97,10 +99,6 @@ public final class ASTConverter extends ASTVisitor {
 			return copy((org.eclipse.jdt.core.dom.PostfixExpression)node);
 		} else if (node instanceof org.eclipse.jdt.core.dom.PrefixExpression) {
 			return copy((org.eclipse.jdt.core.dom.PrefixExpression)node);
-		} else if (node instanceof org.eclipse.jdt.core.dom.QualifiedName) {
-			return copy((org.eclipse.jdt.core.dom.QualifiedName)node);
-		} else if (node instanceof org.eclipse.jdt.core.dom.SimpleName) {
-			return copy((org.eclipse.jdt.core.dom.SimpleName)node);
 		} else if (node instanceof org.eclipse.jdt.core.dom.StringLiteral) {
 			return copy((org.eclipse.jdt.core.dom.StringLiteral)node);
 		} else if (node instanceof org.eclipse.jdt.core.dom.SuperFieldAccess) {
@@ -117,7 +115,7 @@ public final class ASTConverter extends ASTVisitor {
 			throw new RuntimeException("Unexpected expression type " + node.getClass().toString());
 	}
 	
-	private static Name copy(org.eclipse.jdt.core.dom.Name name) {
+	public static Name copy(org.eclipse.jdt.core.dom.Name name) {
 		if (name == null)
 			return null;
 		if (name instanceof org.eclipse.jdt.core.dom.SimpleName)
@@ -139,14 +137,14 @@ public final class ASTConverter extends ASTVisitor {
 		if (node == null)
 			return null;
 		else if (node instanceof org.eclipse.jdt.core.dom.SimpleType)
-			return new SimpleType(copy(((org.eclipse.jdt.core.dom.SimpleType)node).getName()));
+			return new SimpleType(null, copy(((org.eclipse.jdt.core.dom.SimpleType)node).getName()));
 		else if (node instanceof org.eclipse.jdt.core.dom.QualifiedType) {
 			org.eclipse.jdt.core.dom.QualifiedType type = (org.eclipse.jdt.core.dom.QualifiedType)node;
-			return new QualifiedType(copy(type.getQualifier()), copy(type.getName()));
+			return new QualifiedType(null, copy(type.getQualifier()), copy(type.getName()));
 		} else if (node instanceof org.eclipse.jdt.core.dom.ArrayType) {
-			return new ArrayType(copy(((org.eclipse.jdt.core.dom.ArrayType)node).getComponentType()));
+			return new ArrayType(null, copy(((org.eclipse.jdt.core.dom.ArrayType)node).getComponentType()));
 		} else if (node instanceof org.eclipse.jdt.core.dom.PrimitiveType) {
-			return new PrimitiveType(copy(((org.eclipse.jdt.core.dom.PrimitiveType)node).getPrimitiveTypeCode()));
+			return new PrimitiveType(null, copy(((org.eclipse.jdt.core.dom.PrimitiveType)node).getPrimitiveTypeCode()));
 		} else
 			throw new RuntimeException("Unexpected expression type " + node.getClass().toString());
 	}
@@ -174,11 +172,11 @@ public final class ASTConverter extends ASTVisitor {
 	}
 	
 	private static ArrayAccess copy(org.eclipse.jdt.core.dom.ArrayAccess node) {
-		return new ArrayAccess(copy(node.getArray()), copy(node.getIndex()));
+		return new ArrayAccess(null, copy(node.getArray()), copy(node.getIndex()));
 	}
 
 	private static BooleanLiteral copy(org.eclipse.jdt.core.dom.BooleanLiteral node) {
-		return new BooleanLiteral(node.booleanValue());
+		return new BooleanLiteral(null, node.booleanValue());
 	}
 
 	private static CastExpression copy(org.eclipse.jdt.core.dom.CastExpression node) {
@@ -186,7 +184,7 @@ public final class ASTConverter extends ASTVisitor {
 	}
 
 	private static CharacterLiteral copy(org.eclipse.jdt.core.dom.CharacterLiteral node) {
-		return new CharacterLiteral(node.charValue());
+		return new CharacterLiteral(null, node.charValue());
 	}
 
 	private static ClassInstanceCreation copy(org.eclipse.jdt.core.dom.ClassInstanceCreation node) {
@@ -194,18 +192,18 @@ public final class ASTConverter extends ASTVisitor {
 	}
 
 	private static ConditionalExpression copy(org.eclipse.jdt.core.dom.ConditionalExpression node) {
-		return new ConditionalExpression(copy(node.getExpression()), copy(node.getThenExpression()), copy(node.getElseExpression()));
+		return new ConditionalExpression(null, copy(node.getExpression()), copy(node.getThenExpression()), copy(node.getElseExpression()));
 	}
 
 	private static FieldAccess copy(org.eclipse.jdt.core.dom.FieldAccess node) {
-		return new FieldAccess(copy(node.getExpression()), copy(node.getName()));
+		return new FieldAccess(null, copy(node.getExpression()), copy(node.getName()));
 	}
 
 	private static InfixExpression copy(org.eclipse.jdt.core.dom.InfixExpression node) {
-		return new InfixExpression(copy(node.getLeftOperand()), copy(node.getOperator()), copy(node.getRightOperand()));
+		return new InfixExpression(null, copy(node.getLeftOperand()), copy(node.getOperator()), copy(node.getRightOperand()));
 	}
 	
-	private static InfixExpression.Operator copy(org.eclipse.jdt.core.dom.InfixExpression.Operator node) {
+	public static InfixExpression.Operator copy(org.eclipse.jdt.core.dom.InfixExpression.Operator node) {
 		if (node == org.eclipse.jdt.core.dom.InfixExpression.Operator.TIMES)
 			return InfixExpression.Operator.TIMES;
 		if (node == org.eclipse.jdt.core.dom.InfixExpression.Operator.DIVIDE)
@@ -248,11 +246,11 @@ public final class ASTConverter extends ASTVisitor {
 	}
 
 	private static InstanceofExpression copy(org.eclipse.jdt.core.dom.InstanceofExpression node) {
-		return new InstanceofExpression(copy(node.getLeftOperand()), copy(node.getRightOperand()));
+		return new InstanceofExpression(null, copy(node.getLeftOperand()), copy(node.getRightOperand()));
 	}
 
 	private static MethodInvocation copy(org.eclipse.jdt.core.dom.MethodInvocation node) {
-		return new MethodInvocation(copy(node.getExpression()), copy(node.getName()), copyList(node.arguments()));
+		return new MethodInvocation(null, copy(node.getExpression()), copy(node.getName()), copyList(node.arguments()));
 	}
 
 	private static NullLiteral copy(@SuppressWarnings("unused") org.eclipse.jdt.core.dom.NullLiteral node) {
@@ -264,13 +262,13 @@ public final class ASTConverter extends ASTVisitor {
 		int lastChar = str.charAt(str.length() - 1);
 		// Rules taken from: http://docs.oracle.com/javase/tutorial/java/nutsandbolts/datatypes.html.
 		if (lastChar == 'l' || lastChar == 'L')
-			return new LongLiteral(Long.parseLong(str));
+			return new LongLiteral(null, Long.parseLong(str));
 		else if (lastChar == 'f' || lastChar == 'F')
-			return new FloatLiteral(Float.parseFloat(str));
+			return new FloatLiteral(null, Float.parseFloat(str));
 		else if (lastChar == 'd' || lastChar == 'D')
-			return new DoubleLiteral(Double.parseDouble(str));
+			return new DoubleLiteral(null, Double.parseDouble(str));
 		else
-			return new IntLiteral(Integer.parseInt(str));
+			return new IntLiteral(null, Integer.parseInt(str));
 	}
 
 	private static ParenthesizedExpression copy(org.eclipse.jdt.core.dom.ParenthesizedExpression node) {
@@ -281,7 +279,7 @@ public final class ASTConverter extends ASTVisitor {
 		return new PostfixExpression(copy(node.getOperand()), copy(node.getOperator()));
 	}
 	
-	private static PostfixExpression.Operator copy(org.eclipse.jdt.core.dom.PostfixExpression.Operator node) {
+	public static PostfixExpression.Operator copy(org.eclipse.jdt.core.dom.PostfixExpression.Operator node) {
 		if (node == org.eclipse.jdt.core.dom.PostfixExpression.Operator.INCREMENT)
 			return PostfixExpression.Operator.INCREMENT;
 		if (node == org.eclipse.jdt.core.dom.PostfixExpression.Operator.DECREMENT)
@@ -293,7 +291,7 @@ public final class ASTConverter extends ASTVisitor {
 		return new PrefixExpression(copy(node.getOperator()), copy(node.getOperand()));
 	}
 	
-	private static PrefixExpression.Operator copy(org.eclipse.jdt.core.dom.PrefixExpression.Operator node) {
+	public static PrefixExpression.Operator copy(org.eclipse.jdt.core.dom.PrefixExpression.Operator node) {
 		if (node == org.eclipse.jdt.core.dom.PrefixExpression.Operator.INCREMENT)
 			return PrefixExpression.Operator.INCREMENT;
 		if (node == org.eclipse.jdt.core.dom.PrefixExpression.Operator.DECREMENT)
@@ -310,27 +308,27 @@ public final class ASTConverter extends ASTVisitor {
 	}
 
 	private static QualifiedName copy(org.eclipse.jdt.core.dom.QualifiedName node) {
-		return new QualifiedName(copy(node.getQualifier()), copy(node.getName()));
+		return new QualifiedName(null, copy(node.getQualifier()), copy(node.getName()));
 	}
 
 	private static SimpleName copy(org.eclipse.jdt.core.dom.SimpleName node) {
-		return new SimpleName(node.getIdentifier());
+		return new SimpleName(null, node.getIdentifier());
 	}
 
 	private static StringLiteral copy(org.eclipse.jdt.core.dom.StringLiteral node) {
-		return new StringLiteral(node.getLiteralValue());
+		return new StringLiteral(null, node.getLiteralValue());
 	}
 
 	private static SuperFieldAccess copy(org.eclipse.jdt.core.dom.SuperFieldAccess node) {
-		return new SuperFieldAccess(copy(node.getQualifier()), copy(node.getName()));
+		return new SuperFieldAccess(null, copy(node.getQualifier()), copy(node.getName()));
 	}
 
 	private static SuperMethodInvocation copy(org.eclipse.jdt.core.dom.SuperMethodInvocation node) {
-		return new SuperMethodInvocation(copy(node.getQualifier()), copy(node.getName()), copyList(node.arguments()));
+		return new SuperMethodInvocation(null, copy(node.getQualifier()), copy(node.getName()), copyList(node.arguments()));
 	}
 
 	private static ThisExpression copy(org.eclipse.jdt.core.dom.ThisExpression node) {
-		return new ThisExpression(copy(node.getQualifier()));
+		return new ThisExpression(null, copy(node.getQualifier()));
 	}
 
 	private static TypeLiteral copy(org.eclipse.jdt.core.dom.TypeLiteral node) {
@@ -338,7 +336,7 @@ public final class ASTConverter extends ASTVisitor {
 	}
 
 	private static Assignment copy(org.eclipse.jdt.core.dom.Assignment node) {
-		return new Assignment(copy(node.getLeftHandSide()), copy(node.getOperator()), copy(node.getRightHandSide()));
+		return new Assignment(null, copy(node.getLeftHandSide()), copy(node.getOperator()), copy(node.getRightHandSide()));
 	}
 	
 	private static Assignment.Operator copy(org.eclipse.jdt.core.dom.Assignment.Operator node) {

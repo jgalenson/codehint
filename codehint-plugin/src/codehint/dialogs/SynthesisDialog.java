@@ -1253,8 +1253,8 @@ public abstract class SynthesisDialog extends ModelessDialog {
 		}
     }
     
-    private static String getToStringLabel(FullyEvaluatedExpression e) {
-    	return e.getResultString();
+    private String getToStringLabel(FullyEvaluatedExpression e) {
+    	return expressionMaker.getResultString(e.getExpression());
     }
     
     private static String getEffectsLabel(FullyEvaluatedExpression e) {
@@ -1375,7 +1375,7 @@ public abstract class SynthesisDialog extends ModelessDialog {
 				for (String filterWord: filterWords) {
 					if (exprString.contains(filterWord))
 						continue;
-					if (expr.getResultString().toLowerCase().contains(filterWord))
+					if (expressionMaker.getResultString(expr.getExpression()).toLowerCase().contains(filterWord))
 						continue;
 					if (!readJavadocs) {  // Lazily initialize for efficiency.
 						javadocs = getJavadocs(expr.getExpression(), expressionMaker, false);

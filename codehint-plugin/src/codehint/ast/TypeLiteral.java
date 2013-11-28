@@ -5,6 +5,7 @@ public class TypeLiteral extends Expression {
 	private final Type type;
 
 	public TypeLiteral(Type type) {
+		super(type.getStaticType());
 		this.type = type;
 	}
 

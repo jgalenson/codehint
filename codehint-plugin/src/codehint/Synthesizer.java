@@ -137,7 +137,7 @@ public class Synthesizer {
 	        } else if (finalExpressions.isEmpty())
 				return;
 			
-			List<String> validExpressionStrings = FullyEvaluatedExpression.snippetsOfEvaluatedExpressions(finalExpressions);
+			List<String> validExpressionStrings = snippetsOfEvaluatedExpressions(finalExpressions);
 			
 			//Construct the textual line to insert.  Working in text seems easier than
 			// using the AST manipulators for now, but this may need revisited later.  
@@ -561,8 +561,10 @@ public class Synthesizer {
 	   			// Parse the expression.
 	   			ASTNode node = ASTConverter.parseExpr(parser, matcher.group(3));
 	   			// Get the possible expressions in a generic list.
-	   			for (Expression expr: ((MethodInvocation)node).arguments())
+	   			for (Expression expr: ((MethodInvocation)node).arguments()) {
+	   				expr.setStaticType(varStaticType);
 	   				typedExprs.add(new TypedExpression(expr, varStaticType));
+	   			}
    			}
         	assert typedExprs.size() > 0;  // We must have at least one expression.
 
@@ -686,7 +688,7 @@ public class Synthesizer {
 	     * @return
 	     */
 		private static String rewriteLine(Matcher matcher, String varname, String curLine, Property property, ArrayList<FullyEvaluatedExpression> validExprs, final int lineNumber) {
-			List<String> newExprsStrs = FullyEvaluatedExpression.snippetsOfEvaluatedExpressions(validExprs);
+			List<String> newExprsStrs = snippetsOfEvaluatedExpressions(validExprs);
 			String varDeclaration = matcher.group(1) != null ? matcher.group(1) + " " : "";
 			final String newLine = varDeclaration + generateChooseOrChosenStmt(varname, newExprsStrs);
 			// If we don't execute this on the UI thread we get an exception, although it still works.
@@ -918,5 +920,17 @@ public class Synthesizer {
     public static ExpressionMaker.Metadata getMetadata() {
     	return metadata;
     }
+	
+	/**
+	 * Gets a list of the snippets of the given evaluated expressions.
+	 * @param results List of evaluated expressions.
+	 * @return The snippets of the given evaluated expressions.
+	 */
+	private static List<String> snippetsOfEvaluatedExpressions(List<FullyEvaluatedExpression> results) {
+		List<String> resultStrs = new ArrayList<String>(results.size());
+		for (FullyEvaluatedExpression result : results)
+			resultStrs.add(result.getSnippet());
+		return resultStrs;
+	}
 
 }

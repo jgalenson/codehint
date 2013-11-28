@@ -5,7 +5,7 @@ public class NullLiteral extends Expression {
 	private static NullLiteral nullLiteral = new NullLiteral();
 	
 	private NullLiteral() {
-		
+		super(null);
 	}
 	
 	public static NullLiteral getNullLiteral() {

@@ -5,6 +5,7 @@ public class ParenthesizedExpression extends Expression {
 	private final Expression expression;
 
 	public ParenthesizedExpression(Expression expression) {
+		super(expression.getStaticType());
 		this.expression = expression;
 	}
 

@@ -1,11 +1,14 @@
 package codehint.ast;
 
+import org.eclipse.jdt.debug.core.IJavaType;
+
 public class ArrayAccess extends Expression {
 	
 	private final Expression array;
 	private final Expression index;
 	
-	public ArrayAccess(Expression array, Expression index) {
+	public ArrayAccess(IJavaType staticType, Expression array, Expression index) {
+		super(staticType);
 		this.array = array;
 		this.index = index;
 	}

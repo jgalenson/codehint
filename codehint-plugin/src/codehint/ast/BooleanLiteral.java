@@ -1,10 +1,13 @@
 package codehint.ast;
 
+import org.eclipse.jdt.debug.core.IJavaType;
+
 public class BooleanLiteral extends Expression {
 	
 	private final boolean value;
 
-	public BooleanLiteral(boolean value) {
+	public BooleanLiteral(IJavaType staticType, boolean value) {
+		super(staticType);
 		this.value = value;
 	}
 

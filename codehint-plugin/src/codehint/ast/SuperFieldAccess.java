@@ -1,11 +1,14 @@
 package codehint.ast;
 
-public class SuperFieldAccess extends Name {
+import org.eclipse.jdt.debug.core.IJavaType;
+
+public class SuperFieldAccess extends Expression {
 	
 	private final Name qualifier;
 	private final SimpleName name;
 	
-	public SuperFieldAccess(Name qualifier, SimpleName name) {
+	public SuperFieldAccess(IJavaType staticType, Name qualifier, SimpleName name) {
+		super(staticType);
 		this.qualifier = qualifier;
 		this.name = name;
 	}

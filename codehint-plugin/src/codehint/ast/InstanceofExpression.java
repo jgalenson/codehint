@@ -1,11 +1,14 @@
 package codehint.ast;
 
+import org.eclipse.jdt.debug.core.IJavaType;
+
 public class InstanceofExpression extends Expression {
 	
 	private final Expression lhs;
 	private final Type rhs;
 	
-	public InstanceofExpression(Expression lhs, Type rhs) {
+	public InstanceofExpression(IJavaType staticType, Expression lhs, Type rhs) {
+		super(staticType);
 		this.lhs = lhs;
 		this.rhs = rhs;
 	}

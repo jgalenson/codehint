@@ -1,5 +1,7 @@
 package codehint.ast;
 
+import org.eclipse.jdt.debug.core.IJavaType;
+
 public final class PrimitiveType extends Type {
 	
 	public static class Code {
@@ -29,7 +31,8 @@ public final class PrimitiveType extends Type {
 	
 	private final Code code;
 
-	public PrimitiveType(Code code) {
+	public PrimitiveType(IJavaType staticType, Code code) {
+		super(staticType);
 		this.code = code;
 	}
 

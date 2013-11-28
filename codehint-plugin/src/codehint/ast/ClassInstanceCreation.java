@@ -12,6 +12,7 @@ public class ClassInstanceCreation extends Expression {
 	private final Expression[] typeArguments;
 	
 	public ClassInstanceCreation(Expression expression, Type type, Expression[] arguments, Expression[] typeArguments) {
+		super(type.getStaticType());
 		this.expression = expression;
 		this.type = type;
 		this.arguments = arguments;

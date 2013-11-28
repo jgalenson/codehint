@@ -14,11 +14,15 @@ public class TypedExpression extends UntypedExpression {
 	public TypedExpression(Expression expression, IJavaType type) {
 		super(expression);
 		this.type = type;
+		if ((type == null && expression.getStaticType() != null) || (type != null && !type.equals(expression.getStaticType())))
+			throw new RuntimeException(expression.toString() + ":  " + type + "    " + expression.getStaticType());
 	}
 	
 	@Override
 	public IJavaType getType() {
-		return type;
+		if ((type == null && expression.getStaticType() != null) || (type != null && !type.equals(expression.getStaticType())))
+			throw new RuntimeException(expression.toString() + ":  " + type + "    " + expression.getStaticType());
+		return expression.getStaticType();
 	}
 	
 }

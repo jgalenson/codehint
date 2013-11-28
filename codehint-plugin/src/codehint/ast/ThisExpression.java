@@ -1,15 +1,18 @@
 package codehint.ast;
 
+import org.eclipse.jdt.debug.core.IJavaType;
+
 public class ThisExpression extends Expression {
 	
 	private final Name qualifier;
 
-	public ThisExpression(Name qualifier) {
+	public ThisExpression(IJavaType staticType, Name qualifier) {
+		super(staticType);
 		this.qualifier = qualifier;
 	}
 	
-	public ThisExpression() {
-		this(null);
+	public ThisExpression(IJavaType staticType) {
+		this(staticType, null);
 	}
 
 	public Name getQualifier() {

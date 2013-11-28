@@ -2,6 +2,8 @@ package codehint.ast;
 
 import java.util.Arrays;
 
+import org.eclipse.jdt.debug.core.IJavaType;
+
 import codehint.utils.Utils;
 
 public class SuperMethodInvocation extends Expression {
@@ -11,15 +13,16 @@ public class SuperMethodInvocation extends Expression {
 	private final Expression[] arguments;
 	private final Expression[] typeArguments;
 	
-	public SuperMethodInvocation(Name qualifier, SimpleName name, Expression[] arguments, Expression[] typeArguments) {
+	public SuperMethodInvocation(IJavaType staticType, Name qualifier, SimpleName name, Expression[] arguments, Expression[] typeArguments) {
+		super(staticType);
 		this.qualifier = qualifier;
 		this.name = name;
 		this.arguments = arguments;
 		this.typeArguments = typeArguments;
 	}
 	
-	public SuperMethodInvocation(Name qualifier, SimpleName name, Expression[] arguments) {
-		this(qualifier, name, arguments, null);
+	public SuperMethodInvocation(IJavaType staticType, Name qualifier, SimpleName name, Expression[] arguments) {
+		this(staticType, qualifier, name, arguments, null);
 	}
 	
 	public Name getQualifier() {

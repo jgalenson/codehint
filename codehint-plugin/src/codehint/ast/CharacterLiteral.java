@@ -1,12 +1,15 @@
 package codehint.ast;
 
+import org.eclipse.jdt.debug.core.IJavaType;
+
 import codehint.utils.Utils;
 
 public class CharacterLiteral extends Expression {
 	
 	private final char ch;
 	
-	public CharacterLiteral(char ch) {
+	public CharacterLiteral(IJavaType staticType, char ch) {
+		super(staticType);
 		this.ch = ch;
 	}
 	

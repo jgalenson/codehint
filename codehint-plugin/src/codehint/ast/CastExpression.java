@@ -6,6 +6,7 @@ public class CastExpression extends Expression {
 	private final Expression expression;
 	
 	public CastExpression(Type type, Expression expression) {
+		super(type.getStaticType());
 		this.type = type;
 		this.expression = expression;
 	}

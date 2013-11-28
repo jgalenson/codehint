@@ -1,10 +1,13 @@
 package codehint.ast;
 
+import org.eclipse.jdt.debug.core.IJavaType;
+
 public class LongLiteral extends NumberLiteral {
 	
 	private final long number;
 	
-	public LongLiteral(long n) {
+	public LongLiteral(IJavaType staticType, long n) {
+		super(staticType);
 		this.number = n;
 	}
 

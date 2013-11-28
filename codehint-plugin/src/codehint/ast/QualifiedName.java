@@ -1,11 +1,14 @@
 package codehint.ast;
 
+import org.eclipse.jdt.debug.core.IJavaType;
+
 public class QualifiedName extends Name {
 	
 	private final Name qualifier;
 	private final SimpleName name;
 	
-	public QualifiedName(Name qualifier, SimpleName name) {
+	public QualifiedName(IJavaType staticType, Name qualifier, SimpleName name) {
+		super(staticType);
 		this.qualifier = qualifier;
 		this.name = name;
 	}

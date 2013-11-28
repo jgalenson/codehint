@@ -1,10 +1,13 @@
 package codehint.ast;
 
+import org.eclipse.jdt.debug.core.IJavaType;
+
 public class IntLiteral extends NumberLiteral {
 	
 	private final int number;
 	
-	public IntLiteral(int n) {
+	public IntLiteral(IJavaType staticType, int n) {
+		super(staticType);
 		this.number = n;
 	}
 

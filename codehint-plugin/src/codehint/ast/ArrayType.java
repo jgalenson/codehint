@@ -1,10 +1,13 @@
 package codehint.ast;
 
+import org.eclipse.jdt.debug.core.IJavaType;
+
 public class ArrayType extends Type {
 	
 	private final Type componentType;
 
-	public ArrayType(Type type) {
+	public ArrayType(IJavaType staticType, Type type) {
+		super(staticType);
 		this.componentType = type;
 	}
 

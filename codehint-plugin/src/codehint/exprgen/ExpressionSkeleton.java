@@ -30,38 +30,38 @@ import org.eclipse.jdt.debug.core.IJavaVariable;
 import org.eclipse.jdt.debug.eval.IAstEvaluationEngine;
 
 import codehint.DataCollector;
+
+import org.eclipse.jdt.core.dom.ASTNode;
+import org.eclipse.jdt.core.dom.ASTVisitor;
+import org.eclipse.jdt.core.dom.ArrayAccess;
+import org.eclipse.jdt.core.dom.BooleanLiteral;
+import org.eclipse.jdt.core.dom.CastExpression;
+import org.eclipse.jdt.core.dom.CharacterLiteral;
+import org.eclipse.jdt.core.dom.ClassInstanceCreation;
+import org.eclipse.jdt.core.dom.CompilationUnit;
+import org.eclipse.jdt.core.dom.ConditionalExpression;
+import org.eclipse.jdt.core.dom.Expression;
+import org.eclipse.jdt.core.dom.FieldAccess;
+import org.eclipse.jdt.core.dom.InfixExpression;
+import org.eclipse.jdt.core.dom.InstanceofExpression;
+import org.eclipse.jdt.core.dom.MethodInvocation;
+import org.eclipse.jdt.core.dom.Name;
+import org.eclipse.jdt.core.dom.NullLiteral;
+import org.eclipse.jdt.core.dom.NumberLiteral;
+import org.eclipse.jdt.core.dom.ParenthesizedExpression;
+import org.eclipse.jdt.core.dom.PostfixExpression;
+import org.eclipse.jdt.core.dom.PrefixExpression;
+import org.eclipse.jdt.core.dom.QualifiedName;
+import org.eclipse.jdt.core.dom.SimpleName;
+import org.eclipse.jdt.core.dom.StringLiteral;
+import org.eclipse.jdt.core.dom.SuperFieldAccess;
+import org.eclipse.jdt.core.dom.SuperMethodInvocation;
+import org.eclipse.jdt.core.dom.ThisExpression;
+import org.eclipse.jdt.core.dom.TypeLiteral;
+
 import codehint.ast.ASTConverter;
-import codehint.ast.ASTNode;
-import codehint.ast.ArrayAccess;
-import codehint.ast.BooleanLiteral;
-import codehint.ast.CastExpression;
-import codehint.ast.CharacterLiteral;
-import codehint.ast.ClassInstanceCreation;
-import codehint.ast.CompilationUnit;
-import codehint.ast.ConditionalExpression;
-import codehint.ast.DoubleLiteral;
-import codehint.ast.Expression;
-import codehint.ast.FieldAccess;
-import codehint.ast.FloatLiteral;
-import codehint.ast.InfixExpression;
-import codehint.ast.InstanceofExpression;
-import codehint.ast.IntLiteral;
-import codehint.ast.LongLiteral;
-import codehint.ast.MethodInvocation;
-import codehint.ast.Name;
-import codehint.ast.NullLiteral;
-import codehint.ast.ParentASTVisitor;
-import codehint.ast.ParenthesizedExpression;
-import codehint.ast.PostfixExpression;
-import codehint.ast.PrefixExpression;
-import codehint.ast.QualifiedName;
-import codehint.ast.SimpleName;
-import codehint.ast.StringLiteral;
-import codehint.ast.SuperFieldAccess;
-import codehint.ast.SuperMethodInvocation;
-import codehint.ast.ThisExpression;
-import codehint.ast.TypeLiteral;
 import codehint.dialogs.SynthesisDialog;
+import codehint.effects.Effect;
 import codehint.effects.SideEffectHandler;
 import codehint.expreval.EvaluatedExpression;
 import codehint.expreval.EvaluationManager;
@@ -250,7 +250,7 @@ public final class ExpressionSkeleton {
 						break;
 				}
 			}
-			ASTNode node = ASTConverter.parseExpr(parser, str);
+			ASTNode node = EclipseUtils.parseExpr(parser, str);
 			if (node instanceof CompilationUnit)
 				throw new ParserError("Enter a valid skeleton: " + ((CompilationUnit)node).getProblems()[0].getMessage());
 			return (Expression)node;
@@ -351,7 +351,7 @@ public final class ExpressionSkeleton {
 			ArrayList<String> args = null;
 			if (argsStr != null) {
 				// Ensure the argument string parses
-				ASTNode node = ASTConverter.parseExpr(parser, DESUGARED_HOLE_NAME + "(" + argsStr + ")");
+				ASTNode node = EclipseUtils.parseExpr(parser, DESUGARED_HOLE_NAME + "(" + argsStr + ")");
 				if (node instanceof MethodInvocation) {
 					// Ensure the individual arguments type check.
 					// We do this by pretending to use the arguments list to initialize an array of Objects.
@@ -361,10 +361,10 @@ public final class ExpressionSkeleton {
 					if (error != null)
 						throw new ParserError(error);
 					// Add the arguments.
-					Expression[] untypedArgs = ((MethodInvocation)node).arguments();
-					args = new ArrayList<String>(untypedArgs.length);
-					for (Expression arg: untypedArgs)
-						args.add(arg.toString());
+					List<?> untypedArgs = ((MethodInvocation)node).arguments();
+					args = new ArrayList<String>(untypedArgs.size());
+					for (int i = 0; i < untypedArgs.size(); i++)
+						args.add(((Expression)untypedArgs.get(i)).toString());
 				} else
 					throw new ParserError(((CompilationUnit)node).getProblems()[0].getMessage());
 			}
@@ -438,7 +438,9 @@ public final class ExpressionSkeleton {
 				if (holeInfos.isEmpty()) {
 					SkeletonFiller filler = new SkeletonFiller(extraDepth, searchConstructors, searchOperators, holeInfos, stack, target, expressionMaker, evalManager, staticEvaluator, expressionGenerator, sideEffectHandler, subtypeChecker, typeCache, valueCache, monitor);
 					exprs = new ArrayList<TypedExpression>(1);
-					exprs.add(new TypedExpression(expression, filler.getType(expression, typeConstraint)));
+					codehint.ast.Expression expr = ASTConverter.copy(expression);
+					expr.setStaticType(filler.getType(expression, typeConstraint));
+					exprs.add(new TypedExpression(expr, expr.getStaticType()));
 				} else {
 					monitor.beginTask("Skeleton generation", IProgressMonitor.UNKNOWN);
 					exprs = SkeletonFiller.fillSkeleton(expression, typeConstraint, extraDepth, searchConstructors, searchOperators, holeInfos, stack, target, expressionMaker, evalManager, staticEvaluator, expressionGenerator, sideEffectHandler, subtypeChecker, typeCache, valueCache, monitor);
@@ -485,7 +487,7 @@ public final class ExpressionSkeleton {
 	/**
 	 * A class that computes the parents of holes.
 	 */
-	private static class HoleParentSetter extends ParentASTVisitor {
+	private static class HoleParentSetter extends ASTVisitor {
 
 		private final Map<String, HoleInfo> holeInfos;
 		private final Set<ASTNode> parentsOfHoles;
@@ -509,13 +511,9 @@ public final class ExpressionSkeleton {
 
     	@Override
     	public boolean visit(SimpleName node) {
-    		if (holeInfos.containsKey(node.getIdentifier()))
-    			for (int i = parents.size() - 1; i >= 0; i--) {
-    				ASTNode parent = parents.get(i);
-    				if (!(parent instanceof Expression))
-    					break;
-    				parentsOfHoles.add(parent);
-    			}
+     		if (holeInfos.containsKey(node.getIdentifier()))
+     			for (ASTNode cur = node; cur != null && cur instanceof Expression; cur = cur.getParent())
+     				parentsOfHoles.add(cur);
     		return true;
     	}
 		
@@ -683,29 +681,13 @@ public final class ExpressionSkeleton {
 				return fillClassInstanceCreation(node, parentsOfHoles);
 			} else if (node instanceof ConditionalExpression) {
 				return fillConditionalExpression(node, curConstraint, parentsOfHoles);
-			} else if (node instanceof DoubleLiteral) {
-				IJavaType type = EclipseUtils.getFullyQualifiedType("double", stack, target, typeCache);
-				double value = ((DoubleLiteral)node).getNumber();
- 				return new ExpressionsAndTypeConstraints(expressionMaker.makeDouble(value, target.newValue(value), type, valueCache, thread), new SupertypeBound(type));
 			} else if (node instanceof FieldAccess) {
 				FieldAccess fieldAccess = (FieldAccess)node;
 				return fillNormalField(fieldAccess.getExpression(), fieldAccess.getName(), parentsOfHoles, curConstraint);
-			} else if (node instanceof FloatLiteral) {
-				IJavaType type = EclipseUtils.getFullyQualifiedType("float", stack, target, typeCache);
-				float value = ((FloatLiteral)node).getNumber();
- 				return new ExpressionsAndTypeConstraints(expressionMaker.makeFloat(value, target.newValue(value), type, valueCache, thread), new SupertypeBound(type));
 			} else if (node instanceof InfixExpression) {
 				return fillInfixExpression(node, curConstraint, parentsOfHoles);
 			} else if (node instanceof InstanceofExpression) {
 				return fillInstanceof((InstanceofExpression)node, parentsOfHoles);
-			} else if (node instanceof IntLiteral) {
-				IJavaType type = EclipseUtils.getFullyQualifiedType("int", stack, target, typeCache);
-				int value = ((IntLiteral)node).getNumber();
- 				return new ExpressionsAndTypeConstraints(expressionMaker.makeInt(value, target.newValue(value), type, valueCache, thread), new SupertypeBound(type));
-			} else if (node instanceof LongLiteral) {
-				IJavaType type = EclipseUtils.getFullyQualifiedType("long", stack, target, typeCache);
-				long value = ((LongLiteral)node).getNumber();
- 				return new ExpressionsAndTypeConstraints(expressionMaker.makeLong(value, target.newValue(value), type, valueCache, thread), new SupertypeBound(type));
 			} else if (node instanceof MethodInvocation) {
 				MethodInvocation call = (MethodInvocation)node;
 				ArrayList<TypeConstraint> argTypes = getArgTypes(call.arguments(), parentsOfHoles);
@@ -718,6 +700,8 @@ public final class ExpressionSkeleton {
 				return fillMethod(call, call.getName(), call.arguments(), parentsOfHoles, curConstraint, argTypes, receiverResult);
 			} else if (node instanceof NullLiteral) {
 	    		return new ExpressionsAndTypeConstraints(expressionMaker.makeNull(target, valueCache, thread), new SupertypeBound(null));
+			} else if (node instanceof NumberLiteral) {
+				return fillNumberLiteral(node, valueCache, thread);
 			} else if (node instanceof ParenthesizedExpression) {
 				return fillParenthesized((ParenthesizedExpression)node, curConstraint, parentsOfHoles);
 			} else if (node instanceof PostfixExpression) {
@@ -884,6 +868,7 @@ public final class ExpressionSkeleton {
 		private ExpressionsAndTypeConstraints fillInfixExpression(Expression node, TypeConstraint curConstraint, Set<ASTNode> parentsOfHoles) {
 			try {
 				InfixExpression infix = (InfixExpression)node;
+				codehint.ast.InfixExpression.Operator operator = ASTConverter.copy(infix.getOperator());
 				boolean isBooleanResult = infix.getOperator() == InfixExpression.Operator.CONDITIONAL_AND || infix.getOperator() == InfixExpression.Operator.CONDITIONAL_OR || infix.getOperator() == InfixExpression.Operator.EQUALS || infix.getOperator() == InfixExpression.Operator.NOT_EQUALS || infix.getOperator() == InfixExpression.Operator.LESS || infix.getOperator() == InfixExpression.Operator.LESS_EQUALS || infix.getOperator() == InfixExpression.Operator.GREATER || infix.getOperator() == InfixExpression.Operator.GREATER_EQUALS;
 				if (isBooleanResult && !curConstraint.isFulfilledBy(booleanType, subtypeChecker, typeCache, stack, target))
 					throw new TypeError("Incorrectly-typed operator " + infix.getOperator() + " returns a boolean");
@@ -912,7 +897,7 @@ public final class ExpressionSkeleton {
 									for (TypedExpression rightExpr: rightExprs.getValue())
 										if (leftExpr.getValue() == null || !leftExpr.getValue().isNull() || rightExpr.getValue() == null || !rightExpr.getValue().isNull()) {  // TODO: These two checks should be part of my constraint when I search for the child holes above.
 											IJavaType resultType = isBooleanResult ? booleanType : leftExpr.getValue() == null || !leftExpr.getValue().isNull() ? leftExpr.getType() : rightExpr.getType();
-											Utils.addToListMap(resultExprs, leftExprs.getKey(), expressionMaker.makeInfix(leftExpr, infix.getOperator(), rightExpr, resultType, valueCache, thread, target));
+											Utils.addToListMap(resultExprs, leftExprs.getKey(), expressionMaker.makeInfix(leftExpr, operator, rightExpr, resultType, valueCache, thread, target));
 										}
 					}
 				}
@@ -932,16 +917,46 @@ public final class ExpressionSkeleton {
 		 */
 		private ExpressionsAndTypeConstraints fillInstanceof(InstanceofExpression instance, Set<ASTNode> parentsOfHoles) {
 			try {
+				codehint.ast.Type rightOperand = ASTConverter.copy(instance.getRightOperand());
 				IJavaType targetType = EclipseUtils.getType(instance.getRightOperand().toString(), stack, target, typeCache);
+				rightOperand.setStaticType(targetType);
 				ExpressionsAndTypeConstraints exprResult = fillSkeleton(instance.getLeftOperand(), new SameHierarchy(targetType), parentsOfHoles);
 				Map<String, ArrayList<TypedExpression>> resultExprs = new HashMap<String, ArrayList<TypedExpression>>(exprResult.getExprs().size());
 				for (Map.Entry<String, ArrayList<TypedExpression>> res: exprResult.getExprs().entrySet())
 					for (TypedExpression expr: res.getValue())
-						Utils.addToListMap(resultExprs, res.getKey(), expressionMaker.makeInstanceOf(expr, instance.getRightOperand(), booleanType, expr.getValue() == null ? null : valueCache.getBooleanJavaValue(!expr.getValue().isNull() && subtypeChecker.isSubtypeOf(expr.getValue().getJavaType(), targetType)), valueCache, thread));
+						Utils.addToListMap(resultExprs, res.getKey(), expressionMaker.makeInstanceOf(expr, rightOperand, booleanType, expr.getValue() == null ? null : valueCache.getBooleanJavaValue(!expr.getValue().isNull() && subtypeChecker.isSubtypeOf(expr.getValue().getJavaType(), targetType)), valueCache, thread));
 				return new ExpressionsAndTypeConstraints(resultExprs, new SupertypeBound(booleanType));
 			} catch (DebugException e) {
 				throw new RuntimeException(e);
 			}
+		}
+		
+ 		/**
+		 * Fills number literal skeleton pieces.
+		 * @param node The number literal part of the skeleton.
+		 * @return The synthesized expressions corresponding to this
+		 * skeleton piece and the type constraint representing their types.
+		 */
+		private ExpressionsAndTypeConstraints fillNumberLiteral(Expression node, ValueCache valueCache, IJavaThread thread) {
+			String str = ((NumberLiteral)node).getToken();
+			int lastChar = str.charAt(str.length() - 1);
+			// Rules taken from: http://docs.oracle.com/javase/tutorial/java/nutsandbolts/datatypes.html.
+			IJavaType resultType = null;
+			IJavaValue value = null;
+			if (lastChar == 'l' || lastChar == 'L') {
+				resultType = EclipseUtils.getFullyQualifiedType("long", stack, target, typeCache);
+				value = target.newValue(Long.parseLong(str));
+			} else if (lastChar == 'f' || lastChar == 'f') {
+				resultType = EclipseUtils.getFullyQualifiedType("float", stack, target, typeCache);
+				value = target.newValue(Float.parseFloat(str));
+			} else if (lastChar == 'd' || lastChar == 'd' || str.indexOf('.') != -1) {
+				resultType = EclipseUtils.getFullyQualifiedType("double", stack, target, typeCache);
+				value = target.newValue(Double.parseDouble(str));
+			} else {
+				resultType = intType;
+				value = target.newValue(Integer.parseInt(str));
+			}
+			return new ExpressionsAndTypeConstraints(expressionMaker.makeNumber(str, value, resultType, valueCache, thread), new SupertypeBound(resultType));
 		}
 
 		/**
@@ -975,11 +990,12 @@ public final class ExpressionSkeleton {
 		 * skeleton piece and the type constraint representing their types.
 		 */
 		private ExpressionsAndTypeConstraints fillPostfix(PostfixExpression postfix, TypeConstraint curConstraint, Set<ASTNode> parentsOfHoles) {
+			codehint.ast.PostfixExpression.Operator operator = ASTConverter.copy(postfix.getOperator());
 			ExpressionsAndTypeConstraints exprResult = fillSkeleton(postfix.getOperand(), curConstraint, parentsOfHoles);
 			Map<String, ArrayList<TypedExpression>> resultExprs = new HashMap<String, ArrayList<TypedExpression>>(exprResult.getExprs().size());
 			for (Map.Entry<String, ArrayList<TypedExpression>> res: exprResult.getExprs().entrySet())
 				for (TypedExpression expr: res.getValue())
-					Utils.addToListMap(resultExprs, res.getKey(), expressionMaker.makePostfix(target, expr, postfix.getOperator(), expr.getType(), valueCache, thread));
+					Utils.addToListMap(resultExprs, res.getKey(), expressionMaker.makePostfix(target, expr, operator, expr.getType(), valueCache, thread));
 			return new ExpressionsAndTypeConstraints(resultExprs, curConstraint);
 		}
 
@@ -993,11 +1009,12 @@ public final class ExpressionSkeleton {
 		 * skeleton piece and the type constraint representing their types.
 		 */
 		private ExpressionsAndTypeConstraints fillPrefix(PrefixExpression prefix, TypeConstraint curConstraint, Set<ASTNode> parentsOfHoles) {
+			codehint.ast.PrefixExpression.Operator operator = ASTConverter.copy(prefix.getOperator());
 			ExpressionsAndTypeConstraints exprResult = fillSkeleton(prefix.getOperand(), curConstraint, parentsOfHoles);
 			Map<String, ArrayList<TypedExpression>> resultExprs = new HashMap<String, ArrayList<TypedExpression>>(exprResult.getExprs().size());
 			for (Map.Entry<String, ArrayList<TypedExpression>> res: exprResult.getExprs().entrySet())
 				for (TypedExpression expr: res.getValue())
-					Utils.addToListMap(resultExprs, res.getKey(), expressionMaker.makePrefix(expr, prefix.getOperator(), expr.getType(), valueCache, thread));
+					Utils.addToListMap(resultExprs, res.getKey(), expressionMaker.makePrefix(expr, operator, expr.getType(), valueCache, thread));
 			return new ExpressionsAndTypeConstraints(resultExprs, curConstraint);
 		}
 
@@ -1033,10 +1050,12 @@ public final class ExpressionSkeleton {
 							// Get the correct type of each expression.
 							ArrayList<TypedExpression> fakeTypedHoleInfos = new ArrayList<TypedExpression>(holeInfo.getArgs().size());
 							for (String s: holeInfo.getArgs()) {
-								Expression e = (Expression)ASTConverter.parseExpr(parser, s);
+								Expression e = (Expression)EclipseUtils.parseExpr(parser, s);
 								// The current evaluation manager needs to know the type of the expression, so we figure it out.
 								IJavaType type = getType(e, curConstraint);
-								fakeTypedHoleInfos.add(new TypedExpression(e, type));
+								codehint.ast.Expression newExpr = ASTConverter.copy(e);
+								newExpr.setStaticType(type);
+								fakeTypedHoleInfos.add(new TypedExpression(newExpr, type));
 							}
 							// Evaluate all the expressions.
 							values = evalManager.evaluateExpressions(fakeTypedHoleInfos, null, null, null, monitor, " of ??{...}");
@@ -1100,10 +1119,14 @@ public final class ExpressionSkeleton {
 		 */
 		private ExpressionsAndTypeConstraints fillTypeLiteral(Expression node) {
 			try {
+				codehint.ast.Expression expr = ASTConverter.copy(node);
 				IJavaType type = EclipseUtils.getType(((TypeLiteral)node).getType().toString(), stack, target, typeCache);
+				expr.setStaticType(type);
 				IJavaClassObject classObj = ((IJavaReferenceType)type).getClassObject();
 				IJavaType classObjType = classObj.getJavaType();
-				return new ExpressionsAndTypeConstraints(new EvaluatedExpression(node, classObjType, new Result(classObj, valueCache, thread)), new SupertypeBound(classObjType));
+				Result result = new Result(classObj, valueCache, thread);
+				expressionMaker.setExpressionResult(expr, result, Collections.<Effect>emptySet());
+				return new ExpressionsAndTypeConstraints(new EvaluatedExpression(expr, classObjType, result), new SupertypeBound(classObjType));
 			} catch (DebugException e) {
 				throw new RuntimeException(e);
 			}
@@ -1202,7 +1225,7 @@ public final class ExpressionSkeleton {
 									String fieldTypeName = field.typeName();
 									TypedExpression newExpr = null;
 									if (receiverExpr.getExpression() == null)
-										newExpr = expressionMaker.makeSuperFieldAccess(superQualifier, receiverExpr, field.name(), EclipseUtils.getTypeAndLoadIfNeeded(fieldTypeName, stack, target, typeCache), field, valueCache, thread);
+										newExpr = expressionMaker.makeSuperFieldAccess(ASTConverter.copy(superQualifier), receiverExpr, field.name(), EclipseUtils.getTypeAndLoadIfNeeded(fieldTypeName, stack, target, typeCache), field, valueCache, thread);
 									else
 										newExpr = expressionMaker.makeFieldAccess(receiverExpr, field.name(), EclipseUtils.getTypeAndLoadIfNeeded(fieldTypeName, stack, target, typeCache), field, valueCache, thread, target);
 									Utils.addToListMap(resultExprs, fieldTypeName, newExpr);
@@ -1227,7 +1250,7 @@ public final class ExpressionSkeleton {
 		 * @return The synthesized expressions corresponding to this
 		 * skeleton piece and the type constraint representing their types.
 		 */
-		private ExpressionsAndTypeConstraints fillMethod(Expression node, SimpleName name, Expression[] arguments, Set<ASTNode> parentsOfHoles, TypeConstraint curConstraint, ArrayList<TypeConstraint> argTypes, ExpressionsAndTypeConstraints receiverResult) {
+		private ExpressionsAndTypeConstraints fillMethod(Expression node, SimpleName name, List<?> arguments, Set<ASTNode> parentsOfHoles, TypeConstraint curConstraint, ArrayList<TypeConstraint> argTypes, ExpressionsAndTypeConstraints receiverResult) {
 			MethodNameConstraint methodNameConstraint = new MethodNameConstraint(receiverResult.getTypeConstraint(), curConstraint, argTypes, sideEffectHandler.isHandlingSideEffects());
 			if (!parentsOfHoles.contains(name))
 				methodNameConstraint.setLegalNames(new HashSet<String>(Arrays.asList(new String[] { name.toString() })));
@@ -1281,16 +1304,16 @@ public final class ExpressionSkeleton {
 		 * some hole.
 		 * @return The type constraints for the given argument nods.
 		 */
-		private ArrayList<TypeConstraint> getArgTypes(Expression[] argNodes, Set<ASTNode> parentsOfHoles) {
-			if (argNodes.length == 1) {  // Special case to check for a single list hole.
-				Expression arg = argNodes[0];
+		private ArrayList<TypeConstraint> getArgTypes(List<?> argNodes, Set<ASTNode> parentsOfHoles) {
+			if (argNodes.size() == 1) {  // Special case to check for a single list hole.
+				Expression arg = (Expression)argNodes.get(0);
 				if (arg instanceof SimpleName) {
 					SimpleName argName = (SimpleName)arg;
 					if (holeInfos.containsKey(argName.getIdentifier()) && holeInfos.get(argName.getIdentifier()) instanceof ListHoleInfo)
 						return null;
 				}
 			}
-			ArrayList<TypeConstraint> argTypes = new ArrayList<TypeConstraint>(argNodes.length);
+			ArrayList<TypeConstraint> argTypes = new ArrayList<TypeConstraint>(argNodes.size());
 			for (Object argObj: argNodes) {
 				Expression arg = (Expression)argObj;
 				// Invert supertype constraints to subtype constraints for contravariance.
@@ -1319,11 +1342,11 @@ public final class ExpressionSkeleton {
 		 * If this is a list hole, the result only has one element, which
 		 * contains all the potential expressions.
 		 */
-		private ArrayList<ExpressionsAndTypeConstraints> getAndFillArgs(Expression[] arguments, Set<ASTNode> parentsOfHoles, Map<String, ArrayList<Method>> methodsByType, boolean isListHole) {
-			int count = isListHole ? 1 : arguments.length;
+		private ArrayList<ExpressionsAndTypeConstraints> getAndFillArgs(List<?> arguments, Set<ASTNode> parentsOfHoles, Map<String, ArrayList<Method>> methodsByType, boolean isListHole) {
+			int count = isListHole ? 1 : arguments.size();
 			ArrayList<ExpressionsAndTypeConstraints> argResults = new ArrayList<ExpressionsAndTypeConstraints>(count);
 			for (int i = 0; i < count; i++) {
-				Expression arg = arguments[i];
+				Expression arg = (Expression)arguments.get(i);
 				List<IJavaType> argConstraints = new ArrayList<IJavaType>();
 				for (ArrayList<Method> methods: methodsByType.values())
 					for (Method method: methods) {
@@ -1410,7 +1433,7 @@ public final class ExpressionSkeleton {
 			if (curActuals.size() == possibleActuals.size()) {
 				TypedExpression callExpr = null;
 				if (callNode instanceof SuperMethodInvocation)
-					callExpr = expressionMaker.makeSuperCall(name, ((SuperMethodInvocation)callNode).getQualifier(), curActuals, returnType, null, method);
+					callExpr = expressionMaker.makeSuperCall(name, ASTConverter.copy(((SuperMethodInvocation)callNode).getQualifier()), curActuals, returnType, null, method);
 				else
 					callExpr = expressionMaker.makeCall(name, receiver, curActuals, returnType, thisType, method, target, valueCache, thread, staticEvaluator);
 				if (callExpr.getValue() == null || !"V".equals(callExpr.getValue().getSignature()))

@@ -2,13 +2,16 @@ package codehint.ast;
 
 import java.util.Arrays;
 
+import org.eclipse.jdt.debug.core.IJavaType;
+
 public class ArrayCreation extends Expression {
 
 	private final Expression[] dimensions;
 	private final ArrayInitializer initializer;
 	private final ArrayType type;
 	
-	public ArrayCreation(Expression[] dimensions, ArrayInitializer initializer, ArrayType type) {
+	public ArrayCreation(IJavaType staticType, Expression[] dimensions, ArrayInitializer initializer, ArrayType type) {
+		super(staticType);
 		this.dimensions = dimensions;
 		this.initializer = initializer;
 		this.type = type;

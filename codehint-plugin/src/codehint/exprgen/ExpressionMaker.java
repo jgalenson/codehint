@@ -76,6 +76,7 @@ public class ExpressionMaker {
 	private final IJavaDebugTarget target;
 	private int id;
 	private final Map<Set<Effect>, Map<Integer, Result>> results;
+	private final Map<Integer, String> resultStrings;
 	private final Map<Integer, Method> methods;
 	private final Map<Integer, Field> fields;
 	private final Map<Integer, IJavaReferenceType> statics;
@@ -96,6 +97,7 @@ public class ExpressionMaker {
 		this.target = (IJavaDebugTarget)stack.getDebugTarget();
 		this.id = id + 1;
 		results = new HashMap<Set<Effect>, Map<Integer, Result>>();
+		this.resultStrings = new HashMap<Integer, String>();
 		this.methods = new HashMap<Integer, Method>(methods);  // Make copies so that changes we make here don't affect the metadata's maps.
 		this.fields = new HashMap<Integer, Field>(fields);
 		statics = new HashMap<Integer, IJavaReferenceType>();
@@ -463,9 +465,11 @@ public class ExpressionMaker {
 			Set<Effect> curArgEffects = null;
 			if (e instanceof MethodInvocation) {
 				MethodInvocation call = (MethodInvocation)e;
-				Expression receiverExpr = call.getExpression() == null ? new ThisExpression() : call.getExpression();
+				Expression receiverExpr = call.getExpression() == null ? new ThisExpression(stack.getReferenceType()) : call.getExpression();
 				Result receiverResult = call.getExpression() == null ? new Result(stack.getThis() == null ? stack.getReferenceType().getClassObject() : stack.getThis(), effects, valueCache, thread) : reEvaluateExpression(receiverExpr, effects, thread, target);
 				IJavaType receiverType = call.getExpression() == null ? stack.getReferenceType() : receiverResult.getValue().getValue().getJavaType();
+				receiverExpr.setStaticType(receiverType);
+				setExpressionResult(receiverExpr, receiverResult, Collections.<Effect>emptySet());
 				receiver = new EvaluatedExpression(receiverExpr, receiverType, receiverResult);
 				argExprs = call.arguments();
 				curArgEffects = receiverResult.getEffects();
@@ -480,6 +484,7 @@ public class ExpressionMaker {
 			boolean hasCrash = receiver.getValue() != null && "V".equals(receiver.getValue().getSignature());
 			for (Expression arg: argExprs) {
 				Result argResult = reEvaluateExpression(arg, curArgEffects, thread, target);
+				setExpressionResult(arg, argResult, Collections.<Effect>emptySet());
 				args.add(new EvaluatedExpression(arg, null, argResult));
 				hasCrash = hasCrash || "V".equals(argResult.getValue().getValue().getSignature());
 				curArgEffects = argResult.getEffects();
@@ -524,8 +529,9 @@ public class ExpressionMaker {
 
 	private EvaluatedExpression initSimple(Expression e, IJavaValue value, IJavaType type, ValueCache valueCache, IJavaThread thread) {
 		//e.setProperty("isConstant", true);
-		setExpressionValue(e, value, Collections.<Effect>emptySet(), valueCache, thread);
-		return new EvaluatedExpression(e, type, new Result(value, valueCache, thread));
+		Result result = new Result(value, valueCache, thread);
+		setExpressionResult(e, result, Collections.<Effect>emptySet());
+		return new EvaluatedExpression(e, type, result);
 	}
 
 	// Pass in cached int type for efficiency.
@@ -543,37 +549,37 @@ public class ExpressionMaker {
 	}
 	// Pass in cached int type for efficiency.
 	public EvaluatedExpression makeInt(int num, IJavaValue value, IJavaType type, ValueCache valueCache, IJavaThread thread) {
-		Expression e = new IntLiteral(num);
+		Expression e = new IntLiteral(type, num);
 		return initSimple(e, value, type, valueCache, thread);
 	}
 	// Pass in cached int type for efficiency.
 	public EvaluatedExpression makeLong(long num, IJavaValue value, IJavaType type, ValueCache valueCache, IJavaThread thread) {
-		Expression e = new LongLiteral(num);
+		Expression e = new LongLiteral(type, num);
 		return initSimple(e, value, type, valueCache, thread);
 	}
 	// Pass in cached int type for efficiency.
 	public EvaluatedExpression makeFloat(float num, IJavaValue value, IJavaType type, ValueCache valueCache, IJavaThread thread) {
-		Expression e = new FloatLiteral(num);
+		Expression e = new FloatLiteral(type, num);
 		return initSimple(e, value, type, valueCache, thread);
 	}
 	// Pass in cached int type for efficiency.
 	public EvaluatedExpression makeDouble(double num, IJavaValue value, IJavaType type, ValueCache valueCache, IJavaThread thread) {
-		Expression e = new DoubleLiteral(num);
+		Expression e = new DoubleLiteral(type, num);
 		return initSimple(e, value, type, valueCache, thread);
 	}
 	// Pass in cached boolean type for efficiency.
 	public EvaluatedExpression makeBoolean(boolean val, IJavaValue value, IJavaType type, ValueCache valueCache, IJavaThread thread) {
-		Expression e = new BooleanLiteral(val);
+		Expression e = new BooleanLiteral(type, val);
 		return initSimple(e, value, type, valueCache, thread);
 	}
 
 	public EvaluatedExpression makeChar(char val, IJavaValue value, IJavaType type, ValueCache valueCache, IJavaThread thread) {
-		CharacterLiteral e = new CharacterLiteral(val);
+		CharacterLiteral e = new CharacterLiteral(type, val);
 		return initSimple(e, value, type, valueCache, thread);
 	}
 
 	public EvaluatedExpression makeString(String val, IJavaValue value, IJavaType type, ValueCache valueCache, IJavaThread thread) {
-		StringLiteral e = new StringLiteral(val);
+		StringLiteral e = new StringLiteral(type, val);
 		return initSimple(e, value, type, valueCache, thread);
 	}
 
@@ -583,7 +589,7 @@ public class ExpressionMaker {
 	}
 
 	public TypedExpression makeVar(String name, IJavaValue value, IJavaType type, ValueCache valueCache, IJavaThread thread) {
-		Expression e = new SimpleName(name);
+		Expression e = new SimpleName(type, name);
 		return initSimple(e, value, type, valueCache, thread);
 	}
 
@@ -599,7 +605,7 @@ public class ExpressionMaker {
 	}
 
 	private Expression newStaticName(String name, IJavaValue value, IJavaReferenceType type, IJavaThread thread) {
-		Expression e = makeName(name);
+		Expression e = makeName(type, name);
 		setStatic(e, type);
 		setExpressionValue(e, value, Collections.<Effect>emptySet(), valueCache, thread);
 		return e;
@@ -608,19 +614,22 @@ public class ExpressionMaker {
 	public TypedExpression makeStaticName(String name, IJavaReferenceType type, ValueCache valueCache, IJavaThread thread) {
 		try {
 			IJavaValue value = type.getClassObject();
-			return new EvaluatedExpression(newStaticName(name, value, type, thread), type, new Result(value, valueCache, thread));
+			Result result = new Result(value, valueCache, thread);
+			Expression expr = newStaticName(name, value, type, thread);
+			setExpressionResult(expr, result, Collections.<Effect>emptySet());
+			return new EvaluatedExpression(expr, type, result);
 		} catch (DebugException e) {
 			throw new RuntimeException(e);
 		}
 	}
 
 	public TypedExpression makeThis(IJavaValue value, IJavaType type, ValueCache valueCache, IJavaThread thread) {
-		ThisExpression e = new ThisExpression();
+		ThisExpression e = new ThisExpression(type);
 		return initSimple(e, value, type, valueCache, thread);
 	}
 
 	public TypedExpression makeInfix(TypedExpression left, InfixExpression.Operator op, TypedExpression right, IJavaType type, ValueCache valueCache, IJavaThread thread, IJavaDebugTarget target) throws NumberFormatException, DebugException {
-		InfixExpression e = makeInfix(left.getExpression(), op, right.getExpression());
+		InfixExpression e = makeInfix(left.getExpression(), op, right.getExpression(), type);
 		Result operandResults = computeResultForBinaryOp(left, right, thread, target);
 		if (operandResults == null)
 			return null;
@@ -630,8 +639,8 @@ public class ExpressionMaker {
 		return EvaluatedExpression.makeTypedOrEvaluatedExpression(e, type, result);
 	}
 
-	public InfixExpression makeInfix(Expression l, InfixExpression.Operator op, Expression r) {
-		InfixExpression e = new InfixExpression(parenIfNeeded(l), op, parenIfNeeded(r));
+	public InfixExpression makeInfix(Expression l, InfixExpression.Operator op, Expression r, IJavaType type) {
+		InfixExpression e = new InfixExpression(type, parenIfNeeded(l), op, parenIfNeeded(r));
 		return e;
 	}
 
@@ -645,20 +654,21 @@ public class ExpressionMaker {
 			if (value == null)
 				return null;
 		}
-		ArrayAccess e = makeArrayAccess(array.getExpression(), index.getExpression());
+		IJavaType type = getArrayElementType(array);
+		ArrayAccess e = makeArrayAccess(type, array.getExpression(), index.getExpression());
 		Result result = new Result(value, operandResults.getEffects(), valueCache, thread);
 		setExpressionResult(e, result, Collections.<Effect>emptySet());
-		return EvaluatedExpression.makeTypedOrEvaluatedExpression(e, getArrayElementType(array), result);
+		return EvaluatedExpression.makeTypedOrEvaluatedExpression(e, type, result);
 	}
 
-	public ArrayAccess makeArrayAccess(Expression array, Expression index) {
-		ArrayAccess e = new ArrayAccess(array, index);
+	public ArrayAccess makeArrayAccess(IJavaType type, Expression array, Expression index) {
+		ArrayAccess e = new ArrayAccess(type, array, index);
 		return e;
 	}
 
 	public TypedExpression makeFieldAccess(TypedExpression obj, String name, IJavaType fieldType, Field field, ValueCache valueCache, IJavaThread thread, IJavaDebugTarget target) {
 		try {
-			FieldAccess e = makeFieldAccess(obj.getExpression(), name, field);
+			FieldAccess e = makeFieldAccess(obj.getExpression(), name, fieldType, field);
 			IJavaValue value = computeFieldAccess(obj.getValue(), obj.getType(), field, target);
 			Result result = new Result(value, obj.getResult().getEffects(), valueCache, thread);
 			setExpressionResult(e, result, Collections.<Effect>emptySet());
@@ -668,8 +678,8 @@ public class ExpressionMaker {
 		}
 	}
 
-	public FieldAccess makeFieldAccess(Expression obj, String name, Field field) {
-		FieldAccess e = new FieldAccess(obj, makeSimpleName(name));
+	public FieldAccess makeFieldAccess(Expression obj, String name, IJavaType type, Field field) {
+		FieldAccess e = new FieldAccess(type, obj, makeSimpleName(null, name));
 		setField(e, field);
 		return e;
 	}
@@ -729,15 +739,15 @@ public class ExpressionMaker {
 		Expression[] newArgs = new Expression[args.size()];
 		for (int i = 0; i < args.size(); i++)
 			newArgs[i] = args.get(i).getExpression();
-		MethodInvocation e = new MethodInvocation(receiver, makeSimpleName(name), newArgs);
+		MethodInvocation e = new MethodInvocation(returnType, receiver, makeSimpleName(null, name), newArgs);
 		setExpressionResult(e, result, Collections.<Effect>emptySet());
 		return EvaluatedExpression.makeTypedOrEvaluatedExpression(e, returnType, result);
 	}
-	public Expression makeCall(String name, Expression receiver, ArrayList<TypedExpression> args, Method method, Set<Effect> effects, Result result) {
+	public Expression makeCall(String name, Expression receiver, ArrayList<TypedExpression> args, Method method, IJavaType returnType, Set<Effect> effects, Result result) {
 		Expression[] newArgs = new Expression[args.size()];
 		for (int i = 0; i < args.size(); i++)
 			newArgs[i] = args.get(i).getExpression();
-		MethodInvocation e = new MethodInvocation(receiver, makeSimpleName(name), newArgs);
+		MethodInvocation e = new MethodInvocation(returnType, receiver, makeSimpleName(null, name), newArgs);
 		setMethod(e, method);
 		setExpressionResult(e, result, effects);
     	return e;
@@ -745,7 +755,7 @@ public class ExpressionMaker {
 
 	public TypedExpression makeCast(TypedExpression obj, IJavaType targetType, IJavaValue value, ValueCache valueCache, IJavaThread thread) {
 		try {
-			CastExpression e = makeCast(obj.getExpression(), targetType.getName());
+			CastExpression e = makeCast(obj.getExpression(), targetType, targetType.getName());
 			Result result = new Result(value, obj.getResult().getEffects(), valueCache, thread);
 			return EvaluatedExpression.makeTypedOrEvaluatedExpression(e, targetType, result);
 		} catch (DebugException ex) {
@@ -753,8 +763,9 @@ public class ExpressionMaker {
 		}
 	}
 
-	public CastExpression makeCast(Expression obj, String targetTypeName) {
-		CastExpression e = new CastExpression(makeType(EclipseUtils.sanitizeTypename(targetTypeName)), obj);
+	// I need to pass the target type name because it could be a shortened (not fully-qualified) version.
+	public CastExpression makeCast(Expression obj, IJavaType targetType, String targetTypeName) throws DebugException {
+		CastExpression e = new CastExpression(makeType(targetType, targetTypeName), obj);
 		copyExpressionResults(obj, e);
 		return e;
 	}
@@ -766,14 +777,14 @@ public class ExpressionMaker {
 		return EvaluatedExpression.makeTypedOrEvaluatedExpression(e, targetType, result);
 	}
 
-	private static InstanceofExpression makeInstanceOf(Expression expr, Type targetDomType) {
-		InstanceofExpression e = new InstanceofExpression(expr, targetDomType);
+	private InstanceofExpression makeInstanceOf(Expression expr, Type targetDomType) {
+		InstanceofExpression e = new InstanceofExpression(EclipseUtils.getFullyQualifiedType("boolean", stack, target, typeCache), expr, targetDomType);
 		return e;
 	}
 
 	public TypedExpression makeConditional(TypedExpression cond, TypedExpression t, TypedExpression e, IJavaType type) {
 		try {
-			ConditionalExpression ex = makeConditional(cond.getExpression(), t.getExpression(), e.getExpression());
+			ConditionalExpression ex = makeConditional(type, cond.getExpression(), t.getExpression(), e.getExpression());
 			Result result = computeConditionalOp(cond.getResult(), t.getResult(), e.getResult());
 			setExpressionResult(ex, result, Collections.<Effect>emptySet());
 			return EvaluatedExpression.makeTypedOrEvaluatedExpression(ex, type, result);
@@ -782,8 +793,8 @@ public class ExpressionMaker {
 		}
 	}
 
-	private static ConditionalExpression makeConditional(Expression cond, Expression t, Expression e) {
-		ConditionalExpression ex = new ConditionalExpression(cond, t, e);
+	private static ConditionalExpression makeConditional(IJavaType type, Expression cond, Expression t, Expression e) {
+		ConditionalExpression ex = new ConditionalExpression(type, cond, t, e);
 		return ex;
 	}
 
@@ -791,7 +802,7 @@ public class ExpressionMaker {
 		Expression[] newArgs = new Expression[args.size()];
 		for (int i = 0; i < args.size(); i++)
 			newArgs[i] = args.get(i).getExpression();
-		ClassInstanceCreation e = new ClassInstanceCreation(new SimpleType(makeName(EclipseUtils.sanitizeTypename(name))), newArgs);
+		ClassInstanceCreation e = new ClassInstanceCreation(new SimpleType(type, makeName(type, EclipseUtils.sanitizeTypename(name))), newArgs);
 		setExpressionResult(e, result, Collections.<Effect>emptySet());
 		return EvaluatedExpression.makeTypedOrEvaluatedExpression(e, type, result);
 	}
@@ -819,7 +830,7 @@ public class ExpressionMaker {
 
 	public TypedExpression makeSuperFieldAccess(Name qualifier, TypedExpression receiverExpr, String name, IJavaType fieldType, Field field, ValueCache valueCache, IJavaThread thread) {
 		try {
-			SuperFieldAccess e = makeSuperFieldAccess(qualifier, name);
+			SuperFieldAccess e = makeSuperFieldAccess(qualifier, name, fieldType);
 			IJavaValue value = computeFieldAccess(receiverExpr.getValue(), receiverExpr.getType(), field, null);
 			Result result = new Result(value, valueCache, thread);
 			setExpressionResult(e, result, Collections.<Effect>emptySet());
@@ -830,8 +841,8 @@ public class ExpressionMaker {
 		}
 	}
 
-	private static SuperFieldAccess makeSuperFieldAccess(Name qualifier, String name) {
-		SuperFieldAccess e = new SuperFieldAccess(qualifier, makeSimpleName(name));
+	private static SuperFieldAccess makeSuperFieldAccess(Name qualifier, String name, IJavaType type) {
+		SuperFieldAccess e = new SuperFieldAccess(type, qualifier, makeSimpleName(null, name));
 		return e;
 	}
 
@@ -839,7 +850,7 @@ public class ExpressionMaker {
 		Expression[] newArgs = new Expression[args.size()];
 		for (int i = 0; i < args.size(); i++)
 			newArgs[i] = args.get(i).getExpression();
-		SuperMethodInvocation e = new SuperMethodInvocation(qualifier, makeSimpleName(name), newArgs);
+		SuperMethodInvocation e = new SuperMethodInvocation(returnType, qualifier, makeSimpleName(null, name), newArgs);
 		setExpressionResult(e, result, Collections.<Effect>emptySet());
 		setMethod(e, method);
 		return EvaluatedExpression.makeTypedOrEvaluatedExpression(e, returnType, result);
@@ -850,46 +861,49 @@ public class ExpressionMaker {
 		return e;
 	}
 
-	private Type makeType(String typeName) {
-		if (typeName.endsWith("[]"))
-			return new ArrayType(makeType(typeName.substring(0, typeName.length() - 2)));
+	private Type makeType(IJavaType type, String typeName) throws DebugException {
+		if (type instanceof IJavaArrayType)
+			return new ArrayType(type, makeType(((IJavaArrayType)type).getComponentType(), typeName.substring(0, typeName.length() - 2)));
 		else if (typeName.equals("int"))
-			return new PrimitiveType(PrimitiveType.INT);
+			return new PrimitiveType(type, PrimitiveType.INT);
 		else if (typeName.equals("boolean"))
-			return new PrimitiveType(PrimitiveType.BOOLEAN);
+			return new PrimitiveType(type, PrimitiveType.BOOLEAN);
 		else if (typeName.equals("long"))
-			return new PrimitiveType(PrimitiveType.LONG);
+			return new PrimitiveType(type, PrimitiveType.LONG);
 		else if (typeName.equals("byte"))
-			return new PrimitiveType(PrimitiveType.BYTE);
+			return new PrimitiveType(type, PrimitiveType.BYTE);
 		else if (typeName.equals("char"))
-			return new PrimitiveType(PrimitiveType.CHAR);
+			return new PrimitiveType(type, PrimitiveType.CHAR);
 		else if (typeName.equals("short"))
-			return new PrimitiveType(PrimitiveType.SHORT);
+			return new PrimitiveType(type, PrimitiveType.SHORT);
 		else if (typeName.equals("float"))
-			return new PrimitiveType(PrimitiveType.FLOAT);
+			return new PrimitiveType(type, PrimitiveType.FLOAT);
 		else if (typeName.equals("double"))
-			return new PrimitiveType(PrimitiveType.DOUBLE);
+			return new PrimitiveType(type, PrimitiveType.DOUBLE);
 		else
-			return new SimpleType(makeName(EclipseUtils.sanitizeTypename(typeName)));
+			return new SimpleType(type, makeName(type, EclipseUtils.sanitizeTypename(typeName)));
 	}
 	
-	private static SimpleName makeSimpleName(String name) {
-		SimpleName e = new SimpleName(name);
+	private static SimpleName makeSimpleName(IJavaType type, String name) {
+		SimpleName e = new SimpleName(type, name);
 		return e;
 	}
 	
-	private static Name makeName(String name) {
+	private static Name makeName(IJavaType type, String name) {
 		int index = 0;
 		Name result = null;
 		while (index < name.length()) {
+			IJavaType curType = null;
 			int nextIndex = name.indexOf('.', index);
-			if (nextIndex == -1)
+			if (nextIndex == -1) {
 				nextIndex = name.length();
-			SimpleName simpleName = makeSimpleName(name.substring(index, nextIndex));
+				curType = type;
+			}
+			SimpleName simpleName = makeSimpleName(curType, name.substring(index, nextIndex));
 			if (result == null)
 				result = simpleName;
 			else
-				result = new QualifiedName(result, simpleName);
+				result = new QualifiedName(curType, result, simpleName);
 			index = nextIndex + 1;
 		}
 		return result;
@@ -911,7 +925,7 @@ public class ExpressionMaker {
 		Utils.addToMapMap(results, effects, getID(e), r);
 	}
 
-	private void copyExpressionResults(Expression oldExpr, Expression newExpr) {
+	public void copyExpressionResults(Expression oldExpr, Expression newExpr) {
 		int oldID = getID(oldExpr);
 		int newID = getID(newExpr);
 		for (Map<Integer, Result> effectResults: results.values()) {
@@ -930,6 +944,14 @@ public class ExpressionMaker {
 		if (effectResults == null)
 			return null;
 		return effectResults.get(id);
+	}
+	
+	public void setResultString(Expression e, String resultString) {
+		resultStrings.put(getID(e), resultString);
+	}
+	
+	public String getResultString(Expression e) {
+		return resultStrings.get(getID(e));
 	}
 
 	public void setDepth(Expression e, int d) {

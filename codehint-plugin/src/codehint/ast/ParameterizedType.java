@@ -2,6 +2,8 @@ package codehint.ast;
 
 import java.util.Arrays;
 
+import org.eclipse.jdt.debug.core.IJavaType;
+
 import codehint.utils.Utils;
 
 public class ParameterizedType extends Type {
@@ -9,7 +11,8 @@ public class ParameterizedType extends Type {
 	private final Type type;
 	private final Type[] typeArguments;
 	
-	public ParameterizedType(Type type, Type[] typeArguments) {
+	public ParameterizedType(IJavaType staticType, Type type, Type[] typeArguments) {
+		super(staticType);
 		this.type = type;
 		this.typeArguments = typeArguments;
 	}

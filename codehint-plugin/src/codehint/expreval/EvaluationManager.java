@@ -620,8 +620,10 @@ public final class EvaluationManager {
     			if (valid)
     				validResultString = getResultString(typedExpr, curValue, toStrings, evalIndex);
     		}
-			if (valid)
+			if (valid) {
+				expressionMaker.setResultString(typedExpr.getExpression(), Utils.getPrintableString(validResultString));
 				validExprs.add(new FullyEvaluatedExpression(typedExpr.getExpression(), typedExpr.getType(), new Result(curValue, typedExpr.getResult() == null ? Collections.<Effect>emptySet() : typedExpr.getResult().getEffects(), valueCache, thread), Utils.getPrintableString(validResultString)));
+			}
 			if (typedExpr.getValue() == null || !validateStatically)
 				evalIndex++;
 			monitor.worked(1);

@@ -1,10 +1,13 @@
 package codehint.ast;
 
+import org.eclipse.jdt.debug.core.IJavaType;
+
 public class SimpleName extends Name {
 	
 	private final String identifier;
 
-	public SimpleName(String identifier) {
+	public SimpleName(IJavaType staticType, String identifier) {
+		super(staticType);
 		this.identifier = identifier;
 	}
 

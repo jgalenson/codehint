@@ -1,11 +1,14 @@
 package codehint.ast;
 
+import org.eclipse.jdt.debug.core.IJavaType;
+
 public class FieldAccess extends Expression {
 	
 	private final Expression expression;
 	private final SimpleName name;
 	
-	public FieldAccess(Expression expression, SimpleName name) {
+	public FieldAccess(IJavaType staticType, Expression expression, SimpleName name) {
+		super(staticType);
 		this.expression = expression;
 		this.name = name;
 	}

@@ -24,6 +24,7 @@ public class PostfixExpression extends Expression {
 	private final Operator operator;
 	
 	public PostfixExpression(Expression operand, Operator operator) {
+		super(operand.getStaticType());
 		this.operand = operand;
 		this.operator = operator;
 	}

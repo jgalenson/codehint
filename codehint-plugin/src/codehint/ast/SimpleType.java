@@ -1,10 +1,13 @@
 package codehint.ast;
 
+import org.eclipse.jdt.debug.core.IJavaType;
+
 public class SimpleType extends Type {
 	
 	private final Name name;
 
-	public SimpleType(Name name) {
+	public SimpleType(IJavaType staticType, Name name) {
+		super(staticType);
 		this.name = name;
 	}
 

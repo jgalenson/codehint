@@ -28,6 +28,7 @@ public class PrefixExpression extends Expression {
 	private final Expression operand;
 	
 	public PrefixExpression(Operator operator, Expression operand) {
+		super(operand.getStaticType());
 		this.operator = operator;
 		this.operand = operand;
 	}

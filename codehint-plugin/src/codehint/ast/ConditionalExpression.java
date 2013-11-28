@@ -1,13 +1,15 @@
 package codehint.ast;
 
+import org.eclipse.jdt.debug.core.IJavaType;
+
 public class ConditionalExpression extends Expression {
 
 	private final Expression expression;
 	private final Expression thenExpression;
 	private final Expression elseExpression;
 	
-	public ConditionalExpression(Expression expression,
-			Expression thenExpression, Expression elseExpression) {
+	public ConditionalExpression(IJavaType staticType, Expression expression, Expression thenExpression, Expression elseExpression) {
+		super(staticType);
 		this.expression = expression;
 		this.thenExpression = thenExpression;
 		this.elseExpression = elseExpression;

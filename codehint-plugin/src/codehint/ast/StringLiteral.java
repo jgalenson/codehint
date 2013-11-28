@@ -1,12 +1,15 @@
 package codehint.ast;
 
+import org.eclipse.jdt.debug.core.IJavaType;
+
 import codehint.utils.Utils;
 
 public class StringLiteral extends Expression {
 	
 	private final String str;
 	
-	public StringLiteral(String str) {
+	public StringLiteral(IJavaType staticType, String str) {
+		super(staticType);
 		this.str = str;
 	}
 
