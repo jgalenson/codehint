@@ -3,6 +3,7 @@ package codehint.expreval;
 import java.io.UnsupportedEncodingException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.regex.PatternSyntaxException;
@@ -16,9 +17,12 @@ import org.eclipse.jdt.debug.core.IJavaPrimitiveValue;
 import org.eclipse.jdt.debug.core.IJavaStackFrame;
 import org.eclipse.jdt.debug.core.IJavaValue;
 
+import codehint.ast.Expression;
+import codehint.effects.Effect;
+import codehint.exprgen.ExpressionMaker;
+import codehint.exprgen.Result;
 import codehint.exprgen.StringValue;
 import codehint.exprgen.TypeCache;
-import codehint.exprgen.TypedExpression;
 import codehint.exprgen.Value;
 import codehint.exprgen.ValueCache;
 import codehint.utils.EclipseUtils;
@@ -31,14 +35,16 @@ import com.sun.jdi.Method;
 public class StaticEvaluator {
 	
 	private final IJavaStackFrame stack;
+	private final ExpressionMaker expressionMaker;
 	private final TypeCache typeCache;
 	private final ValueCache valueCache;
 	private int numCrashes;
 	private final Set<String> unsupportedEncodings;
 	private final Set<String> illegalPatterns;
 	
-	public StaticEvaluator(IJavaStackFrame stack, TypeCache typeCache, ValueCache valueCache) {
+	public StaticEvaluator(IJavaStackFrame stack, ExpressionMaker expressionMaker, TypeCache typeCache, ValueCache valueCache) {
 		this.stack = stack;
+		this.expressionMaker = expressionMaker;
 		this.typeCache = typeCache;
 		this.valueCache = valueCache;
 		numCrashes = 0;
@@ -57,7 +63,7 @@ public class StaticEvaluator {
 	 * the given arguments, or null if we could not evaluate
 	 * it, or void if the evaluation crashed.
 	 */
-	public IJavaValue evaluateCall(TypedExpression receiver, ArrayList<? extends TypedExpression> args, Method method, IJavaDebugTarget target) {
+	public IJavaValue evaluateCall(Expression receiver, ArrayList<? extends Expression> args, Method method, IJavaDebugTarget target) {
 		String declaringType = method.declaringType().name();
 		if (!"java.lang.String".equals(declaringType) && !"java.util.Arrays".equals(declaringType))
 			return null;
@@ -65,16 +71,19 @@ public class StaticEvaluator {
 		try {
 			Value[] argVals = new Value[args.size()];
 			for (int i = 0; i < args.size(); i++) {
-				TypedExpression arg = args.get(i);
-				if (arg.getValue() == null)
+				Expression arg = args.get(i);
+				Result argResult = expressionMaker.getExpressionResult(arg, Collections.<Effect>emptySet()); 
+				if (argResult == null)
 					return null;
-				argVals[i] = arg.getWrapperValue();
+				argVals[i] = argResult.getValue();
 			}
 			if ("java.lang.String".equals(declaringType)) {
-				if (receiver.getExpression() == null)
+				if (receiver == null)
 					result = evaluateStringConstructorCall(argVals, method, target);
-				else
-					result = evaluateStringCall(receiver.getValue() instanceof IJavaClassObject ? null : stringOfValue(receiver.getWrapperValue()), receiver.getValue(), argVals, method, target);
+				else {
+					Value receiverValue = expressionMaker.getExpressionResult(receiver, Collections.<Effect>emptySet()).getValue();
+					result = evaluateStringCall(receiverValue.getValue() instanceof IJavaClassObject ? null : stringOfValue(receiverValue.getValue()), receiverValue.getValue(), argVals, method, target);
+				}
 			} else if ("java.util.Arrays".equals(declaringType))
 				result = evaluateArraysCall(argVals, method, target);
 		} catch (DebugException ex) {

@@ -9,13 +9,14 @@ import org.eclipse.swt.widgets.Button;
 import org.eclipse.swt.widgets.Composite;
 import org.eclipse.swt.widgets.Control;
 import org.eclipse.swt.widgets.Shell;
+
 import codehint.Synthesizer.RefinementWorker;
 import codehint.Synthesizer.SynthesisWorker;
-import codehint.expreval.FullyEvaluatedExpression;
+import codehint.ast.Expression;
 
 public class RefinementSynthesisDialog extends SynthesisDialog {
 	
-	private ArrayList<FullyEvaluatedExpression> initialExprs;
+	private ArrayList<Expression> initialExprs;
 	private final RefinementWorker worker;
 	private final boolean blockedNatives;
 	private final boolean handledEffects;
@@ -83,7 +84,7 @@ public class RefinementSynthesisDialog extends SynthesisDialog {
 		clearButton.setEnabled(!isStarting && initialExprs != null && !(initialExprs.size() == expressions.size() && initialExprs.equals(expressions)));
 	}
 
-	public void setInitialRefinementExpressions(ArrayList<FullyEvaluatedExpression> exprs) {
+	public void setInitialRefinementExpressions(ArrayList<Expression> exprs) {
 		initialExprs = exprs;
 		endSynthesis(SynthesisState.END);
 	}
@@ -103,7 +104,7 @@ public class RefinementSynthesisDialog extends SynthesisDialog {
 	}
 	
     private void evalCandidates() {
-		filteredExpressions = expressions = new ArrayList<FullyEvaluatedExpression>();
+		filteredExpressions = expressions = new ArrayList<Expression>();
 		startEndSynthesis(SynthesisState.START);
 		searchCancelButton.setEnabled(false);
 		worker.evaluateLine(blockedNatives, handledEffects, this, stack, thread);

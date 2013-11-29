@@ -2,8 +2,8 @@ package codehint.exprgen.precondition;
 
 import java.util.ArrayList;
 
-import codehint.expreval.EvaluatedExpression;
-import codehint.exprgen.TypedExpression;
+import codehint.ast.Expression;
+import codehint.exprgen.ExpressionMaker;
 
 public class GE extends Predicate {
 	
@@ -21,8 +21,8 @@ public class GE extends Predicate {
 	}
 
 	@Override
-	public boolean satisfies(TypedExpression receiver, ArrayList<EvaluatedExpression> actuals) {
-		return cur.getValue(receiver, actuals) >= target.getValue(receiver, actuals);
+	public boolean satisfies(Expression receiver, ArrayList<Expression> actuals, ExpressionMaker expressionMaker) {
+		return cur.getValue(receiver, actuals, expressionMaker) >= target.getValue(receiver, actuals, expressionMaker);
 	}
 
 	@Override

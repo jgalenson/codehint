@@ -200,7 +200,10 @@ public final class ASTConverter extends ASTVisitor {
 	}
 
 	private static InfixExpression copy(org.eclipse.jdt.core.dom.InfixExpression node) {
-		return new InfixExpression(null, copy(node.getLeftOperand()), copy(node.getOperator()), copy(node.getRightOperand()));
+		InfixExpression result = new InfixExpression(null, copy(node.getLeftOperand()), copy(node.getOperator()), copy(node.getRightOperand()));
+		for (Object extraOperand: node.extendedOperands())
+			result = new InfixExpression(null, result, result.getOperator(), copy((org.eclipse.jdt.core.dom.Expression)extraOperand));
+		return result;
 	}
 	
 	public static InfixExpression.Operator copy(org.eclipse.jdt.core.dom.InfixExpression.Operator node) {

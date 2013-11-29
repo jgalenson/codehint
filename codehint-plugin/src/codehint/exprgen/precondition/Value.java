@@ -2,8 +2,8 @@ package codehint.exprgen.precondition;
 
 import java.util.ArrayList;
 
-import codehint.expreval.EvaluatedExpression;
-import codehint.exprgen.TypedExpression;
+import codehint.ast.Expression;
+import codehint.exprgen.ExpressionMaker;
 
 /**
  * Represents a value being passed to a method.
@@ -18,8 +18,9 @@ public abstract class Value {
 	 * Gets the integer value.
 	 * @param receiver The receiver of the call.
 	 * @param actuals The actuals of the call.
+	 * @param expressionMaker The expression maker.
 	 * @return The integer value.
 	 */
-	public abstract int getValue(TypedExpression receiver, ArrayList<EvaluatedExpression> actuals);
+	public abstract int getValue(Expression receiver, ArrayList<Expression> actuals, ExpressionMaker expressionMaker);
 
 }

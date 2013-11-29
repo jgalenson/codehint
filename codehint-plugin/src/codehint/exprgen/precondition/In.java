@@ -2,8 +2,8 @@ package codehint.exprgen.precondition;
 
 import java.util.ArrayList;
 
-import codehint.expreval.EvaluatedExpression;
-import codehint.exprgen.TypedExpression;
+import codehint.ast.Expression;
+import codehint.exprgen.ExpressionMaker;
 
 public class In extends Predicate {
 
@@ -22,10 +22,10 @@ public class In extends Predicate {
 	}
 
 	@Override
-	public boolean satisfies(TypedExpression receiver, ArrayList<EvaluatedExpression> actuals) {
+	public boolean satisfies(Expression receiver, ArrayList<Expression> actuals, ExpressionMaker expressionMaker) {
 		try {
-			int index = cur.getValue(receiver, actuals);
-			return 0 <= index && index < Len.getLength(Arg.getJavaValue(targetArgIndex, receiver, actuals).getWrapperValue());
+			int index = cur.getValue(receiver, actuals, expressionMaker);
+			return 0 <= index && index < Len.getLength(Arg.getJavaValue(targetArgIndex, receiver, actuals, expressionMaker));
 		} catch (NumberFormatException e) {
 			throw new RuntimeException(e);
 		}

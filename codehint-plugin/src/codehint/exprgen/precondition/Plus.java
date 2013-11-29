@@ -2,8 +2,8 @@ package codehint.exprgen.precondition;
 
 import java.util.ArrayList;
 
-import codehint.expreval.EvaluatedExpression;
-import codehint.exprgen.TypedExpression;
+import codehint.ast.Expression;
+import codehint.exprgen.ExpressionMaker;
 
 public class Plus extends Value {
 	
@@ -21,8 +21,8 @@ public class Plus extends Value {
 	}
 
 	@Override
-	public int getValue(TypedExpression receiver, ArrayList<EvaluatedExpression> actuals) {
-		return l.getValue(receiver, actuals) + r.getValue(receiver, actuals);
+	public int getValue(Expression receiver, ArrayList<Expression> actuals, ExpressionMaker expressionMaker) {
+		return l.getValue(receiver, actuals, expressionMaker) + r.getValue(receiver, actuals, expressionMaker);
 	}
 
 }

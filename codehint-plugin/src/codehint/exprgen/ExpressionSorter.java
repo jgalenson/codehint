@@ -19,7 +19,7 @@ import com.sun.jdi.Method;
  * Sorts expressions based on how often their methods and fields
  * appear in our database.
  */
-public class ExpressionSorter implements Comparator<TypedExpression> {
+public class ExpressionSorter implements Comparator<Expression> {
 	
 	private final ExpressionMaker expressionMaker;
 	private final Weights weights;
@@ -30,17 +30,17 @@ public class ExpressionSorter implements Comparator<TypedExpression> {
 	}
 
 	@Override
-	public int compare(TypedExpression e1, TypedExpression e2) {
-		double p1 = weigh(e1.getExpression());
-		double p2 = weigh(e2.getExpression());
-		//System.out.println(e1.getExpression() + " " + p1);
-		//System.out.println(e2.getExpression() + " " + p2);
+	public int compare(Expression e1, Expression e2) {
+		double p1 = weigh(e1);
+		double p2 = weigh(e2);
+		//System.out.println(e1 + " " + p1);
+		//System.out.println(e2 + " " + p2);
 		if (p1 < p2)
 			return 1;
 		else if (p1 > p2)
 			return -1;
 		else
-			return e1.getExpression().toString().length() - e2.getExpression().toString().length();
+			return e1.toString().length() - e2.toString().length();
 	}
 	
 	private double weigh(Expression expr) {

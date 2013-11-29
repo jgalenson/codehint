@@ -1,6 +1,7 @@
 package codehint;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -61,11 +62,11 @@ import codehint.dialogs.StatePropertyDialog;
 import codehint.dialogs.SynthesisDialog;
 import codehint.dialogs.SynthesisDialog.SynthesisState;
 import codehint.dialogs.TypePropertyDialog;
+import codehint.effects.Effect;
 import codehint.effects.SideEffectHandler;
 import codehint.expreval.EvaluationManager;
 import codehint.expreval.EvaluationManager.EvaluationError;
 import codehint.expreval.EvaluationManager.StopSynthesis;
-import codehint.expreval.FullyEvaluatedExpression;
 import codehint.expreval.NativeHandler;
 import codehint.expreval.TimeoutChecker;
 import codehint.exprgen.ExpressionGenerator;
@@ -74,7 +75,6 @@ import codehint.exprgen.ExpressionSkeleton;
 import codehint.exprgen.ExpressionSkeleton.SkeletonError;
 import codehint.exprgen.SubtypeChecker;
 import codehint.exprgen.TypeCache;
-import codehint.exprgen.TypedExpression;
 import codehint.exprgen.ValueCache;
 import codehint.handler.DemonstrateStatePropertyHandler;
 import codehint.handler.DemonstrateTypeHandler;
@@ -97,7 +97,7 @@ public class Synthesizer {
 	private static List<String> addedChosenStmts;
 	private static Map<String, String> initialFiles;
 	private static ExpressionMaker.Metadata metadata;
-	private static Map<String, List<FullyEvaluatedExpression>> initialExprs;
+	private static Map<String, List<Expression>> initialExprs;
 	private static Set<String> handledEffects;
 	private static Set<String> blockedNatives;
 	
@@ -123,7 +123,7 @@ public class Synthesizer {
 			synthesisDialog.open();
 			Property property = synthesisDialog.getProperty();
 			ExpressionSkeleton skeleton = synthesisDialog.getSkeleton();
-			List<FullyEvaluatedExpression> finalExpressions = synthesisDialog.getExpressions();
+			List<Expression> finalExpressions = synthesisDialog.getExpressions();
 			ExpressionMaker expressionMaker = synthesisDialog.getExpressionMaker();
 			boolean blockedNativeCalls = synthesisDialog.blockedNativeCalls();
 			boolean handledSideEffects = synthesisDialog.handledSideEffects();
@@ -137,7 +137,7 @@ public class Synthesizer {
 	        } else if (finalExpressions.isEmpty())
 				return;
 			
-			List<String> validExpressionStrings = snippetsOfEvaluatedExpressions(finalExpressions);
+			List<String> validExpressionStrings = snippetsOfExpressions(finalExpressions);
 			
 			//Construct the textual line to insert.  Working in text seems easier than
 			// using the AST manipulators for now, but this may need revisited later.  
@@ -181,7 +181,7 @@ public class Synthesizer {
 					handledEffects.add(statement);
 			}
 
-			IJavaValue value = property instanceof ValueProperty ? ((ValueProperty)property).getValue() : finalExpressions.get(0).getValue();
+			IJavaValue value = property instanceof ValueProperty ? ((ValueProperty)property).getValue() : expressionMaker.getExpressionValue(finalExpressions.get(0), Collections.<Effect>emptySet());
 			if (variable != null && value != null)
 				variable.setValue(value);
 			
@@ -326,10 +326,10 @@ public class Synthesizer {
 	 */
 	public static class RefinementWorker {
 		
-		private final ArrayList<TypedExpression> typedExprs;
+		private final ArrayList<Expression> typedExprs;
 		private final IJavaType varType;
 		private final TypeCache typeCache;
-		private ArrayList<FullyEvaluatedExpression> exprs;
+		private ArrayList<Expression> exprs;
 		
 		/**
 		 * Creates a new RefinementWorker that will filter
@@ -339,7 +339,7 @@ public class Synthesizer {
 		 * assigned.
 		 * @param typeCache The type cache.
 		 */
-		public RefinementWorker(ArrayList<TypedExpression> typedExprs, IJavaType varType, TypeCache typeCache) {
+		public RefinementWorker(ArrayList<Expression> typedExprs, IJavaType varType, TypeCache typeCache) {
 			this.typeCache = typeCache;
 			this.typedExprs = typedExprs;
 			this.varType = varType;
@@ -356,7 +356,7 @@ public class Synthesizer {
 					SideEffectHandler effectHandler = handledEffects ? new SideEffectHandler(frame, EclipseUtils.getProject(frame)) : null;
 					// TODO: Run the following off the UI thread like above when we do the first synthesis.
 					TimeoutChecker timeoutChecker = new TimeoutChecker(thread, frame, target, typeCache);
-					EvaluationManager evalManager = new EvaluationManager(false, nativeHandler == null, frame, new ExpressionMaker(frame, valueCache, typeCache, timeoutChecker, null, null, metadata), new SubtypeChecker(frame, target, typeCache), typeCache, valueCache, timeoutChecker);
+					EvaluationManager evalManager = new EvaluationManager(false, nativeHandler == null, frame, synthesisDialog.getExpressionMaker(), new SubtypeChecker(frame, target, typeCache), typeCache, valueCache, timeoutChecker);
 					evalManager.init();
 					try {
 						timeoutChecker.start();
@@ -552,18 +552,18 @@ public class Synthesizer {
 	    	IJavaType varStaticType = lhsVar != null ? lhsVar.getJavaType() : null;
    			String varStaticTypeName = lhsVar != null ? EclipseUtils.sanitizeTypename(lhsVar.getReferenceTypeName()) : matcher.group(1);
 
-   			ArrayList<TypedExpression> typedExprs = new ArrayList<TypedExpression>();
-   			List<FullyEvaluatedExpression> oldExprs = initialExprs.get(curLine);
+   			ArrayList<Expression> typedExprs = new ArrayList<Expression>();
+   			List<Expression> oldExprs = initialExprs.get(curLine);
    			if (oldExprs != null) {
-   				for (TypedExpression e: oldExprs)  // Use the old expressions since we might have metadata about them (e.g., Method, Field).
-   					typedExprs.add(new TypedExpression(e.getExpression(), e.getType()));
+   				for (Expression e: oldExprs)  // Use the old expressions since we might have metadata about them (e.g., Method, Field).
+   					typedExprs.add(e);
    			} else {
 	   			// Parse the expression.
 	   			ASTNode node = ASTConverter.parseExpr(parser, matcher.group(3));
 	   			// Get the possible expressions in a generic list.
 	   			for (Expression expr: ((MethodInvocation)node).arguments()) {
 	   				expr.setStaticType(varStaticType);
-	   				typedExprs.add(new TypedExpression(expr, varStaticType));
+	   				typedExprs.add(expr);
 	   			}
    			}
         	assert typedExprs.size() > 0;  // We must have at least one expression.
@@ -587,7 +587,7 @@ public class Synthesizer {
    					synthesisDialog.open();
    				}
    			});
-   			ArrayList<FullyEvaluatedExpression> validExprs = synthesisDialog.getExpressions();
+   			ArrayList<Expression> validExprs = synthesisDialog.getExpressions();
    			if (validExprs == null) {
    				//The user cancelled, just drop back into the debugger and let the 
    				//use do what they want.  Attempting to execute the line will result
@@ -601,7 +601,7 @@ public class Synthesizer {
    				EclipseUtils.showError("Error", "No legal expressions remain after refinement.", null);
    				throw new RuntimeException("No legal expressions remain after refinement");
    			}
-   			IJavaValue value = validExprs.get(0).getValue();  // The returned values could be different, so we arbitrarily use the first one.  This might not be the best thing to do.
+   			IJavaValue value = synthesisDialog.getExpressionMaker().getExpressionValue(validExprs.get(0), Collections.<Effect>emptySet());  // The returned values could be different, so we arbitrarily use the first one.  This might not be the best thing to do.
 
    			Property newProperty = synthesisDialog.getProperty() == null ? initialProperty : synthesisDialog.getProperty();  // The user might not have entered a pdspec (e.g., they refined or just selected some things), in which case we use the old one.
    			String newLine = rewriteLine(matcher, varname, curLine, newProperty, validExprs, lineNumber);
@@ -687,8 +687,8 @@ public class Synthesizer {
 	     * @param lineNumber
 	     * @return
 	     */
-		private static String rewriteLine(Matcher matcher, String varname, String curLine, Property property, ArrayList<FullyEvaluatedExpression> validExprs, final int lineNumber) {
-			List<String> newExprsStrs = snippetsOfEvaluatedExpressions(validExprs);
+		private static String rewriteLine(Matcher matcher, String varname, String curLine, Property property, ArrayList<Expression> validExprs, final int lineNumber) {
+			List<String> newExprsStrs = snippetsOfExpressions(validExprs);
 			String varDeclaration = matcher.group(1) != null ? matcher.group(1) + " " : "";
 			final String newLine = varDeclaration + generateChooseOrChosenStmt(varname, newExprsStrs);
 			// If we don't execute this on the UI thread we get an exception, although it still works.
@@ -776,7 +776,7 @@ public class Synthesizer {
 	     * pdspec the user gave the last time at this line.
 	     * @throws DebugException
 	     */
-	    private static RefinementSynthesisDialog getRefinementDialog(String curLine, ArrayList<TypedExpression> exprs, String varName, IJavaType varStaticType, String varStaticTypeName, IJavaStackFrame stackFrame, TypeCache typeCache, Property oldProperty) throws DebugException {
+	    private static RefinementSynthesisDialog getRefinementDialog(String curLine, ArrayList<Expression> exprs, String varName, IJavaType varStaticType, String varStaticTypeName, IJavaStackFrame stackFrame, TypeCache typeCache, Property oldProperty) throws DebugException {
 			Shell shell = getShell();
 			PropertyDialog propertyDialog = null;
 			if (oldProperty == null || oldProperty instanceof StateProperty)
@@ -873,7 +873,7 @@ public class Synthesizer {
     	addedChosenStmts = new ArrayList<String>();
     	initialFiles = new HashMap<String, String>();
     	metadata = ExpressionMaker.Metadata.emptyMetadata();
-    	initialExprs = new HashMap<String, List<FullyEvaluatedExpression>>();
+    	initialExprs = new HashMap<String, List<Expression>>();
     	handledEffects = new HashSet<String>();
     	blockedNatives = new HashSet<String>();
     	Display.getDefault().asyncExec(new Runnable() {
@@ -926,10 +926,10 @@ public class Synthesizer {
 	 * @param results List of evaluated expressions.
 	 * @return The snippets of the given evaluated expressions.
 	 */
-	private static List<String> snippetsOfEvaluatedExpressions(List<FullyEvaluatedExpression> results) {
+	private static List<String> snippetsOfExpressions(List<Expression> results) {
 		List<String> resultStrs = new ArrayList<String>(results.size());
-		for (FullyEvaluatedExpression result : results)
-			resultStrs.add(result.getSnippet());
+		for (Expression result : results)
+			resultStrs.add(result.toString());
 		return resultStrs;
 	}
 

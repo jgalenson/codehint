@@ -2,8 +2,8 @@ package codehint.exprgen.precondition;
 
 import java.util.ArrayList;
 
-import codehint.expreval.EvaluatedExpression;
-import codehint.exprgen.TypedExpression;
+import codehint.ast.Expression;
+import codehint.exprgen.ExpressionMaker;
 
 /**
  * A predicate that represents a precondition to
@@ -18,8 +18,9 @@ public abstract class Predicate {
 	 * by a call with the given receiver and arguments.
 	 * @param receiver The receiver.
 	 * @param actuals The actuals.
+	 * @param expressionMaker The expression maker.
 	 * @return Whether the given call satisfies this predicate.
 	 */
-	public abstract boolean satisfies(TypedExpression receiver, ArrayList<EvaluatedExpression> actuals);
+	public abstract boolean satisfies(Expression receiver, ArrayList<Expression> actuals, ExpressionMaker expressionMaker);
 
 }

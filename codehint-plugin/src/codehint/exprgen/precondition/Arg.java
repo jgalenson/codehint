@@ -1,18 +1,20 @@
 package codehint.exprgen.precondition;
 
 import java.util.ArrayList;
+import java.util.Collections;
 
 import org.eclipse.jdt.debug.core.IJavaValue;
 
-import codehint.expreval.EvaluatedExpression;
-import codehint.exprgen.TypedExpression;
+import codehint.ast.Expression;
+import codehint.effects.Effect;
+import codehint.exprgen.ExpressionMaker;
 
 /**
  * An argument to the method.
  */
 public class Arg extends Value {
 	
-	private final int index;
+	protected final int index;
 	
 	/**
 	 * Creates a value representing an argument to the method.
@@ -24,44 +26,36 @@ public class Arg extends Value {
 	}
 
 	@Override
-	public int getValue(TypedExpression receiver, ArrayList<EvaluatedExpression> partialActuals) {
-		return Integer.parseInt(getJavaValue(receiver, partialActuals).toString());
+	public int getValue(Expression receiver, ArrayList<Expression> partialActuals, ExpressionMaker expressionMaker) {
+		return Integer.parseInt(getJavaValue(receiver, partialActuals, expressionMaker).toString());
 	}
 	
 	/**
-	 * Gets the EvaluatedExpression represented by this argument.
+	 * Gets the value represented by this argument.
 	 * @param index The index of the argument.
 	 * @param receiver The receiver of the call.
 	 * @param actuals The actuals to the call.
-	 * @return The EvaluatedExpression represented by this argument.
+	 * @param expressionMaker The expression maker.
+	 * @return The value represented by this argument.
 	 */
-	public static EvaluatedExpression getJavaValue(int index, TypedExpression receiver, ArrayList<EvaluatedExpression> actuals) {
-		if (index == 0 && receiver instanceof EvaluatedExpression)
-			return ((EvaluatedExpression)receiver);
+	public static codehint.exprgen.Value getJavaValue(int index, Expression receiver, ArrayList<Expression> actuals, ExpressionMaker expressionMaker) {
+		if (index == 0)
+			return expressionMaker.getExpressionResult(receiver, Collections.<Effect>emptySet()).getValue();
 		else if (index - 1 < actuals.size())
-			return actuals.get(index - 1);
+			return expressionMaker.getExpressionResult(actuals.get(index - 1), Collections.<Effect>emptySet()).getValue();
 		else
 			throw new IllegalValue();
-	}
-
-	/**
-	 * Gets the Value represented by this argument.
-	 * @param receiver The receiver of the call.
-	 * @param actuals The actuals to the call.
-	 * @return The Value represented by this argument.
-	 */
-	protected codehint.exprgen.Value getJavaValueWrapper(TypedExpression receiver, ArrayList<EvaluatedExpression> actuals) {
-		return getJavaValue(index, receiver, actuals).getWrapperValue();
 	}
 
 	/**
 	 * Gets the IJavaValue represented by this argument.
 	 * @param receiver The receiver of the call.
 	 * @param actuals The actuals to the call.
+	 * @param expressionMaker The expression maker.
 	 * @return The IJavaValue represented by this argument.
 	 */
-	protected IJavaValue getJavaValue(TypedExpression receiver, ArrayList<EvaluatedExpression> actuals) {
-		return getJavaValueWrapper(receiver, actuals).getValue();
+	protected IJavaValue getJavaValue(Expression receiver, ArrayList<Expression> actuals, ExpressionMaker expressionMaker) {
+		return getJavaValue(index, receiver, actuals, expressionMaker).getValue();
 	}
 
 }

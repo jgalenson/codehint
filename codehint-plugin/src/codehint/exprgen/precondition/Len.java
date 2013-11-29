@@ -6,9 +6,9 @@ import org.eclipse.debug.core.DebugException;
 import org.eclipse.jdt.debug.core.IJavaArray;
 import org.eclipse.jdt.debug.core.IJavaValue;
 
-import codehint.expreval.EvaluatedExpression;
+import codehint.ast.Expression;
+import codehint.exprgen.ExpressionMaker;
 import codehint.exprgen.StringValue;
-import codehint.exprgen.TypedExpression;
 
 public class Len extends Arg {
 
@@ -22,8 +22,8 @@ public class Len extends Arg {
 	}
 
 	@Override
-	public int getValue(TypedExpression receiver, ArrayList<EvaluatedExpression> actuals) {
-		return getLength(getJavaValueWrapper(receiver, actuals));
+	public int getValue(Expression receiver, ArrayList<Expression> actuals, ExpressionMaker expressionMaker) {
+		return getLength(getJavaValue(index, receiver, actuals, expressionMaker));
 	}
 
 	/**

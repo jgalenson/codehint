@@ -47,7 +47,6 @@ import codehint.exprgen.ExpressionMaker;
 import codehint.exprgen.Result;
 import codehint.exprgen.SubtypeChecker;
 import codehint.exprgen.TypeCache;
-import codehint.exprgen.TypedExpression;
 import codehint.exprgen.ValueCache;
 import codehint.property.ObjectValueProperty;
 import codehint.property.PrimitiveValueProperty;
@@ -154,7 +153,7 @@ public final class EvaluationManager {
      * @return a list of non-crashing expressions that satisfy
      * the given property (or all that do not crash if it is null).
 	 */
-	public ArrayList<FullyEvaluatedExpression> evaluateExpressions(ArrayList<? extends TypedExpression> exprs, Property property, IJavaType varType, SynthesisDialog synthesisDialog, IProgressMonitor monitor, String taskNameSuffix) {
+	public ArrayList<Expression> evaluateExpressions(ArrayList<? extends Expression> exprs, Property property, IJavaType varType, SynthesisDialog synthesisDialog, IProgressMonitor monitor, String taskNameSuffix) {
 		try {
 			this.synthesisDialog = synthesisDialog;
 			validVal = property == null ? "true" : property.getReplacedString("_$curValue", stack);
@@ -163,11 +162,11 @@ public final class EvaluationManager {
     		ASTConverter.parseExpr(parser, validVal).accept(pf);
     		propertyPreconditions = property instanceof ValueProperty ? "" : pf.getPreconditions();  // TODO: This will presumably fail if the user does their own null check.
     		boolean validateStatically = canEvaluateStatically(property);
-			Map<String, ArrayList<TypedExpression>> expressionsByType = getNonKnownCrashingExpressionByType(exprs);
+			Map<String, ArrayList<Expression>> expressionsByType = getNonKnownCrashingExpressionByType(exprs);
 			int numExpressions = Utils.getNumValues(expressionsByType);
 			this.monitor = SubMonitor.convert(monitor, "Expression evaluation" + taskNameSuffix, numExpressions);
-			ArrayList<FullyEvaluatedExpression> validExprs = new ArrayList<FullyEvaluatedExpression>(numExpressions);
-			for (Map.Entry<String, ArrayList<TypedExpression>> expressionsOfType: expressionsByType.entrySet()) {
+			ArrayList<Expression> validExprs = new ArrayList<Expression>(numExpressions);
+			for (Map.Entry<String, ArrayList<Expression>> expressionsOfType: expressionsByType.entrySet()) {
 				String type = EclipseUtils.sanitizeTypename(expressionsOfType.getKey());
 				boolean arePrimitives = !"Object".equals(type);
 				String valuesArrayName = getValuesArrayName(type);
@@ -194,22 +193,22 @@ public final class EvaluationManager {
 	 * in an array of objects and primitives in arrays of their own.
 	 * It also filters out expressions that we know will crash.
 	 */
-	private Map<String, ArrayList<TypedExpression>> getNonKnownCrashingExpressionByType(ArrayList<? extends TypedExpression> exprs) throws DebugException {
-		Map<String, ArrayList<TypedExpression>> expressionsByType = new HashMap<String, ArrayList<TypedExpression>>();
-		for (TypedExpression expr: exprs) {
-    		if (!crashingExpressions.contains(expr.getExpression().toString())) {
-				IJavaType type = expr.getType();
+	private Map<String, ArrayList<Expression>> getNonKnownCrashingExpressionByType(ArrayList<? extends Expression> exprs) throws DebugException {
+		Map<String, ArrayList<Expression>> expressionsByType = new HashMap<String, ArrayList<Expression>>();
+		for (Expression expr: exprs) {
+    		if (!crashingExpressions.contains(expr.toString())) {
+				IJavaType type = expr.getStaticType();
 				String typeName = type == null ? null : EclipseUtils.isPrimitive(type) ? type.getName() : "Object";
 				if (!expressionsByType.containsKey(typeName))
-					expressionsByType.put(typeName, new ArrayList<TypedExpression>());
+					expressionsByType.put(typeName, new ArrayList<Expression>());
 				expressionsByType.get(typeName).add(expr);
     		}
 		}
 		// Nulls have a null type, so put them with the objects.
 		if (expressionsByType.containsKey(null)) {
-			ArrayList<TypedExpression> nulls = expressionsByType.remove(null);
+			ArrayList<Expression> nulls = expressionsByType.remove(null);
 			if (!expressionsByType.containsKey("Object"))
-				expressionsByType.put("Object", new ArrayList<TypedExpression>());
+				expressionsByType.put("Object", new ArrayList<Expression>());
 			expressionsByType.get("Object").addAll(nulls);
 		}
 		return expressionsByType;
@@ -260,7 +259,7 @@ public final class EvaluationManager {
 	 * @param valuesField The field of the proper type to store the
 	 * results of the given expressions.
 	 */
-	private void evaluateExpressions(ArrayList<TypedExpression> exprs, ArrayList<FullyEvaluatedExpression> validExprs, String type, boolean arePrimitives, Property property, boolean validateStatically, IJavaFieldVariable valuesField) {
+	private void evaluateExpressions(ArrayList<Expression> exprs, ArrayList<Expression> validExprs, String type, boolean arePrimitives, Property property, boolean validateStatically, IJavaFieldVariable valuesField) {
 		try {
 			boolean hasPropertyPrecondition = propertyPreconditions.length() > 0;
 			String valuesArrayName = valuesField.getName();
@@ -301,7 +300,7 @@ public final class EvaluationManager {
 					int fullCount = ((IJavaPrimitiveValue)fullCountField.getValue()).getIntValue();
 					int valueCount = ((IJavaPrimitiveValue)valueCountField.getValue()).getIntValue();
 		    		int crashingIndex = evalExprIndices.get(fullCount);
-		    		Expression crashedExpr = exprs.get(crashingIndex).getExpression();
+		    		Expression crashedExpr = exprs.get(crashingIndex);
 					if (valueCount == fullCount || validateStatically)  // Ensure we crashed on the expression and not the pdspec.
 						crashingExpressions.add(crashedExpr.toString());
 		    		work = crashingIndex - startIndex;
@@ -309,7 +308,7 @@ public final class EvaluationManager {
 			    	monitor.worked(numToSkip);
 		    	}
 		    	if (work > 0) {
-		    		ArrayList<FullyEvaluatedExpression> newResults = getResultsFromArray(exprs, property, valuesField, startIndex, work, numEvaluated, validateStatically);
+		    		ArrayList<Expression> newResults = getResultsFromArray(exprs, property, valuesField, startIndex, work, numEvaluated, validateStatically);
 			    	reportResults(newResults);
 			    	validExprs.addAll(newResults);
 		    	}
@@ -350,11 +349,11 @@ public final class EvaluationManager {
 	 * expressionsStr will evaluate.
 	 * @throws DebugException
 	 */
-	private int buildStringForExpression(TypedExpression curTypedExpr, int i, StringBuilder expressionsStr, boolean isPrimitive, boolean validateStatically, boolean hasPropertyPrecondition, ArrayList<Integer> evalExprIndices, int numEvaluated, Map<String, Integer> temporaries, String valuesArrayName) throws DebugException {
-		Expression curExpr = curTypedExpr.getExpression();
+	private int buildStringForExpression(Expression curTypedExpr, int i, StringBuilder expressionsStr, boolean isPrimitive, boolean validateStatically, boolean hasPropertyPrecondition, ArrayList<Integer> evalExprIndices, int numEvaluated, Map<String, Integer> temporaries, String valuesArrayName) throws DebugException {
+		Expression curExpr = curTypedExpr;
 		ValueFlattener valueFlattener = new ValueFlattener(temporaries, methodResultsMap, expressionMaker, valueCache);
 		String curExprStr = valueFlattener.getResult(curExpr);
-		IJavaValue curValue = curTypedExpr.getValue();
+		IJavaValue curValue = expressionMaker.getExpressionValue(curTypedExpr, Collections.<Effect>emptySet());
 		if (curValue == null || !validateStatically) {
 			StringBuilder curString = new StringBuilder();
 			for (Map.Entry<String, Pair<Integer, String>> newTemp: valueFlattener.getNewTemporaries().entrySet()) {
@@ -370,7 +369,7 @@ public final class EvaluationManager {
 			String valueStr = "_$curValue";
 			if (!validateStatically || !isPrimitive) {
 				if (isFreeSearch && !isPrimitive)
-					curString.append(" ").append(curTypedExpr.getType() == null ? "Object" : EclipseUtils.sanitizeTypename(curTypedExpr.getType().getName()));
+					curString.append(" ").append(curTypedExpr.getStaticType() == null ? "Object" : EclipseUtils.sanitizeTypename(curTypedExpr.getStaticType().getName()));
 				curString.append(" _$curValue = ").append(curRHSStr).append(";\n");
 			} else
 				valueStr = curRHSStr;
@@ -497,7 +496,7 @@ public final class EvaluationManager {
 	 * @param type The type of the expressions being evaluated.
 	 * @throws DebugException
 	 */
-	private void handleCompileFailure(ArrayList<TypedExpression> exprs, int startIndex, int i, ICompiledExpression compiled, String type) throws DebugException {
+	private void handleCompileFailure(ArrayList<Expression> exprs, int startIndex, int i, ICompiledExpression compiled, String type) throws DebugException {
 		// If we are doing a search with an unconstrained type, the pdspec might crash on certain types, so filter those.
 		if (isFreeSearch) {
 			String initValue;
@@ -522,21 +521,21 @@ public final class EvaluationManager {
 		int numDeleted = 0;
 		Map<String, Integer> temporaries = new HashMap<String, Integer>(0);
 		for (int j = i - 1; j >= startIndex; j--) {
-			TypedExpression expr = exprs.get(j);
+			Expression expr = exprs.get(j);
 			// We need to get the flattened string not the actual string, since our temporaries can lose type information.  E.g., foo(bar(x),baz) might compile when storing bar(x) in a temporary with an erased type will not.
 			ValueFlattener valueFlattener = new ValueFlattener(temporaries, methodResultsMap, expressionMaker, valueCache);
-			String flattenedExprStr = valueFlattener.getResult(exprs.get(j).getExpression());
+			String flattenedExprStr = valueFlattener.getResult(exprs.get(j));
 			StringBuilder curString = new StringBuilder();
 			curString.append("{\n ");
 			for (Map.Entry<String, Pair<Integer, String>> newTemp: valueFlattener.getNewTemporaries().entrySet())
 				curString.append(newTemp.getValue().second).append(" _$tmp").append(newTemp.getValue().first).append(" = (").append(newTemp.getValue().second).append(")").append(getQualifier(null)).append("methodResults[").append(methodResultsMap.get(newTemp.getKey())).append("];\n");
-			String typeName = isFreeSearch && "Object".equals(type) ? (expr.getType() == null ? "Object" : expr.getType().getName()) : type;
+			String typeName = isFreeSearch && "Object".equals(type) ? (expr.getStaticType() == null ? "Object" : expr.getStaticType().getName()) : type;
 			curString.append(typeName).append(" _$curValue = ").append(flattenedExprStr).append(";\n ");
 			StringBuilder curStringWithSpec = new StringBuilder(curString.toString());
 			curStringWithSpec.append("boolean _$curValid = ").append(validVal).append(";\n}");
 			if (engine.getCompiledExpression(curStringWithSpec.toString(), stack).hasErrors()) {
 				if (engine.getCompiledExpression(curString.toString() + "\n}", stack).hasErrors())  // Do not mark the expression as crashing if we crash on the pdspec.
-					crashingExpressions.add(exprs.get(j).getExpression().toString());
+					crashingExpressions.add(exprs.get(j).toString());
 				exprs.remove(j);
 				numDeleted++;
 				//System.out.println(exprStr + " does not compile.");
@@ -556,10 +555,10 @@ public final class EvaluationManager {
 	 * given expression.
 	 * @throws DebugException 
 	 */
-	private static String getToStringGetter(TypedExpression expr) throws DebugException {
+	private static String getToStringGetter(Expression expr) throws DebugException {
 		String nullCheck = "_$curValue == null ? \"null\" : ";
-		if (expr.getType() instanceof IJavaArrayType)
-			return nullCheck + "java.util.Arrays.toString((" + EclipseUtils.sanitizeTypename(expr.getType().getName()) + ")_$curValue)";
+		if (expr.getStaticType() instanceof IJavaArrayType)
+			return nullCheck + "java.util.Arrays.toString((" + EclipseUtils.sanitizeTypename(expr.getStaticType().getName()) + ")_$curValue)";
 		else
 			return nullCheck + "_$curValue.toString()";
 	}
@@ -578,8 +577,8 @@ public final class EvaluationManager {
 	 * given property (or all that do not crash if it is null).
 	 * @throws DebugException
 	 */
-	private ArrayList<FullyEvaluatedExpression> getResultsFromArray(ArrayList<TypedExpression> exprs, Property property, IJavaFieldVariable valuesField, int startIndex, int count, int numEvaluated, boolean validateStatically) throws DebugException {
-		ArrayList<FullyEvaluatedExpression> validExprs = new ArrayList<FullyEvaluatedExpression>();
+	private ArrayList<Expression> getResultsFromArray(ArrayList<Expression> exprs, Property property, IJavaFieldVariable valuesField, int startIndex, int count, int numEvaluated, boolean validateStatically) throws DebugException {
+		ArrayList<Expression> validExprs = new ArrayList<Expression>();
 		IJavaValue valuesFieldValue = (IJavaValue)valuesField.getValue();
 		IJavaValue[] values = numEvaluated == 0 || valuesFieldValue.isNull() ? null : ((IJavaArray)valuesFieldValue).getValues();
 		IJavaValue validFieldValue = (IJavaValue)validField.getValue();
@@ -590,8 +589,9 @@ public final class EvaluationManager {
 		for (int i = 0; i < count; i++) {
 			if (monitor.isCanceled())  // We ignore the maximum batch size if everything is already evaluated, so we might have a lot of things here and hence need this check.
 				throw new OperationCanceledException();
-			TypedExpression typedExpr = exprs.get(startIndex + i);
-			IJavaValue curValue = typedExpr.getValue() != null ? typedExpr.getValue() : values[evalIndex];
+			Expression typedExpr = exprs.get(startIndex + i);
+			Result initResult = expressionMaker.getExpressionResult(typedExpr, Collections.<Effect>emptySet());
+			IJavaValue curValue = initResult == null ? values[evalIndex] : initResult.getValue().getValue();
 			boolean valid = false;
 			String validResultString = null;
 			if (property == null) {
@@ -621,10 +621,12 @@ public final class EvaluationManager {
     				validResultString = getResultString(typedExpr, curValue, toStrings, evalIndex);
     		}
 			if (valid) {
-				expressionMaker.setResultString(typedExpr.getExpression(), Utils.getPrintableString(validResultString));
-				validExprs.add(new FullyEvaluatedExpression(typedExpr.getExpression(), typedExpr.getType(), new Result(curValue, typedExpr.getResult() == null ? Collections.<Effect>emptySet() : typedExpr.getResult().getEffects(), valueCache, thread), Utils.getPrintableString(validResultString)));
+				if (initResult == null)
+					expressionMaker.setExpressionResult(typedExpr, new Result(curValue, Collections.<Effect>emptySet(), valueCache, thread), Collections.<Effect>emptySet());
+				expressionMaker.setResultString(typedExpr, Utils.getPrintableString(validResultString));
+				validExprs.add(typedExpr);
 			}
-			if (typedExpr.getValue() == null || !validateStatically)
+			if (initResult == null || !validateStatically)
 				evalIndex++;
 			monitor.worked(1);
 		}
@@ -644,7 +646,7 @@ public final class EvaluationManager {
 	 * @return A String representation of the given expression and value.
 	 * @throws DebugException
 	 */
-	private String getResultString(TypedExpression expr, IJavaValue curValue, IJavaValue[] toStrings, int evalIndex) throws DebugException {
+	private String getResultString(Expression expr, IJavaValue curValue, IJavaValue[] toStrings, int evalIndex) throws DebugException {
 		if (toStrings == null)
 			return getJavaString(expr, curValue);
 		else {
@@ -662,7 +664,7 @@ public final class EvaluationManager {
 	 * @return A string representation of the given expression and value.
 	 * @throws DebugException
 	 */
-	private String getJavaString(TypedExpression expr, IJavaValue curValue) throws DebugException {
+	private String getJavaString(Expression expr, IJavaValue curValue) throws DebugException {
 		return expressionMaker.getToStringWithEffects(expr, curValue);
 	}
 
@@ -671,7 +673,7 @@ public final class EvaluationManager {
 	 * or does nothing if there is no dialog.
 	 * @param results The expressions to record.
 	 */
-	private void reportResults(final ArrayList<FullyEvaluatedExpression> results) {
+	private void reportResults(final ArrayList<Expression> results) {
 		if (synthesisDialog != null && !results.isEmpty())
 			synthesisDialog.addExpressions(results);
 	}
@@ -690,7 +692,7 @@ public final class EvaluationManager {
 	 * crashed and so will always be at least one.
 	 * @throws DebugException 
 	 */
-	private int skipLikelyCrashes(ArrayList<TypedExpression> exprs, DebugException error, int crashingIndex, Expression crashedExpr) throws DebugException {
+	private int skipLikelyCrashes(ArrayList<Expression> exprs, DebugException error, int crashingIndex, Expression crashedExpr) throws DebugException {
 		int numToSkip = 1;
 		Method crashedMethod = expressionMaker.getMethod(crashedExpr);
 		String errorName = EclipseUtils.getExceptionName(error);
@@ -698,7 +700,7 @@ public final class EvaluationManager {
 		if (crashedMethod != null && "java.lang.NullPointerException".equals(errorName) && numNulls > 0) {
 			// Only skip method calls that we think will throw a NPE and that have at least one subexpression we know is null.
 			while (crashingIndex + numToSkip < exprs.size()) {
-				Expression newExpr = exprs.get(crashingIndex + numToSkip).getExpression();
+				Expression newExpr = exprs.get(crashingIndex + numToSkip);
 				// Skip calls to the same method with at least as much known nulls.
 				if (crashedMethod.equals(expressionMaker.getMethod(newExpr)) && getNumNulls(newExpr) >= numNulls) {
 					//System.out.println("Skipping " + newExpr.toString() + ".");
@@ -712,7 +714,7 @@ public final class EvaluationManager {
 			if ("int".equals(argValue.getJavaType().getName())) {
 				int argVal = ((IJavaPrimitiveValue)argValue).getIntValue();
 				while (crashingIndex + numToSkip < exprs.size()) {
-					Expression newExpr = exprs.get(crashingIndex + numToSkip).getExpression();
+					Expression newExpr = exprs.get(crashingIndex + numToSkip);
 					if (crashedMethod.equals(expressionMaker.getMethod(newExpr))) {
 						int curVal = ((IJavaPrimitiveValue)expressionMaker.getExpressionValue(getArguments(newExpr)[0], getReceiverEffects(newExpr))).getIntValue();
 						if ((argVal < 0 && curVal < 0) || (argVal >= 0 && curVal > argVal)) {
@@ -732,7 +734,7 @@ public final class EvaluationManager {
 			for (int i = 0; i < argTypes.length; i++)
 				argTypes[i] = String.valueOf(expressionMaker.getExpressionValue(args[i], Collections.<Effect>emptySet()).getJavaType());
 			exprLoop: while (crashingIndex + numToSkip < exprs.size()) {
-				Expression newExpr = exprs.get(crashingIndex + numToSkip).getExpression();
+				Expression newExpr = exprs.get(crashingIndex + numToSkip);
 				if (crashedMethod.equals(expressionMaker.getMethod(newExpr))) {
 					Expression[] curArgs = getArguments(newExpr);
 					for (int i = 0; i < argTypes.length; i++)
@@ -746,7 +748,7 @@ public final class EvaluationManager {
 		} else if (crashedMethod != null && "codehint.SynthesisSecurityManager$SynthesisSecurityException".equals(errorName)) {
 			// Skip calls to methods that try to make illegal system calls.
 			while (crashingIndex + numToSkip < exprs.size()) {
-				Expression newExpr = exprs.get(crashingIndex + numToSkip).getExpression();
+				Expression newExpr = exprs.get(crashingIndex + numToSkip);
 				// Skip calls to the same method.
 				if (crashedMethod.equals(expressionMaker.getMethod(newExpr))) {
 					//System.out.println("Skipping " + newExpr.toString() + ".");
@@ -832,22 +834,22 @@ public final class EvaluationManager {
      * we currently want to evaluate.
      * @throws DebugException
      */
-    public void cacheMethodResults(ArrayList<? extends TypedExpression> exprs) throws DebugException {
+    public void cacheMethodResults(ArrayList<? extends Expression> exprs) throws DebugException {
     	// Find the non-inlined method calls.
-    	ArrayList<EvaluatedExpression> calls = new ArrayList<EvaluatedExpression>();
-    	for (TypedExpression expr: exprs) {
-    		Expression e = expr.getExpression();
-    		IJavaValue value = expr.getValue();
+    	ArrayList<Expression> calls = new ArrayList<Expression>();
+    	for (Expression expr: exprs) {
+    		Expression e = expr;
+    		IJavaValue value = expressionMaker.getExpressionValue(expr, Collections.<Effect>emptySet());
     		if (value != null && (e instanceof MethodInvocation || e instanceof ClassInstanceCreation || e instanceof SuperMethodInvocation)
     				&& !(value instanceof IJavaPrimitiveValue || value.isNull() || (value instanceof IJavaObject && "Ljava/lang/String;".equals(value.getSignature()))))
-    			calls.add((EvaluatedExpression)expr);
+    			calls.add(expr);
     	}
 		methodResultsMap = new HashMap<String, Integer>();
     	if (!calls.isEmpty()) {  // Cache the method call results so the runtime can use them.
     		IJavaArray newValue = ((IJavaArrayType)methodResultsField.getJavaType()).newInstance(calls.size());
     		for (int i = 0; i < calls.size(); i++) {
-    			newValue.setValue(i, calls.get(i).getValue());
-    			methodResultsMap.put(calls.get(i).getExpression().toString(), i);
+    			newValue.setValue(i, expressionMaker.getExpressionValue(calls.get(i), Collections.<Effect>emptySet()));
+    			methodResultsMap.put(calls.get(i).toString(), i);
     		}
     		methodResultsField.setValue(newValue);
     	}

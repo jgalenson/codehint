@@ -157,7 +157,7 @@ public class Weights {
 		else {
 			receiverType = expressionMaker.getStaticType(node.getExpression());
 			if (receiverType == null)
-				receiverType = (IJavaReferenceType)expressionMaker.getExpressionResult(node.getExpression(), curEffects).getValue().getValue().getJavaType();
+				receiverType = (IJavaReferenceType)expressionMaker.getExpressionValue(node.getExpression(), curEffects).getJavaType();
 		}
 		return receiverType;
 	}*/

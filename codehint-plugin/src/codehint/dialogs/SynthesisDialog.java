@@ -27,6 +27,7 @@ import org.eclipse.jdt.debug.core.IJavaPrimitiveValue;
 import org.eclipse.jdt.debug.core.IJavaStackFrame;
 import org.eclipse.jdt.debug.core.IJavaThread;
 import org.eclipse.jdt.debug.core.IJavaType;
+import org.eclipse.jdt.debug.core.IJavaValue;
 import org.eclipse.jdt.debug.eval.IAstEvaluationEngine;
 import org.eclipse.jdt.internal.debug.ui.JDIContentAssistPreference;
 import org.eclipse.jdt.internal.debug.ui.contentassist.CurrentFrameContext;
@@ -105,9 +106,9 @@ import codehint.Synthesizer.SynthesisWorker;
 import codehint.ast.ASTNode;
 import codehint.ast.ASTVisitor;
 import codehint.ast.Expression;
+import codehint.effects.Effect;
 import codehint.effects.SideEffectHandler;
 import codehint.expreval.EvaluationManager;
-import codehint.expreval.FullyEvaluatedExpression;
 import codehint.expreval.NativeHandler;
 import codehint.expreval.StaticEvaluator;
 import codehint.expreval.TimeoutChecker;
@@ -144,7 +145,7 @@ public abstract class SynthesisDialog extends ModelessDialog {
 
     protected final IJavaStackFrame stack;
 
-    protected ArrayList<FullyEvaluatedExpression> results;
+    protected ArrayList<Expression> results;
     protected Property property;
 	
 	private final String initialSkeletonText;
@@ -180,9 +181,9 @@ public abstract class SynthesisDialog extends ModelessDialog {
     private int maxToStringLen;
     private int maxEffectsLen;
     private boolean needsToStringColumn;
-    protected ArrayList<FullyEvaluatedExpression> expressions;
-    private ArrayList<FullyEvaluatedExpression> lastExpressions;
-    protected ArrayList<FullyEvaluatedExpression> filteredExpressions;
+    protected ArrayList<Expression> expressions;
+    private ArrayList<Expression> lastExpressions;
+    protected ArrayList<Expression> filteredExpressions;
     private Button checkAllButton;
     private Button uncheckAllButton;
     private static final int checkSelectedButtonID = IDialogConstants.CLIENT_ID + 2;
@@ -265,7 +266,7 @@ public abstract class SynthesisDialog extends ModelessDialog {
 		this.sideEffectHandler = new SideEffectHandler(stack, project);
 		this.expressionMaker = new ExpressionMaker(stack, valueCache, typeCache, timeoutChecker, nativeHandler, sideEffectHandler, Synthesizer.getMetadata());
 		this.evalManager = new EvaluationManager(varType == null, true, stack, expressionMaker, subtypeChecker, typeCache, valueCache, timeoutChecker);
-		this.staticEvaluator = new StaticEvaluator(stack, typeCache, valueCache);
+		this.staticEvaluator = new StaticEvaluator(stack, expressionMaker, typeCache, valueCache);
 		Weights weights = new Weights();
 		this.expressionGenerator = new ExpressionGenerator(target, stack, sideEffectHandler, expressionMaker, subtypeChecker, typeCache, valueCache, evalManager, staticEvaluator, weights);
 		this.skeleton = null;
@@ -319,7 +320,7 @@ public abstract class SynthesisDialog extends ModelessDialog {
 			public void handleEvent(Event event) {
 				TableItem item = (TableItem)event.item;
 				int index = event.index;
-				FullyEvaluatedExpression expr = filteredExpressions.get(index);
+				Expression expr = filteredExpressions.get(index);
 				item.setData(expr);
 				String exprLabel = getExpressionLabel(expr);
 				String resultLabel = getValueLabel(expr);
@@ -365,8 +366,8 @@ public abstract class SynthesisDialog extends ModelessDialog {
     	(new TableViewerColumn(tableViewer, column1)).setLabelProvider(new ColumnLabelProvider() {
 			@Override
 			public String getToolTipText(Object element) {
-				FullyEvaluatedExpression expr = (FullyEvaluatedExpression)element;
-				String javadoc = getJavadocs(expr.getExpression(), expressionMaker, true);
+				Expression expr = (Expression)element;
+				String javadoc = getJavadocs(expr, expressionMaker, true);
 				if (javadoc == null)
 					return null;
 				javadoc = javadoc.trim();
@@ -739,7 +740,7 @@ public abstract class SynthesisDialog extends ModelessDialog {
     
     // Logic code
     
-    public ArrayList<FullyEvaluatedExpression> getExpressions() {
+    public ArrayList<Expression> getExpressions() {
      	return results;
     }
     
@@ -821,10 +822,10 @@ public abstract class SynthesisDialog extends ModelessDialog {
         if (buttonId == searchCancelButtonID) {
         	searchCancelButtonPressed(buttonId);
         } else if (buttonId == IDialogConstants.OK_ID) {
-         	results = new ArrayList<FullyEvaluatedExpression>();
+         	results = new ArrayList<Expression>();
          	for (int i = 0; i < table.getItemCount(); i++)
          		if (table.getItem(i).getChecked())
-         			results.add((FullyEvaluatedExpression)table.getItem(i).getData());
+         			results.add((Expression)table.getItem(i).getData());
     	}
         super.buttonPressed(buttonId);
     }
@@ -844,7 +845,7 @@ public abstract class SynthesisDialog extends ModelessDialog {
 		skeleton = ExpressionSkeleton.fromString(skeletonResult, target, stack, expressionMaker, evaluationEngine, subtypeChecker, typeCache, valueCache, evalManager, staticEvaluator, expressionGenerator, sideEffectHandler);
 		startEndSynthesis(isAutomatic ? SynthesisState.AUTO_START : SynthesisState.START);
 		lastExpressions = expressions;
-		showResults(new ArrayList<FullyEvaluatedExpression>());
+		showResults(new ArrayList<Expression>());
 		valueCache.allowCollectionOfDisabledObjects();  // Allow collection of objects from previous search.
 		this.shouldContinue = !isAutomatic && searchButtonId == searchCancelButtonID;
 		// Reset column sort indicators.
@@ -934,7 +935,7 @@ public abstract class SynthesisDialog extends ModelessDialog {
 			synthesisWorker.synthesize(this, evalManager, numSearches, timeoutChecker, nativeHandler.isEnabled(), sideEffectHandler);
 	}
 	
-	protected void showResults(ArrayList<FullyEvaluatedExpression> exprs) {
+	protected void showResults(ArrayList<Expression> exprs) {
 		expressions = exprs;
 		filteredExpressions = expressions;
 		showResults();
@@ -944,10 +945,10 @@ public abstract class SynthesisDialog extends ModelessDialog {
 	// Copy fields used to avoid a race with closing the dialog.
 	private final class JavadocPrefetcher extends Job {
 		
-		private final ArrayList<FullyEvaluatedExpression> expressions;
+		private final ArrayList<Expression> expressions;
 		private final ExpressionMaker expressionMaker;
 
-		private JavadocPrefetcher(ArrayList<FullyEvaluatedExpression> expressions, ExpressionMaker expressionMaker) {
+		private JavadocPrefetcher(ArrayList<Expression> expressions, ExpressionMaker expressionMaker) {
 			super("Javadoc prefetch");
 			this.expressions = expressions;
 			this.expressionMaker = expressionMaker;
@@ -960,7 +961,7 @@ public abstract class SynthesisDialog extends ModelessDialog {
 			for (int i = 0; i < num; i++) {
 				if (monitor.isCanceled())
 					return Status.CANCEL_STATUS;
-				getJavadocs(expressions.get(i).getExpression(), expressionMaker, false);
+				getJavadocs(expressions.get(i), expressionMaker, false);
 				monitor.worked(1);
 			}
 			monitor.done();
@@ -1129,7 +1130,7 @@ public abstract class SynthesisDialog extends ModelessDialog {
     	
     }
     
-    public void addExpressions(ArrayList<FullyEvaluatedExpression> foundExprs) {
+    public void addExpressions(ArrayList<Expression> foundExprs) {
     	expressions.addAll(foundExprs);
     	if (sorterWorker != null)
     		sorterWorker.cancel();
@@ -1140,9 +1141,9 @@ public abstract class SynthesisDialog extends ModelessDialog {
 
 	private final class SorterWorker extends Job {
 		
-		private final ArrayList<FullyEvaluatedExpression> expressions;
+		private final ArrayList<Expression> expressions;
 
-		private SorterWorker(ArrayList<FullyEvaluatedExpression> expressions) {
+		private SorterWorker(ArrayList<Expression> expressions) {
 			super("Result sorter");
 			this.expressions = expressions;
 		}
@@ -1211,19 +1212,22 @@ public abstract class SynthesisDialog extends ModelessDialog {
             	if (filteredExpressions == null)
             		return;
             	final int direction = table.getSortColumn() == column ? (table.getSortDirection() == SWT.DOWN ? SWT.UP : SWT.DOWN) : SWT.DOWN;
-            	Collections.sort(filteredExpressions, new Comparator<FullyEvaluatedExpression>() {
+            	Collections.sort(filteredExpressions, new Comparator<Expression>() {
 					@Override
-					public int compare(FullyEvaluatedExpression e1, FullyEvaluatedExpression e2) {
+					public int compare(Expression e1, Expression e2) {
 			    		int result;
 			    		if (index == 0)
 			    			result = getExpressionLabel(e1).compareTo(getExpressionLabel(e2));
-			    		else if ((index == 1 || index == 2) && e1.getValue() instanceof IJavaPrimitiveValue && e2.getValue() instanceof IJavaPrimitiveValue)
-		    				result = (int)(((IJavaPrimitiveValue)e1.getValue()).getDoubleValue() - ((IJavaPrimitiveValue)e2.getValue()).getDoubleValue());
-		    			else if (index == 1)
-		    				result = getValueLabel(e1).compareTo(getValueLabel(e2));
-			    		else if (index == 2)
-		    				result = getToStringLabel(e1).compareTo(getToStringLabel(e2));
-			    		else if (index == 3)
+			    		else if (index == 1 || index == 1) {
+			    			IJavaValue e1Value = expressionMaker.getExpressionValue(e1, Collections.<Effect>emptySet());
+			    			IJavaValue e2Value = expressionMaker.getExpressionValue(e2, Collections.<Effect>emptySet());
+			    			if (e1 instanceof IJavaPrimitiveValue && e2 instanceof IJavaPrimitiveValue)
+			    				result = (int)(((IJavaPrimitiveValue)e1Value).getDoubleValue() - ((IJavaPrimitiveValue)e2Value).getDoubleValue());
+			    			else if (index == 1)
+			    				result = getValueLabel(e1).compareTo(getValueLabel(e2));
+			    			else// if (index == 2)
+			    				result = getToStringLabel(e1).compareTo(getToStringLabel(e2));
+			    		} else if (index == 3)
 		    				result = getEffectsLabel(e1).compareTo(getEffectsLabel(e2));
 			    		else
 			    			throw new RuntimeException("Unexpected column: " + index);
@@ -1241,29 +1245,29 @@ public abstract class SynthesisDialog extends ModelessDialog {
     	return column;
     }
     
-    private static String getExpressionLabel(FullyEvaluatedExpression e) {
-    	return e.getSnippet();
+    private static String getExpressionLabel(Expression e) {
+    	return e.toString();
     }
     
-    private String getValueLabel(FullyEvaluatedExpression e) {
+    private String getValueLabel(Expression e) {
     	try {
-			return EclipseUtils.javaStringOfValue(e.getValue(), stack, false);
+			return EclipseUtils.javaStringOfValue(expressionMaker.getExpressionValue(e, Collections.<Effect>emptySet()), stack, false);
 		} catch (DebugException ex) {
 			throw new RuntimeException(ex);
 		}
     }
     
-    private String getToStringLabel(FullyEvaluatedExpression e) {
-    	return expressionMaker.getResultString(e.getExpression());
+    private String getToStringLabel(Expression e) {
+    	return expressionMaker.getResultString(e);
     }
     
-    private static String getEffectsLabel(FullyEvaluatedExpression e) {
-    	return e.getResult().getResultString("");
+    private String getEffectsLabel(Expression e) {
+    	return expressionMaker.getExpressionResult(e, Collections.<Effect>emptySet()).getResultString("");
     }
     
-    private static boolean needsToStringColumn(ArrayList<FullyEvaluatedExpression> expressions) {
-    	for (FullyEvaluatedExpression expr: expressions)
-    		if (needsToStringColumn(expr.getType()))
+    private static boolean needsToStringColumn(ArrayList<Expression> expressions) {
+    	for (Expression expr: expressions)
+    		if (needsToStringColumn(expr.getStaticType()))
     			return true;
     	return false;
     }
@@ -1326,7 +1330,7 @@ public abstract class SynthesisDialog extends ModelessDialog {
 				javadocPrefetcher.cancel();
 			amFiltering = true;
 			startOrEndWork(true, null);
-			filteredExpressions = new ArrayList<FullyEvaluatedExpression>();
+			filteredExpressions = new ArrayList<Expression>();
 			showResults();
 			filterWorker = new FilterWorker(text, expressions, expressionMaker);
 			filterWorker.setPriority(Job.LONG);
@@ -1338,10 +1342,10 @@ public abstract class SynthesisDialog extends ModelessDialog {
 	private final class FilterWorker extends Job {
 		
 		private final String[] filterWords;
-		private final ArrayList<FullyEvaluatedExpression> expressions;
+		private final ArrayList<Expression> expressions;
 		private final ExpressionMaker expressionMaker;
 
-		private FilterWorker(String filterText, ArrayList<FullyEvaluatedExpression> expressions, ExpressionMaker expressionMaker) {
+		private FilterWorker(String filterText, ArrayList<Expression> expressions, ExpressionMaker expressionMaker) {
 			super("Result filter");
 			this.filterWords = filterText.toLowerCase().split(" +");
 			this.expressions = expressions;
@@ -1350,11 +1354,11 @@ public abstract class SynthesisDialog extends ModelessDialog {
 
 		@Override
 		protected IStatus run(IProgressMonitor monitor) {
-			final ArrayList<FullyEvaluatedExpression> filteredExpressions = SynthesisDialog.this.filteredExpressions;
+			final ArrayList<Expression> filteredExpressions = SynthesisDialog.this.filteredExpressions;
 			SynthesisDialog.this.monitor.beginTask("Result filter", expressions.size());
 			long lastUpdate = 0;
 			int lastUpdateSize = 0;
-			exprLoop: for (FullyEvaluatedExpression expr: expressions) {
+			exprLoop: for (Expression expr: expressions) {
 				if (SynthesisDialog.this.monitor.isCanceled())
 					return finished(false);
 				long curTime = System.currentTimeMillis();
@@ -1369,16 +1373,16 @@ public abstract class SynthesisDialog extends ModelessDialog {
 					lastUpdateSize = filteredExpressions.size();
 				}
 				SynthesisDialog.this.monitor.worked(1);
-				String exprString = expr.getExpression().toString().toLowerCase();
+				String exprString = expr.toString().toLowerCase();
 				String javadocs = null;
 				boolean readJavadocs = false;
 				for (String filterWord: filterWords) {
 					if (exprString.contains(filterWord))
 						continue;
-					if (expressionMaker.getResultString(expr.getExpression()).toLowerCase().contains(filterWord))
+					if (expressionMaker.getResultString(expr).toLowerCase().contains(filterWord))
 						continue;
 					if (!readJavadocs) {  // Lazily initialize for efficiency.
-						javadocs = getJavadocs(expr.getExpression(), expressionMaker, false);
+						javadocs = getJavadocs(expr, expressionMaker, false);
 						readJavadocs = true;
 						if (javadocs != null)
 							javadocs = javadocs.toLowerCase();
