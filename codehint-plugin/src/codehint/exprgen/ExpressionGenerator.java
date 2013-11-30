@@ -261,8 +261,6 @@ public final class ExpressionGenerator {
 	private final Expression zero;
 	private final IJavaValue oneValue;
 	private final Expression one;
-	private final IJavaValue twoValue;
-	private final Expression two;
 	private final Map<Integer, Integer> realDepths;
 	private final Map<Integer, Boolean> hasBadMethodsFields;
 	private final Map<Integer, Boolean> hasBadConstants;
@@ -307,8 +305,6 @@ public final class ExpressionGenerator {
 		this.zero = expressionMaker.makeInt(0, target.newValue(0), intType, valueCache, thread);
 		this.oneValue = target.newValue(1);
 		this.one = expressionMaker.makeInt(1, oneValue, intType, valueCache, thread);
-		this.twoValue = target.newValue(2);
-		this.two = expressionMaker.makeInt(2, twoValue, intType, valueCache, thread);
 		this.realDepths = new HashMap<Integer, Integer>();
 		this.hasBadMethodsFields = new HashMap<Integer, Boolean>();
 		this.hasBadConstants = new HashMap<Integer, Boolean>();
@@ -2246,13 +2242,13 @@ public final class ExpressionGenerator {
 	private boolean isUsefulInfix(Expression l, InfixExpression.Operator op, Expression r) throws DebugException {
 		IJavaValue rValue = expressionMaker.getExpressionValue(r, Collections.<Effect>emptySet());
 		if (op == InfixExpression.Operator.PLUS)
-			return !isConstant(l) && ((isConstant(r) && rValue.equals(oneValue)) || (mightNotCommute(l, r) || l.toString().compareTo(r.toString()) < 0));
+			return !isConstant(l) && (r == one || (mightNotCommute(l, r) || l.toString().compareTo(r.toString()) < 0));
 		else if (op == InfixExpression.Operator.TIMES)
-			return !isConstant(l) && ((isConstant(r) && rValue.equals(twoValue)) || (mightNotCommute(l, r) || l.toString().compareTo(r.toString()) <= 0));
+			return !isConstant(l) && (/*r == two || */(mightNotCommute(l, r) || l.toString().compareTo(r.toString()) <= 0));
 		else if (op == InfixExpression.Operator.MINUS)
-			return !isConstant(l) && ((isConstant(r) && rValue.equals(oneValue)) || (mightNotCommute(l, r) || l.toString().compareTo(r.toString()) != 0)) && !(r instanceof PrefixExpression && ((PrefixExpression)r).getOperator() == PrefixExpression.Operator.MINUS);
+			return !isConstant(l) && (r == one || (mightNotCommute(l, r) || l.toString().compareTo(r.toString()) != 0)) && !(r instanceof PrefixExpression && ((PrefixExpression)r).getOperator() == PrefixExpression.Operator.MINUS);
 		else if (op == InfixExpression.Operator.DIVIDE)
-			return !isConstant(l) && ((isConstant(r) && rValue.equals(twoValue)) || (mightNotCommute(l, r) || l.toString().compareTo(r.toString()) != 0));
+			return !isConstant(l) && (/*r == two || */(mightNotCommute(l, r) || l.toString().compareTo(r.toString()) != 0));
 		else if (ExpressionMaker.isInt(l.getStaticType()) && ExpressionMaker.isInt(r.getStaticType()))
 			return l.toString().compareTo(r.toString()) < 0 && (!(l instanceof PrefixExpression) || !(r instanceof PrefixExpression));
 		else
