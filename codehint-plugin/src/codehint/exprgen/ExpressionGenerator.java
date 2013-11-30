@@ -1075,7 +1075,7 @@ public final class ExpressionGenerator {
 	 * @return The expressions to use for the given argument.
 	 * @throws DebugException 
 	 */
-	private ArrayList<Expression> getArgs(List<? extends Expression> possibleArgs, Expression receiver, Method method, OverloadChecker overloadChecker, IJavaType argType, int curArgIndex, int maxArgDepth) throws DebugException {
+	private ArrayList<Expression> getArgs(List<Expression> possibleArgs, Expression receiver, Method method, OverloadChecker overloadChecker, IJavaType argType, int curArgIndex, int maxArgDepth) throws DebugException {
 		SupertypeBound argBound = new SupertypeBound(argType);
 		int numArgs = method.argumentTypeNames().size();
 		ArrayList<Expression> curPossibleActuals = new ArrayList<Expression>();
@@ -1139,11 +1139,11 @@ public final class ExpressionGenerator {
 	 * @param method The method being called.
 	 * @return The maximum depth of arguments to this method.
 	 */
-	private int pruneManyArgCalls(ArrayList<? extends ArrayList<? extends Expression>> allPossibleActuals, int curDepth, int curMaxArgDepth, Method method) {
+	private int pruneManyArgCalls(ArrayList<ArrayList<Expression>> allPossibleActuals, int curDepth, int curMaxArgDepth, Method method) {
 		long numCombinations = Utils.getNumCalls(allPossibleActuals);
 		if (numCombinations > getPruneThreshold(curDepth, method)) {
-			for (ArrayList<? extends Expression> possibleActuals: allPossibleActuals)
-				for (Iterator<? extends Expression> it = possibleActuals.iterator(); it.hasNext(); )
+			for (ArrayList<Expression> possibleActuals: allPossibleActuals)
+				for (Iterator<Expression> it = possibleActuals.iterator(); it.hasNext(); )
 					if (getDepth(it.next()) >= curMaxArgDepth)  // We need >= not > since we use this during equivalence expansion.
 						it.remove();
 			//System.out.println("Pruned call to " + (method.declaringType().name() + "." + method.name()) + " from " + numCombinations + " to " + Utils.getNumCalls(allPossibleActuals));
@@ -1861,7 +1861,7 @@ public final class ExpressionGenerator {
 	 * @return A list of representatives of the equivalence classes
 	 * under the given effects.
 	 */
-	private ArrayList<Expression> getUniqueExpressions(Expression e, Set<Effect> curEffects, IJavaType type, int curDepth, List<? extends Expression> defaults) {
+	private ArrayList<Expression> getUniqueExpressions(Expression e, Set<Effect> curEffects, IJavaType type, int curDepth, List<Expression> defaults) {
 		if (curEffects.isEmpty()) {  // Fast-path the common case of no side effects by using the defaults provided.
 			ArrayList<Expression> result = new ArrayList<Expression>(defaults.size());
 			for (Expression cur: defaults) {
@@ -2106,7 +2106,7 @@ public final class ExpressionGenerator {
 	 * or itself if it is not in our equivalences map.
 	 * @throws DebugException
 	 */
-	private ArrayList<? extends Expression> getEquivalentExpressionsOrGiven(Expression expr, TypeConstraint constraint, Set<Effect> curEffects, int maxDepth) throws DebugException {
+	private ArrayList<Expression> getEquivalentExpressionsOrGiven(Expression expr, TypeConstraint constraint, Set<Effect> curEffects, int maxDepth) throws DebugException {
 		if (expr == null || expressionMaker.getResult(expr, curEffects) == null) {
 			ArrayList<Expression> result = new ArrayList<Expression>(1);
 			if (getDepth(expr) <= maxDepth)
@@ -2186,7 +2186,7 @@ public final class ExpressionGenerator {
 	 * we have equivalent non-downcast expressions.
 	 * @param args The list of expressions from which to remove bad casts.
 	 */
-	private static void filterBadCasts(ArrayList<? extends Expression> exprs) {
+	private static void filterBadCasts(ArrayList<Expression> exprs) {
 		boolean hasNonCast = false;
 		boolean hasCast = false;
 		for (Expression e: exprs) {
@@ -2201,7 +2201,7 @@ public final class ExpressionGenerator {
 				hasNonCast = true;
 		}
 		if (hasCast && hasNonCast) {  // Remove all expressions with casts,
-			for (Iterator<? extends Expression> it = exprs.iterator(); it.hasNext();) {
+			for (Iterator<Expression> it = exprs.iterator(); it.hasNext();) {
 				Expression e = it.next();
 				if (e != null && e instanceof ParenthesizedExpression && ((ParenthesizedExpression)e).getExpression() instanceof CastExpression)
 					it.remove();
@@ -2679,7 +2679,7 @@ public final class ExpressionGenerator {
      * @return The depth of a call with the given receiver,
      * arguments, and method name.
      */
-    private int getDepthOfCall(Expression receiver, ArrayList<? extends Expression> args, Method method) {
+    private int getDepthOfCall(Expression receiver, ArrayList<Expression> args, Method method) {
     	int depth = getDepthImpl(receiver);
     	for (Expression arg: args)
     		depth = Math.max(depth, getDepthImpl(arg));

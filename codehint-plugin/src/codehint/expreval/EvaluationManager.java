@@ -153,7 +153,7 @@ public final class EvaluationManager {
      * @return a list of non-crashing expressions that satisfy
      * the given property (or all that do not crash if it is null).
 	 */
-	public ArrayList<Expression> evaluateExpressions(ArrayList<? extends Expression> exprs, Property property, IJavaType varType, SynthesisDialog synthesisDialog, IProgressMonitor monitor, String taskNameSuffix) {
+	public ArrayList<Expression> evaluateExpressions(ArrayList<Expression> exprs, Property property, IJavaType varType, SynthesisDialog synthesisDialog, IProgressMonitor monitor, String taskNameSuffix) {
 		try {
 			this.synthesisDialog = synthesisDialog;
 			validVal = property == null ? "true" : property.getReplacedString("_$curValue", stack);
@@ -193,7 +193,7 @@ public final class EvaluationManager {
 	 * in an array of objects and primitives in arrays of their own.
 	 * It also filters out expressions that we know will crash.
 	 */
-	private Map<String, ArrayList<Expression>> getNonKnownCrashingExpressionByType(ArrayList<? extends Expression> exprs) throws DebugException {
+	private Map<String, ArrayList<Expression>> getNonKnownCrashingExpressionByType(ArrayList<Expression> exprs) throws DebugException {
 		Map<String, ArrayList<Expression>> expressionsByType = new HashMap<String, ArrayList<Expression>>();
 		for (Expression expr: exprs) {
     		if (!crashingExpressions.contains(expr.toString())) {
@@ -834,7 +834,7 @@ public final class EvaluationManager {
      * we currently want to evaluate.
      * @throws DebugException
      */
-    public void cacheMethodResults(ArrayList<? extends Expression> exprs) throws DebugException {
+    public void cacheMethodResults(ArrayList<Expression> exprs) throws DebugException {
     	// Find the non-inlined method calls.
     	ArrayList<Expression> calls = new ArrayList<Expression>();
     	for (Expression expr: exprs) {

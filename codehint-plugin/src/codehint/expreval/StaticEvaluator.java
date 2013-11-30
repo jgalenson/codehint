@@ -63,7 +63,7 @@ public class StaticEvaluator {
 	 * the given arguments, or null if we could not evaluate
 	 * it, or void if the evaluation crashed.
 	 */
-	public IJavaValue evaluateCall(Expression receiver, ArrayList<? extends Expression> args, Method method, IJavaDebugTarget target) {
+	public IJavaValue evaluateCall(Expression receiver, ArrayList<Expression> args, Method method, IJavaDebugTarget target) {
 		String declaringType = method.declaringType().name();
 		if (!"java.lang.String".equals(declaringType) && !"java.util.Arrays".equals(declaringType))
 			return null;

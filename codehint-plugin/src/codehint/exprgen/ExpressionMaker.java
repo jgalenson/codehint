@@ -323,7 +323,7 @@ public class ExpressionMaker {
 	}
 
 	// I don't need to call getExpressionResult on receiver and args (in getArgValues) because reEvaluate expression creates them with the correct results.
-	private Result computeCall(Method method, Expression receiver, ArrayList<? extends Expression> args, IJavaThread thread, IJavaDebugTarget target, boolean isOutermost) {
+	private Result computeCall(Method method, Expression receiver, ArrayList<Expression> args, IJavaThread thread, IJavaDebugTarget target, boolean isOutermost) {
 		IJavaValue receiverValue = getValue(receiver, Collections.<Effect>emptySet());
 		IJavaValue value = null;
 		Set<Effect> effects = null;
@@ -355,7 +355,7 @@ public class ExpressionMaker {
 		return new Result(value, effects, valueCache, thread);
 	}
 	
-	private IJavaValue[] getArgValues(Method method, Expression receiver, ArrayList<? extends Expression> args, IJavaThread thread, IJavaDebugTarget target) throws DebugException {
+	private IJavaValue[] getArgValues(Method method, Expression receiver, ArrayList<Expression> args, IJavaThread thread, IJavaDebugTarget target) throws DebugException {
 		IJavaValue[] argValues = new IJavaValue[args.size()];
 		Set<Effect> effects = method.isConstructor() ? Collections.<Effect>emptySet() : getResult(receiver, Collections.<Effect>emptySet()).getEffects();
 		boolean seenEffects = !effects.isEmpty();
@@ -991,7 +991,7 @@ public class ExpressionMaker {
 			return new Metadata(new HashMap<Integer, Method>(), new HashMap<Integer, Field>());
 		}
 		
-		public void addMetadataFor(List<? extends Expression> exprs, final ExpressionMaker expressionMaker) {
+		public void addMetadataFor(List<Expression> exprs, final ExpressionMaker expressionMaker) {
 			ASTVisitor visitor = new ASTVisitor() {
 	    		@Override
 	    		public void postVisit(ASTNode node) {
