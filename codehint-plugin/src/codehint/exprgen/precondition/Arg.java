@@ -40,9 +40,9 @@ public class Arg extends Value {
 	 */
 	public static codehint.exprgen.Value getJavaValue(int index, Expression receiver, ArrayList<Expression> actuals, ExpressionMaker expressionMaker) {
 		if (index == 0)
-			return expressionMaker.getExpressionResult(receiver, Collections.<Effect>emptySet()).getValue();
+			return expressionMaker.getResult(receiver, Collections.<Effect>emptySet()).getValue();
 		else if (index - 1 < actuals.size())
-			return expressionMaker.getExpressionResult(actuals.get(index - 1), Collections.<Effect>emptySet()).getValue();
+			return expressionMaker.getResult(actuals.get(index - 1), Collections.<Effect>emptySet()).getValue();
 		else
 			throw new IllegalValue();
 	}

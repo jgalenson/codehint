@@ -72,7 +72,7 @@ public class StaticEvaluator {
 			Value[] argVals = new Value[args.size()];
 			for (int i = 0; i < args.size(); i++) {
 				Expression arg = args.get(i);
-				Result argResult = expressionMaker.getExpressionResult(arg, Collections.<Effect>emptySet()); 
+				Result argResult = expressionMaker.getResult(arg, Collections.<Effect>emptySet()); 
 				if (argResult == null)
 					return null;
 				argVals[i] = argResult.getValue();
@@ -81,7 +81,7 @@ public class StaticEvaluator {
 				if (receiver == null)
 					result = evaluateStringConstructorCall(argVals, method, target);
 				else {
-					Value receiverValue = expressionMaker.getExpressionResult(receiver, Collections.<Effect>emptySet()).getValue();
+					Value receiverValue = expressionMaker.getResult(receiver, Collections.<Effect>emptySet()).getValue();
 					result = evaluateStringCall(receiverValue.getValue() instanceof IJavaClassObject ? null : stringOfValue(receiverValue.getValue()), receiverValue.getValue(), argVals, method, target);
 				}
 			} else if ("java.util.Arrays".equals(declaringType))

@@ -972,7 +972,7 @@ public abstract class SynthesisDialog extends ModelessDialog {
 	
 	private String getJavadoc(Expression expr, ExpressionMaker expressionMaker, boolean prettify) {
 		try {
-			int id = ExpressionMaker.getID(expr);
+			int id = expr.getID();
 			Method method = expressionMaker.getMethod(id);
 			if (method != null) {
 				IMethod imethod = EclipseUtils.getIMethod(method, project);
@@ -1219,8 +1219,8 @@ public abstract class SynthesisDialog extends ModelessDialog {
 			    		if (index == 0)
 			    			result = getExpressionLabel(e1).compareTo(getExpressionLabel(e2));
 			    		else if (index == 1 || index == 1) {
-			    			IJavaValue e1Value = expressionMaker.getExpressionValue(e1, Collections.<Effect>emptySet());
-			    			IJavaValue e2Value = expressionMaker.getExpressionValue(e2, Collections.<Effect>emptySet());
+			    			IJavaValue e1Value = expressionMaker.getValue(e1, Collections.<Effect>emptySet());
+			    			IJavaValue e2Value = expressionMaker.getValue(e2, Collections.<Effect>emptySet());
 			    			if (e1 instanceof IJavaPrimitiveValue && e2 instanceof IJavaPrimitiveValue)
 			    				result = (int)(((IJavaPrimitiveValue)e1Value).getDoubleValue() - ((IJavaPrimitiveValue)e2Value).getDoubleValue());
 			    			else if (index == 1)
@@ -1251,7 +1251,7 @@ public abstract class SynthesisDialog extends ModelessDialog {
     
     private String getValueLabel(Expression e) {
     	try {
-			return EclipseUtils.javaStringOfValue(expressionMaker.getExpressionValue(e, Collections.<Effect>emptySet()), stack, false);
+			return EclipseUtils.javaStringOfValue(expressionMaker.getValue(e, Collections.<Effect>emptySet()), stack, false);
 		} catch (DebugException ex) {
 			throw new RuntimeException(ex);
 		}
@@ -1262,7 +1262,7 @@ public abstract class SynthesisDialog extends ModelessDialog {
     }
     
     private String getEffectsLabel(Expression e) {
-    	return expressionMaker.getExpressionResult(e, Collections.<Effect>emptySet()).getResultString("");
+    	return expressionMaker.getResult(e, Collections.<Effect>emptySet()).getResultString("");
     }
     
     private static boolean needsToStringColumn(ArrayList<Expression> expressions) {

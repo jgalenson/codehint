@@ -353,7 +353,7 @@ public final class EvaluationManager {
 		Expression curExpr = curTypedExpr;
 		ValueFlattener valueFlattener = new ValueFlattener(temporaries, methodResultsMap, expressionMaker, valueCache);
 		String curExprStr = valueFlattener.getResult(curExpr);
-		IJavaValue curValue = expressionMaker.getExpressionValue(curTypedExpr, Collections.<Effect>emptySet());
+		IJavaValue curValue = expressionMaker.getValue(curTypedExpr, Collections.<Effect>emptySet());
 		if (curValue == null || !validateStatically) {
 			StringBuilder curString = new StringBuilder();
 			for (Map.Entry<String, Pair<Integer, String>> newTemp: valueFlattener.getNewTemporaries().entrySet()) {
@@ -590,7 +590,7 @@ public final class EvaluationManager {
 			if (monitor.isCanceled())  // We ignore the maximum batch size if everything is already evaluated, so we might have a lot of things here and hence need this check.
 				throw new OperationCanceledException();
 			Expression typedExpr = exprs.get(startIndex + i);
-			Result initResult = expressionMaker.getExpressionResult(typedExpr, Collections.<Effect>emptySet());
+			Result initResult = expressionMaker.getResult(typedExpr, Collections.<Effect>emptySet());
 			IJavaValue curValue = initResult == null ? values[evalIndex] : initResult.getValue().getValue();
 			boolean valid = false;
 			String validResultString = null;
@@ -622,7 +622,7 @@ public final class EvaluationManager {
     		}
 			if (valid) {
 				if (initResult == null)
-					expressionMaker.setExpressionResult(typedExpr, new Result(curValue, Collections.<Effect>emptySet(), valueCache, thread), Collections.<Effect>emptySet());
+					expressionMaker.setResult(typedExpr, new Result(curValue, Collections.<Effect>emptySet(), valueCache, thread), Collections.<Effect>emptySet());
 				expressionMaker.setResultString(typedExpr, Utils.getPrintableString(validResultString));
 				validExprs.add(typedExpr);
 			}
@@ -710,13 +710,13 @@ public final class EvaluationManager {
 			}
 		} else if (crashedMethod != null && ("java.lang.ArrayIndexOutOfBoundsException".equals(errorName) || "java.lang.IndexOutOfBoundsException".equals(errorName)) && crashedMethod.argumentTypeNames().size() == 1) {
 			// Skip methods that throw out-of-bounds exception if the new value is further from 0.
-			IJavaValue argValue = expressionMaker.getExpressionValue(getArguments(crashedExpr)[0], getReceiverEffects(crashedExpr));
+			IJavaValue argValue = expressionMaker.getValue(getArguments(crashedExpr)[0], getReceiverEffects(crashedExpr));
 			if ("int".equals(argValue.getJavaType().getName())) {
 				int argVal = ((IJavaPrimitiveValue)argValue).getIntValue();
 				while (crashingIndex + numToSkip < exprs.size()) {
 					Expression newExpr = exprs.get(crashingIndex + numToSkip);
 					if (crashedMethod.equals(expressionMaker.getMethod(newExpr))) {
-						int curVal = ((IJavaPrimitiveValue)expressionMaker.getExpressionValue(getArguments(newExpr)[0], getReceiverEffects(newExpr))).getIntValue();
+						int curVal = ((IJavaPrimitiveValue)expressionMaker.getValue(getArguments(newExpr)[0], getReceiverEffects(newExpr))).getIntValue();
 						if ((argVal < 0 && curVal < 0) || (argVal >= 0 && curVal > argVal)) {
 							//System.out.println("Skipping " + newExpr.toString() + ".");
 							numToSkip++;
@@ -732,13 +732,13 @@ public final class EvaluationManager {
 			Expression[] args = getArguments(crashedExpr);
 			String[] argTypes = new String[args.length];
 			for (int i = 0; i < argTypes.length; i++)
-				argTypes[i] = String.valueOf(expressionMaker.getExpressionValue(args[i], Collections.<Effect>emptySet()).getJavaType());
+				argTypes[i] = String.valueOf(expressionMaker.getValue(args[i], Collections.<Effect>emptySet()).getJavaType());
 			exprLoop: while (crashingIndex + numToSkip < exprs.size()) {
 				Expression newExpr = exprs.get(crashingIndex + numToSkip);
 				if (crashedMethod.equals(expressionMaker.getMethod(newExpr))) {
 					Expression[] curArgs = getArguments(newExpr);
 					for (int i = 0; i < argTypes.length; i++)
-						if (!argTypes[i].equals(String.valueOf(expressionMaker.getExpressionValue(curArgs[i], Collections.<Effect>emptySet()).getJavaType())))
+						if (!argTypes[i].equals(String.valueOf(expressionMaker.getValue(curArgs[i], Collections.<Effect>emptySet()).getJavaType())))
 							break exprLoop;
 					//System.out.println("Skipping " + newExpr.toString() + ".");
 					numToSkip++;
@@ -787,7 +787,7 @@ public final class EvaluationManager {
 		if (crashedExpr instanceof MethodInvocation) {
 			Expression receiver = ((MethodInvocation)crashedExpr).getExpression();
 			if (receiver != null)
-				return expressionMaker.getExpressionResult(receiver, Collections.<Effect>emptySet()).getEffects();
+				return expressionMaker.getResult(receiver, Collections.<Effect>emptySet()).getEffects();
 		}
 		return Collections.<Effect>emptySet();
 	}
@@ -809,7 +809,7 @@ public final class EvaluationManager {
     				if (node instanceof NullLiteral)
     					numNulls[0]++;
     				else {
-    					Result result = expressionMaker.getExpressionResult((Expression)node, curEffects);
+    					Result result = expressionMaker.getResult((Expression)node, curEffects);
     					if (result == null || result.getValue() == null)  // TODO: result is null for method/constructor names or crashed native calls or after side effects during refinement.
     						return;
     					IJavaValue value = result.getValue().getValue();
@@ -839,7 +839,7 @@ public final class EvaluationManager {
     	ArrayList<Expression> calls = new ArrayList<Expression>();
     	for (Expression expr: exprs) {
     		Expression e = expr;
-    		IJavaValue value = expressionMaker.getExpressionValue(expr, Collections.<Effect>emptySet());
+    		IJavaValue value = expressionMaker.getValue(expr, Collections.<Effect>emptySet());
     		if (value != null && (e instanceof MethodInvocation || e instanceof ClassInstanceCreation || e instanceof SuperMethodInvocation)
     				&& !(value instanceof IJavaPrimitiveValue || value.isNull() || (value instanceof IJavaObject && "Ljava/lang/String;".equals(value.getSignature()))))
     			calls.add(expr);
@@ -848,7 +848,7 @@ public final class EvaluationManager {
     	if (!calls.isEmpty()) {  // Cache the method call results so the runtime can use them.
     		IJavaArray newValue = ((IJavaArrayType)methodResultsField.getJavaType()).newInstance(calls.size());
     		for (int i = 0; i < calls.size(); i++) {
-    			newValue.setValue(i, expressionMaker.getExpressionValue(calls.get(i), Collections.<Effect>emptySet()));
+    			newValue.setValue(i, expressionMaker.getValue(calls.get(i), Collections.<Effect>emptySet()));
     			methodResultsMap.put(calls.get(i).toString(), i);
     		}
     		methodResultsField.setValue(newValue);

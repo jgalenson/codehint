@@ -52,7 +52,7 @@ public class ValueFlattener extends ASTFlattener {
 	protected void flatten(Expression node, StringBuilder sb) {
 		try {
 			Result result = null;
-			result = expressionMaker.getExpressionResult(ExpressionMaker.getID(node), curEffects);
+			result = expressionMaker.getResult(node, curEffects);
 			if (result != null) {
 				IJavaValue value = result.getValue().getValue();
 				if (value instanceof IJavaPrimitiveValue) {

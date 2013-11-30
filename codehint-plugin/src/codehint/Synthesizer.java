@@ -181,7 +181,7 @@ public class Synthesizer {
 					handledEffects.add(statement);
 			}
 
-			IJavaValue value = property instanceof ValueProperty ? ((ValueProperty)property).getValue() : expressionMaker.getExpressionValue(finalExpressions.get(0), Collections.<Effect>emptySet());
+			IJavaValue value = property instanceof ValueProperty ? ((ValueProperty)property).getValue() : expressionMaker.getValue(finalExpressions.get(0), Collections.<Effect>emptySet());
 			if (variable != null && value != null)
 				variable.setValue(value);
 			
@@ -601,7 +601,7 @@ public class Synthesizer {
    				EclipseUtils.showError("Error", "No legal expressions remain after refinement.", null);
    				throw new RuntimeException("No legal expressions remain after refinement");
    			}
-   			IJavaValue value = synthesisDialog.getExpressionMaker().getExpressionValue(validExprs.get(0), Collections.<Effect>emptySet());  // The returned values could be different, so we arbitrarily use the first one.  This might not be the best thing to do.
+   			IJavaValue value = synthesisDialog.getExpressionMaker().getValue(validExprs.get(0), Collections.<Effect>emptySet());  // The returned values could be different, so we arbitrarily use the first one.  This might not be the best thing to do.
 
    			Property newProperty = synthesisDialog.getProperty() == null ? initialProperty : synthesisDialog.getProperty();  // The user might not have entered a pdspec (e.g., they refined or just selected some things), in which case we use the old one.
    			String newLine = rewriteLine(matcher, varname, curLine, newProperty, validExprs, lineNumber);

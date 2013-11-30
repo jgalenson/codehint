@@ -925,7 +925,7 @@ public final class ExpressionSkeleton {
 				Map<String, ArrayList<codehint.ast.Expression>> resultExprs = new HashMap<String, ArrayList<codehint.ast.Expression>>(exprResult.getExprs().size());
 				for (Map.Entry<String, ArrayList<codehint.ast.Expression>> res: exprResult.getExprs().entrySet())
 					for (codehint.ast.Expression expr: res.getValue()) {
-						IJavaValue exprValue = expressionMaker.getExpressionValue(expr, Collections.<Effect>emptySet());
+						IJavaValue exprValue = expressionMaker.getValue(expr, Collections.<Effect>emptySet());
 						Utils.addToListMap(resultExprs, res.getKey(), expressionMaker.makeInstanceOf(expr, rightOperand, booleanType, exprValue == null ? null : valueCache.getBooleanJavaValue(!exprValue.isNull() && subtypeChecker.isSubtypeOf(exprValue.getJavaType(), targetType)), valueCache, thread));
 					}
 				return new ExpressionsAndTypeConstraints(resultExprs, new SupertypeBound(booleanType));
@@ -1128,7 +1128,7 @@ public final class ExpressionSkeleton {
 				IJavaType classObjType = classObj.getJavaType();
 				expr.setStaticType(classObjType);
 				Result result = new Result(classObj, valueCache, thread);
-				expressionMaker.setExpressionResult(expr, result, Collections.<Effect>emptySet());
+				expressionMaker.setResult(expr, result, Collections.<Effect>emptySet());
 				return new ExpressionsAndTypeConstraints(expr, new SupertypeBound(classObjType));
 			} catch (DebugException e) {
 				throw new RuntimeException(e);
@@ -1439,7 +1439,7 @@ public final class ExpressionSkeleton {
 					callExpr = expressionMaker.makeSuperCall(name, ASTConverter.copy(((SuperMethodInvocation)callNode).getQualifier()), curActuals, returnType, null, method);
 				else
 					callExpr = expressionMaker.makeCall(name, receiver, curActuals, returnType, thisType, method, target, valueCache, thread, staticEvaluator);
-				IJavaValue callValue = expressionMaker.getExpressionValue(callExpr, Collections.<Effect>emptySet());
+				IJavaValue callValue = expressionMaker.getValue(callExpr, Collections.<Effect>emptySet());
 				if (callValue == null || !"V".equals(callValue.getSignature()))
 					Utils.addToListMap(resultExprs, constraintName, callExpr);
 				monitor.worked(1);
@@ -1558,7 +1558,7 @@ public final class ExpressionSkeleton {
     	}
     	
     	private boolean doesNotHaveNullValue(codehint.ast.Expression e) {
-    		IJavaValue value = expressionMaker.getExpressionValue(e, Collections.<Effect>emptySet());
+    		IJavaValue value = expressionMaker.getValue(e, Collections.<Effect>emptySet());
     		return value == null || !value.isNull();
     	}
 		
