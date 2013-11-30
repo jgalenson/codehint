@@ -95,7 +95,8 @@ public class SideEffectHandler {
 			throw new RuntimeException(e);
 		}
 		reflectionBreakpoints = getReflectionBreakpoints(project);
-		collectionDisableds = new ArrayList<ObjectReference>();
+		if (collectionDisableds == null)
+			collectionDisableds = new ArrayList<ObjectReference>();
 		curMonitor.done();
 	}
 
@@ -560,9 +561,6 @@ public class SideEffectHandler {
 				curMonitor.worked(reflectionBreakpoints.size());
 				reflectionBreakpoints = null;
 			}
-			for (ObjectReference obj: collectionDisableds)
-				obj.enableCollection();
-			collectionDisableds = null;
 			//System.out.println("stop: " + (System.currentTimeMillis() - startTime));
 			curMonitor.done();
 		} catch (CoreException e) {
@@ -670,6 +668,9 @@ public class SideEffectHandler {
 		if (value instanceof ObjectReference) {
 			ObjectReference obj = ((ObjectReference)value);
 			obj.enableCollection();
+			if (obj instanceof ArrayReference)  // Recurse on array elements, which might be objects/arrays.
+				for (Value elem: getValues((ArrayReference)obj))
+					enableCollection(elem);
 		}
 	}
 	
@@ -677,6 +678,9 @@ public class SideEffectHandler {
 		if (value instanceof ObjectReference) {
 			ObjectReference obj = ((ObjectReference)value);
 			obj.disableCollection();
+			if (obj instanceof ArrayReference)  // Recurse on array elements, which might be objects/arrays.
+				for (Value elem: getValues((ArrayReference)obj))
+					disableCollection(elem);
 		}
 	}
 	
@@ -685,6 +689,12 @@ public class SideEffectHandler {
 			ObjectReference obj = ((ObjectReference)value);
 			collectionDisableds.add(obj);
 		}
+	}
+	
+	public void emptyDisabledCollections() {
+		for (ObjectReference obj: collectionDisableds)
+			enableCollection(obj);
+		collectionDisableds = null;
 	}
 
 }

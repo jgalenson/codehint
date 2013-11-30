@@ -329,7 +329,7 @@ public class ExpressionMaker {
 		Set<Effect> effects = null;
 		//long startTime = System.currentTimeMillis();
 		try {
-			//System.out.println("Calling " + (receiver.getValue() != null ? receiver : receiver.getType()).toString().replace("\n", "\\n") + "." + method.name() + " with args " + args.toString());
+			//System.out.println("Calling " + (receiverValue != null ? receiver : receiver.getStaticType()).toString().replace("\n", "\\n") + "." + method.name() + " with args " + args.toString());
 			timeoutChecker.startEvaluating(null);
 			nativeHandler.blockNativeCalls();
 			sideEffectHandler.startHandlingSideEffects();
@@ -350,7 +350,7 @@ public class ExpressionMaker {
 			effects = isOutermost ? sideEffectHandler.stopHandlingSideEffects() : sideEffectHandler.getSideEffects();
 			nativeHandler.allowNativeCalls();
 			timeoutChecker.stopEvaluating();
-			//System.out.println("Calling " + (receiver.getValue() != null ? receiver : receiver.getType()).toString().replace("\n", "\\n") + "." + method.name() + " with args " + args.toString() + " got " + value + " with effects " + effects + " and took " + (System.currentTimeMillis() - startTime) + "ms.");
+			//System.out.println("Calling " + (receiverValue != null ? receiver : receiver.getStaticType()).toString().replace("\n", "\\n") + "." + method.name() + " with args " + args.toString() + " got " + value + " with effects " + effects + " and took " + (System.currentTimeMillis() - startTime) + "ms.");
 		}
 		return new Result(value, effects, valueCache, thread);
 	}
@@ -467,8 +467,6 @@ public class ExpressionMaker {
 				MethodInvocation call = (MethodInvocation)e;
 				receiver = call.getExpression() == null ? new ThisExpression(stack.getReferenceType()) : call.getExpression();
 				Result receiverResult = call.getExpression() == null ? new Result(stack.getThis() == null ? stack.getReferenceType().getClassObject() : stack.getThis(), effects, valueCache, thread) : reEvaluateExpression(receiver, effects, thread, target);
-				IJavaType receiverType = call.getExpression() == null ? stack.getReferenceType() : receiverResult.getValue().getValue().getJavaType();
-				receiver.setStaticType(receiverType);
 				setResult(receiver, receiverResult, Collections.<Effect>emptySet());
 				argExprs = call.arguments();
 				curArgEffects = receiverResult.getEffects();
@@ -981,7 +979,7 @@ public class ExpressionMaker {
 		private final Map<Integer, Field> subsetFields;
 		private int maxId;
 		
-		public Metadata(Map<Integer, Method> subsetMethods, Map<Integer, Field> subsetFields) {
+		private Metadata(Map<Integer, Method> subsetMethods, Map<Integer, Field> subsetFields) {
 			this.subsetMethods = subsetMethods;
 			this.subsetFields = subsetFields;
 			this.maxId = -1;

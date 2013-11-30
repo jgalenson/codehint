@@ -1522,6 +1522,8 @@ public abstract class SynthesisDialog extends ModelessDialog {
 		fActivation = null;
 		results = null;
 		property = null;
+		if (sideEffectHandler.isEnabled())
+			sideEffectHandler.emptyDisabledCollections();
 		valueCache.allowCollectionOfDisabledObjects();  // Allow collection of objects from the last search.
 		table.dispose();
 		if (monitor != null)

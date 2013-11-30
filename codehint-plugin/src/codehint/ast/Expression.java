@@ -16,7 +16,7 @@ public abstract class Expression extends ASTNode {
 	
 	public void setStaticType(IJavaType staticType) {
 		if (this.staticType != null)
-			throw new RuntimeException("Cannot reset the static type.");
+			throw new RuntimeException("Cannot reset the static type of " + this.toString() + " from " + this.staticType + " to " + staticType);
 		this.staticType = staticType;
 	}
 

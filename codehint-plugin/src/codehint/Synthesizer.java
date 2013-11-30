@@ -624,6 +624,7 @@ public class Synthesizer {
    			if (lhsVar != null)
    				lhsVar.setValue(value);
 
+   			synthesisDialog.cleanup();
    			
    			EclipseUtils.log("Ending refinement for " + curLine + ".  " + (newLine == null ? "Statement unchanged." : "Went from " + typedExprs.size() + " expressions to " + validExprs.size() + ".  New statement: " + newLine));
    			DataCollector.log("refine-finish", "pre=" + typedExprs.size(), "post=" + validExprs.size());
