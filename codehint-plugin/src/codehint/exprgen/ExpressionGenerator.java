@@ -1860,8 +1860,9 @@ public final class ExpressionGenerator {
 	 * there are no side effects.
 	 * @return A list of representatives of the equivalence classes
 	 * under the given effects.
+	 * @throws DebugException 
 	 */
-	private ArrayList<Expression> getUniqueExpressions(Expression e, Set<Effect> curEffects, IJavaType type, int curDepth, List<Expression> defaults) {
+	private ArrayList<Expression> getUniqueExpressions(Expression e, Set<Effect> curEffects, IJavaType type, int curDepth, List<Expression> defaults) throws DebugException {
 		if (curEffects.isEmpty()) {  // Fast-path the common case of no side effects by using the defaults provided.
 			ArrayList<Expression> result = new ArrayList<Expression>(defaults.size());
 			for (Expression cur: defaults) {
@@ -1880,14 +1881,10 @@ public final class ExpressionGenerator {
 				effectEquivalences = new HashMap<Result, ArrayList<Expression>>();
 				equivalences.put(curEffects, effectEquivalences);
 			}
-			// TODO: I could optimize this to only re-evaluate expressions that are needed for the given type.  This would essentially let me fill in the equivalence classes on demand.  Note that I have to consider all subexpressions used, though.
-			for (ArrayList<Expression> expressions: equivalences.get(Collections.<Effect>emptySet()).values()) {
-				for (Expression expr: expressions) {
-					Result result = expressionMaker.evaluateExpressionWithEffects(expr, curEffects, thread, target);
-					if (result != null)
-						addEquivalentExpression(expr, curEffects);
-				}
-			}
+			for (Map.Entry<Result, ArrayList<Expression>> entry: new ArrayList<Map.Entry<Result, ArrayList<Expression>>>(equivalences.get(Collections.<Effect>emptySet()).entrySet()))
+				if (subtypeChecker.isSubtypeOf(entry.getKey().getValue().getValue().getJavaType(), type))
+					for (Expression cur: new ArrayList<Expression>(entry.getValue()))
+						expressionMaker.evaluateExpressionWithEffects(cur, curEffects, thread, target, this);
 			// Get the representatives of the equivalence classes.
 			ArrayList<Expression> result = new ArrayList<Expression>(effectEquivalences.size());
 			for (ArrayList<Expression> equivs: effectEquivalences.values()) {
@@ -1927,7 +1924,7 @@ public final class ExpressionGenerator {
 		equivs.add(e);
 	}
 	
-	private void addEquivalentExpression(Expression e, Set<Effect> curEffects) {
+	void addEquivalentExpression(Expression e, Set<Effect> curEffects) {
 		Map<Result, ArrayList<Expression>> curEquivalences = equivalences.get(curEffects);
 		if (curEquivalences == null) {
 			curEquivalences = new HashMap<Result, ArrayList<Expression>>();

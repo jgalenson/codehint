@@ -323,7 +323,7 @@ public class ExpressionMaker {
 	}
 
 	// I don't need to call getExpressionResult on receiver and args (in getArgValues) because reEvaluate expression creates them with the correct results.
-	private Result computeCall(Method method, Expression receiver, ArrayList<Expression> args, IJavaThread thread, IJavaDebugTarget target, boolean isOutermost) {
+	private Result computeCall(Method method, Expression receiver, ArrayList<Expression> args, IJavaThread thread, IJavaDebugTarget target, boolean isOutermost, ExpressionGenerator expressionGenerator) {
 		IJavaValue receiverValue = getValue(receiver, Collections.<Effect>emptySet());
 		IJavaValue value = null;
 		Set<Effect> effects = null;
@@ -333,7 +333,7 @@ public class ExpressionMaker {
 			timeoutChecker.startEvaluating(null);
 			nativeHandler.blockNativeCalls();
 			sideEffectHandler.startHandlingSideEffects();
-			IJavaValue[] argValues = getArgValues(method, receiver, args, thread, target);
+			IJavaValue[] argValues = getArgValues(method, receiver, args, thread, target, expressionGenerator);
 			sideEffectHandler.checkArguments(argValues);
 			if (receiverValue == null && "<init>".equals(method.name()))
 				value = ((IJavaClassType)receiver.getStaticType()).newInstance(method.signature(), argValues, thread);
@@ -355,7 +355,7 @@ public class ExpressionMaker {
 		return new Result(value, effects, valueCache, thread);
 	}
 	
-	private IJavaValue[] getArgValues(Method method, Expression receiver, ArrayList<Expression> args, IJavaThread thread, IJavaDebugTarget target) throws DebugException {
+	private IJavaValue[] getArgValues(Method method, Expression receiver, ArrayList<Expression> args, IJavaThread thread, IJavaDebugTarget target, ExpressionGenerator expressionGenerator) throws DebugException {
 		IJavaValue[] argValues = new IJavaValue[args.size()];
 		Set<Effect> effects = method.isConstructor() ? Collections.<Effect>emptySet() : getResult(receiver, Collections.<Effect>emptySet()).getEffects();
 		boolean seenEffects = !effects.isEmpty();
@@ -375,7 +375,7 @@ public class ExpressionMaker {
 					sideEffectHandler.redoAndRecordEffects(effects);
 				}
 			} else {
-				Result argResult = reEvaluateExpression(arg, effects, thread, target);
+				Result argResult = reEvaluateExpression(arg, effects, thread, target, expressionGenerator);
 				argValues[i] = argResult.getValue().getValue();
 				effects = argResult.getEffects();
 				sideEffectHandler.redoAndRecordEffects(effects);
@@ -390,10 +390,10 @@ public class ExpressionMaker {
 		Result rightResult = getResult(right, Collections.<Effect>emptySet());
 		if (leftResult == null || leftResult.getEffects().isEmpty() || rightResult == null)
 			return rightResult;
-		return evaluateExpressionWithEffects(right, leftResult.getEffects(), thread, target);
+		return evaluateExpressionWithEffects(right, leftResult.getEffects(), thread, target, null);
 	}
 	
-	public Result evaluateExpressionWithEffects(Expression expr, Set<Effect> effects, IJavaThread thread, IJavaDebugTarget target) {
+	public Result evaluateExpressionWithEffects(Expression expr, Set<Effect> effects, IJavaThread thread, IJavaDebugTarget target, ExpressionGenerator expressionGenerator) {
 		Result result = getResult(expr, effects);
 		if (result != null)
 			return result;
@@ -401,7 +401,7 @@ public class ExpressionMaker {
 			//System.out.println("Re-evaluating " + expr + " with effects " + effects);
 			sideEffectHandler.startHandlingSideEffects();
 			sideEffectHandler.redoAndRecordEffects(effects);
-			result = reEvaluateExpression(expr, effects, thread, target);
+			result = reEvaluateExpression(expr, effects, thread, target, expressionGenerator);
 		} catch (DebugException e) {
 			//System.out.println("Crashed on " + expr + " got " + EclipseUtils.getExceptionMessage(e));
 			numCrashes++;
@@ -412,12 +412,14 @@ public class ExpressionMaker {
 		return result;
 	}
 	
-	private Result reEvaluateExpression(Expression e, Set<Effect> effects, IJavaThread thread, IJavaDebugTarget target) throws DebugException {
+	// If expressionGenerator is not null, we register the newly-computed result with its equivalence classes.
+	private Result reEvaluateExpression(Expression e, Set<Effect> effects, IJavaThread thread, IJavaDebugTarget target, ExpressionGenerator expressionGenerator) throws DebugException {
 		if (e == null)
 			return null;
 		Result result = getResult(e, effects);
 		if (result != null)
 			return result;
+		//System.out.println("Reevaluating " + e.toString() + " with effects " + effects.toString());
 		if (e instanceof NumberLiteral || e instanceof BooleanLiteral || e instanceof NullLiteral || e instanceof ThisExpression || e instanceof QualifiedName)
 			result = new Result(getValue(e, Collections.<Effect>emptySet()), effects, valueCache, thread);
 		else if (e instanceof SimpleName) {
@@ -428,9 +430,9 @@ public class ExpressionMaker {
 				result = new Result(staticType.getClassObject(), effects, valueCache, thread);
 		} else if (e instanceof InfixExpression) {
 			InfixExpression infix = (InfixExpression)e;
-			Result leftResult = reEvaluateExpression(infix.getLeftOperand(), effects, thread, target);
+			Result leftResult = reEvaluateExpression(infix.getLeftOperand(), effects, thread, target, expressionGenerator);
 			IJavaValue leftValue = leftResult.getValue().getValue();
-			Result rightResult = reEvaluateExpression(infix.getRightOperand(), effects, thread, target);
+			Result rightResult = reEvaluateExpression(infix.getRightOperand(), effects, thread, target, expressionGenerator);
 			IJavaValue rightValue = rightResult.getValue().getValue();
 			if (!"V".equals(leftValue.getSignature()) && !"V".equals(rightValue.getSignature())) {
 				IJavaValue value = computeInfixOp(leftValue, infix.getOperator(), rightValue, leftValue.isNull() ? rightValue.getJavaType() : leftValue.getJavaType());
@@ -438,15 +440,15 @@ public class ExpressionMaker {
 			}
 		} else if (e instanceof ArrayAccess) {
 			ArrayAccess access = (ArrayAccess)e;
-			Result arrayResult = reEvaluateExpression(access.getArray(), effects, thread, target);
-			Result indexResult = reEvaluateExpression(access.getIndex(), effects, thread, target);
+			Result arrayResult = reEvaluateExpression(access.getArray(), effects, thread, target, expressionGenerator);
+			Result indexResult = reEvaluateExpression(access.getIndex(), effects, thread, target, expressionGenerator);
 			if (!"V".equals(arrayResult.getValue().getValue().getSignature()) && !"V".equals(indexResult.getValue().getValue().getSignature())) {
 				IJavaValue value = computeArrayAccess(arrayResult.getValue().getValue(), indexResult.getValue().getValue());
 				result = new Result(value, indexResult.getEffects(), valueCache, thread);
 			}
 		} else if (e instanceof FieldAccess) {
 			FieldAccess access = (FieldAccess)e;
-			Result receiverResult = reEvaluateExpression(access.getExpression(), effects, thread, target);
+			Result receiverResult = reEvaluateExpression(access.getExpression(), effects, thread, target, expressionGenerator);
 			if (receiverResult != null && receiverResult.getValue().getValue() instanceof IJavaObject) {
 				IJavaType receiverType = isStatic(access.getExpression()) ? getStaticType(access.getExpression()) : receiverResult.getValue().getValue().getJavaType();
 				Field field = getField(e);
@@ -455,7 +457,7 @@ public class ExpressionMaker {
 			}
 		} else if (e instanceof PrefixExpression) {
 			PrefixExpression prefix = (PrefixExpression)e;
-			Result operandResult = reEvaluateExpression(prefix.getOperand(), effects, thread, target);
+			Result operandResult = reEvaluateExpression(prefix.getOperand(), effects, thread, target, expressionGenerator);
 			if (!"V".equals(operandResult.getValue().getValue().getSignature()))
 				result = new Result(computePrefixOp(operandResult.getValue().getValue(), prefix.getOperator()), operandResult.getEffects(), valueCache, thread);
 		} else if (e instanceof MethodInvocation || e instanceof ClassInstanceCreation) {
@@ -466,7 +468,7 @@ public class ExpressionMaker {
 			if (e instanceof MethodInvocation) {
 				MethodInvocation call = (MethodInvocation)e;
 				receiver = call.getExpression() == null ? new ThisExpression(stack.getReferenceType()) : call.getExpression();
-				Result receiverResult = call.getExpression() == null ? new Result(stack.getThis() == null ? stack.getReferenceType().getClassObject() : stack.getThis(), effects, valueCache, thread) : reEvaluateExpression(receiver, effects, thread, target);
+				Result receiverResult = call.getExpression() == null ? new Result(stack.getThis() == null ? stack.getReferenceType().getClassObject() : stack.getThis(), effects, valueCache, thread) : reEvaluateExpression(receiver, effects, thread, target, expressionGenerator);
 				setResult(receiver, receiverResult, Collections.<Effect>emptySet());
 				argExprs = call.arguments();
 				curArgEffects = receiverResult.getEffects();
@@ -481,19 +483,23 @@ public class ExpressionMaker {
 			IJavaValue receiverValue = getValue(receiver, Collections.<Effect>emptySet());
 			boolean hasCrash = receiverValue != null && "V".equals(receiverValue.getSignature());
 			for (Expression arg: argExprs) {
-				Result argResult = reEvaluateExpression(arg, curArgEffects, thread, target);
+				Result argResult = reEvaluateExpression(arg, curArgEffects, thread, target, expressionGenerator);
 				setResult(arg, argResult, Collections.<Effect>emptySet());
 				args.add(arg);
 				hasCrash = hasCrash || "V".equals(argResult.getValue().getValue().getSignature());
 				curArgEffects = argResult.getEffects();
 			}
 			if (!hasCrash)
-				result = computeCall(method, receiver, args, thread, target, false);
+				result = computeCall(method, receiver, args, thread, target, false, expressionGenerator);
 		} else if (e instanceof CastExpression) {
-			result = reEvaluateExpression(((CastExpression)e).getExpression(), effects, thread, target);
+			result = reEvaluateExpression(((CastExpression)e).getExpression(), effects, thread, target, expressionGenerator);
+		} else if (e instanceof ParenthesizedExpression) {
+			result = reEvaluateExpression(((ParenthesizedExpression)e).getExpression(), effects, thread, target, expressionGenerator);
 		} else
 			throw new RuntimeException("Unexpected expression type:" + e.getClass().getName());
 		setResult(e, result, effects);
+		if (expressionGenerator != null)
+			expressionGenerator.addEquivalentExpression(e, effects);
 		return result;
 	}
 	
@@ -703,7 +709,7 @@ public class ExpressionMaker {
 		IJavaValue value = staticEvaluator.evaluateCall(receiver, args, method, target);
 		Result result = null;
 		if (value == null)
-			result = computeCall(method, receiver, args, thread, target, true);
+			result = computeCall(method, receiver, args, thread, target, true, null);
 		else
 			result = new Result(value, valueCache, thread);
 		Expression e = null;
