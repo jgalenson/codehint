@@ -647,7 +647,7 @@ public final class ExpressionGenerator {
     								&& !(r instanceof PrefixExpression && ((PrefixExpression)r).getOperator() == PrefixExpression.Operator.MINUS))
     							addUniqueExpressionToList(curLevel, expressionMaker.makeInfix(l, InfixExpression.Operator.MINUS, r, intType, thread), depth, maxDepth);
     						if ((mightNotCommute(l, r) || l.toString().compareTo(r.toString()) != 0)
-    								&& (rValue == null || !rValue.getValueString().equals("0")))  // Don't divide by things we know are 0.
+    								&& (rValue == null || sideEffectHandler.isHandlingSideEffects() || !rValue.getValueString().equals("0")))  // Don't divide by things we know are 0.
     							addUniqueExpressionToList(curLevel, expressionMaker.makeInfix(l, InfixExpression.Operator.DIVIDE, r, intType, thread), depth, maxDepth);
     					}
     					// Integer comparisons, e.g., ==,<.

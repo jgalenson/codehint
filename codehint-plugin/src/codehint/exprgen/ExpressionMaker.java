@@ -173,7 +173,8 @@ public class ExpressionMaker {
 		if (op == InfixExpression.Operator.TIMES)
 			return valueCache.getIntJavaValue(l * r);
 		if (op == InfixExpression.Operator.DIVIDE) {
-			assert r != 0;
+			if (r == 0)
+				return null;
 			return valueCache.getIntJavaValue(l / r);
 		}
 		if (op == InfixExpression.Operator.REMAINDER) {
@@ -417,22 +418,29 @@ public class ExpressionMaker {
 		if (e == null)
 			return null;
 		Result result = getResult(e, effects);
-		if (result != null)
+		if (result != null) {
+			//System.out.println("Expression " + e.toString() + " with effects " + effects.toString() + " is " + result);
 			return result;
+		}
 		//System.out.println("Reevaluating " + e.toString() + " with effects " + effects.toString());
 		if (e instanceof NumberLiteral || e instanceof BooleanLiteral || e instanceof NullLiteral || e instanceof ThisExpression || e instanceof QualifiedName)
 			result = new Result(getValue(e, Collections.<Effect>emptySet()), effects, valueCache, thread);
 		else if (e instanceof SimpleName) {
 			IJavaReferenceType staticType = getStaticType(e);
-			if (staticType == null)
-				result = new Result((IJavaValue)stack.findVariable(((SimpleName)e).getIdentifier()).getValue(), effects, valueCache, thread);
-			else
+			if (staticType == null) {
+				try {
+					SideEffectHandler.redoEffects(effects);
+					result = new Result((IJavaValue)stack.findVariable(((SimpleName)e).getIdentifier()).getValue(), effects, valueCache, thread);
+				} finally {
+					SideEffectHandler.undoEffects(effects);
+				}
+			} else
 				result = new Result(staticType.getClassObject(), effects, valueCache, thread);
 		} else if (e instanceof InfixExpression) {
 			InfixExpression infix = (InfixExpression)e;
 			Result leftResult = reEvaluateExpression(infix.getLeftOperand(), effects, thread, expressionGenerator);
 			IJavaValue leftValue = leftResult.getValue().getValue();
-			Result rightResult = reEvaluateExpression(infix.getRightOperand(), effects, thread, expressionGenerator);
+			Result rightResult = reEvaluateExpression(infix.getRightOperand(), leftResult.getEffects(), thread, expressionGenerator);
 			IJavaValue rightValue = rightResult.getValue().getValue();
 			if (!"V".equals(leftValue.getSignature()) && !"V".equals(rightValue.getSignature())) {
 				IJavaValue value = computeInfixOp(leftValue, infix.getOperator(), rightValue, leftValue.isNull() ? rightValue.getJavaType() : leftValue.getJavaType());
@@ -441,10 +449,15 @@ public class ExpressionMaker {
 		} else if (e instanceof ArrayAccess) {
 			ArrayAccess access = (ArrayAccess)e;
 			Result arrayResult = reEvaluateExpression(access.getArray(), effects, thread, expressionGenerator);
-			Result indexResult = reEvaluateExpression(access.getIndex(), effects, thread, expressionGenerator);
+			Result indexResult = reEvaluateExpression(access.getIndex(), arrayResult.getEffects(), thread, expressionGenerator);
 			if (!"V".equals(arrayResult.getValue().getValue().getSignature()) && !"V".equals(indexResult.getValue().getValue().getSignature())) {
-				IJavaValue value = computeArrayAccess(arrayResult.getValue().getValue(), indexResult.getValue().getValue());
-				result = new Result(value, indexResult.getEffects(), valueCache, thread);
+				try {
+					SideEffectHandler.redoEffects(arrayResult.getEffects());
+					IJavaValue value = computeArrayAccess(arrayResult.getValue().getValue(), indexResult.getValue().getValue());
+					result = new Result(value, indexResult.getEffects(), valueCache, thread);
+				} finally {
+					SideEffectHandler.undoEffects(arrayResult.getEffects());
+				}
 			}
 		} else if (e instanceof FieldAccess) {
 			FieldAccess access = (FieldAccess)e;
@@ -452,7 +465,16 @@ public class ExpressionMaker {
 			if (receiverResult != null && receiverResult.getValue().getValue() instanceof IJavaObject) {
 				IJavaType receiverType = isStatic(access.getExpression()) ? getStaticType(access.getExpression()) : receiverResult.getValue().getValue().getJavaType();
 				Field field = getField(e);
-				IJavaValue value = field != null && field.isFinal() ? getValue(e, Collections.<Effect>emptySet()) : computeFieldAccess(receiverResult.getValue().getValue(), receiverType, field);
+				IJavaValue value = null;
+				if (field != null && field.isFinal())
+					value = getValue(e, Collections.<Effect>emptySet());
+				else
+					try {
+						SideEffectHandler.redoEffects(receiverResult.getEffects());
+						value = computeFieldAccess(receiverResult.getValue().getValue(), receiverType, field);
+					} finally {
+						SideEffectHandler.undoEffects(receiverResult.getEffects());
+					}
 				result = new Result(value, receiverResult.getEffects(), valueCache, thread);
 			}
 		} else if (e instanceof PrefixExpression) {
@@ -498,6 +520,7 @@ public class ExpressionMaker {
 		} else
 			throw new RuntimeException("Unexpected expression type:" + e.getClass().getName());
 		setResult(e, result, effects);
+		//System.out.println("Reevaluating " + e.toString() + " with effects " + effects.toString() + " got " + result);
 		if (expressionGenerator != null)
 			expressionGenerator.addEquivalentExpression(e, effects);
 		return result;
@@ -629,6 +652,8 @@ public class ExpressionMaker {
 		if (operandResults == null)
 			return null;
 		IJavaValue value = computeInfixOp(getValue(left, Collections.<Effect>emptySet()), op, operandResults.getValue().getValue(), left.getStaticType() != null ? left.getStaticType() : right.getStaticType());
+		if (value == null)
+			return null;
 		Result result = new Result(value, operandResults.getEffects(), valueCache, thread);
 		setResult(e, result, Collections.<Effect>emptySet());
 		return e;

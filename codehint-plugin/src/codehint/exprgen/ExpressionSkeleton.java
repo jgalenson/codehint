@@ -897,7 +897,9 @@ public final class ExpressionSkeleton {
 									for (codehint.ast.Expression rightExpr: rightExprs.getValue())
 										if (leftdoesNotHaveNullValue || doesNotHaveNullValue(rightExpr)) {  // TODO: These two checks should be part of my constraint when I search for the child holes above.
 											IJavaType resultType = isBooleanResult ? booleanType : leftdoesNotHaveNullValue ? leftExpr.getStaticType() : rightExpr.getStaticType();
-											Utils.addToListMap(resultExprs, leftExprs.getKey(), expressionMaker.makeInfix(leftExpr, operator, rightExpr, resultType, thread));
+											codehint.ast.Expression expr = expressionMaker.makeInfix(leftExpr, operator, rightExpr, resultType, thread);
+											if (expr != null)
+												Utils.addToListMap(resultExprs, leftExprs.getKey(), expr);
 										}
 								}
 					}
