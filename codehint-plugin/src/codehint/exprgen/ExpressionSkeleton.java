@@ -700,7 +700,7 @@ public final class ExpressionSkeleton {
 			} else if (node instanceof NullLiteral) {
 	    		return new ExpressionsAndTypeConstraints(expressionMaker.makeNull(thread), new SupertypeBound(null));
 			} else if (node instanceof NumberLiteral) {
-				return fillNumberLiteral(node, valueCache, thread);
+				return fillNumberLiteral(node);
 			} else if (node instanceof ParenthesizedExpression) {
 				return fillParenthesized((ParenthesizedExpression)node, curConstraint, parentsOfHoles);
 			} else if (node instanceof PostfixExpression) {
@@ -942,7 +942,7 @@ public final class ExpressionSkeleton {
 		 * @return The synthesized expressions corresponding to this
 		 * skeleton piece and the type constraint representing their types.
 		 */
-		private ExpressionsAndTypeConstraints fillNumberLiteral(Expression node, ValueCache valueCache, IJavaThread thread) {
+		private ExpressionsAndTypeConstraints fillNumberLiteral(Expression node) {
 			String str = ((NumberLiteral)node).getToken();
 			int lastChar = str.charAt(str.length() - 1);
 			// Rules taken from: http://docs.oracle.com/javase/tutorial/java/nutsandbolts/datatypes.html.

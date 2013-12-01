@@ -713,7 +713,6 @@ public final class EclipseUtils {
      * This version does not either read from or write to the type cache
      * and so should be used carefully to avoid slowdowns.
      * @param fullTypeName The fully-qualified name of a type.
-     * @param stack The stack frame.
      * @param target The debug target.
      * @param typeCache The type cache.
      * @return The type with the given name, or null.
