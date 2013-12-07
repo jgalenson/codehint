@@ -1046,8 +1046,11 @@ public final class ExpressionGenerator {
 					Expression receiver = e;
 					if (method.isStatic())
 						receiver = expressionMaker.makeStaticName(EclipseUtils.sanitizeTypename(getShortestTypename(method.declaringType().name())), (IJavaReferenceType)EclipseUtils.getTypeAndLoadIfNeeded(method.declaringType().name(), stack, target, typeCache), thread);
-					else if (isSubtype && ((ReferenceType)((JDIType)e.getStaticType()).getUnderlyingType()).methodsByName(method.name(), method.signature()).isEmpty())
-						receiver = expressionMaker.makeParenthesized(downcast(receiver, EclipseUtils.getFullyQualifiedType(getDowncastTypeName(method).name(), stack, target, typeCache)));
+					else if (isSubtype && ((ReferenceType)((JDIType)e.getStaticType()).getUnderlyingType()).methodsByName(method.name(), method.signature()).isEmpty()) {
+						IJavaType downcastType = getDowncastTypeName(method);
+						if (downcastType != null)
+							receiver = expressionMaker.makeParenthesized(downcast(receiver, downcastType));
+					}
 					String name = method.name();
 					if (method.isConstructor())
 						name = getShortestTypename(receiver.getStaticType().getName());
@@ -1176,9 +1179,9 @@ public final class ExpressionGenerator {
 	 * of the types highest up in the hierarchy.
 	 * @param method The method we are calling.
 	 * @return The type to which we should downcast calls to
-	 * the given method.
+	 * the given method, or null if we should not downcast.
 	 */
-	private static ReferenceType getDowncastTypeName(Method method) {
+	private IJavaType getDowncastTypeName(Method method) {
 		List<ReferenceType> candidates = new ArrayList<ReferenceType>();
 		candidates.add(method.declaringType());
 		// Do a BFS to find types highest in the hierarchy.
@@ -1203,7 +1206,12 @@ public final class ExpressionGenerator {
 				break;
 			candidates = newCandidates;
 		}
-		return candidates.get(0);
+		for (ReferenceType rtype: candidates) {
+			IJavaType type = EclipseUtils.getTypeAndLoadIfNeededAndExists(rtype.name(), stack, target, typeCache);
+			if (type != null)  // Ensure we can load the type.
+				return type;
+		}
+		return null;
 	}
 	
 	/**
@@ -1747,6 +1755,7 @@ public final class ExpressionGenerator {
 	 * @throws DebugException
 	 */
 	private Expression downcast(Expression e, IJavaType type) throws DebugException {
+		assert type != null : e.toString();
 		Expression casted = expressionMaker.makeCast(e, type, getShortestTypename(type.getName()));
 		expressionMaker.copyResults(e, casted);
 		expressionMaker.setResultString(casted, expressionMaker.getResultString(((Expression)e)));
