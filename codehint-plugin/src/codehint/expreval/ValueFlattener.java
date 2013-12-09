@@ -15,7 +15,7 @@ import codehint.ast.CastExpression;
 import codehint.ast.Expression;
 import codehint.ast.MethodInvocation;
 import codehint.effects.Effect;
-import codehint.exprgen.ExpressionMaker;
+import codehint.exprgen.ExpressionEvaluator;
 import codehint.exprgen.Result;
 import codehint.exprgen.StringValue;
 import codehint.exprgen.Value;
@@ -35,15 +35,15 @@ public class ValueFlattener extends ASTFlattener {
 	private final Map<String, Integer> temporaries;
 	private final Map<String, Pair<Integer, String>> newTemporaries;
 	private final Map<String, Integer> methodResultsMap;
-	private final ExpressionMaker expressionMaker;
+	private final ExpressionEvaluator expressionEvaluator;
 	private final ValueCache valueCache;
 	private Set<Effect> curEffects;
 	
-	public ValueFlattener(Map<String, Integer> temporaries, Map<String, Integer> methodResultsMap, ExpressionMaker expressionMaker, ValueCache valueCache) {
+	public ValueFlattener(Map<String, Integer> temporaries, Map<String, Integer> methodResultsMap, ExpressionEvaluator expressionEvaluator, ValueCache valueCache) {
 		this.temporaries = temporaries;
 		this.newTemporaries = new HashMap<String, Pair<Integer, String>>();
 		this.methodResultsMap = methodResultsMap;
-		this.expressionMaker = expressionMaker;
+		this.expressionEvaluator = expressionEvaluator;
 		this.valueCache = valueCache;
 		this.curEffects = Collections.<Effect>emptySet();
 	}
@@ -52,7 +52,7 @@ public class ValueFlattener extends ASTFlattener {
 	protected void flatten(Expression node, StringBuilder sb) {
 		try {
 			Result result = null;
-			result = expressionMaker.getResult(node, curEffects);
+			result = expressionEvaluator.getResult(node, curEffects);
 			if (result != null) {
 				IJavaValue value = result.getValue().getValue();
 				if (value instanceof IJavaPrimitiveValue) {
@@ -133,7 +133,7 @@ public class ValueFlattener extends ASTFlattener {
 			sb.append("_$tmp").append(newTemporaries.get(toString).first);
 			return;
 		} else {
-			Method method = expressionMaker.getMethod(node);
+			Method method = expressionEvaluator.getMethod(node);
 			if (method != null && methodResultsMap != null && methodResultsMap.containsKey(toString)) {  // The method should only be null or the call should not be cached in the methodResultsMap during refinement.
 				String typeStr = EclipseUtils.sanitizeTypename(method.returnTypeName());
 				int newIndex = temporaries.size() + newTemporaries.size();

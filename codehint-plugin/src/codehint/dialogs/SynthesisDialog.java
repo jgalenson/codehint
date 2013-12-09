@@ -112,6 +112,7 @@ import codehint.expreval.EvaluationManager;
 import codehint.expreval.NativeHandler;
 import codehint.expreval.StaticEvaluator;
 import codehint.expreval.TimeoutChecker;
+import codehint.exprgen.ExpressionEvaluator;
 import codehint.exprgen.ExpressionGenerator;
 import codehint.exprgen.ExpressionMaker;
 import codehint.exprgen.ExpressionSkeleton;
@@ -209,6 +210,7 @@ public abstract class SynthesisDialog extends ModelessDialog {
     protected NativeHandler nativeHandler;
     protected SideEffectHandler sideEffectHandler;
     private ExpressionMaker expressionMaker;
+    private ExpressionEvaluator expressionEvaluator;
     protected EvaluationManager evalManager;
     private StaticEvaluator staticEvaluator;
     private ExpressionGenerator expressionGenerator;
@@ -264,13 +266,14 @@ public abstract class SynthesisDialog extends ModelessDialog {
 		this.timeoutChecker = new TimeoutChecker(thread, stack, target, typeCache);
 		this.nativeHandler = new NativeHandler(thread, stack, target, typeCache);
 		this.sideEffectHandler = new SideEffectHandler(stack, project);
-		this.expressionMaker = new ExpressionMaker(stack, valueCache, typeCache, timeoutChecker, nativeHandler, sideEffectHandler, Synthesizer.getMetadata());
-		this.evalManager = new EvaluationManager(varType == null, true, stack, expressionMaker, subtypeChecker, typeCache, valueCache, timeoutChecker);
-		this.staticEvaluator = new StaticEvaluator(stack, expressionMaker, typeCache, valueCache);
+		expressionEvaluator = new ExpressionEvaluator(stack, valueCache, typeCache, timeoutChecker, nativeHandler, sideEffectHandler, Synthesizer.getMetadata());
+		this.expressionMaker = new ExpressionMaker(stack, expressionEvaluator, valueCache);
+		this.evalManager = new EvaluationManager(varType == null, true, stack, expressionEvaluator, subtypeChecker, typeCache, valueCache, timeoutChecker);
+		this.staticEvaluator = new StaticEvaluator(stack, expressionEvaluator, typeCache, valueCache);
 		Weights weights = new Weights();
-		this.expressionGenerator = new ExpressionGenerator(target, stack, sideEffectHandler, expressionMaker, subtypeChecker, typeCache, valueCache, evalManager, staticEvaluator, weights);
+		this.expressionGenerator = new ExpressionGenerator(target, stack, sideEffectHandler, expressionMaker, expressionEvaluator, subtypeChecker, typeCache, evalManager, staticEvaluator, weights);
 		this.skeleton = null;
-		this.expressionSorter = new ExpressionSorter(expressionMaker, weights);
+		this.expressionSorter = new ExpressionSorter(expressionEvaluator, weights);
 	}
 	
 	// Layout code
@@ -367,7 +370,7 @@ public abstract class SynthesisDialog extends ModelessDialog {
 			@Override
 			public String getToolTipText(Object element) {
 				Expression expr = (Expression)element;
-				String javadoc = getJavadocs(expr, expressionMaker, true);
+				String javadoc = getJavadocs(expr, expressionEvaluator, true);
 				if (javadoc == null)
 					return null;
 				javadoc = javadoc.trim();
@@ -842,7 +845,7 @@ public abstract class SynthesisDialog extends ModelessDialog {
 		searchButtonId = buttonId;
 		property = prop;
 		skeletonResult = skeletonInput.getText();
-		skeleton = ExpressionSkeleton.fromString(skeletonResult, target, stack, expressionMaker, evaluationEngine, subtypeChecker, typeCache, valueCache, evalManager, staticEvaluator, expressionGenerator, sideEffectHandler);
+		skeleton = ExpressionSkeleton.fromString(skeletonResult, target, stack, expressionMaker, expressionEvaluator, evaluationEngine, subtypeChecker, typeCache, valueCache, evalManager, staticEvaluator, expressionGenerator, sideEffectHandler);
 		startEndSynthesis(isAutomatic ? SynthesisState.AUTO_START : SynthesisState.START);
 		lastExpressions = expressions;
 		showResults(new ArrayList<Expression>());
@@ -896,7 +899,7 @@ public abstract class SynthesisDialog extends ModelessDialog {
         startOrEndWork(isStarting, state == SynthesisState.END && expressions.isEmpty() ? "No expressions found.  You may press \"Continue Search\" to search further or change some search options." : null);
     	amSearching = isStarting;
     	if (state == SynthesisState.END) {
-    		javadocPrefetcher = new JavadocPrefetcher(this.filteredExpressions, this.expressionMaker);
+    		javadocPrefetcher = new JavadocPrefetcher(this.filteredExpressions, this.expressionEvaluator);
     		javadocPrefetcher.setPriority(Job.DECORATE);
     		javadocPrefetcher.schedule();
     		if (expressions.isEmpty() && numSearches == 1 && !handledSideEffects)  // Automatically continue search if no results were found at depth 1.
@@ -946,12 +949,12 @@ public abstract class SynthesisDialog extends ModelessDialog {
 	private final class JavadocPrefetcher extends Job {
 		
 		private final ArrayList<Expression> expressions;
-		private final ExpressionMaker expressionMaker;
+		private final ExpressionEvaluator expressionEvaluator;
 
-		private JavadocPrefetcher(ArrayList<Expression> expressions, ExpressionMaker expressionMaker) {
+		private JavadocPrefetcher(ArrayList<Expression> expressions, ExpressionEvaluator expressionEvaluator) {
 			super("Javadoc prefetch");
 			this.expressions = expressions;
-			this.expressionMaker = expressionMaker;
+			this.expressionEvaluator = expressionEvaluator;
 		}
 
 		@Override
@@ -961,7 +964,7 @@ public abstract class SynthesisDialog extends ModelessDialog {
 			for (int i = 0; i < num; i++) {
 				if (monitor.isCanceled())
 					return Status.CANCEL_STATUS;
-				getJavadocs(expressions.get(i), expressionMaker, false);
+				getJavadocs(expressions.get(i), expressionEvaluator, false);
 				monitor.worked(1);
 			}
 			monitor.done();
@@ -970,16 +973,16 @@ public abstract class SynthesisDialog extends ModelessDialog {
 		
 	}
 	
-	private String getJavadoc(Expression expr, ExpressionMaker expressionMaker, boolean prettify) {
+	private String getJavadoc(Expression expr, ExpressionEvaluator expressionEvaluator, boolean prettify) {
 		try {
 			int id = expr.getID();
-			Method method = expressionMaker.getMethod(id);
+			Method method = expressionEvaluator.getMethod(id);
 			if (method != null) {
 				IMethod imethod = EclipseUtils.getIMethod(method, project);
 				if (imethod != null)
 					return getJavadocFast(imethod, prettify);
 			}
-			Field field = expressionMaker.getField(id);
+			Field field = expressionEvaluator.getField(id);
 			if (field != null) {
 				IField ifield = EclipseUtils.getIField(field, project);
 				if (ifield != null)
@@ -1027,13 +1030,13 @@ public abstract class SynthesisDialog extends ModelessDialog {
 		return javadoc;
 	}
 	
-	private String getJavadocs(Expression expr, final ExpressionMaker expressionMaker, final boolean prettify) {
+	private String getJavadocs(Expression expr, final ExpressionEvaluator expressionEvaluator, final boolean prettify) {
     	final StringBuffer javadocs = new StringBuffer();
     	expr.accept(new ASTVisitor() {
     		@Override
     		public void postVisit(ASTNode node) {
     			if (node instanceof Expression) {
-    				String javadoc = getJavadoc((Expression)node, expressionMaker, prettify);
+    				String javadoc = getJavadoc((Expression)node, expressionEvaluator, prettify);
     				if (javadoc != null) {
     					if (javadocs.length() > 0)
     						javadocs.append("\n\n-----\n\n");
@@ -1219,8 +1222,8 @@ public abstract class SynthesisDialog extends ModelessDialog {
 			    		if (index == 0)
 			    			result = getExpressionLabel(e1).compareTo(getExpressionLabel(e2));
 			    		else if (index == 1 || index == 1) {
-			    			IJavaValue e1Value = expressionMaker.getValue(e1, Collections.<Effect>emptySet());
-			    			IJavaValue e2Value = expressionMaker.getValue(e2, Collections.<Effect>emptySet());
+			    			IJavaValue e1Value = expressionEvaluator.getValue(e1, Collections.<Effect>emptySet());
+			    			IJavaValue e2Value = expressionEvaluator.getValue(e2, Collections.<Effect>emptySet());
 			    			if (e1 instanceof IJavaPrimitiveValue && e2 instanceof IJavaPrimitiveValue)
 			    				result = (int)(((IJavaPrimitiveValue)e1Value).getDoubleValue() - ((IJavaPrimitiveValue)e2Value).getDoubleValue());
 			    			else if (index == 1)
@@ -1251,18 +1254,18 @@ public abstract class SynthesisDialog extends ModelessDialog {
     
     private String getValueLabel(Expression e) {
     	try {
-			return EclipseUtils.javaStringOfValue(expressionMaker.getValue(e, Collections.<Effect>emptySet()), stack, false);
+			return EclipseUtils.javaStringOfValue(expressionEvaluator.getValue(e, Collections.<Effect>emptySet()), stack, false);
 		} catch (DebugException ex) {
 			throw new RuntimeException(ex);
 		}
     }
     
     private String getToStringLabel(Expression e) {
-    	return expressionMaker.getResultString(e);
+    	return expressionEvaluator.getResultString(e);
     }
     
     private String getEffectsLabel(Expression e) {
-    	return expressionMaker.getResult(e, Collections.<Effect>emptySet()).getResultString("");
+    	return expressionEvaluator.getResult(e, Collections.<Effect>emptySet()).getResultString("");
     }
     
     private static boolean needsToStringColumn(ArrayList<Expression> expressions) {
@@ -1332,7 +1335,7 @@ public abstract class SynthesisDialog extends ModelessDialog {
 			startOrEndWork(true, null);
 			filteredExpressions = new ArrayList<Expression>();
 			showResults();
-			filterWorker = new FilterWorker(text, expressions, expressionMaker);
+			filterWorker = new FilterWorker(text, expressions, expressionEvaluator);
 			filterWorker.setPriority(Job.LONG);
 			filterWorker.schedule();
 		}
@@ -1343,13 +1346,13 @@ public abstract class SynthesisDialog extends ModelessDialog {
 		
 		private final String[] filterWords;
 		private final ArrayList<Expression> expressions;
-		private final ExpressionMaker expressionMaker;
+		private final ExpressionEvaluator expressionEvaluator;
 
-		private FilterWorker(String filterText, ArrayList<Expression> expressions, ExpressionMaker expressionMaker) {
+		private FilterWorker(String filterText, ArrayList<Expression> expressions, ExpressionEvaluator expressionEvaluator) {
 			super("Result filter");
 			this.filterWords = filterText.toLowerCase().split(" +");
 			this.expressions = expressions;
-			this.expressionMaker = expressionMaker;
+			this.expressionEvaluator = expressionEvaluator;
 		}
 
 		@Override
@@ -1379,10 +1382,10 @@ public abstract class SynthesisDialog extends ModelessDialog {
 				for (String filterWord: filterWords) {
 					if (exprString.contains(filterWord))
 						continue;
-					if (expressionMaker.getResultString(expr).toLowerCase().contains(filterWord))
+					if (expressionEvaluator.getResultString(expr).toLowerCase().contains(filterWord))
 						continue;
 					if (!readJavadocs) {  // Lazily initialize for efficiency.
-						javadocs = getJavadocs(expr, expressionMaker, false);
+						javadocs = getJavadocs(expr, expressionEvaluator, false);
 						readJavadocs = true;
 						if (javadocs != null)
 							javadocs = javadocs.toLowerCase();
@@ -1494,8 +1497,8 @@ public abstract class SynthesisDialog extends ModelessDialog {
 			startSearch(StateProperty.fromPropertyString(propertyDialog.getVarName(), "true"), true);*/
 	}
 	
-	public ExpressionMaker getExpressionMaker() {
-		return expressionMaker;
+	public ExpressionEvaluator getExpressionEvaluator() {
+		return expressionEvaluator;
 	}
 	
 	@Override
@@ -1548,6 +1551,7 @@ public abstract class SynthesisDialog extends ModelessDialog {
 		nativeHandler = null;
 		sideEffectHandler = null;
 		expressionMaker = null;
+		expressionEvaluator = null;
 		evalManager = null;
 		staticEvaluator = null;
 		expressionGenerator = null;

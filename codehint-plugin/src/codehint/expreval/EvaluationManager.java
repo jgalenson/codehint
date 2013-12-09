@@ -43,7 +43,7 @@ import codehint.ast.SimpleName;
 import codehint.ast.SuperMethodInvocation;
 import codehint.dialogs.SynthesisDialog;
 import codehint.effects.Effect;
-import codehint.exprgen.ExpressionMaker;
+import codehint.exprgen.ExpressionEvaluator;
 import codehint.exprgen.Result;
 import codehint.exprgen.SubtypeChecker;
 import codehint.exprgen.TypeCache;
@@ -90,7 +90,7 @@ public final class EvaluationManager {
     private final TimeoutChecker timeoutChecker;
 	private final IJavaDebugTarget target;
 	private final IJavaThread thread;
-	private final ExpressionMaker expressionMaker;
+	private final ExpressionEvaluator expressionEvaluator;
 	private final SubtypeChecker subtypeChecker;
 	private final IJavaClassType implType;
 	private final IJavaFieldVariable validField;
@@ -110,7 +110,7 @@ public final class EvaluationManager {
 	private Map<String, Integer> methodResultsMap;
 	private int skipped;
 	
-	public EvaluationManager(boolean isFreeSearch, boolean disableBreakpoints, IJavaStackFrame stack, ExpressionMaker expressionMaker, SubtypeChecker subtypeChecker, TypeCache typeCache, ValueCache valueCache, TimeoutChecker timeoutChecker) {
+	public EvaluationManager(boolean isFreeSearch, boolean disableBreakpoints, IJavaStackFrame stack, ExpressionEvaluator expressionEvaluator, SubtypeChecker subtypeChecker, TypeCache typeCache, ValueCache valueCache, TimeoutChecker timeoutChecker) {
 		this.isFreeSearch = isFreeSearch;
 		this.disableBreakpoints = disableBreakpoints;
 		this.stack = stack;
@@ -119,7 +119,7 @@ public final class EvaluationManager {
 		this.timeoutChecker = timeoutChecker;
 		this.target = (IJavaDebugTarget)stack.getDebugTarget();
 		this.thread = (IJavaThread)stack.getThread();
-		this.expressionMaker = expressionMaker;
+		this.expressionEvaluator = expressionEvaluator;
 		this.subtypeChecker = subtypeChecker;
 		this.implType = EclipseUtils.loadLibrary(IMPL_NAME, stack, target, typeCache);
 		try {
@@ -351,9 +351,9 @@ public final class EvaluationManager {
 	 */
 	private int buildStringForExpression(Expression curTypedExpr, int i, StringBuilder expressionsStr, boolean isPrimitive, boolean validateStatically, boolean hasPropertyPrecondition, ArrayList<Integer> evalExprIndices, int numEvaluated, Map<String, Integer> temporaries, String valuesArrayName) throws DebugException {
 		Expression curExpr = curTypedExpr;
-		ValueFlattener valueFlattener = new ValueFlattener(temporaries, methodResultsMap, expressionMaker, valueCache);
+		ValueFlattener valueFlattener = new ValueFlattener(temporaries, methodResultsMap, expressionEvaluator, valueCache);
 		String curExprStr = valueFlattener.getResult(curExpr);
-		IJavaValue curValue = expressionMaker.getValue(curTypedExpr, Collections.<Effect>emptySet());
+		IJavaValue curValue = expressionEvaluator.getValue(curTypedExpr, Collections.<Effect>emptySet());
 		if (curValue == null || !validateStatically) {
 			StringBuilder curString = new StringBuilder();
 			for (Map.Entry<String, Pair<Integer, String>> newTemp: valueFlattener.getNewTemporaries().entrySet()) {
@@ -523,7 +523,7 @@ public final class EvaluationManager {
 		for (int j = i - 1; j >= startIndex; j--) {
 			Expression expr = exprs.get(j);
 			// We need to get the flattened string not the actual string, since our temporaries can lose type information.  E.g., foo(bar(x),baz) might compile when storing bar(x) in a temporary with an erased type will not.
-			ValueFlattener valueFlattener = new ValueFlattener(temporaries, methodResultsMap, expressionMaker, valueCache);
+			ValueFlattener valueFlattener = new ValueFlattener(temporaries, methodResultsMap, expressionEvaluator, valueCache);
 			String flattenedExprStr = valueFlattener.getResult(exprs.get(j));
 			StringBuilder curString = new StringBuilder();
 			curString.append("{\n ");
@@ -590,7 +590,7 @@ public final class EvaluationManager {
 			if (monitor.isCanceled())  // We ignore the maximum batch size if everything is already evaluated, so we might have a lot of things here and hence need this check.
 				throw new OperationCanceledException();
 			Expression typedExpr = exprs.get(startIndex + i);
-			Result initResult = expressionMaker.getResult(typedExpr, Collections.<Effect>emptySet());
+			Result initResult = expressionEvaluator.getResult(typedExpr, Collections.<Effect>emptySet());
 			IJavaValue curValue = initResult == null ? values[evalIndex] : initResult.getValue().getValue();
 			boolean valid = false;
 			String validResultString = null;
@@ -622,8 +622,8 @@ public final class EvaluationManager {
     		}
 			if (valid) {
 				if (initResult == null)
-					expressionMaker.setResult(typedExpr, new Result(curValue, Collections.<Effect>emptySet(), valueCache, thread), Collections.<Effect>emptySet());
-				expressionMaker.setResultString(typedExpr, Utils.getPrintableString(validResultString));
+					expressionEvaluator.setResult(typedExpr, new Result(curValue, Collections.<Effect>emptySet(), valueCache, thread), Collections.<Effect>emptySet());
+				expressionEvaluator.setResultString(typedExpr, Utils.getPrintableString(validResultString));
 				validExprs.add(typedExpr);
 			}
 			if (initResult == null || !validateStatically)
@@ -665,7 +665,7 @@ public final class EvaluationManager {
 	 * @throws DebugException
 	 */
 	private String getJavaString(Expression expr, IJavaValue curValue) throws DebugException {
-		return expressionMaker.getToStringWithEffects(expr, curValue);
+		return expressionEvaluator.getToStringWithEffects(expr, curValue);
 	}
 
 	/**
@@ -694,7 +694,7 @@ public final class EvaluationManager {
 	 */
 	private int skipLikelyCrashes(ArrayList<Expression> exprs, DebugException error, int crashingIndex, Expression crashedExpr) throws DebugException {
 		int numToSkip = 1;
-		Method crashedMethod = expressionMaker.getMethod(crashedExpr);
+		Method crashedMethod = expressionEvaluator.getMethod(crashedExpr);
 		String errorName = EclipseUtils.getExceptionName(error);
 		int numNulls = getNumNulls(crashedExpr);
 		if (crashedMethod != null && "java.lang.NullPointerException".equals(errorName) && numNulls > 0) {
@@ -702,7 +702,7 @@ public final class EvaluationManager {
 			while (crashingIndex + numToSkip < exprs.size()) {
 				Expression newExpr = exprs.get(crashingIndex + numToSkip);
 				// Skip calls to the same method with at least as much known nulls.
-				if (crashedMethod.equals(expressionMaker.getMethod(newExpr)) && getNumNulls(newExpr) >= numNulls) {
+				if (crashedMethod.equals(expressionEvaluator.getMethod(newExpr)) && getNumNulls(newExpr) >= numNulls) {
 					//System.out.println("Skipping " + newExpr.toString() + ".");
 					numToSkip++;
 				} else
@@ -710,13 +710,13 @@ public final class EvaluationManager {
 			}
 		} else if (crashedMethod != null && ("java.lang.ArrayIndexOutOfBoundsException".equals(errorName) || "java.lang.IndexOutOfBoundsException".equals(errorName)) && crashedMethod.argumentTypeNames().size() == 1) {
 			// Skip methods that throw out-of-bounds exception if the new value is further from 0.
-			IJavaValue argValue = expressionMaker.getValue(getArguments(crashedExpr)[0], getReceiverEffects(crashedExpr));
+			IJavaValue argValue = expressionEvaluator.getValue(getArguments(crashedExpr)[0], getReceiverEffects(crashedExpr));
 			if ("int".equals(argValue.getJavaType().getName())) {
 				int argVal = ((IJavaPrimitiveValue)argValue).getIntValue();
 				while (crashingIndex + numToSkip < exprs.size()) {
 					Expression newExpr = exprs.get(crashingIndex + numToSkip);
-					if (crashedMethod.equals(expressionMaker.getMethod(newExpr))) {
-						int curVal = ((IJavaPrimitiveValue)expressionMaker.getValue(getArguments(newExpr)[0], getReceiverEffects(newExpr))).getIntValue();
+					if (crashedMethod.equals(expressionEvaluator.getMethod(newExpr))) {
+						int curVal = ((IJavaPrimitiveValue)expressionEvaluator.getValue(getArguments(newExpr)[0], getReceiverEffects(newExpr))).getIntValue();
 						if ((argVal < 0 && curVal < 0) || (argVal >= 0 && curVal > argVal)) {
 							//System.out.println("Skipping " + newExpr.toString() + ".");
 							numToSkip++;
@@ -732,13 +732,13 @@ public final class EvaluationManager {
 			Expression[] args = getArguments(crashedExpr);
 			String[] argTypes = new String[args.length];
 			for (int i = 0; i < argTypes.length; i++)
-				argTypes[i] = String.valueOf(expressionMaker.getValue(args[i], Collections.<Effect>emptySet()).getJavaType());
+				argTypes[i] = String.valueOf(expressionEvaluator.getValue(args[i], Collections.<Effect>emptySet()).getJavaType());
 			exprLoop: while (crashingIndex + numToSkip < exprs.size()) {
 				Expression newExpr = exprs.get(crashingIndex + numToSkip);
-				if (crashedMethod.equals(expressionMaker.getMethod(newExpr))) {
+				if (crashedMethod.equals(expressionEvaluator.getMethod(newExpr))) {
 					Expression[] curArgs = getArguments(newExpr);
 					for (int i = 0; i < argTypes.length; i++)
-						if (!argTypes[i].equals(String.valueOf(expressionMaker.getValue(curArgs[i], Collections.<Effect>emptySet()).getJavaType())))
+						if (!argTypes[i].equals(String.valueOf(expressionEvaluator.getValue(curArgs[i], Collections.<Effect>emptySet()).getJavaType())))
 							break exprLoop;
 					//System.out.println("Skipping " + newExpr.toString() + ".");
 					numToSkip++;
@@ -750,7 +750,7 @@ public final class EvaluationManager {
 			while (crashingIndex + numToSkip < exprs.size()) {
 				Expression newExpr = exprs.get(crashingIndex + numToSkip);
 				// Skip calls to the same method.
-				if (crashedMethod.equals(expressionMaker.getMethod(newExpr))) {
+				if (crashedMethod.equals(expressionEvaluator.getMethod(newExpr))) {
 					//System.out.println("Skipping " + newExpr.toString() + ".");
 					numToSkip++;
 				} else
@@ -787,7 +787,7 @@ public final class EvaluationManager {
 		if (crashedExpr instanceof MethodInvocation) {
 			Expression receiver = ((MethodInvocation)crashedExpr).getExpression();
 			if (receiver != null)
-				return expressionMaker.getResult(receiver, Collections.<Effect>emptySet()).getEffects();
+				return expressionEvaluator.getResult(receiver, Collections.<Effect>emptySet()).getEffects();
 		}
 		return Collections.<Effect>emptySet();
 	}
@@ -809,7 +809,7 @@ public final class EvaluationManager {
     				if (node instanceof NullLiteral)
     					numNulls[0]++;
     				else {
-    					Result result = expressionMaker.getResult((Expression)node, curEffects);
+    					Result result = expressionEvaluator.getResult((Expression)node, curEffects);
     					if (result == null || result.getValue() == null)  // TODO: result is null for method/constructor names or crashed native calls or after side effects during refinement.
     						return;
     					IJavaValue value = result.getValue().getValue();
@@ -839,7 +839,7 @@ public final class EvaluationManager {
     	ArrayList<Expression> calls = new ArrayList<Expression>();
     	for (Expression expr: exprs) {
     		Expression e = expr;
-    		IJavaValue value = expressionMaker.getValue(expr, Collections.<Effect>emptySet());
+    		IJavaValue value = expressionEvaluator.getValue(expr, Collections.<Effect>emptySet());
     		if (value != null && (e instanceof MethodInvocation || e instanceof ClassInstanceCreation || e instanceof SuperMethodInvocation)
     				&& !(value instanceof IJavaPrimitiveValue || value.isNull() || (value instanceof IJavaObject && "Ljava/lang/String;".equals(value.getSignature()))))
     			calls.add(expr);
@@ -848,7 +848,7 @@ public final class EvaluationManager {
     	if (!calls.isEmpty()) {  // Cache the method call results so the runtime can use them.
     		IJavaArray newValue = ((IJavaArrayType)methodResultsField.getJavaType()).newInstance(calls.size());
     		for (int i = 0; i < calls.size(); i++) {
-    			newValue.setValue(i, expressionMaker.getValue(calls.get(i), Collections.<Effect>emptySet()));
+    			newValue.setValue(i, expressionEvaluator.getValue(calls.get(i), Collections.<Effect>emptySet()));
     			methodResultsMap.put(calls.get(i).toString(), i);
     		}
     		methodResultsField.setValue(newValue);

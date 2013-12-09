@@ -3,7 +3,7 @@ package codehint.exprgen.precondition;
 import java.util.ArrayList;
 
 import codehint.ast.Expression;
-import codehint.exprgen.ExpressionMaker;
+import codehint.exprgen.ExpressionEvaluator;
 
 /**
  * A predicate that represents a precondition to
@@ -21,6 +21,6 @@ public abstract class Predicate {
 	 * @param expressionMaker The expression maker.
 	 * @return Whether the given call satisfies this predicate.
 	 */
-	public abstract boolean satisfies(Expression receiver, ArrayList<Expression> actuals, ExpressionMaker expressionMaker);
+	public abstract boolean satisfies(Expression receiver, ArrayList<Expression> actuals, ExpressionEvaluator expressionEvaluator);
 
 }

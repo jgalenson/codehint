@@ -7,7 +7,7 @@ import org.eclipse.jdt.debug.core.IJavaValue;
 
 import codehint.ast.Expression;
 import codehint.effects.Effect;
-import codehint.exprgen.ExpressionMaker;
+import codehint.exprgen.ExpressionEvaluator;
 
 /**
  * An argument to the method.
@@ -26,8 +26,8 @@ public class Arg extends Value {
 	}
 
 	@Override
-	public int getValue(Expression receiver, ArrayList<Expression> partialActuals, ExpressionMaker expressionMaker) {
-		return Integer.parseInt(getJavaValue(receiver, partialActuals, expressionMaker).toString());
+	public int getValue(Expression receiver, ArrayList<Expression> partialActuals, ExpressionEvaluator expressionEvaluator) {
+		return Integer.parseInt(getJavaValue(receiver, partialActuals, expressionEvaluator).toString());
 	}
 	
 	/**
@@ -35,14 +35,14 @@ public class Arg extends Value {
 	 * @param index The index of the argument.
 	 * @param receiver The receiver of the call.
 	 * @param actuals The actuals to the call.
-	 * @param expressionMaker The expression maker.
+	 * @param expressionEvaluator The expression evaluator.
 	 * @return The value represented by this argument.
 	 */
-	public static codehint.exprgen.Value getJavaValue(int index, Expression receiver, ArrayList<Expression> actuals, ExpressionMaker expressionMaker) {
+	public static codehint.exprgen.Value getJavaValue(int index, Expression receiver, ArrayList<Expression> actuals, ExpressionEvaluator expressionEvaluator) {
 		if (index == 0)
-			return expressionMaker.getResult(receiver, Collections.<Effect>emptySet()).getValue();
+			return expressionEvaluator.getResult(receiver, Collections.<Effect>emptySet()).getValue();
 		else if (index - 1 < actuals.size())
-			return expressionMaker.getResult(actuals.get(index - 1), Collections.<Effect>emptySet()).getValue();
+			return expressionEvaluator.getResult(actuals.get(index - 1), Collections.<Effect>emptySet()).getValue();
 		else
 			throw new IllegalValue();
 	}
@@ -51,11 +51,11 @@ public class Arg extends Value {
 	 * Gets the IJavaValue represented by this argument.
 	 * @param receiver The receiver of the call.
 	 * @param actuals The actuals to the call.
-	 * @param expressionMaker The expression maker.
+	 * @param expressionEvaluator The expression evaluator.
 	 * @return The IJavaValue represented by this argument.
 	 */
-	protected IJavaValue getJavaValue(Expression receiver, ArrayList<Expression> actuals, ExpressionMaker expressionMaker) {
-		return getJavaValue(index, receiver, actuals, expressionMaker).getValue();
+	protected IJavaValue getJavaValue(Expression receiver, ArrayList<Expression> actuals, ExpressionEvaluator expressionEvaluator) {
+		return getJavaValue(index, receiver, actuals, expressionEvaluator).getValue();
 	}
 
 }

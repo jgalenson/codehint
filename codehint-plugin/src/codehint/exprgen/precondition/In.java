@@ -3,7 +3,7 @@ package codehint.exprgen.precondition;
 import java.util.ArrayList;
 
 import codehint.ast.Expression;
-import codehint.exprgen.ExpressionMaker;
+import codehint.exprgen.ExpressionEvaluator;
 
 public class In extends Predicate {
 
@@ -22,10 +22,10 @@ public class In extends Predicate {
 	}
 
 	@Override
-	public boolean satisfies(Expression receiver, ArrayList<Expression> actuals, ExpressionMaker expressionMaker) {
+	public boolean satisfies(Expression receiver, ArrayList<Expression> actuals, ExpressionEvaluator expressionEvaluator) {
 		try {
-			int index = cur.getValue(receiver, actuals, expressionMaker);
-			return 0 <= index && index < Len.getLength(Arg.getJavaValue(targetArgIndex, receiver, actuals, expressionMaker));
+			int index = cur.getValue(receiver, actuals, expressionEvaluator);
+			return 0 <= index && index < Len.getLength(Arg.getJavaValue(targetArgIndex, receiver, actuals, expressionEvaluator));
 		} catch (NumberFormatException e) {
 			throw new RuntimeException(e);
 		}

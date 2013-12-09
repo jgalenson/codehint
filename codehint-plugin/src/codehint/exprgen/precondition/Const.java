@@ -3,7 +3,7 @@ package codehint.exprgen.precondition;
 import java.util.ArrayList;
 
 import codehint.ast.Expression;
-import codehint.exprgen.ExpressionMaker;
+import codehint.exprgen.ExpressionEvaluator;
 
 public class Const extends Value {
 	
@@ -18,7 +18,7 @@ public class Const extends Value {
 	}
 
 	@Override
-	public int getValue(Expression receiver, ArrayList<Expression> actuals, ExpressionMaker expressionMaker) {
+	public int getValue(Expression receiver, ArrayList<Expression> actuals, ExpressionEvaluator expressionEvaluator) {
 		return val;
 	}
 

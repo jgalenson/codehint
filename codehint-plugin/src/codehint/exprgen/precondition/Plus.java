@@ -3,7 +3,7 @@ package codehint.exprgen.precondition;
 import java.util.ArrayList;
 
 import codehint.ast.Expression;
-import codehint.exprgen.ExpressionMaker;
+import codehint.exprgen.ExpressionEvaluator;
 
 public class Plus extends Value {
 	
@@ -21,8 +21,8 @@ public class Plus extends Value {
 	}
 
 	@Override
-	public int getValue(Expression receiver, ArrayList<Expression> actuals, ExpressionMaker expressionMaker) {
-		return l.getValue(receiver, actuals, expressionMaker) + r.getValue(receiver, actuals, expressionMaker);
+	public int getValue(Expression receiver, ArrayList<Expression> actuals, ExpressionEvaluator expressionEvaluator) {
+		return l.getValue(receiver, actuals, expressionEvaluator) + r.getValue(receiver, actuals, expressionEvaluator);
 	}
 
 }

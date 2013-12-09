@@ -69,8 +69,8 @@ import codehint.expreval.EvaluationManager.EvaluationError;
 import codehint.expreval.EvaluationManager.StopSynthesis;
 import codehint.expreval.NativeHandler;
 import codehint.expreval.TimeoutChecker;
+import codehint.exprgen.ExpressionEvaluator;
 import codehint.exprgen.ExpressionGenerator;
-import codehint.exprgen.ExpressionMaker;
 import codehint.exprgen.ExpressionSkeleton;
 import codehint.exprgen.ExpressionSkeleton.SkeletonError;
 import codehint.exprgen.SubtypeChecker;
@@ -96,7 +96,7 @@ public class Synthesizer {
 	private static Map<String, Property> initialDemonstrations;
 	private static List<String> addedChosenStmts;
 	private static Map<String, String> initialFiles;
-	private static ExpressionMaker.Metadata metadata;
+	private static ExpressionEvaluator.Metadata metadata;
 	private static Map<String, List<Expression>> initialExprs;
 	private static Set<String> handledEffects;
 	private static Set<String> blockedNatives;
@@ -124,7 +124,7 @@ public class Synthesizer {
 			Property property = synthesisDialog.getProperty();
 			ExpressionSkeleton skeleton = synthesisDialog.getSkeleton();
 			List<Expression> finalExpressions = synthesisDialog.getExpressions();
-			ExpressionMaker expressionMaker = synthesisDialog.getExpressionMaker();
+			ExpressionEvaluator expressionEvaluator = synthesisDialog.getExpressionEvaluator();
 			boolean blockedNativeCalls = synthesisDialog.blockedNativeCalls();
 			boolean handledSideEffects = synthesisDialog.handledSideEffects();
 			synthesisDialog.cleanup();
@@ -173,7 +173,7 @@ public class Synthesizer {
 			// TODO: Using the text of the statement as a key is not a very good idea.
 			if (finalExpressions.size() > 1) {
 				initialDemonstrations.put(statement, property);
-				metadata.addMetadataFor(finalExpressions, expressionMaker);
+				metadata.addMetadataFor(finalExpressions, expressionEvaluator);
 				initialExprs.put(statement, finalExpressions);
 				if (blockedNativeCalls)
 					blockedNatives.add(statement);
@@ -181,7 +181,7 @@ public class Synthesizer {
 					handledEffects.add(statement);
 			}
 
-			IJavaValue value = property instanceof ValueProperty ? ((ValueProperty)property).getValue() : expressionMaker.getValue(finalExpressions.get(0), Collections.<Effect>emptySet());
+			IJavaValue value = property instanceof ValueProperty ? ((ValueProperty)property).getValue() : expressionEvaluator.getValue(finalExpressions.get(0), Collections.<Effect>emptySet());
 			if (variable != null && value != null)
 				variable.setValue(value);
 			
@@ -356,7 +356,7 @@ public class Synthesizer {
 					SideEffectHandler effectHandler = handledEffects ? new SideEffectHandler(frame, EclipseUtils.getProject(frame)) : null;
 					// TODO: Run the following off the UI thread like above when we do the first synthesis.
 					TimeoutChecker timeoutChecker = new TimeoutChecker(thread, frame, target, typeCache);
-					EvaluationManager evalManager = new EvaluationManager(false, nativeHandler == null, frame, synthesisDialog.getExpressionMaker(), new SubtypeChecker(frame, target, typeCache), typeCache, valueCache, timeoutChecker);
+					EvaluationManager evalManager = new EvaluationManager(false, nativeHandler == null, frame, synthesisDialog.getExpressionEvaluator(), new SubtypeChecker(frame, target, typeCache), typeCache, valueCache, timeoutChecker);
 					evalManager.init();
 					try {
 						timeoutChecker.start();
@@ -601,7 +601,7 @@ public class Synthesizer {
    				EclipseUtils.showError("Error", "No legal expressions remain after refinement.", null);
    				throw new RuntimeException("No legal expressions remain after refinement");
    			}
-   			IJavaValue value = synthesisDialog.getExpressionMaker().getValue(validExprs.get(0), Collections.<Effect>emptySet());  // The returned values could be different, so we arbitrarily use the first one.  This might not be the best thing to do.
+   			IJavaValue value = synthesisDialog.getExpressionEvaluator().getValue(validExprs.get(0), Collections.<Effect>emptySet());  // The returned values could be different, so we arbitrarily use the first one.  This might not be the best thing to do.
 
    			Property newProperty = synthesisDialog.getProperty() == null ? initialProperty : synthesisDialog.getProperty();  // The user might not have entered a pdspec (e.g., they refined or just selected some things), in which case we use the old one.
    			String newLine = rewriteLine(matcher, varname, curLine, newProperty, validExprs, lineNumber);
@@ -618,7 +618,7 @@ public class Synthesizer {
    					throw new RuntimeException("Cannot delete breakpoint.");
    				}
    			} else
-   				metadata.addMetadataFor(validExprs, synthesisDialog.getExpressionMaker());
+   				metadata.addMetadataFor(validExprs, synthesisDialog.getExpressionEvaluator());
    			
    			// TODO: Handle case when this is null (maybe do it above when we workaround it being null).  Creating a JDILocalVariable requires knowing about where the current scope ends, though.
    			if (lhsVar != null)
@@ -873,7 +873,7 @@ public class Synthesizer {
     	initialDemonstrations = new HashMap<String, Property>();
     	addedChosenStmts = new ArrayList<String>();
     	initialFiles = new HashMap<String, String>();
-    	metadata = ExpressionMaker.Metadata.emptyMetadata();
+    	metadata = ExpressionEvaluator.Metadata.emptyMetadata();
     	initialExprs = new HashMap<String, List<Expression>>();
     	handledEffects = new HashSet<String>();
     	blockedNatives = new HashSet<String>();
@@ -918,7 +918,7 @@ public class Synthesizer {
 		}
     }
     
-    public static ExpressionMaker.Metadata getMetadata() {
+    public static ExpressionEvaluator.Metadata getMetadata() {
     	return metadata;
     }
 	

@@ -21,11 +21,11 @@ import com.sun.jdi.Method;
  */
 public class ExpressionSorter implements Comparator<Expression> {
 	
-	private final ExpressionMaker expressionMaker;
+	private final ExpressionEvaluator expressionEvaluator;
 	private final Weights weights;
 	
-	public ExpressionSorter(ExpressionMaker expressionMaker, Weights weights) {
-		this.expressionMaker = expressionMaker;
+	public ExpressionSorter(ExpressionEvaluator expressionEvaluator, Weights weights) {
+		this.expressionEvaluator = expressionEvaluator;
 		this.weights = weights;
 	}
 
@@ -68,7 +68,7 @@ public class ExpressionSorter implements Comparator<Expression> {
 		}
 		
 		private boolean visitMethod(Expression node) {
-			Method method = expressionMaker.getMethod(node);
+			Method method = expressionEvaluator.getMethod(node);
 			if (method == null)  // During refinement, we might not have an id.
 				prob *= weights.getAverageWeight();
 			else
@@ -78,7 +78,7 @@ public class ExpressionSorter implements Comparator<Expression> {
 		
 		@Override
 		public boolean visit(FieldAccess node) {
-			Field field = expressionMaker.getField(node);
+			Field field = expressionEvaluator.getField(node);
 			if (field == null)  // Array length
 				prob *= weights.getAverageWeight();
 			else
@@ -88,7 +88,7 @@ public class ExpressionSorter implements Comparator<Expression> {
 		
 		@Override
 		public boolean visit(SimpleName node) {
-			Field field = expressionMaker.getField(node);
+			Field field = expressionEvaluator.getField(node);
 			if (field != null && field.isPublic())  // Don't count unqualified non-public field accesses.
 				visitField(field);
 			return true;

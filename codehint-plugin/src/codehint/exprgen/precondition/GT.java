@@ -3,7 +3,7 @@ package codehint.exprgen.precondition;
 import java.util.ArrayList;
 
 import codehint.ast.Expression;
-import codehint.exprgen.ExpressionMaker;
+import codehint.exprgen.ExpressionEvaluator;
 
 public class GT extends Predicate {
 	
@@ -21,8 +21,8 @@ public class GT extends Predicate {
 	}
 
 	@Override
-	public boolean satisfies(Expression receiver, ArrayList<Expression> actuals, ExpressionMaker expressionMaker) {
-		return cur.getValue(receiver, actuals, expressionMaker) > target.getValue(receiver, actuals, expressionMaker);
+	public boolean satisfies(Expression receiver, ArrayList<Expression> actuals, ExpressionEvaluator expressionEvaluator) {
+		return cur.getValue(receiver, actuals, expressionEvaluator) > target.getValue(receiver, actuals, expressionEvaluator);
 	}
 
 	@Override

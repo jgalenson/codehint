@@ -3,7 +3,7 @@ package codehint.exprgen.precondition;
 import java.util.ArrayList;
 
 import codehint.ast.Expression;
-import codehint.exprgen.ExpressionMaker;
+import codehint.exprgen.ExpressionEvaluator;
 
 public class NonNull extends Predicate {
 	
@@ -18,8 +18,8 @@ public class NonNull extends Predicate {
 	}
 
 	@Override
-	public boolean satisfies(Expression receiver, ArrayList<Expression> actuals, ExpressionMaker expressionMaker) {
-		return !Arg.getJavaValue(argIndex, receiver, actuals, expressionMaker).getValue().isNull();
+	public boolean satisfies(Expression receiver, ArrayList<Expression> actuals, ExpressionEvaluator expressionEvaluator) {
+		return !Arg.getJavaValue(argIndex, receiver, actuals, expressionEvaluator).getValue().isNull();
 	}
 
 	/**

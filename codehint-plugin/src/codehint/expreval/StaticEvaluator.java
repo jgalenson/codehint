@@ -19,7 +19,7 @@ import org.eclipse.jdt.debug.core.IJavaValue;
 
 import codehint.ast.Expression;
 import codehint.effects.Effect;
-import codehint.exprgen.ExpressionMaker;
+import codehint.exprgen.ExpressionEvaluator;
 import codehint.exprgen.Result;
 import codehint.exprgen.StringValue;
 import codehint.exprgen.TypeCache;
@@ -35,16 +35,16 @@ import com.sun.jdi.Method;
 public class StaticEvaluator {
 	
 	private final IJavaStackFrame stack;
-	private final ExpressionMaker expressionMaker;
+	private final ExpressionEvaluator expressionEvaluator;
 	private final TypeCache typeCache;
 	private final ValueCache valueCache;
 	private int numCrashes;
 	private final Set<String> unsupportedEncodings;
 	private final Set<String> illegalPatterns;
 	
-	public StaticEvaluator(IJavaStackFrame stack, ExpressionMaker expressionMaker, TypeCache typeCache, ValueCache valueCache) {
+	public StaticEvaluator(IJavaStackFrame stack, ExpressionEvaluator expressionEvaluator, TypeCache typeCache, ValueCache valueCache) {
 		this.stack = stack;
-		this.expressionMaker = expressionMaker;
+		this.expressionEvaluator = expressionEvaluator;
 		this.typeCache = typeCache;
 		this.valueCache = valueCache;
 		numCrashes = 0;
@@ -72,7 +72,7 @@ public class StaticEvaluator {
 			Value[] argVals = new Value[args.size()];
 			for (int i = 0; i < args.size(); i++) {
 				Expression arg = args.get(i);
-				Result argResult = expressionMaker.getResult(arg, Collections.<Effect>emptySet()); 
+				Result argResult = expressionEvaluator.getResult(arg, Collections.<Effect>emptySet()); 
 				if (argResult == null)
 					return null;
 				argVals[i] = argResult.getValue();
@@ -81,7 +81,7 @@ public class StaticEvaluator {
 				if (receiver == null)
 					result = evaluateStringConstructorCall(argVals, method, target);
 				else {
-					Value receiverValue = expressionMaker.getResult(receiver, Collections.<Effect>emptySet()).getValue();
+					Value receiverValue = expressionEvaluator.getResult(receiver, Collections.<Effect>emptySet()).getValue();
 					result = evaluateStringCall(receiverValue.getValue() instanceof IJavaClassObject ? null : stringOfValue(receiverValue.getValue()), receiverValue.getValue(), argVals, method, target);
 				}
 			} else if ("java.util.Arrays".equals(declaringType))
