@@ -44,6 +44,7 @@ import org.eclipse.jdt.core.dom.ASTParser;
 import org.eclipse.jdt.debug.core.IJavaArray;
 import org.eclipse.jdt.debug.core.IJavaClassType;
 import org.eclipse.jdt.debug.core.IJavaDebugTarget;
+import org.eclipse.jdt.debug.core.IJavaInterfaceType;
 import org.eclipse.jdt.debug.core.IJavaObject;
 import org.eclipse.jdt.debug.core.IJavaStackFrame;
 import org.eclipse.jdt.debug.core.IJavaThread;
@@ -201,6 +202,87 @@ public final class EclipseUtils {
     private static boolean isArray(String signature) {
     	return Signature.getTypeSignatureKind(signature) == Signature.ARRAY_TYPE_SIGNATURE;
     }
+
+    /**
+     * Checks whether the given type is an integer.
+     * @param type The type to check.
+     * @return Whether the given type is an integer.
+     */
+	public static boolean isInt(IJavaType type) throws DebugException {
+		return type != null && "I".equals(type.getSignature());
+	}
+
+    /**
+     * Checks whether the given type is a boolean.
+     * @param type The type to check.
+     * @return Whether the given type is a boolean.
+     */
+	public static boolean isBoolean(IJavaType type) throws DebugException {
+		return type != null && "Z".equals(type.getSignature());
+	}
+
+    /**
+     * Checks whether the given type is a long.
+     * @param type The type to check.
+     * @return Whether the given type is a long.
+     */
+	public static boolean isLong(IJavaType type) throws DebugException {
+		return type != null && "J".equals(type.getSignature());
+	}
+
+    /**
+     * Checks whether the given type is a byte.
+     * @param type The type to check.
+     * @return Whether the given type is a byte.
+     */
+	public static boolean isByte(IJavaType type) throws DebugException {
+		return type != null && "B".equals(type.getSignature());
+	}
+
+    /**
+     * Checks whether the given type is a char.
+     * @param type The type to check.
+     * @return Whether the given type is a char.
+     */
+	public static boolean isChar(IJavaType type) throws DebugException {
+		return type != null && "C".equals(type.getSignature());
+	}
+
+    /**
+     * Checks whether the given type is a short.
+     * @param type The type to check.
+     * @return Whether the given type is a short.
+     */
+	public static boolean isShort(IJavaType type) throws DebugException {
+		return type != null && "S".equals(type.getSignature());
+	}
+
+    /**
+     * Checks whether the given type is a float.
+     * @param type The type to check.
+     * @return Whether the given type is a float.
+     */
+	public static boolean isFloat(IJavaType type) throws DebugException {
+		return type != null && "F".equals(type.getSignature());
+	}
+
+    /**
+     * Checks whether the given type is a double.
+     * @param type The type to check.
+     * @return Whether the given type is a double.
+     */
+	public static boolean isDouble(IJavaType type) throws DebugException {
+		return type != null && "D".equals(type.getSignature());
+	}
+
+    /**
+     * Checks whether the given type is an object or interface.
+     * @param type The type to check.
+     * @return Whether the given type is an object or interface.
+     */
+	public static boolean isObjectOrInterface(IJavaType type) {
+		return type instanceof IJavaClassType || type instanceof IJavaInterfaceType;
+	}
    	
 	/**
 	 * Rewrites a type name so that it can be executed in code.

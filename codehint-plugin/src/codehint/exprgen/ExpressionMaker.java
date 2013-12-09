@@ -50,7 +50,6 @@ import org.eclipse.jdt.debug.core.IJavaArrayType;
 import org.eclipse.jdt.debug.core.IJavaClassObject;
 import org.eclipse.jdt.debug.core.IJavaClassType;
 import org.eclipse.jdt.debug.core.IJavaDebugTarget;
-import org.eclipse.jdt.debug.core.IJavaInterfaceType;
 import org.eclipse.jdt.debug.core.IJavaObject;
 import org.eclipse.jdt.debug.core.IJavaReferenceType;
 import org.eclipse.jdt.debug.core.IJavaStackFrame;
@@ -108,50 +107,14 @@ public class ExpressionMaker {
 		this.sideEffectHandler = sideEffectHandler;
 	}
 
-	public static boolean isInt(IJavaType type) throws DebugException {
-		return type != null && "I".equals(type.getSignature());
-	}
-
-	public static boolean isBoolean(IJavaType type) throws DebugException {
-		return type != null && "Z".equals(type.getSignature());
-	}
-
-	public static boolean isLong(IJavaType type) throws DebugException {
-		return type != null && "J".equals(type.getSignature());
-	}
-
-	public static boolean isByte(IJavaType type) throws DebugException {
-		return type != null && "B".equals(type.getSignature());
-	}
-
-	public static boolean isChar(IJavaType type) throws DebugException {
-		return type != null && "C".equals(type.getSignature());
-	}
-
-	public static boolean isShort(IJavaType type) throws DebugException {
-		return type != null && "S".equals(type.getSignature());
-	}
-
-	public static boolean isFloat(IJavaType type) throws DebugException {
-		return type != null && "F".equals(type.getSignature());
-	}
-
-	public static boolean isDouble(IJavaType type) throws DebugException {
-		return type != null && "D".equals(type.getSignature());
-	}
-
-	public static boolean isObjectOrInterface(IJavaType type) {
-		return type instanceof IJavaClassType || type instanceof IJavaInterfaceType;
-	}
-
 	// Evaluation helpers that compute IJavaValues and IJavaTypes.
 
 	private IJavaValue computeInfixOp(IJavaValue left, InfixExpression.Operator op, IJavaValue right, IJavaType type) throws NumberFormatException, DebugException {
-		if (isInt(type))
+		if (EclipseUtils.isInt(type))
 			return computeIntInfixOp(left, op, right);
-		else if (isBoolean(type))
+		else if (EclipseUtils.isBoolean(type))
 			return computeBooleanInfixOp(left, op, right);
-		else if (isLong(type))
+		else if (EclipseUtils.isLong(type))
 			return computeLongInfixOp(left, op, right);
 		else if (type instanceof IJavaReferenceType)
 			return computeRefInfixOp(left, op, right);
