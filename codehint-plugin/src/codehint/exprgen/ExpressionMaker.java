@@ -74,7 +74,6 @@ public class ExpressionMaker {
 
 	private final IJavaStackFrame stack;
 	private final IJavaDebugTarget target;
-	private int id;
 	private final Map<Set<Effect>, Map<Integer, Result>> results;
 	private final Map<Integer, String> resultStrings;
 	private final Map<Integer, Method> methods;
@@ -89,13 +88,12 @@ public class ExpressionMaker {
 	private final SideEffectHandler sideEffectHandler;
 	
 	public ExpressionMaker(IJavaStackFrame stack, ValueCache valueCache, TypeCache typeCache, TimeoutChecker timeoutChecker, NativeHandler nativeHandler, SideEffectHandler sideEffectHandler, Metadata metadata) {
-		this(stack, valueCache, typeCache, timeoutChecker, nativeHandler, sideEffectHandler, metadata.subsetMethods, metadata.subsetFields, metadata.maxId);
+		this(stack, valueCache, typeCache, timeoutChecker, nativeHandler, sideEffectHandler, metadata.subsetMethods, metadata.subsetFields);
 	}
 	
-	private ExpressionMaker(IJavaStackFrame stack, ValueCache valueCache, TypeCache typeCache, TimeoutChecker timeoutChecker, NativeHandler nativeHandler, SideEffectHandler sideEffectHandler, Map<Integer, Method> methods, Map<Integer, Field> fields, int id) {
+	private ExpressionMaker(IJavaStackFrame stack, ValueCache valueCache, TypeCache typeCache, TimeoutChecker timeoutChecker, NativeHandler nativeHandler, SideEffectHandler sideEffectHandler, Map<Integer, Method> methods, Map<Integer, Field> fields) {
 		this.stack = stack;
 		this.target = (IJavaDebugTarget)stack.getDebugTarget();
-		this.id = id + 1;
 		results = new HashMap<Set<Effect>, Map<Integer, Result>>();
 		this.resultStrings = new HashMap<Integer, String>();
 		this.methods = new HashMap<Integer, Method>(methods);  // Make copies so that changes we make here don't affect the metadata's maps.
@@ -1008,12 +1006,10 @@ public class ExpressionMaker {
 		
 		private final Map<Integer, Method> subsetMethods;
 		private final Map<Integer, Field> subsetFields;
-		private int maxId;
 		
 		private Metadata(Map<Integer, Method> subsetMethods, Map<Integer, Field> subsetFields) {
 			this.subsetMethods = subsetMethods;
 			this.subsetFields = subsetFields;
-			this.maxId = -1;
 		}
 		
 		public static Metadata emptyMetadata() {
@@ -1037,7 +1033,6 @@ public class ExpressionMaker {
 			};
 			for (Expression e: exprs)
 				e.accept(visitor);
-			maxId = expressionMaker.id - 1;
 		}
 		
 	}
