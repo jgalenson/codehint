@@ -1,32 +1,19 @@
 package codehint.property;
 
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
-
-import org.eclipse.debug.core.DebugException;
-import org.eclipse.jdt.core.IJavaProject;
-import org.eclipse.jdt.core.IType;
 import org.eclipse.jdt.core.dom.AST;
 import org.eclipse.jdt.core.dom.ASTParser;
 import org.eclipse.jdt.debug.core.IJavaStackFrame;
-import org.eclipse.jdt.debug.eval.IAstEvaluationEngine;
-
-import codehint.ast.ASTConverter;
 import codehint.ast.ASTFlattener;
-import codehint.ast.ASTNode;
-import codehint.ast.CompilationUnit;
 import codehint.ast.Expression;
 import codehint.ast.SimpleName;
-import codehint.utils.EclipseUtils;
 
 /**
  * Class that stores a user-entered property (essentially
  * a lambda).
  */
 // TODO: We could store the value entered in the concrete cases and then compare against it directly rather than with the EvaluationEngine.q
-public class LambdaProperty extends Property {
+public abstract class LambdaProperty extends Property {
 	
-    private final static Pattern lambdaPattern = Pattern.compile("(\\w+)(?: ?: ?(\\w+))?\\s*=>\\s*(.*)");
     protected final static ASTParser parser = ASTParser.newParser(AST.JLS4);
 	
 	private final String lhs;
@@ -40,42 +27,6 @@ public class LambdaProperty extends Property {
 		this.lhs = lhs;
 		this.typeName = type;
 		this.rhs = rhs;
-	}
-	
-	public static LambdaProperty fromPropertyString(String propertyStr) {
-		Matcher matcher = lambdaPattern.matcher(propertyStr);
-		matcher.matches();
-		String lhs = matcher.group(1);
-		String typeName = matcher.group(2);
-		Expression rhs = (Expression)ASTConverter.parseExpr(parser, matcher.group(3));
-		return new LambdaProperty(lhs, typeName, rhs);
-	}
-	
-	public static String isLegalProperty(String str, IJavaStackFrame stackFrame, IJavaProject project, String varTypeName, IType thisType, IAstEvaluationEngine evaluationEngine, String varName) {
-		Matcher matcher = lambdaPattern.matcher(str);
-    	if (!matcher.matches())
-    		return "Input must of the form \"<identifier>(: <type>)? => <expression>\".";
-    	String typeName = matcher.group(2);
-    	if (typeName != null) {
-	    	String typeError = EclipseUtils.getValidTypeError(project, varTypeName, thisType, typeName);
-	    	if (typeError != null)
-	    		return typeError;
-    	}
-    	ASTNode rhs = ASTConverter.parseExpr(parser, matcher.group(3));
-    	if (rhs instanceof CompilationUnit)
-    		return "Enter a valid expression on the RHS: " + ((CompilationUnit)rhs).getProblems()[0].getMessage();
-    	String lhs = matcher.group(1);
-    	try {
-			if (stackFrame.findVariable(lhs) != null)
-				return "The left-hand side cannot be a variable in the current scope.";
-		} catch (DebugException e) {
-			e.printStackTrace();
-		}
-    	PropertyASTFlattener flattener = new PropertyASTFlattener(lhs, varName, typeName);
-		String compileErrors = EclipseUtils.getCompileErrors(flattener.getResult(rhs), "boolean", stackFrame, evaluationEngine);
-		if (compileErrors != null)
-			return compileErrors;
-    	return null;
 	}
 	
 	public String getTypeName() {

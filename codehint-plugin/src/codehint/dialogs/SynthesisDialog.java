@@ -492,7 +492,7 @@ public abstract class SynthesisDialog extends ModelessDialog {
 		comboLabel.setFont(comboComposite.getFont());
 		
 		final Combo combo = new Combo(comboComposite, SWT.READ_ONLY);
-		combo.setItems(new String[] { "Demonstrate value", "Demonstrate type", "Demonstrate state property"/*, "Demonstrate lambda property"*/ });
+		combo.setItems(new String[] { "Demonstrate value", "Demonstrate type", "Demonstrate state property" });
 		combo.addSelectionListener(new SelectionAdapter() {
 			@Override
 			public void widgetSelected(SelectionEvent e) {
