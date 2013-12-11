@@ -1221,7 +1221,7 @@ public abstract class SynthesisDialog extends ModelessDialog {
 			    		int result;
 			    		if (index == 0)
 			    			result = getExpressionLabel(e1).compareTo(getExpressionLabel(e2));
-			    		else if (index == 1 || index == 1) {
+			    		else if (index == 1 || index == 2) {
 			    			IJavaValue e1Value = expressionEvaluator.getValue(e1, Collections.<Effect>emptySet());
 			    			IJavaValue e2Value = expressionEvaluator.getValue(e2, Collections.<Effect>emptySet());
 			    			if (e1 instanceof IJavaPrimitiveValue && e2 instanceof IJavaPrimitiveValue)
