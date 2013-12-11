@@ -529,7 +529,7 @@ public final class EvaluationManager {
 			curString.append("{\n ");
 			for (Map.Entry<String, Pair<Integer, String>> newTemp: valueFlattener.getNewTemporaries().entrySet())
 				curString.append(newTemp.getValue().second).append(" _$tmp").append(newTemp.getValue().first).append(" = (").append(newTemp.getValue().second).append(")").append(getQualifier(null)).append("methodResults[").append(methodResultsMap.get(newTemp.getKey())).append("];\n");
-			String typeName = isFreeSearch && "Object".equals(type) ? (expr.getStaticType() == null ? "Object" : expr.getStaticType().getName()) : type;
+			String typeName = isFreeSearch && "Object".equals(type) ? (expr.getStaticType() == null ? "Object" : EclipseUtils.sanitizeTypename(expr.getStaticType().getName())) : type;
 			curString.append(typeName).append(" _$curValue = ").append(flattenedExprStr).append(";\n ");
 			StringBuilder curStringWithSpec = new StringBuilder(curString.toString());
 			curStringWithSpec.append("boolean _$curValid = ").append(validVal).append(";\n}");
