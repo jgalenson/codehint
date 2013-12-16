@@ -1,7 +1,6 @@
 package codehint.property;
 
 import org.eclipse.jdt.debug.core.IJavaValue;
-
 import codehint.ast.Expression;
 
 public abstract class ValueProperty extends LambdaProperty {
@@ -22,5 +21,10 @@ public abstract class ValueProperty extends LambdaProperty {
 	public IJavaValue getValue() {
 		return value;
 	}
+
+	/*@Override
+	public boolean meetsSpecification(Expression expression, ExpressionEvaluator expressionEvaluator) {
+		return expressionEvaluator.getResult(expression, Collections.<Effect>emptySet()).getValue().equalsValue(value);
+	}*/
 
 }

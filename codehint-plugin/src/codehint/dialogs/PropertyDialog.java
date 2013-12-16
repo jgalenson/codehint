@@ -1,5 +1,6 @@
 package codehint.dialogs;
 
+import org.eclipse.jdt.debug.core.IJavaStackFrame;
 import org.eclipse.jface.dialogs.IInputValidator;
 
 import codehint.exprgen.TypeCache;
@@ -9,10 +10,12 @@ public abstract class PropertyDialog {
 	
 	protected final String varName;
 	protected final String extraMessage;
+	protected final IJavaStackFrame stack;
 	
-	protected PropertyDialog(String varName, String extraMessage) {
+	protected PropertyDialog(String varName, String extraMessage, IJavaStackFrame stack) {
 		this.varName = varName;
 		this.extraMessage = extraMessage;
+		this.stack = stack;
 	}
 
 	public abstract String getPdspecMessage();

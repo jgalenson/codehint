@@ -137,6 +137,10 @@ public class Value {
 			return true;
 		return ((IJavaPrimitiveValue)o1.sendMessage("equals", "(Ljava/lang/Object;)Z", new IJavaValue[] { o2 }, thread, null)).getBooleanValue();
 	}
+	
+	public boolean equalsValue(IJavaValue other) {
+		return equals(this.value, other, thread, valueCache);
+	}
 
 	@Override
 	public String toString() {

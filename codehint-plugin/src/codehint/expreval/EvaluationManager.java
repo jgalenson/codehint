@@ -226,7 +226,7 @@ public final class EvaluationManager {
 	private static String getPreVarsString(IJavaStackFrame stack, Property property) throws DebugException {
 		if (property instanceof StateProperty) {
 			StringBuilder expressionsStr = new StringBuilder();
-			for (String preVar: ((StateProperty)property).getPreVariables(stack))
+			for (String preVar: ((StateProperty)property).getPreVariables())
 				expressionsStr.append(EclipseUtils.sanitizeTypename(stack.findVariable(preVar).getJavaType().getName())).append(" ").append(StateProperty.getRenamedVar(preVar)).append(" = ").append(preVar).append(";\n");
 			return expressionsStr.toString();
 		} else

@@ -266,7 +266,7 @@ public abstract class SynthesisDialog extends ModelessDialog {
 		this.timeoutChecker = new TimeoutChecker(thread, stack, target, typeCache);
 		this.nativeHandler = new NativeHandler(thread, stack, target, typeCache);
 		this.sideEffectHandler = new SideEffectHandler(stack, project);
-		expressionEvaluator = new ExpressionEvaluator(stack, valueCache, typeCache, timeoutChecker, nativeHandler, sideEffectHandler, Synthesizer.getMetadata());
+		expressionEvaluator = new ExpressionEvaluator(stack, valueCache, typeCache, subtypeChecker, timeoutChecker, nativeHandler, sideEffectHandler, Synthesizer.getMetadata());
 		this.expressionMaker = new ExpressionMaker(stack, expressionEvaluator, valueCache);
 		this.evalManager = new EvaluationManager(varType == null, true, stack, expressionEvaluator, subtypeChecker, typeCache, valueCache, timeoutChecker);
 		this.staticEvaluator = new StaticEvaluator(stack, expressionEvaluator, typeCache, valueCache);
@@ -1280,7 +1280,7 @@ public abstract class SynthesisDialog extends ModelessDialog {
     		if (type instanceof IJavaArrayType)
     			return needsToStringColumn(((IJavaArrayType)type).getComponentType());
     		else
-    			return EclipseUtils.isObject(type) && !"Ljava/lang/String;".equals(type.getSignature());
+    			return EclipseUtils.isObject(type) && type != null && !"Ljava/lang/String;".equals(type.getSignature());
     	} catch (DebugException e) {
     		throw new RuntimeException(e);
     	}

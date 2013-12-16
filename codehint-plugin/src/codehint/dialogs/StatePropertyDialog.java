@@ -11,16 +11,14 @@ import codehint.property.StateProperty;
 import codehint.utils.EclipseUtils;
 
 public class StatePropertyDialog extends PropertyDialog {
-
-	private static final String FREE_VAR_NAME = "_rv";
 	
 	private final String pdspecMessage;
 	private final String initialPdspecText;
 	private final IInputValidator pdspecValidator;
     
     public StatePropertyDialog(String varName, IJavaStackFrame stack, String initialValue, String extraMessage) {
-    	super(varName, extraMessage);
-    	String myVarName = varName == null ? FREE_VAR_NAME : varName;
+    	super(varName, extraMessage, stack);
+    	String myVarName = varName == null ? StateProperty.FREE_VAR_NAME : varName;
 		String pdspecMessage = "Demonstrate a property that should hold for " + myVarName + " after this statement is executed.  You may refer to the values of variables after this statement is executed using the prime syntax, e.g., " + myVarName + "\'";
     	this.pdspecMessage = getFullMessage(pdspecMessage, extraMessage);
     	this.initialPdspecText = initialValue;
@@ -51,7 +49,7 @@ public class StatePropertyDialog extends PropertyDialog {
 	    public StatePropertyValidator(IJavaStackFrame stackFrame, boolean isFreeVar) {
 	    	this.stackFrame = stackFrame;
 	    	this.evaluationEngine = EclipseUtils.getASTEvaluationEngine(stackFrame);
-	    	this.freeVarError = isFreeVar ? "[" + FREE_VAR_NAME + " cannot be resolved to a variable]" : null;
+	    	this.freeVarError = isFreeVar ? "[" + StateProperty.FREE_VAR_NAME + " cannot be resolved to a variable]" : null;
 	    }
 	    
 	    @Override
@@ -61,10 +59,10 @@ public class StatePropertyDialog extends PropertyDialog {
 	    	if (freeVarError != null && freeVarError.equals(msg)) {
 	    		try {
 	    			// Ensure the special variable is only used prime.
-					if (stackFrame.findVariable(FREE_VAR_NAME) == null) {
-						for (int i = -1; (i = newText.indexOf(FREE_VAR_NAME, ++i)) != -1; ) {
-							if (i + FREE_VAR_NAME.length() >= newText.length() || Character.isJavaIdentifierPart(newText.charAt(i + FREE_VAR_NAME.length())))
-								return "You cannot use the pseudo-variable " + FREE_VAR_NAME + " without priming it.";
+					if (stackFrame.findVariable(StateProperty.FREE_VAR_NAME) == null) {
+						for (int i = -1; (i = newText.indexOf(StateProperty.FREE_VAR_NAME, ++i)) != -1; ) {
+							if (i + StateProperty.FREE_VAR_NAME.length() >= newText.length() || Character.isJavaIdentifierPart(newText.charAt(i + StateProperty.FREE_VAR_NAME.length())))
+								return "You cannot use the pseudo-variable " + StateProperty.FREE_VAR_NAME + " without priming it.";
 						}
 					}
 				} catch (DebugException e) {
@@ -81,7 +79,7 @@ public class StatePropertyDialog extends PropertyDialog {
 		if (propertyText == null)
 			return null;
 		else
-			return StateProperty.fromPropertyString(varName == null ? FREE_VAR_NAME : varName, propertyText);
+			return StateProperty.fromPropertyString(varName == null ? StateProperty.FREE_VAR_NAME : varName, propertyText, stack);
 	}
 
 	@Override

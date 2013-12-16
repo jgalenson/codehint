@@ -3,7 +3,6 @@ package codehint.ast;
 import java.util.List;
 
 import org.eclipse.jdt.core.dom.ASTParser;
-
 import codehint.ast.ASTVisitor;
 import codehint.ast.ArrayAccess;
 import codehint.ast.ArrayType;
@@ -41,10 +40,68 @@ import codehint.utils.EclipseUtils;
  * Converts from the Eclipse AST into ours.
  */
 public final class ASTConverter extends ASTVisitor {
-	
+
 	public static ASTNode parseExpr(ASTParser parser, String str) {
 		return copy(EclipseUtils.parseExpr(parser, str));
 	}
+	
+	/*public static ASTNode parseExprWithTypes(ASTParser parser, String str) {
+		try {
+			IJavaStackFrame stack = EclipseUtils.getStackFrame();
+			IJavaProject project = EclipseUtils.getProject(stack);
+			ICompilationUnit unit = (ICompilationUnit)project.findElement(new Path(stack.getSourcePath()));
+			String unitName = unit.getResource().toString();  // If this doesn't work, try .getResource().getProjectRelativePath()
+			String unitSource = unit.getSource();
+			int charStart = getIndexForLine(unitSource, stack.getLineNumber());
+			String mySource = unitSource.substring(0, charStart) + "boolean _b$ = " + str + ";\n" + unitSource.substring(charStart);
+			ExpressionExtractor extractor = new ExpressionExtractor(charStart);
+			EclipseUtils.parseClass(parser, mySource, project, unitName).accept(extractor);
+			final org.eclipse.jdt.core.dom.Expression expr = extractor.getExpr();
+			System.out.println(expr + ": " + (expr == null ? "" : expr.resolveTypeBinding()));
+			return copy(expr != null ? expr : EclipseUtils.parseClass(parser, mySource, project, unitName));
+		} catch (JavaModelException e) {
+			throw new RuntimeException(e);
+		} catch (DebugException e) {
+			throw new RuntimeException(e);
+		}
+	}
+	
+	private static int getIndexForLine(String str, int line) {
+		int index = 1;
+		for (int i = 1; i < line; i++)
+			index = str.indexOf('\n', index) + 1;
+		return index;
+	}
+	
+	private static final class ExpressionExtractor extends org.eclipse.jdt.core.dom.ASTVisitor {
+		
+		private final int charStart;
+		private org.eclipse.jdt.core.dom.Expression expr;
+		private boolean found;
+
+		private ExpressionExtractor(int charStart) {
+			this.charStart = charStart;
+			this.expr = null;
+			this.found = false;
+		}
+
+		@Override
+		public boolean preVisit2(org.eclipse.jdt.core.dom.ASTNode node) {
+			if (node.getStartPosition() + node.getLength() < charStart)
+				return false;
+			if (node instanceof org.eclipse.jdt.core.dom.VariableDeclarationFragment) {
+				assert ((org.eclipse.jdt.core.dom.VariableDeclarationFragment)node).getName().getIdentifier().equals("_b$") : node;
+				expr = ((org.eclipse.jdt.core.dom.VariableDeclarationFragment)node).getInitializer();
+				found = true;
+			}
+			return !found;
+		}
+
+		public org.eclipse.jdt.core.dom.Expression getExpr() {
+			return expr;
+		}
+		
+	}*/
 	
 	private static ASTNode copy(org.eclipse.jdt.core.dom.ASTNode node) {
 		if (node == null)
@@ -376,5 +433,22 @@ public final class ASTConverter extends ASTVisitor {
 			copy[i] = copy((org.eclipse.jdt.core.dom.Expression)orig.get(i));
 		return copy;
 	}
+	
+	/*private static IJavaType getType(org.eclipse.jdt.core.dom.Expression expr) {
+		ITypeBinding binding = expr.resolveTypeBinding();
+		if (binding == null)
+			return null;
+		else
+			return EclipseUtils.getTypeAndLoadIfNeeded(binding.getQualifiedName(), EclipseUtils.getStackFrame(), (IJavaDebugTarget)EclipseUtils.getStackFrame().getDebugTarget(), new TypeCache());
+	}
+	
+	private static IJavaType getType(IMethodBinding binding) {
+		if (binding == null)
+			return null;
+		else {
+			binding = binding.getMethodDeclaration();  // Needed for parameterized methods.  But this still doesn't work correctly, even if I try to follow ASTInstructionCompiler.visit(MethodInvocation).
+			return EclipseUtils.getTypeAndLoadIfNeeded(binding.getReturnType().getQualifiedName(), EclipseUtils.getStackFrame(), (IJavaDebugTarget)EclipseUtils.getStackFrame().getDebugTarget(), new TypeCache());
+		}
+	}*/
 
 }

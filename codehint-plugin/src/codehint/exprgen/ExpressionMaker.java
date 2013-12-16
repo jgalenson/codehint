@@ -165,7 +165,7 @@ public class ExpressionMaker {
 
 	public Expression makeInfix(Expression left, InfixExpression.Operator op, Expression right, IJavaType type, IJavaThread thread) throws NumberFormatException, DebugException {
 		InfixExpression e = makeInfix(left, op, right, type);
-		Result operandResults = expressionEvaluator.computeResultForBinaryOp(left, right, thread);
+		Result operandResults = expressionEvaluator.computeResultForBinaryOp(left, right);
 		if (operandResults == null)
 			return null;
 		IJavaValue value = expressionEvaluator.computeInfixOp(expressionEvaluator.getValue(left, Collections.<Effect>emptySet()), op, operandResults.getValue().getValue(), left.getStaticType() != null ? left.getStaticType() : right.getStaticType());
@@ -181,7 +181,7 @@ public class ExpressionMaker {
 	}
 
 	public Expression makeArrayAccess(Expression array, Expression index, IJavaThread thread) throws NumberFormatException, DebugException {
-		Result operandResults = expressionEvaluator.computeResultForBinaryOp(array, index, thread);
+		Result operandResults = expressionEvaluator.computeResultForBinaryOp(array, index);
 		if (operandResults == null)
 			return null;
 		IJavaValue value = null;
@@ -251,7 +251,7 @@ public class ExpressionMaker {
 		IJavaValue value = staticEvaluator.evaluateCall(receiver, args, method, target);
 		Result result = null;
 		if (value == null)
-			result = expressionEvaluator.computeCall(method, receiver, args, thread, true, null);
+			result = expressionEvaluator.computeCall(method, receiver, args);
 		else
 			result = new Result(value, valueCache, thread);
 		Expression e = null;

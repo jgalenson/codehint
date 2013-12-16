@@ -15,15 +15,13 @@ import codehint.utils.EclipseUtils;
 
 public class TypePropertyDialog extends PropertyDialog {
 
-	private final IJavaStackFrame stack;
 	private final String pdspecMessage;
 	private final String initialPdspecText;
 	private final IInputValidator pdspecValidator;
 	private final IType thisType;
 	
     public TypePropertyDialog(String varName, String varTypeName, IJavaStackFrame stack, String initialValue, String extraMessage) {
-    	super(varName, extraMessage);
-    	this.stack = stack;
+    	super(varName, extraMessage, stack);
     	String pdspecMessage = "Demonstrate a type for " + varName + ".  We will find expressions return that type when evaluated.";
     	this.pdspecMessage = getFullMessage(pdspecMessage, extraMessage);
     	try {

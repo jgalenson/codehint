@@ -9,6 +9,7 @@ import org.eclipse.jdt.core.compiler.IProblem;
 import org.eclipse.jdt.core.dom.AST;
 import org.eclipse.jdt.core.dom.ASTParser;
 import org.eclipse.jdt.debug.core.IJavaStackFrame;
+import org.eclipse.jdt.debug.core.IJavaVariable;
 import org.eclipse.jdt.debug.eval.IAstEvaluationEngine;
 
 import codehint.ast.ASTConverter;
@@ -25,23 +26,35 @@ import codehint.utils.EclipseUtils;
  * Note that variables without primes default to pre.
  */
 public class StateProperty extends Property {
+
+	public static final String FREE_VAR_NAME = "_rv";
 	
     private final static ASTParser parser = ASTParser.newParser(AST.JLS4);
 
 	private final String lhs;
 	private final Expression property;
 	private final String propertyStr;
-	private Set<String> cachedPreVariables;
+	private final Set<String> preVariables;
+	/*private final Map<Integer, IJavaValue> preNodeValues;
+	private final Set<Integer> postNodes;
+	private final ArrayList<Expression> freeVars;*/
 	
-	private StateProperty(String lhs, Expression property, String propertyStr) {
+	protected StateProperty(String lhs, Expression property, String propertyStr, IJavaStackFrame stack) {
 		this.lhs = lhs;
 		this.property = property;
 		this.propertyStr = propertyStr;
+		PrePostVariableFinder prePostFinder = new PrePostVariableFinder(stack);
+		property.accept(prePostFinder);
+		this.preVariables = prePostFinder.getPreVariables();
+		/*this.preNodeValues = prePostFinder.getPreNodes();
+		this.postNodes = prePostFinder.getPostNodes();
+		this.freeVars = prePostFinder.getFreeVars();*/
 	}
 	
-	public static StateProperty fromPropertyString(String lhs, String propertyStr) {
+	public static StateProperty fromPropertyString(String lhs, String propertyStr, IJavaStackFrame stack) {
 		Expression property = (Expression)rewritePrimeSyntax(propertyStr);
-		return new StateProperty(lhs, property, propertyStr);
+		//property = (Expression)ASTConverter.parseExprWithTypes(parser, property.toString());
+		return new StateProperty(lhs, property, propertyStr, stack);
 	}
 	
 	public static String isLegalProperty(String str, IJavaStackFrame stackFrame, IAstEvaluationEngine evaluationEngine) {
@@ -80,13 +93,8 @@ public class StateProperty extends Property {
 		return str;
 	}
 	
-	public Set<String> getPreVariables(IJavaStackFrame stack) {
-		if (cachedPreVariables == null) {
-			PreVariableFinder preFinder = new PreVariableFinder(stack);
-			property.accept(preFinder);
-			cachedPreVariables = preFinder.getPreVariables();
-		}
-		return cachedPreVariables;
+	public Set<String> getPreVariables() {
+		return preVariables;
 	}
 
 	/**
@@ -153,31 +161,54 @@ public class StateProperty extends Property {
 		
 	}
 	
-	private static class PreVariableFinder extends ASTVisitor {
+	private static class PrePostVariableFinder extends ASTVisitor {
 		
 		private final IJavaStackFrame stack;
 		private final Set<String> preVariables;
+		/*private final Map<Integer, IJavaValue> preNodeValues;
+		private final Set<Integer> postNodes;
+		private final ArrayList<Expression> freeVars;*/
 		
-		public PreVariableFinder(IJavaStackFrame stack) {
+		public PrePostVariableFinder(IJavaStackFrame stack) {
 			this.stack = stack;
-			preVariables = new HashSet<String>();
+			this.preVariables = new HashSet<String>();
+			/*this.preNodeValues = new HashMap<Integer, IJavaValue>();
+			this.postNodes = new HashSet<Integer>();
+			this.freeVars = new ArrayList<Expression>();*/
 		}
 
 		@Override
     	public boolean visit(MethodInvocation node) {
-    		if (isPre(node)) {
-	    		preVariables.add(((SimpleName)node.arguments()[0]).getIdentifier());
-	    		return false;
-    		}else if (isPost(node))
-    			return false;
-    		return true;
+			if (isPre(node)) {
+				String varName = ((SimpleName)node.arguments()[0]).getIdentifier();
+				preVariables.add(varName);
+				/*IJavaVariable var = stack.findVariable(varName);
+				preNodeValues.put(node.getID(), (IJavaValue)var.getValue());
+				node.setStaticType(var.getJavaType());*/
+				return false;
+			} else if (isPost(node)) {
+				/*postNodes.add(node.getID());
+				String varName = ((SimpleName)node.arguments()[0]).getIdentifier();
+				IJavaVariable var = stack.findVariable(varName);
+				assert var != null || varName.equals(FREE_VAR_NAME);
+				if (var == null)
+					freeVars.add(node);
+				else
+					node.setStaticType(var.getJavaType());*/
+				return false;
+			}
+			return true;
     	}
 		
 		@Override
 		public boolean visit(SimpleName node) {
 			try {
-				if (stack.findVariable(node.getIdentifier()) != null)
+				IJavaVariable var = stack.findVariable(node.getIdentifier());
+				if (var != null) {
 					preVariables.add(node.getIdentifier());
+					/*preNodeValues.put(node.getID(), (IJavaValue)var.getValue());
+					node.setStaticType(var.getJavaType());*/
+				}
 			} catch (DebugException e) {
 				throw new RuntimeException(e);
 			}
@@ -187,6 +218,18 @@ public class StateProperty extends Property {
     	public Set<String> getPreVariables() {
 			return preVariables;
 		}
+    	
+    	/*public Map<Integer, IJavaValue> getPreNodes() {
+    		return preNodeValues;
+    	}
+    	
+    	public Set<Integer> getPostNodes() {
+    		return postNodes;
+    	}
+
+		public ArrayList<Expression> getFreeVars() {
+			return freeVars;
+		}*/
 		
 	}
 	
@@ -226,5 +269,51 @@ public class StateProperty extends Property {
 		}
 		
 	}
+
+	/*@Override
+	public boolean meetsSpecification(Expression expression, ExpressionEvaluator expressionEvaluator) {
+		for (Expression freeVar: freeVars)  // The static type of free variables changes, since it is that of the type of the expression, so we must reset it each time.
+			freeVar.resetStaticType(expression.getStaticType());
+		Result exprResult = expressionEvaluator.getResult(expression, Collections.<Effect>emptySet());
+		System.out.println(expression);
+		Result javaResult = expressionEvaluator.evaluateExpressionWithEffects(property, exprResult.getEffects(), null, new StatePropertyEvaluator(exprResult.getValue().getValue()));
+		System.out.println(" Got " + javaResult);
+		try {
+			return javaResult != null && !"V".equals(javaResult.getValue().getValue().getSignature()) && ((IJavaPrimitiveValue)javaResult.getValue().getValue()).getBooleanValue();
+		} catch (DebugException e) {
+			throw new RuntimeException(e);
+		}
+	}
+	
+	public class StatePropertyEvaluator {
+		
+		private final IJavaValue newLhsVarVal;
+
+		public StatePropertyEvaluator(IJavaValue newLhsVarVal) {
+			this.newLhsVarVal = newLhsVarVal;
+		}
+
+		public IJavaValue getPropertyValue(Expression expr, Set<Effect> effects, IJavaStackFrame stack) {
+			if (preNodeValues.containsKey(expr.getID()))
+				return preNodeValues.get(expr.getID());  // Use the cached value of the pre node.
+			else if (postNodes.contains(expr.getID())) {
+				try {
+					String varName = ((SimpleName)((MethodInvocation)expr).arguments()[0]).getIdentifier();
+					if (varName.equals(lhs))
+						return newLhsVarVal;  // Use the value of the synthesized expression.
+					try {
+						SideEffectHandler.redoEffects(effects);  // Use the current value of the variable.
+						return (IJavaValue)stack.findVariable(varName).getValue();
+					} finally {
+						SideEffectHandler.undoEffects(effects);
+					}
+				}catch (DebugException e) {
+					throw new RuntimeException(e);
+				} 
+			} else
+				return null;
+		}
+
+	}*/
 
 }

@@ -2,7 +2,6 @@ package codehint.property;
 
 import codehint.ast.ASTConverter;
 import codehint.ast.Expression;
-
 import org.eclipse.jdt.debug.core.IJavaReferenceType;
 import org.eclipse.jdt.debug.core.IJavaType;
 
@@ -31,5 +30,14 @@ public class TypeProperty extends LambdaProperty {
 	public IJavaType getType() {
 		return type;
 	}
+
+	/*@Override
+	public boolean meetsSpecification(Expression expression, ExpressionEvaluator expressionEvaluator) {
+		try {
+			return expressionEvaluator.isSubtypeOf(expressionEvaluator.getValue(expression, Collections.<Effect>emptySet()), type);
+		} catch (DebugException e) {
+			throw new RuntimeException(e);
+		}
+	}*/
 
 }

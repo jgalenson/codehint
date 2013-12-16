@@ -22,14 +22,12 @@ import codehint.utils.EclipseUtils;
 
 public class ValuePropertyDialog extends PropertyDialog {
 
-	protected final IJavaStackFrame stack;
 	private final String pdspecMessage;
 	private final String initialPdspecText;
 	private final IInputValidator pdspecValidator;
     
     public ValuePropertyDialog(String varName, String varTypeName, IJavaStackFrame stack, String initialValue, String extraMessage) {
-    	super(varName, extraMessage);
-    	this.stack = stack;
+    	super(varName, extraMessage, stack);
     	String pdspecMessage = "Demonstrate an expression for " + varName + ".  We will find expressions that evaluate to the same value.";
     	this.pdspecMessage = getFullMessage(pdspecMessage, extraMessage);
     	this.initialPdspecText = initialValue;

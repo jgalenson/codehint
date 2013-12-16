@@ -447,6 +447,30 @@ public final class EclipseUtils {
     }
     
     /**
+     * Parses the given string into a Java expression.
+     * @param parser The AST parser to use.
+     * @param str The string of a Java expression.
+     * @param project The project.
+     * @param unitName The unit name.
+     * @return The resulting AST.
+     */
+    /*public static ASTNode parseClass(ASTParser parser, String str, IJavaProject project, String unitName) {
+    	// We apparently have to manually tell it to use Java 1.5....
+		Map<?, ?> options = JavaCore.getOptions();
+		JavaCore.setComplianceOptions(JavaCore.VERSION_1_5, options);
+		parser.setCompilerOptions(options);
+		// We want to parse a whole class.
+		parser.setKind(ASTParser.K_COMPILATION_UNIT);
+		// Get type information.
+		parser.setResolveBindings(true);
+		parser.setProject(project);
+		parser.setUnitName(unitName);
+		// Do the actual parsing.
+		parser.setSource(str.toCharArray());
+		return parser.createAST(null);
+    }*/
+    
+    /**
      * Returns a string representing the given value this is
      * a legal Java expression, except in the case of arrays,
      * where we show a debug-like view of them.

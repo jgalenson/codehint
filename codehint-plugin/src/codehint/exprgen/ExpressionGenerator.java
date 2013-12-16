@@ -433,7 +433,7 @@ public final class ExpressionGenerator {
 	 * given pdspec if it is non-null.
 	 * @throws DebugException
 	 */
-	private ArrayList<Expression> evaluateExpressions(List<Expression> exprs, Property property, SynthesisDialog synthesisDialog, IProgressMonitor monitor, int depth, int maxDepth) throws DebugException {
+	private ArrayList<Expression> evaluateExpressions(ArrayList<Expression> exprs, Property property, SynthesisDialog synthesisDialog, IProgressMonitor monitor, int depth, int maxDepth) throws DebugException {
 		String taskNameSuffix = " " + (depth + 1) + "/" + (maxDepth + 1);
 		ArrayList<Expression> evaluatedExprs = new ArrayList<Expression>();
 		ArrayList<Expression> unevaluatedExprs = new ArrayList<Expression>();
@@ -1893,7 +1893,7 @@ public final class ExpressionGenerator {
 			for (Map.Entry<Result, ArrayList<Expression>> entry: new ArrayList<Map.Entry<Result, ArrayList<Expression>>>(equivalences.get(Collections.<Effect>emptySet()).entrySet()))
 				if (subtypeChecker.isSubtypeOf(entry.getKey().getValue().getValue().getJavaType(), type))
 					for (Expression cur: new ArrayList<Expression>(entry.getValue()))
-						expressionEvaluator.evaluateExpressionWithEffects(cur, curEffects, thread, this);
+						expressionEvaluator.evaluateExpressionWithEffects(cur, curEffects, this);
 			// Get the representatives of the equivalence classes.
 			ArrayList<Expression> result = new ArrayList<Expression>(effectEquivalences.size());
 			for (ArrayList<Expression> equivs: effectEquivalences.values()) {
