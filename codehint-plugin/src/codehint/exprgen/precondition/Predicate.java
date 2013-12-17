@@ -18,7 +18,7 @@ public abstract class Predicate {
 	 * by a call with the given receiver and arguments.
 	 * @param receiver The receiver.
 	 * @param actuals The actuals.
-	 * @param expressionMaker The expression maker.
+	 * @param expressionEvaluator The expression evaluator.
 	 * @return Whether the given call satisfies this predicate.
 	 */
 	public abstract boolean satisfies(Expression receiver, ArrayList<Expression> actuals, ExpressionEvaluator expressionEvaluator);

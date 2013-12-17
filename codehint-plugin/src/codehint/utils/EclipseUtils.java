@@ -207,6 +207,7 @@ public final class EclipseUtils {
      * Checks whether the given type is an integer.
      * @param type The type to check.
      * @return Whether the given type is an integer.
+     * @throws DebugException 
      */
 	public static boolean isInt(IJavaType type) throws DebugException {
 		return type != null && "I".equals(type.getSignature());
@@ -216,6 +217,7 @@ public final class EclipseUtils {
      * Checks whether the given type is a boolean.
      * @param type The type to check.
      * @return Whether the given type is a boolean.
+     * @throws DebugException 
      */
 	public static boolean isBoolean(IJavaType type) throws DebugException {
 		return type != null && "Z".equals(type.getSignature());
@@ -225,6 +227,7 @@ public final class EclipseUtils {
      * Checks whether the given type is a long.
      * @param type The type to check.
      * @return Whether the given type is a long.
+     * @throws DebugException 
      */
 	public static boolean isLong(IJavaType type) throws DebugException {
 		return type != null && "J".equals(type.getSignature());
@@ -234,6 +237,7 @@ public final class EclipseUtils {
      * Checks whether the given type is a byte.
      * @param type The type to check.
      * @return Whether the given type is a byte.
+     * @throws DebugException 
      */
 	public static boolean isByte(IJavaType type) throws DebugException {
 		return type != null && "B".equals(type.getSignature());
@@ -243,6 +247,7 @@ public final class EclipseUtils {
      * Checks whether the given type is a char.
      * @param type The type to check.
      * @return Whether the given type is a char.
+     * @throws DebugException 
      */
 	public static boolean isChar(IJavaType type) throws DebugException {
 		return type != null && "C".equals(type.getSignature());
@@ -252,6 +257,7 @@ public final class EclipseUtils {
      * Checks whether the given type is a short.
      * @param type The type to check.
      * @return Whether the given type is a short.
+     * @throws DebugException 
      */
 	public static boolean isShort(IJavaType type) throws DebugException {
 		return type != null && "S".equals(type.getSignature());
@@ -261,6 +267,7 @@ public final class EclipseUtils {
      * Checks whether the given type is a float.
      * @param type The type to check.
      * @return Whether the given type is a float.
+     * @throws DebugException 
      */
 	public static boolean isFloat(IJavaType type) throws DebugException {
 		return type != null && "F".equals(type.getSignature());
@@ -270,6 +277,7 @@ public final class EclipseUtils {
      * Checks whether the given type is a double.
      * @param type The type to check.
      * @return Whether the given type is a double.
+     * @throws DebugException 
      */
 	public static boolean isDouble(IJavaType type) throws DebugException {
 		return type != null && "D".equals(type.getSignature());

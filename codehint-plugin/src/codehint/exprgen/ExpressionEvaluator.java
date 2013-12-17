@@ -3,7 +3,6 @@ package codehint.exprgen;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -45,8 +44,6 @@ import org.eclipse.jdt.debug.core.IJavaStackFrame;
 import org.eclipse.jdt.debug.core.IJavaThread;
 import org.eclipse.jdt.debug.core.IJavaType;
 import org.eclipse.jdt.debug.core.IJavaValue;
-import org.eclipse.jdt.internal.debug.core.model.JDIType;
-
 import codehint.effects.Effect;
 import codehint.effects.SideEffectHandler;
 import codehint.expreval.NativeHandler;
@@ -57,7 +54,6 @@ import codehint.utils.Utils;
 import com.sun.jdi.ClassNotLoadedException;
 import com.sun.jdi.Field;
 import com.sun.jdi.Method;
-import com.sun.jdi.ReferenceType;
 
 public class ExpressionEvaluator {
 
