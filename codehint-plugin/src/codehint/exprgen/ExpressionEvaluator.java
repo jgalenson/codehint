@@ -44,9 +44,11 @@ import org.eclipse.jdt.debug.core.IJavaStackFrame;
 import org.eclipse.jdt.debug.core.IJavaThread;
 import org.eclipse.jdt.debug.core.IJavaType;
 import org.eclipse.jdt.debug.core.IJavaValue;
+
 import codehint.effects.Effect;
 import codehint.effects.SideEffectHandler;
 import codehint.expreval.NativeHandler;
+import codehint.expreval.StaticEvaluator;
 import codehint.expreval.TimeoutChecker;
 import codehint.utils.EclipseUtils;
 import codehint.utils.Utils;
@@ -321,8 +323,16 @@ public class ExpressionEvaluator {
 		}
 		return new Result(value, resultEffects, valueCache, thread);
 	}
+
+	Result computeCall(Method method, Expression receiver, ArrayList<Expression> args, StaticEvaluator staticEvaluator) {
+		IJavaValue value = staticEvaluator.evaluateCall(receiver, args, method, target);
+		if (value == null)
+			return computeCall(method, receiver, args);
+		else
+			return new Result(value, valueCache, thread);
+	}
 	
-	Result computeCall(Method method, Expression receiver, ArrayList<Expression> args) {
+	private Result computeCall(Method method, Expression receiver, ArrayList<Expression> args) {
 		Result receiverResult = getResult(receiver, Collections.<Effect>emptySet());
 		Set<Effect> receiverEffects = method.isConstructor() ? Collections.<Effect>emptySet() : receiverResult.getEffects();
 		IJavaValue[] argValues = new IJavaValue[args.size()];

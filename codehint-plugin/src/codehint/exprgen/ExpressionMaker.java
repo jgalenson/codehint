@@ -248,21 +248,18 @@ public class ExpressionMaker {
 	}
 
 	public Expression makeCall(String name, Expression receiver, ArrayList<Expression> args, IJavaType returnType, IJavaType thisType, Method method, IJavaThread thread, StaticEvaluator staticEvaluator) {
-		IJavaValue value = staticEvaluator.evaluateCall(receiver, args, method, target);
-		Result result = null;
-		if (value == null)
-			result = expressionEvaluator.computeCall(method, receiver, args);
-		else
-			result = new Result(value, valueCache, thread);
-		Expression e = null;
+		Result result = expressionEvaluator.computeCall(method, receiver, args, staticEvaluator);
+		return makeCall(name, receiver, args, returnType, thisType, method, result);
+	}
+	
+	public Expression makeCall(String name, Expression receiver, ArrayList<Expression> args, IJavaType returnType, IJavaType thisType, Method method, Result result) {
 		if (receiver instanceof PlaceholderExpression) {
-			e = makeClassInstanceCreation(new SimpleType(receiver.getStaticType(), makeName(receiver.getStaticType(), EclipseUtils.sanitizeTypename(name))), args, method, Collections.<Effect>emptySet(), result);
+			return makeClassInstanceCreation(new SimpleType(receiver.getStaticType(), makeName(receiver.getStaticType(), EclipseUtils.sanitizeTypename(name))), args, method, Collections.<Effect>emptySet(), result);
 		} else {
 			if (receiver instanceof ThisExpression || receiver.getStaticType().equals(thisType))
 				receiver = null;  // Don't use a receiver if it is null or the this type.
-			e = makeCall(name, receiver == null ? null : receiver, args, method, returnType, Collections.<Effect>emptySet(), result);
+			return makeCall(name, receiver == null ? null : receiver, args, method, returnType, Collections.<Effect>emptySet(), result);
 		}
-		return e;
 	}
 	/*private Expression makeCall(String name, String classname, ArrayList<Expression> args, IJavaType returnType) {
     	return makeCall(name, newStaticName(classname), args, returnType, null);

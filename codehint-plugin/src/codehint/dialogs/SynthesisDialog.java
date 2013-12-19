@@ -112,6 +112,7 @@ import codehint.expreval.EvaluationManager;
 import codehint.expreval.NativeHandler;
 import codehint.expreval.StaticEvaluator;
 import codehint.expreval.TimeoutChecker;
+import codehint.exprgen.DeterministicExpressionGenerator;
 import codehint.exprgen.ExpressionEvaluator;
 import codehint.exprgen.ExpressionGenerator;
 import codehint.exprgen.ExpressionMaker;
@@ -271,7 +272,8 @@ public abstract class SynthesisDialog extends ModelessDialog {
 		this.evalManager = new EvaluationManager(varType == null, true, stack, expressionEvaluator, subtypeChecker, typeCache, valueCache, timeoutChecker);
 		this.staticEvaluator = new StaticEvaluator(stack, expressionEvaluator, typeCache, valueCache);
 		Weights weights = new Weights();
-		this.expressionGenerator = new ExpressionGenerator(target, stack, sideEffectHandler, expressionMaker, expressionEvaluator, subtypeChecker, typeCache, evalManager, staticEvaluator, weights);
+		this.expressionGenerator = new DeterministicExpressionGenerator(target, stack, sideEffectHandler, expressionMaker, expressionEvaluator, subtypeChecker, typeCache, evalManager, staticEvaluator, weights);
+		//this.expressionGenerator = new codehint.exprgen.StochasticExpressionGenerator(target, stack, sideEffectHandler, expressionMaker, expressionEvaluator, subtypeChecker, typeCache, evalManager, staticEvaluator, weights);
 		this.skeleton = null;
 		this.expressionSorter = new ExpressionSorter(expressionEvaluator, weights);
 	}

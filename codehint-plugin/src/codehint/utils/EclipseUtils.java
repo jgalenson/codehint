@@ -291,6 +291,16 @@ public final class EclipseUtils {
 	public static boolean isObjectOrInterface(IJavaType type) {
 		return type instanceof IJavaClassType || type instanceof IJavaInterfaceType;
 	}
+
+    /**
+     * Checks whether the given type is a number.
+     * @param type The type to check.
+     * @return Whether the given type is a number.
+     * @throws DebugException 
+     */
+	public static boolean isNumber(IJavaType type) throws DebugException {
+		return isInt(type) || isLong(type) || isShort(type) || isFloat(type) || isDouble(type);
+	}
    	
 	/**
 	 * Rewrites a type name so that it can be executed in code.

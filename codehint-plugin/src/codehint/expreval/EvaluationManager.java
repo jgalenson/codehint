@@ -4,6 +4,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.Semaphore;
@@ -153,7 +154,7 @@ public final class EvaluationManager {
      * @return a list of non-crashing expressions that satisfy
      * the given property (or all that do not crash if it is null).
 	 */
-	public ArrayList<Expression> evaluateExpressions(ArrayList<Expression> exprs, Property property, IJavaType varType, SynthesisDialog synthesisDialog, IProgressMonitor monitor, String taskNameSuffix) {
+	public ArrayList<Expression> evaluateExpressions(List<Expression> exprs, Property property, IJavaType varType, SynthesisDialog synthesisDialog, IProgressMonitor monitor, String taskNameSuffix) {
 		try {
 			this.synthesisDialog = synthesisDialog;
 			validVal = property == null ? "true" : property.getReplacedString("_$curValue", stack);
@@ -193,7 +194,7 @@ public final class EvaluationManager {
 	 * in an array of objects and primitives in arrays of their own.
 	 * It also filters out expressions that we know will crash.
 	 */
-	private Map<String, ArrayList<Expression>> getNonKnownCrashingExpressionByType(ArrayList<Expression> exprs) throws DebugException {
+	private Map<String, ArrayList<Expression>> getNonKnownCrashingExpressionByType(List<Expression> exprs) throws DebugException {
 		Map<String, ArrayList<Expression>> expressionsByType = new HashMap<String, ArrayList<Expression>>();
 		for (Expression expr: exprs) {
     		if (!crashingExpressions.contains(expr.toString())) {
