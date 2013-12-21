@@ -5,8 +5,8 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -1457,7 +1457,7 @@ public final class EclipseUtils {
     public static List<IJavaType> getPublicSubtypesInSamePackage(IJavaType type, IJavaProject project, IJavaStackFrame stack, IJavaDebugTarget target, TypeCache typeCache, IProgressMonitor monitor, String taskName) throws JavaModelException, DebugException {
     	IType itype = project.findType(type.getName());
     	if (itype == null)
-    		return Arrays.asList(new IJavaType[] { type });
+    		return Collections.singletonList(type);
     	String packageName = itype.getPackageFragment().getElementName();
     	IType[] subitypes = itype.newTypeHierarchy(project, null).getAllSubtypes(itype);
 		// Optimization: pre-load all the types.

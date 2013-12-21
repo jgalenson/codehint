@@ -2,7 +2,6 @@ package codehint.exprgen;
 
 import java.util.AbstractList;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
@@ -141,25 +140,22 @@ public class StochasticExpressionGenerator extends ExpressionGenerator {
 				if (!Flags.isStatic(imp.getFlags())) {
 					IJavaReferenceType importedType = (IJavaReferenceType)EclipseUtils.getTypeAndLoadIfNeeded(fullName, stack, target, typeCache);
 					if (importedType != null) {
-						boolean hasStatic = false;
-						for (Method method: getMethods(importedType, sideEffectHandler))
-							if (method.isStatic()) {
-								hasStatic = true;
-								break;
-							}
-						if (!hasStatic)
-							for (Field field: getFields(importedType))
-								if (field.isStatic()) {
-									hasStatic = true;
-									break;
-								}
-						// TODO: Also do for fields.
-						if (hasStatic)
+						if (hasStaticFieldOrMethod(importedType))
 							names.addWeighted(expressionMaker.makeStaticName(shortName, importedType, thread));
 					}
 				}
 			}
 		}
+	}
+	
+	private boolean hasStaticFieldOrMethod(IJavaType type) {
+		for (Method method: getMethods(type, sideEffectHandler))
+			if (method.isStatic())
+				return true;
+		for (Field field: getFields(type))
+			if (field.isStatic())
+				return true;
+		return false;
 	}
 	
 	/**
@@ -170,10 +166,15 @@ public class StochasticExpressionGenerator extends ExpressionGenerator {
 	 * @param synthesisDialog The synthesis dialog.
 	 * @param monitor The progress monitor.
 	 * @return Whether the given expression satisfies the given specification.
+	 * @throws DebugException 
 	 */
-	private boolean checkSpec(Expression expr, TypeConstraint typeConstraint, Property property, SynthesisDialog synthesisDialog, IProgressMonitor monitor) {
-		return expr != null && typeConstraint.isFulfilledBy(expr.getStaticType(), subtypeChecker, typeCache, stack, target)
-			&& !evalManager.evaluateExpressions(Arrays.asList(new Expression[] { expr }), property, getVarType(typeConstraint), synthesisDialog, monitor, "").isEmpty();
+	private boolean checkSpec(Expression expr, TypeConstraint typeConstraint, Property property, SynthesisDialog synthesisDialog, IProgressMonitor monitor) throws DebugException {
+		if (expr == null || !typeConstraint.isFulfilledBy(expr.getStaticType(), subtypeChecker, typeCache, stack, target))
+			return false;
+		List<Expression> exprList = Collections.singletonList(expr);
+    	if (property != null && !EvaluationManager.canEvaluateStatically(property))
+			evalManager.cacheMethodResults(exprList);
+		return !evalManager.evaluateExpressions(exprList, property, getVarType(typeConstraint), synthesisDialog, monitor, "").isEmpty();
 	}
 	
 	/**

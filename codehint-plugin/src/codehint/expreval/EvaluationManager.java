@@ -835,7 +835,7 @@ public final class EvaluationManager {
      * we currently want to evaluate.
      * @throws DebugException
      */
-    public void cacheMethodResults(ArrayList<Expression> exprs) throws DebugException {
+    public void cacheMethodResults(List<Expression> exprs) throws DebugException {
     	// Find the non-inlined method calls.
     	ArrayList<Expression> calls = new ArrayList<Expression>();
     	for (Expression expr: exprs) {
