@@ -5,7 +5,7 @@ import codehint.exprgen.ExpressionEvaluator;
 import codehint.exprgen.ProbabilityComputer;
 import codehint.exprgen.Weights;
 
-public class ExpressionWeightedList extends WeightedList<Expression> {
+public class ExpressionWeightedList extends AbstractWeightedList<Expression> {
 	
 	private final ExpressionEvaluator expressionEvaluator;
 	private final Weights weights;

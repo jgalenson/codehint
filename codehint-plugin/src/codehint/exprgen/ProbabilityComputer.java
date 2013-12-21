@@ -9,7 +9,6 @@ import codehint.ast.InfixExpression;
 import codehint.ast.MethodInvocation;
 import codehint.ast.PrefixExpression;
 import codehint.ast.SimpleName;
-
 import com.sun.jdi.Field;
 import com.sun.jdi.Method;
 
@@ -18,12 +17,14 @@ public class ProbabilityComputer extends ASTVisitor {
 	private final ExpressionEvaluator expressionEvaluator;
 	private final Weights weights;
 	private double prob;
+	private double probSum;
 	private int count;
 	
 	private ProbabilityComputer(ExpressionEvaluator expressionEvaluator, Weights weights) {
 		this.expressionEvaluator = expressionEvaluator;
 		this.weights = weights;
 		this.prob = 1d;
+		this.probSum = 0d;
 		this.count = 0;
 	}
 	
@@ -33,7 +34,12 @@ public class ProbabilityComputer extends ASTVisitor {
 	
 	public static double getNormalizedProbability(Expression expr, ExpressionEvaluator expressionEvaluator, Weights weights) {
 		ProbabilityComputer visitor = visit(expr, expressionEvaluator, weights);
-		return visitor.prob / Math.pow(weights.getAverageWeight(), visitor.count);
+		if (visitor.probSum == 0) {  // Avoid zero and infinite probabilities.
+			visitor.count = 1;
+			visitor.probSum = weights.getAverageWeight();
+		}
+		double ret = (visitor.probSum / visitor.count) / Math.pow(2, visitor.count);
+		return ret;
 	}
 	
 	private static ProbabilityComputer visit(Expression expr, ExpressionEvaluator expressionEvaluator, Weights weights) {
@@ -53,7 +59,9 @@ public class ProbabilityComputer extends ASTVisitor {
 	}
 	
 	private boolean visitMethod(Expression node) {
-		prob *= getMethodProbability(expressionEvaluator.getMethod(node), weights);
+		double fieldProb = getMethodProbability(expressionEvaluator.getMethod(node), weights);
+		prob *= fieldProb;
+		probSum += fieldProb;
 		count++;
 		return true;
 	}
@@ -75,11 +83,15 @@ public class ProbabilityComputer extends ASTVisitor {
 		Field field = expressionEvaluator.getField(node);
 		if (field != null && field.isPublic())  // Don't count unqualified non-public field accesses.
 			return visitField(field);
+		else
+			count++;
 		return true;
 	}
 	
 	private boolean visitField(Field field) {
-		prob *= getFieldProbability(field, weights);
+		double fieldProb = getFieldProbability(field, weights);
+		prob *= fieldProb;
+		probSum += fieldProb;
 		count++;
 		return true;
 	}
@@ -108,6 +120,7 @@ public class ProbabilityComputer extends ASTVisitor {
 	
 	private boolean visitAverage() {
 		prob *= weights.getAverageWeight();
+		probSum += weights.getAverageWeight();
 		count++;
 		return true;
 	}
