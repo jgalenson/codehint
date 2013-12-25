@@ -39,6 +39,7 @@ import codehint.expreval.StaticEvaluator;
 import codehint.exprgen.typeconstraint.FieldConstraint;
 import codehint.exprgen.typeconstraint.MethodConstraint;
 import codehint.exprgen.typeconstraint.TypeConstraint;
+import codehint.exprgen.weightedlist.CombinationWeightedList;
 import codehint.exprgen.weightedlist.ExpressionWeightedList;
 import codehint.exprgen.weightedlist.MethodFieldWeightedList;
 import codehint.exprgen.weightedlist.WeightedList;
@@ -83,6 +84,7 @@ public class StochasticExpressionGenerator extends ExpressionGenerator {
 	private ArrayList<Expression> genExprs(Property property, TypeConstraint typeConstraint, boolean searchConstructors, boolean searchOperators, SynthesisDialog synthesisDialog, IProgressMonitor monitor) {
 		try {
 			initSearch();
+			ReceiverWeightedLists receivers = new ReceiverWeightedLists();
 			Set<Expression> evaledExprs = new HashSet<Expression>();
 			ArrayList<Expression> results = new ArrayList<Expression>();
 			addSeeds(typeConstraint);
@@ -91,7 +93,7 @@ public class StochasticExpressionGenerator extends ExpressionGenerator {
 				if (monitor.isCanceled())
 					throw new OperationCanceledException();
 				//System.out.println("Iter " + i + " candidates: " + candidates);
-				Expression curExpr = searchOperators ? candidates.getWeighted() : objects.getWeighted();
+				Expression curExpr = searchOperators ? candidates.getWeighted() : receivers.getWeighted();
 				//System.out.println("Expr: " + curExpr);
 				Expression newExpr = extendExpression(curExpr, evaledExprs, searchConstructors, searchOperators);
 				//System.out.println(" New expr: " + newExpr);
@@ -333,54 +335,56 @@ public class StochasticExpressionGenerator extends ExpressionGenerator {
 	}
 	
 	/**
+	 * Adds the given expression to the correct weighted list.
+	 * @param expr The expression to add.
+	 */
+	private void addCandidate(Expression expr) {
+		if (EclipseUtils.isPrimitive(expr.getStaticType()))
+			primitives.addWeighted(expr);
+		else if (expressionEvaluator.isStatic(expr))
+			names.addWeighted(expr);
+		else if (expressionEvaluator.getValue(expr, Collections.<Effect>emptySet()).isNull())
+			nulls.addWeighted(expr);
+		else
+			objects.addWeighted(expr);
+	}
+	
+	/**
 	 * A weighted list that contains all of our candidates.
 	 * We use this instead of one giant weighted list so that
 	 * we can control from which list we draw, e.g., avoid
 	 * trying to extend null or ints when we're not searching
 	 * operators.
 	 */
-	private class CandidateWeightedLists implements WeightedList<Expression> {
+	private class CandidateWeightedLists extends CombinationWeightedList<Expression> {
 
-		@Override
-		public int size() {
-			return primitives.size() + objects.size() + nulls.size() + names.size();
+		public CandidateWeightedLists() {
+			super(new ExpressionWeightedList[] { primitives, objects, nulls, names });
 		}
 
 		@Override
 		public void addWeighted(Expression expr) {
-			if (EclipseUtils.isPrimitive(expr.getStaticType()))
-				primitives.addWeighted(expr);
-			else if (expressionEvaluator.isStatic(expr))
-				names.addWeighted(expr);
-			else if (expressionEvaluator.getValue(expr, Collections.<Effect>emptySet()).isNull())
-				nulls.addWeighted(expr);
-			else
-				objects.addWeighted(expr);
-		}
-
-		@Override
-		public Expression getWeighted() {
-			if (size() == 0)
-				return null;
-			double rand = random.nextDouble() * getTotalWeight();
-			if (rand < primitives.getTotalWeight())
-				return primitives.getWeighted();
-			else if (rand < primitives.getTotalWeight() + objects.getTotalWeight())
-				return objects.getWeighted();
-			else if (rand < primitives.getTotalWeight() + objects.getTotalWeight() + nulls.getTotalWeight())
-				return nulls.getWeighted();
-			else
-				return names.getWeighted();
-		}
-
-		@Override
-		public double getTotalWeight() {
-			return primitives.getTotalWeight() + objects.getTotalWeight() + nulls.getTotalWeight() + names.getTotalWeight();
+			addCandidate(expr);
 		}
 		
+	}
+	
+	/**
+	 * A weighted list that contains all of our candidates.
+	 * We use this instead of one giant weighted list so that
+	 * we can control from which list we draw, e.g., avoid
+	 * trying to extend null or ints when we're not searching
+	 * operators.
+	 */
+	private class ReceiverWeightedLists extends CombinationWeightedList<Expression> {
+
+		public ReceiverWeightedLists() {
+			super(new ExpressionWeightedList[] { objects, names });
+		}
+
 		@Override
-		public String toString() {
-			return primitives.toString() + "; " + objects.toString() + "; " + nulls.toString() + "; " + names.toString(); 
+		public void addWeighted(Expression expr) {
+			addCandidate(expr);
 		}
 		
 	}
@@ -409,7 +413,7 @@ public class StochasticExpressionGenerator extends ExpressionGenerator {
 		
 		@Override
 		public String toString() {
-			return primitives.toString() + "; " + objects.toString() + "; " + nulls.toString() + "; " + names.toString(); 
+			return primitives.toString() + "; " + objects.toString() + "; " + nulls.toString();
 		}
 		
 	}
