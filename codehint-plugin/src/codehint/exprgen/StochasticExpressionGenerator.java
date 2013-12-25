@@ -150,6 +150,11 @@ public class StochasticExpressionGenerator extends ExpressionGenerator {
 		}
 	}
 	
+	/**
+	 * Checks whether the given type has a static field or method.
+	 * @param type The type to check.
+	 * @return Whether the given type has a static field or method.
+	 */
 	private boolean hasStaticFieldOrMethod(IJavaType type) {
 		for (Method method: getMethods(type, sideEffectHandler))
 			if (method.isStatic())
@@ -370,11 +375,8 @@ public class StochasticExpressionGenerator extends ExpressionGenerator {
 	}
 	
 	/**
-	 * A weighted list that contains all of our candidates.
-	 * We use this instead of one giant weighted list so that
-	 * we can control from which list we draw, e.g., avoid
-	 * trying to extend null or ints when we're not searching
-	 * operators.
+	 * A weighted list that contains things that can be receivers,
+	 * i.e., objects and names.
 	 */
 	private class ReceiverWeightedLists extends CombinationWeightedList<Expression> {
 

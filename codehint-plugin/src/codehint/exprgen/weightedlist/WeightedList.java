@@ -1,5 +1,13 @@
 package codehint.exprgen.weightedlist;
 
+/**
+ * A list that supports a randomized get operation that
+ * gets elements according to their associated weight.
+ * The list does not support removing elements, as the
+ * data structure it currently supports makes that expensive,
+ * and it is not needed for our purpose.
+ * @param <T> The type of elements in the list.
+ */
 public interface WeightedList<T> {
 
 	/**

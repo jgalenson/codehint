@@ -4,7 +4,7 @@ import java.util.Random;
 
 /**
  * A weighted list built out of other weighted lists.
- * @param <T>
+ * @param <T> The type of the elements in the list.
  */
 public abstract class CombinationWeightedList<T> implements WeightedList<T> {
 	
