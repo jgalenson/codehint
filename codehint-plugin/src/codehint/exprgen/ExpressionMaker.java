@@ -31,6 +31,7 @@ import codehint.ast.LongLiteral;
 import codehint.ast.MethodInvocation;
 import codehint.ast.Name;
 import codehint.ast.NullLiteral;
+import codehint.ast.NumberLiteral;
 import codehint.ast.ParenthesizedExpression;
 import codehint.ast.PlaceholderExpression;
 import codehint.ast.PostfixExpression;
@@ -72,7 +73,7 @@ public class ExpressionMaker {
 	 * isConstant: Exists (and is true) iff the expression is a constant (e.g., 0, true, null).
 	 */
 
-	private Expression initSimple(Expression e, IJavaValue value, IJavaThread thread) {
+	private <T extends Expression> T initSimple(T e, IJavaValue value, IJavaThread thread) {
 		//e.setProperty("isConstant", true);
 		Result result = new Result(value, valueCache, thread);
 		expressionEvaluator.setResult(e, result, Collections.<Effect>emptySet());
@@ -80,7 +81,7 @@ public class ExpressionMaker {
 	}
 
 	// Pass in cached int type for efficiency.
-	public Expression makeNumber(String val, IJavaValue value, IJavaType type, IJavaThread thread) {
+	public NumberLiteral makeNumber(String val, IJavaValue value, IJavaType type, IJavaThread thread) {
 		int lastChar = val.charAt(val.length() - 1);
 		// Rules taken from: http://docs.oracle.com/javase/tutorial/java/nutsandbolts/datatypes.html.
 		if (lastChar == 'l' || lastChar == 'L')
@@ -93,45 +94,45 @@ public class ExpressionMaker {
 			return makeInt(Integer.parseInt(val), value, type, thread);
 	}
 	// Pass in cached int type for efficiency.
-	public Expression makeInt(int num, IJavaValue value, IJavaType type, IJavaThread thread) {
+	public IntLiteral makeInt(int num, IJavaValue value, IJavaType type, IJavaThread thread) {
 		return initSimple(new IntLiteral(type, num), value, thread);
 	}
 	// Pass in cached int type for efficiency.
-	public Expression makeLong(long num, IJavaValue value, IJavaType type, IJavaThread thread) {
+	public LongLiteral makeLong(long num, IJavaValue value, IJavaType type, IJavaThread thread) {
 		return initSimple(new LongLiteral(type, num), value, thread);
 	}
 	// Pass in cached int type for efficiency.
-	public Expression makeFloat(float num, IJavaValue value, IJavaType type, IJavaThread thread) {
+	public FloatLiteral makeFloat(float num, IJavaValue value, IJavaType type, IJavaThread thread) {
 		return initSimple(new FloatLiteral(type, num), value, thread);
 	}
 	// Pass in cached int type for efficiency.
-	public Expression makeDouble(double num, IJavaValue value, IJavaType type, IJavaThread thread) {
+	public DoubleLiteral makeDouble(double num, IJavaValue value, IJavaType type, IJavaThread thread) {
 		return initSimple(new DoubleLiteral(type, num), value, thread);
 	}
 	// Pass in cached boolean type for efficiency.
-	public Expression makeBoolean(boolean val, IJavaValue value, IJavaType type, IJavaThread thread) {
+	public BooleanLiteral makeBoolean(boolean val, IJavaValue value, IJavaType type, IJavaThread thread) {
 		return initSimple(new BooleanLiteral(type, val), value, thread);
 	}
 
-	public Expression makeChar(char val, IJavaValue value, IJavaType type, IJavaThread thread) {
+	public CharacterLiteral makeChar(char val, IJavaValue value, IJavaType type, IJavaThread thread) {
 		return initSimple(new CharacterLiteral(type, val), value, thread);
 	}
 
-	public Expression makeString(String val, IJavaValue value, IJavaType type, IJavaThread thread) {
+	public StringLiteral makeString(String val, IJavaValue value, IJavaType type, IJavaThread thread) {
 		return initSimple(new StringLiteral(type, val), value, thread);
 	}
 
-	public Expression makeNull(IJavaThread thread) {
+	public NullLiteral makeNull(IJavaThread thread) {
 		return initSimple(NullLiteral.getNullLiteral(), target.nullValue(), thread);
 	}
 
-	public Expression makeVar(String name, IJavaValue value, IJavaType type, IJavaThread thread) {
+	public SimpleName makeVar(String name, IJavaValue value, IJavaType type, IJavaThread thread) {
 		return initSimple(new SimpleName(type, name), value, thread);
 	}
 
-	public Expression makeFieldVar(String name, IJavaType type, Expression thisExpr, Field field, IJavaThread thread) {
+	public SimpleName makeFieldVar(String name, IJavaType type, Expression thisExpr, Field field, IJavaThread thread) {
 		try{
-			Expression e = makeVar(name, expressionEvaluator.computeFieldAccess(expressionEvaluator.getValue(thisExpr, Collections.<Effect>emptySet()), thisExpr.getStaticType(), field), type, thread);
+			SimpleName e = makeVar(name, expressionEvaluator.computeFieldAccess(expressionEvaluator.getValue(thisExpr, Collections.<Effect>emptySet()), thisExpr.getStaticType(), field), type, thread);
 			expressionEvaluator.setDepth(e, 1);
 			expressionEvaluator.setField(e, field);
 			return e;
@@ -140,18 +141,18 @@ public class ExpressionMaker {
 		}
 	}
 
-	private Expression newStaticName(String name, IJavaValue value, IJavaReferenceType type, IJavaThread thread) {
-		Expression e = makeName(type, name);
+	private Name newStaticName(String name, IJavaValue value, IJavaReferenceType type, IJavaThread thread) {
+		Name e = makeName(type, name);
 		expressionEvaluator.setStatic(e, type);
 		expressionEvaluator.setValue(e, value, Collections.<Effect>emptySet(), thread);
 		return e;
 	}
 
-	public Expression makeStaticName(String name, IJavaReferenceType type, IJavaThread thread) {
+	public Name makeStaticName(String name, IJavaReferenceType type, IJavaThread thread) {
 		try {
 			IJavaValue value = type.getClassObject();
 			Result result = new Result(value, valueCache, thread);
-			Expression expr = newStaticName(name, value, type, thread);
+			Name expr = newStaticName(name, value, type, thread);
 			expressionEvaluator.setResult(expr, result, Collections.<Effect>emptySet());
 			return expr;
 		} catch (DebugException e) {
@@ -159,11 +160,11 @@ public class ExpressionMaker {
 		}
 	}
 
-	public Expression makeThis(IJavaValue value, IJavaType type, IJavaThread thread) {
+	public ThisExpression makeThis(IJavaValue value, IJavaType type, IJavaThread thread) {
 		return initSimple(new ThisExpression(type), value, thread);
 	}
 
-	public Expression makeInfix(Expression left, InfixExpression.Operator op, Expression right, IJavaType type, IJavaThread thread) throws NumberFormatException, DebugException {
+	public InfixExpression makeInfix(Expression left, InfixExpression.Operator op, Expression right, IJavaType type, IJavaThread thread) throws NumberFormatException, DebugException {
 		InfixExpression e = makeInfix(left, op, right, type);
 		Result operandResults = expressionEvaluator.computeResultForBinaryOp(left, right);
 		if (operandResults == null)
@@ -180,7 +181,7 @@ public class ExpressionMaker {
 		return new InfixExpression(type, parenIfNeeded(l), op, parenIfNeeded(r));
 	}
 
-	public Expression makeArrayAccess(Expression array, Expression index, IJavaThread thread) throws NumberFormatException, DebugException {
+	public ArrayAccess makeArrayAccess(Expression array, Expression index, IJavaThread thread) throws NumberFormatException, DebugException {
 		Result operandResults = expressionEvaluator.computeResultForBinaryOp(array, index);
 		if (operandResults == null)
 			return null;
@@ -202,7 +203,7 @@ public class ExpressionMaker {
 		return new ArrayAccess(type, array, index);
 	}
 
-	public Expression makeFieldAccess(Expression obj, String name, IJavaType fieldType, Field field, IJavaThread thread) {
+	public FieldAccess makeFieldAccess(Expression obj, String name, IJavaType fieldType, Field field, IJavaThread thread) {
 		try {
 			FieldAccess e = makeFieldAccess(obj, name, fieldType, field);
 			Result objResult = expressionEvaluator.getResult(obj, Collections.<Effect>emptySet());
@@ -221,7 +222,7 @@ public class ExpressionMaker {
 		return e;
 	}
 
-	public Expression makePrefix(Expression operand, PrefixExpression.Operator op, IJavaThread thread) {
+	public PrefixExpression makePrefix(Expression operand, PrefixExpression.Operator op, IJavaThread thread) {
 		try {
 			PrefixExpression e = makePrefix(operand, op);
 			Result operandResult = expressionEvaluator.getResult(operand, Collections.<Effect>emptySet());
@@ -238,7 +239,7 @@ public class ExpressionMaker {
 		return new PrefixExpression(op, operand);
 	}
 
-	public Expression makePostfix(Expression operand, PostfixExpression.Operator op, IJavaThread thread) {
+	public PostfixExpression makePostfix(Expression operand, PostfixExpression.Operator op, IJavaThread thread) {
 		PostfixExpression e = new PostfixExpression(operand, op);
 		Result operandResult = expressionEvaluator.getResult(operand, Collections.<Effect>emptySet());
 		IJavaValue value = ExpressionEvaluator.computePostfixOp(operandResult.getValue().getValue(), op);
@@ -264,7 +265,7 @@ public class ExpressionMaker {
 	/*private Expression makeCall(String name, String classname, ArrayList<Expression> args, IJavaType returnType) {
     	return makeCall(name, newStaticName(classname), args, returnType, null);
     }*/
-	public Expression makeCall(String name, Expression receiver, ArrayList<Expression> args, Method method, IJavaType returnType, Set<Effect> effects, Result result) {
+	public MethodInvocation makeCall(String name, Expression receiver, ArrayList<Expression> args, Method method, IJavaType returnType, Set<Effect> effects, Result result) {
 		Expression[] newArgs = new Expression[args.size()];
 		args.toArray(newArgs);
 		MethodInvocation e = new MethodInvocation(returnType, receiver, makeSimpleName(null, name), newArgs);
@@ -273,7 +274,7 @@ public class ExpressionMaker {
     	return e;
     }
 
-	public Expression makeCast(Expression obj, IJavaType targetType) {
+	public CastExpression makeCast(Expression obj, IJavaType targetType) {
 		try {
 			return makeCast(obj, targetType, targetType.getName());
 		} catch (DebugException ex) {
@@ -288,7 +289,7 @@ public class ExpressionMaker {
 		return e;
 	}
 
-	public Expression makeInstanceOf(Expression obj, Type targetDomType, IJavaType booleanType, IJavaValue value, IJavaThread thread) throws DebugException {
+	public InstanceofExpression makeInstanceOf(Expression obj, Type targetDomType, IJavaType booleanType, IJavaValue value, IJavaThread thread) throws DebugException {
 		assert booleanType.getName().equals("boolean");
 		InstanceofExpression e = new InstanceofExpression(booleanType, obj, targetDomType);
 		Result result = new Result(value, expressionEvaluator.getResult(obj, Collections.<Effect>emptySet()).getEffects(), valueCache, thread);
@@ -296,7 +297,7 @@ public class ExpressionMaker {
 		return e;
 	}
 
-	public Expression makeConditional(Expression cond, Expression t, Expression e, IJavaType type) {
+	public ConditionalExpression makeConditional(Expression cond, Expression t, Expression e, IJavaType type) {
 		try {
 			ConditionalExpression ex = new ConditionalExpression(type, cond, t, e);
 			Result result = ExpressionEvaluator.computeConditionalOp(expressionEvaluator.getResult(cond, Collections.<Effect>emptySet()), expressionEvaluator.getResult(t, Collections.<Effect>emptySet()), expressionEvaluator.getResult(e, Collections.<Effect>emptySet()));
@@ -322,7 +323,7 @@ public class ExpressionMaker {
 		return p;
 	}
 
-	public Expression makeSuperFieldAccess(Name qualifier, Expression receiverExpr, String name, IJavaType fieldType, Field field, IJavaThread thread) {
+	public SuperFieldAccess makeSuperFieldAccess(Name qualifier, Expression receiverExpr, String name, IJavaType fieldType, Field field, IJavaThread thread) {
 		try {
 			SuperFieldAccess e = new SuperFieldAccess(fieldType, qualifier, makeSimpleName(null, name));
 			IJavaValue value = expressionEvaluator.computeFieldAccess(expressionEvaluator.getValue(receiverExpr, Collections.<Effect>emptySet()), receiverExpr.getStaticType(), field);
@@ -335,7 +336,7 @@ public class ExpressionMaker {
 		}
 	}
 
-	public Expression makeSuperCall(String name, Name qualifier, ArrayList<Expression> args, IJavaType returnType, Result result, Method method) {
+	public SuperMethodInvocation makeSuperCall(String name, Name qualifier, ArrayList<Expression> args, IJavaType returnType, Result result, Method method) {
 		Expression[] newArgs = new Expression[args.size()];
 		for (int i = 0; i < args.size(); i++)
 			newArgs[i] = args.get(i);
