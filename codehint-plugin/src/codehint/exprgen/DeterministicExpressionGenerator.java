@@ -79,8 +79,6 @@ public final class DeterministicExpressionGenerator extends ExpressionGenerator 
 	private final IJavaType booleanType;
 	private final IJavaType objectType;
 	private final Expression zero;
-	private final IJavaValue oneValue;
-	private final Expression one;
 	private final Map<Integer, Integer> realDepths;
 	private final Map<Integer, Boolean> hasBadMethodsFields;
 	private final Map<Integer, Boolean> hasBadConstants;
@@ -103,8 +101,6 @@ public final class DeterministicExpressionGenerator extends ExpressionGenerator 
 		this.booleanType = EclipseUtils.getFullyQualifiedType("boolean", stack, target, typeCache);
 		this.objectType = EclipseUtils.getFullyQualifiedType("java.lang.Object", stack, target, typeCache);
 		this.zero = expressionMaker.makeInt(0, target.newValue(0), intType, thread);
-		this.oneValue = target.newValue(1);
-		this.one = expressionMaker.makeInt(1, oneValue, intType, thread);
 		this.realDepths = new HashMap<Integer, Integer>();
 		this.hasBadMethodsFields = new HashMap<Integer, Boolean>();
 		this.hasBadConstants = new HashMap<Integer, Boolean>();
@@ -1335,20 +1331,16 @@ public final class DeterministicExpressionGenerator extends ExpressionGenerator 
 	 * up through recursion.
 	 * @param returnType The return type of the method.
 	 * @param effects The current side effects.
-	 * @param The result of all these calls.
+	 * @param result The result of all these calls.
 	 * @param maxDepth The maximum expression depth to find.
 	 */
 	private void makeAllCalls(Method method, String name, Expression receiver, List<Expression> results, ArrayList<ArrayList<Expression>> possibleActuals, ArrayList<Expression> curActuals, IJavaType returnType, Set<Effect> effects, Result result, int maxDepth) {
 		if (curMonitor.isCanceled())
 			throw new OperationCanceledException();
-		if (curActuals.size() == possibleActuals.size()) {
-			if (getDepthOfCall(receiver, curActuals, method) <= maxDepth) {  // Optimization: Do an early check to ensure we don't generate expressions that are too large.  We would filter it out later, but this would cause us to create lots of new ASTS, which can be very slow.
-				if ("<init>".equals(name))
-					results.add(expressionMaker.makeClassInstanceCreation(((TypeLiteral)receiver).getType(), curActuals, method, effects, result));
-				else
-					results.add(expressionMaker.makeCall(name, receiver, curActuals, method, returnType, effects, result));
-			}
-		} else {
+		if (curActuals.size() == possibleActuals.size())
+			if (getDepthOfCall(receiver, curActuals, method) <= maxDepth)  // Optimization: Do an early check to ensure we don't generate expressions that are too large.  We would filter it out later, but this would cause us to create lots of new ASTS, which can be very slow.
+				results.add(makeEquivalenceCall(method, name, returnType, receiver, curActuals, effects, result));
+		else {
 			int depth = curActuals.size();
 			for (Expression e : possibleActuals.get(depth)) {
 				curActuals.add(e);
@@ -1505,11 +1497,7 @@ public final class DeterministicExpressionGenerator extends ExpressionGenerator 
 		Result result = expressionEvaluator.getResult(expr, curEffects);
 		if (result == null)
 			return;
-		IJavaType type = expressionEvaluator.isStatic(expr) ? expressionEvaluator.getStaticType(expr) : result.getValue().getValue().getJavaType();
-		if (expressionEvaluator.getMethod(expr) != null) {  // If this is a call, use the declared type of the method, not the dynamic type of the value.
-			Method method = expressionEvaluator.getMethod(expr);
-			type = EclipseUtils.getFullyQualifiedType(method.isConstructor() ? method.declaringType().name() : expressionEvaluator.getMethod(expr).returnTypeName(), stack, target, typeCache);
-		}
+		IJavaType type = getEquivalenceType(expr, result);
 		newlyExpanded.add(expr);
 		addEquivalentExpressionOnlyIfNewValue(expr, result, curEffects);
 		ArrayList<Expression> curEquivalences = equivalences.get(curEffects).get(result);
@@ -1564,10 +1552,10 @@ public final class DeterministicExpressionGenerator extends ExpressionGenerator 
 			}
 		} else if (expr instanceof MethodInvocation) {
 			MethodInvocation call = (MethodInvocation)expr;
-			expandCall(call, call.getExpression(), expressionEvaluator.getMethod(call), call.arguments(), newlyExpanded, result, type, expr, maxDepth, curEquivalences, curEffects);
+			expandCall(call, call.getExpression(), expressionEvaluator.getMethod(call), call.arguments(), newlyExpanded, result, type, maxDepth, curEquivalences, curEffects);
 		} else if (expr instanceof ClassInstanceCreation) {
 			ClassInstanceCreation call = (ClassInstanceCreation)expr;
-			expandCall(call, expressionMaker.makeTypeLiteral(call.getType()), expressionEvaluator.getMethod(call), call.arguments(), newlyExpanded, result, type, expr, maxDepth, curEquivalences, curEffects);
+			expandCall(call, expressionMaker.makeTypeLiteral(call.getType()), expressionEvaluator.getMethod(call), call.arguments(), newlyExpanded, result, type, maxDepth, curEquivalences, curEffects);
 		} else if (expr instanceof CastExpression) {
 			CastExpression cast = (CastExpression)expr;
 			expressionEvaluator.setResult(cast.getExpression(), result, curEffects);
@@ -1706,66 +1694,6 @@ public final class DeterministicExpressionGenerator extends ExpressionGenerator 
 			}
 		}
 	}
-	
-	/**
-	 * Checks whether the given type satisfies the given constraint
-	 * using the specified cache as a shortcut.
-	 * @param type The type.
-	 * @param constraint The constraint.
-	 * @param fulfillingType A cache of types that fulfill the constraint.
-	 * @return Whether the given type satisfies the given constraint.
-	 * @throws DebugException
-	 */
-	private boolean isValidType(IJavaType type, TypeConstraint constraint, Set<String> fulfillingType) throws DebugException {
-		String typeName = type == null ? null : type.getName();
-		if (fulfillingType.contains(typeName)) {
-			return true;  // Cache the fulfilling types, since there can be a ton of equivalent expressions at higher depths and computing isFulfilledBy can take a lot of time.
-		} else if (constraint.isFulfilledBy(type, subtypeChecker, typeCache, stack, target)) {
-			fulfillingType.add(typeName);
-			return true;
-		} else
-			return false;
-	}
-	
-	/**
-	 * Ensures that the given infix operation is useful with respect
-	 * to our heuristics that remove uninteresting expressions like
-	 * x+0 or x+x.
-	 * @param l The left side.
-	 * @param op The operation.
-	 * @param r The right side.
-	 * @return Whether or not the given infix expression is useful.
-	 * @throws DebugException
-	 */
-	private boolean isUsefulInfix(Expression l, InfixExpression.Operator op, Expression r) throws DebugException {
-		//IJavaValue rValue = expressionEvaluator.getValue(r, Collections.<Effect>emptySet());
-		if (op == InfixExpression.Operator.PLUS)
-			return !isConstant(l) && (r == one || (mightNotCommute(l, r) || l.toString().compareTo(r.toString()) < 0));
-		else if (op == InfixExpression.Operator.TIMES)
-			return !isConstant(l) && (/*r == two || */(mightNotCommute(l, r) || l.toString().compareTo(r.toString()) <= 0));
-		else if (op == InfixExpression.Operator.MINUS)
-			return !isConstant(l) && (r == one || (mightNotCommute(l, r) || l.toString().compareTo(r.toString()) != 0)) && !(r instanceof PrefixExpression && ((PrefixExpression)r).getOperator() == PrefixExpression.Operator.MINUS);
-		else if (op == InfixExpression.Operator.DIVIDE)
-			return !isConstant(l) && (/*r == two || */(mightNotCommute(l, r) || l.toString().compareTo(r.toString()) != 0));
-		else if (EclipseUtils.isInt(l.getStaticType()) && EclipseUtils.isInt(r.getStaticType()))
-			return l.toString().compareTo(r.toString()) < 0 && (!(l instanceof PrefixExpression) || !(r instanceof PrefixExpression));
-		else
-			return l.toString().compareTo(r.toString()) < 0;
-	}
-	
-	/**
-	 * Checks whether or not two expressions might not commute.
-	 * This will only be the case if we are handling side effects
-	 * and at least one expression might have side effects.
-	 * TODO: This should really check if the expressions contain call,
-	 * e.g., foo().x + bar().y should return true.
-	 * @param l An operand.
-	 * @param r An operand.
-	 * @return
-	 */
-	private boolean mightNotCommute(Expression l, Expression r) {
-		return sideEffectHandler.isHandlingSideEffects() && (l instanceof MethodInvocation || r instanceof MethodInvocation);
-	}
 
 	/**
 	 * Finds calls that are equivalent to the given one and
@@ -1778,38 +1706,27 @@ public final class DeterministicExpressionGenerator extends ExpressionGenerator 
 	 * expanded to stop us from doing extra work or recursing infinitely.
 	 * @param result The result of the call.
 	 * @param type The type of the result of the call.
-	 * @param valued The call itself.
 	 * @param maxDepth The maximum depth of expressions.
 	 * @param curEquivalences The set of expressions equivalent
 	 * to this call.  The new expressions will be added to this set.
 	 * @param curEffects The current effects.
 	 * @throws DebugException
 	 */
-	private void expandCall(Expression call, Expression expression, Method method, Expression[] arguments, Set<Expression> newlyExpanded, Result result, IJavaType type, Expression valued, int maxDepth, ArrayList<Expression> curEquivalences, Set<Effect> curEffects) throws DebugException {
+	private void expandCall(Expression call, Expression expression, Method method, Expression[] arguments, Set<Expression> newlyExpanded, Result result, IJavaType type, int maxDepth, ArrayList<Expression> curEquivalences, Set<Effect> curEffects) throws DebugException {
 		String name = method.name();
 		expandEquivalencesRec(expression, newlyExpanded, curEffects, maxDepth);
-		IJavaType receiverType = EclipseUtils.getTypeAndLoadIfNeeded(method.declaringType().name(), stack, target, typeCache);
-		if (receiverType == null)  // The above line will fail for anonymous classes.
-			receiverType = (expression == null ? stack.getThis() : expressionEvaluator.getValue(expression, curEffects)).getJavaType(); 
+		IJavaType receiverType = getReceiverType(expression, method, curEffects);
 		OverloadChecker overloadChecker = new OverloadChecker(receiverType, stack, target, typeCache, subtypeChecker);
 		overloadChecker.setMethod(method);
 		ArrayList<ArrayList<Expression>> newArguments = new ArrayList<ArrayList<Expression>>(arguments.length);
 		ArrayList<TypeConstraint> argConstraints = new ArrayList<TypeConstraint>(arguments.length);
 		Set<Effect> curArgEffects = expression == null || method.isConstructor() ? Collections.<Effect>emptySet() : expressionEvaluator.getResult(expression, curEffects).getEffects();
 		for (int i = 0; i < arguments.length; i++) {
-			Expression curArg = (Expression)arguments[i];
+			Expression curArg = arguments[i];
 			expandEquivalencesRec(curArg, newlyExpanded, curArgEffects, maxDepth);
-			ArrayList<Expression> allCurArgPossibilities = new ArrayList<Expression>();
 			IJavaType argType = EclipseUtils.getTypeAndLoadIfNeeded((String)method.argumentTypeNames().get(i), stack, target, typeCache);
 			TypeConstraint argConstraint = new SupertypeBound(argType);
-			for (Expression arg : getEquivalentExpressions(curArg, argConstraint, curArgEffects, maxDepth - 1)) {
-				if (overloadChecker.needsCast(argType, arg.getStaticType(), newArguments.size()))  // If the method is overloaded, when executing the expression we might get "Ambiguous call" compile errors, so we put in a cast to remove the ambiguity.
-					arg = expressionMaker.makeCast(arg, argType);
-				if (arg instanceof NullLiteral && method.isVarArgs() && newArguments.size() == arguments.length - 1)
-					continue;//arg = expressionMaker.makeCast(arg, ((IJavaArrayType)argType).getComponentType(), arg.getValue(), valueCache, thread);
-				allCurArgPossibilities.add(arg);
-			}
-			newArguments.add(allCurArgPossibilities);
+			newArguments.add(getExpansionArgs(getEquivalentExpressions(curArg, argConstraint, curArgEffects, maxDepth - 1), i, argType, method, overloadChecker));
 			argConstraints.add(argConstraint);
 			curArgEffects = expressionEvaluator.getResult(curArg, curArgEffects).getEffects();
 		}
@@ -1820,7 +1737,7 @@ public final class DeterministicExpressionGenerator extends ExpressionGenerator 
 			makeAllCalls(method, name, e, newCalls, newArguments, new ArrayList<Expression>(newArguments.size()), type, curEffects, result, maxDepth);
 		for (Expression newCall : newCalls) {
 			expressionEvaluator.copyResults(call, newCall);
-			addIfNew(curEquivalences, newCall, valued, maxDepth);
+			addIfNew(curEquivalences, newCall, call, maxDepth);
 		}
 	}
 	

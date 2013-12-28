@@ -59,6 +59,18 @@ public class Utils {
 		map.get(key).add(value);
 	}
 	
+	/**
+	 * Adds the given key-value mapping to the given map.
+	 * @param map The map.
+	 * @param key The key.
+	 * @param values The values.
+	 */
+	public static <K, V> void addAllToListMap(Map<K, ArrayList<V>> map, K key, ArrayList<V> values) {
+		if (!map.containsKey(key))
+			map.put(key, new ArrayList<V>());
+		map.get(key).addAll(values);
+	}
+	
 	public static String plural(String str, String suffix, int count) {
 		if (count == 1)
 			return str;

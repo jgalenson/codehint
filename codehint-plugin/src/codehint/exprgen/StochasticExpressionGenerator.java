@@ -1,10 +1,15 @@
 package codehint.exprgen;
 
 import java.util.AbstractList;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Queue;
 import java.util.Random;
 import java.util.Set;
 
@@ -21,16 +26,28 @@ import org.eclipse.jdt.debug.core.IJavaStackFrame;
 import org.eclipse.jdt.debug.core.IJavaType;
 import org.eclipse.jdt.debug.core.IJavaValue;
 import org.eclipse.jdt.debug.core.IJavaVariable;
+import org.eclipse.swt.widgets.Display;
 
 import com.sun.jdi.Field;
 import com.sun.jdi.Method;
 import com.sun.jdi.TypeComponent;
 
+import codehint.ast.ArrayAccess;
+import codehint.ast.CastExpression;
+import codehint.ast.ClassInstanceCreation;
 import codehint.ast.Expression;
+import codehint.ast.FieldAccess;
 import codehint.ast.InfixExpression;
+import codehint.ast.InfixExpression.Operator;
+import codehint.ast.MethodInvocation;
 import codehint.ast.NullLiteral;
+import codehint.ast.NumberLiteral;
+import codehint.ast.ParenthesizedExpression;
 import codehint.ast.PlaceholderExpression;
 import codehint.ast.PrefixExpression;
+import codehint.ast.SimpleName;
+import codehint.ast.ThisExpression;
+import codehint.ast.TypeLiteral;
 import codehint.dialogs.SynthesisDialog;
 import codehint.effects.Effect;
 import codehint.effects.SideEffectHandler;
@@ -38,16 +55,18 @@ import codehint.expreval.EvaluationManager;
 import codehint.expreval.StaticEvaluator;
 import codehint.exprgen.typeconstraint.FieldConstraint;
 import codehint.exprgen.typeconstraint.MethodConstraint;
+import codehint.exprgen.typeconstraint.SupertypeBound;
 import codehint.exprgen.typeconstraint.TypeConstraint;
+import codehint.exprgen.typeconstraint.UnknownConstraint;
 import codehint.exprgen.weightedlist.CombinationWeightedList;
 import codehint.exprgen.weightedlist.ExpressionWeightedList;
 import codehint.exprgen.weightedlist.MethodFieldWeightedList;
-import codehint.exprgen.weightedlist.WeightedList;
 import codehint.property.Property;
 import codehint.utils.EclipseUtils;
+import codehint.utils.Utils;
 
 // TODO: Get better probabilities for array length, integer negation, different binary ops.
-// TODO: Do equivalences.
+// TODO: Get bigram probabilities of some sort.  They're especially helpful for equivalence expansion.
 public class StochasticExpressionGenerator extends ExpressionGenerator {
 
 	private static final int MAX_ITERS = 200;
@@ -77,45 +96,68 @@ public class StochasticExpressionGenerator extends ExpressionGenerator {
 		this.nulls = new ExpressionWeightedList(expressionEvaluator, weights);
 		this.candidates = new CandidateWeightedLists();
 		this.candidatesList = new CandidateLists();
-		return genExprs(property, typeConstraint, searchConstructors, searchOperators, synthesisDialog, monitor);
-		
-	}
-	
-	private ArrayList<Expression> genExprs(Property property, TypeConstraint typeConstraint, boolean searchConstructors, boolean searchOperators, SynthesisDialog synthesisDialog, IProgressMonitor monitor) {
 		try {
 			initSearch();
-			ReceiverWeightedLists receivers = new ReceiverWeightedLists();
-			Set<Expression> evaledExprs = new HashSet<Expression>();
-			ArrayList<Expression> results = new ArrayList<Expression>();
-			addSeeds(typeConstraint);
-			results.addAll(evalManager.evaluateExpressions(candidatesList, property, getVarType(typeConstraint), synthesisDialog, monitor, ""));
-			for (int i = 0; i < MAX_ITERS && candidatesList.size() < MAX_CANDIDATES; i++) {
-				if (monitor.isCanceled())
-					throw new OperationCanceledException();
-				//System.out.println("Iter " + i + " candidates: " + candidates);
-				Expression curExpr = searchOperators ? candidates.getWeighted() : receivers.getWeighted();
-				//System.out.println("Expr: " + curExpr);
-				Expression newExpr = extendExpression(curExpr, evaledExprs, searchConstructors, searchOperators);
-				//System.out.println(" New expr: " + newExpr);
-				/*if (newExpr == null)
-					System.out.println(curExpr);*/
-				if (newExpr != null) {
-					if (!evaledExprs.contains(newExpr)) {
-						evaledExprs.add(newExpr);
-						candidates.addWeighted(newExpr);
-						if (checkSpec(newExpr, typeConstraint, property, synthesisDialog, monitor))
-							results.add(newExpr);
-					}/* else
-						System.out.println(" " + newExpr + " already seen");*/
-				}
-			}
-			//System.out.println("Candidates: " + candidates);
-			return results;
+			this.equivalences.put(Collections.<Effect>emptySet(), new HashMap<Result, ArrayList<Expression>>());
+			return genExprs(property, typeConstraint, searchConstructors, searchOperators, synthesisDialog, monitor);
 		} catch (DebugException e) {
 			throw new RuntimeException(e);
 		} catch (JavaModelException e) {
 			throw new RuntimeException(e);
-		}		
+		}
+		
+	}
+	
+	private ArrayList<Expression> genExprs(Property property, TypeConstraint typeConstraint, boolean searchConstructors, boolean searchOperators, final SynthesisDialog synthesisDialog, IProgressMonitor monitor) throws DebugException, JavaModelException {
+		ReceiverWeightedLists receivers = new ReceiverWeightedLists();
+		Set<Expression> evaledExprs = new HashSet<Expression>();
+		Map<Result, Boolean> specCache = new HashMap<Result, Boolean>();
+		ExpressionParents parents = new ExpressionParents();
+		ArrayList<Expression> results = new ArrayList<Expression>();
+		addSeeds(typeConstraint);
+		results.addAll(evalManager.evaluateExpressions(candidatesList, property, getVarType(typeConstraint), synthesisDialog, monitor, ""));
+		for (Expression expr: candidatesList)
+			addEquivalentExpression(expr, Collections.<Effect>emptySet());
+		for (int i = 0; i < MAX_ITERS && candidatesList.size() < MAX_CANDIDATES; i++) {
+			if (monitor.isCanceled())
+				throw new OperationCanceledException();
+			//System.out.println("Iter " + i + " candidates: " + candidates);
+			Expression curExpr = searchOperators ? candidates.getWeighted() : receivers.getWeighted();
+			//System.out.println("Expr: " + curExpr);
+			Expression newExpr = extendExpression(curExpr, evaledExprs, searchConstructors, searchOperators);
+			//System.out.println(" New expr: " + newExpr);
+			/*if (newExpr == null)
+					System.out.println(curExpr);*/
+			if (newExpr != null) {
+				if (!evaledExprs.contains(newExpr)) {
+					final ArrayList<Expression> newResults = expandEquivalences(newExpr, property, typeConstraint, evaledExprs, specCache, parents, monitor);
+					results.addAll(newResults);
+					Display.getDefault().asyncExec(new Runnable(){
+						@Override
+						public void run() {
+							synthesisDialog.addExpressions(newResults);
+						}
+			    	});
+				} /* else
+						System.out.println(" " + newExpr + " already seen");*/
+			}
+		}
+		//System.out.println("Candidates: " + candidates);
+		return results;
+	}
+
+	/**
+	 * Handles a newly-generated expression, by adding it to
+	 * the list of candidates and storing metadata about it.
+	 * @param newExpr The newly-generated expression.
+	 * @param evaledExprs The set of evaluated expressions.
+	 * @param parents The map of parent expressions.
+	 */
+	private void handleNewExpression(Expression newExpr, Set<Expression> evaledExprs, ExpressionParents parents) {
+		candidates.addWeighted(newExpr);
+		assert !evaledExprs.contains(newExpr) : newExpr;
+		evaledExprs.add(newExpr);
+		parents.addParents(newExpr);
 	}
 
 	/**
@@ -170,18 +212,26 @@ public class StochasticExpressionGenerator extends ExpressionGenerator {
 	 * @param expr The expression.
 	 * @param typeConstraint The type constraint.
 	 * @param property The specification.
-	 * @param synthesisDialog The synthesis dialog.
+	 * @param specCache Cache of specification check results.
 	 * @param monitor The progress monitor.
 	 * @return Whether the given expression satisfies the given specification.
 	 * @throws DebugException 
 	 */
-	private boolean checkSpec(Expression expr, TypeConstraint typeConstraint, Property property, SynthesisDialog synthesisDialog, IProgressMonitor monitor) throws DebugException {
+	private boolean checkSpec(Expression expr, TypeConstraint typeConstraint, Property property, Map<Result, Boolean> specCache, IProgressMonitor monitor) throws DebugException {
+		Result result = expressionEvaluator.getResult(expr, Collections.<Effect>emptySet());
+		if (specCache.containsKey(result))
+			return specCache.get(result);
+		boolean satisfies;
 		if (expr == null || !typeConstraint.isFulfilledBy(expr.getStaticType(), subtypeChecker, typeCache, stack, target))
-			return false;
-		List<Expression> exprList = Collections.singletonList(expr);
-    	if (property != null && !EvaluationManager.canEvaluateStatically(property))
-			evalManager.cacheMethodResults(exprList);
-		return !evalManager.evaluateExpressions(exprList, property, getVarType(typeConstraint), synthesisDialog, monitor, "").isEmpty();
+			satisfies = false;
+		else {
+			List<Expression> exprList = Collections.singletonList(expr);
+	    	if (property != null && !EvaluationManager.canEvaluateStatically(property))
+				evalManager.cacheMethodResults(exprList);
+			satisfies = !evalManager.evaluateExpressions(exprList, property, getVarType(typeConstraint), null, monitor, "").isEmpty();
+		}
+		specCache.put(result, satisfies);
+		return satisfies;
 	}
 	
 	/**
@@ -430,6 +480,321 @@ public class StochasticExpressionGenerator extends ExpressionGenerator {
 		@Override
 		public String toString() {
 			return primitives.toString() + "; " + objects.toString() + "; " + nulls.toString();
+		}
+		
+	}
+	
+	// Equivalence expansion
+	
+	/**
+	 * Generates new expressions by using the given expression.
+	 * We do this in two steps: we first generate expressions
+	 * equivalent to the given expression by replacing its
+	 * subexpressions and then we expand expressions that
+	 * contain an expression equivalent to the given one or
+	 * newly-generated expressions.
+	 * @param expr The new expression.
+	 * @param property The specification.
+	 * @param typeConstraint The type constraint.
+	 * @param evaledExprs The set of expressions we have evaluated.
+	 * @param specCache Cache of specification check results.
+	 * @param parents The map of containing expressions.
+	 * @param monitor The progress monitor.
+	 * @return The newly-generated expressions that satisfy
+	 * the specification.
+	 * @throws DebugException
+	 */
+	private ArrayList<Expression> expandEquivalences(Expression expr, Property property, TypeConstraint typeConstraint, Set<Expression> evaledExprs, Map<Result, Boolean> specCache, ExpressionParents parents, IProgressMonitor monitor) throws DebugException {
+		final ArrayList<Expression> newResults = new ArrayList<Expression>();
+		Result result = expressionEvaluator.getResult(expr, Collections.<Effect>emptySet());
+		Map<Result, ArrayList<Expression>> newEquivs = new HashMap<Result, ArrayList<Expression>>();
+		Queue<Expression> exprsToExpand = new ArrayDeque<Expression>();
+		// Preprocessing: add the new expression to the newly-generated equivalences (so we will handle it later) and prepare to expand expressions that contain something equivalent to it.
+		exprsToExpand.add(getEquivalentExpressions(expr, Collections.<Effect>emptySet(), null, newEquivs).get(0));  // Only add the first, since by induction anything that contains a different one contains the first as well.
+		Utils.addToListMap(newEquivs, result, expr);
+		checkSpec(expr, typeConstraint, property, specCache, monitor);  // Pre-compute whether this expression satisfies this spec.  We don't do anything with this yet, but we will at the end of the this method, and this allows us to ensure we never evaluate anything at that point.
+		// Expand subexpressions in this expression.
+		expandExpression(expr, null, newEquivs, exprsToExpand, evaledExprs, monitor);
+		// Process an expression equivalent to the given one and each newly-generated equivalent expression by expanding things that contain it.
+		while (true) {
+			if (monitor.isCanceled())
+				throw new OperationCanceledException();
+			Expression cur = exprsToExpand.poll();
+			if (cur == null)
+				break;
+			if (Utils.getNumValues(newEquivs) > 100)  // Heuristically avoid generating too many equivalent expressions.
+				break;
+			for (Expression parent: parents.getParents(cur))
+				expandExpression(parent, cur, newEquivs, exprsToExpand, evaledExprs, monitor);
+		}
+		// Register the new expressions.
+		for (Map.Entry<Result, ArrayList<Expression>> entry: newEquivs.entrySet()) {
+			Utils.addAllToListMap(equivalences.get(Collections.<Effect>emptySet()), entry.getKey(), entry.getValue());  // Add to equivalence map.
+			//System.out.println(entry.getValue());
+			if (specCache.get(entry.getKey()).booleanValue())  // Show to user if they pass the spec.
+				newResults.addAll(entry.getValue());
+			for (Expression newExpr: entry.getValue())
+				handleNewExpression(newExpr, evaledExprs, parents);  // Add it to the list of candidates.
+		}
+    	return newResults;
+	}
+	
+	/**
+	 * Generates expressions that are equivalent to the given expression
+	 * by replacing its subexpressions with equivalent expressions.
+	 * The control parameter controls exactly how we do this; see
+	 * getEquivalentExpressions.
+	 * @param expr The expression whose subexpressions we should replace
+	 * with equivalent expressions to generate new expressions.
+	 * @param control The control expression.  See getEquivalentExpressions.
+	 * @param newEquivs The set of newly-generated equivalent expressions.
+	 * @param exprsToExpand The expressions that we want to expand.
+	 * @param evaledExprs The set of expressions we have evaluated.
+	 * @param monitor The progress monitor.
+	 * @throws DebugException
+	 */
+	private void expandExpression(Expression expr, Expression control, Map<Result, ArrayList<Expression>> newEquivs, Queue<Expression> exprsToExpand, Set<Expression> evaledExprs, IProgressMonitor monitor) throws DebugException {
+		//System.out.println("Expanding " + expr + " with control " + control);
+		Result result = expressionEvaluator.getResult(expr, Collections.<Effect>emptySet());
+		IJavaType type = getEquivalenceType(expr, result);
+		if (expr instanceof NumberLiteral || expr instanceof SimpleName || expr instanceof NullLiteral || expr instanceof ThisExpression) {
+			return;
+		} else if (expr instanceof PrefixExpression) {
+			PrefixExpression prefix = (PrefixExpression)expr;
+			for (Expression e: getEquivalentExpressions(prefix.getOperand(), Collections.<Effect>emptySet(), control, newEquivs)) {
+				PrefixExpression newPrefix = expressionMaker.makePrefix(e, prefix.getOperator());
+				handleNewEquivalentExpr(newEquivs, exprsToExpand, newPrefix, expr, result, evaledExprs);
+			}
+		} else if (expr instanceof InfixExpression) {
+			InfixExpression infix = (InfixExpression)expr;
+			for (Expression l: getEquivalentExpressions(infix.getLeftOperand(), Collections.<Effect>emptySet(), control, newEquivs))
+				for (Expression r: getEquivalentExpressions(infix.getRightOperand(), expressionEvaluator.getResult(l, Collections.<Effect>emptySet()).getEffects(), control, newEquivs)) {
+					if (monitor.isCanceled())
+						throw new OperationCanceledException();
+					if (isUsefulInfix(l, infix.getOperator(), r)) {
+						InfixExpression newInfix = expressionMaker.makeInfix(l, infix.getOperator(), r, type);
+						handleNewEquivalentExpr(newEquivs, exprsToExpand, newInfix, expr, result, evaledExprs);
+					}
+				}
+		} else if (expr instanceof FieldAccess) {
+			FieldAccess fieldAccess = (FieldAccess)expr;
+			Field field = expressionEvaluator.getField(fieldAccess);
+			for (Expression e: getEquivalentExpressions(fieldAccess.getExpression(), Collections.<Effect>emptySet(), control, newEquivs)) {
+				FieldAccess newFieldAccess = expressionMaker.makeFieldAccess(e, fieldAccess.getName().getIdentifier(), type, field);
+				handleNewEquivalentExpr(newEquivs, exprsToExpand, newFieldAccess, expr, result, evaledExprs);
+			}
+		} else if (expr instanceof ArrayAccess) {
+			ArrayAccess arrayAccess = (ArrayAccess)expr;
+			for (Expression a: getEquivalentExpressions(arrayAccess.getArray(), Collections.<Effect>emptySet(), control, newEquivs))
+				for (Expression i: getEquivalentExpressions(arrayAccess.getIndex(), expressionEvaluator.getResult(a, Collections.<Effect>emptySet()).getEffects(), control, newEquivs)) {
+					if (monitor.isCanceled())
+						throw new OperationCanceledException();
+					ArrayAccess newArrayAccess = expressionMaker.makeArrayAccess(type, a, i);
+					handleNewEquivalentExpr(newEquivs, exprsToExpand, newArrayAccess, expr, result, evaledExprs);
+				}
+		} else if (expr instanceof MethodInvocation) {
+			MethodInvocation call = (MethodInvocation)expr;
+			expandCall(call, call.getExpression(), expressionEvaluator.getMethod(call), call.arguments(), result, type, control, newEquivs, exprsToExpand, evaledExprs);
+		} else if (expr instanceof ClassInstanceCreation) {
+			ClassInstanceCreation call = (ClassInstanceCreation)expr;
+			expandCall(call, expressionMaker.makeTypeLiteral(call.getType()), expressionEvaluator.getMethod(call), call.arguments(), result, type, control, newEquivs, exprsToExpand, evaledExprs);
+		} else
+			throw new IllegalArgumentException("Unexpected expression " + expr);
+	}
+
+	/**
+	 * Gets expressions that are equivalent to the given expression
+	 * in the given set of effects.  The control expression controls
+	 * how we compute the set of equivalent expressions.
+	 * @param expr The expressions whose equivalent expressions we want.
+	 * @param effects The current effects.
+	 * @param control The control expression.  If this is null, we
+	 * return equivalent expressions from the existing equivalence
+	 * classes.  If it is the same as the given expression and there
+	 * are no effects, we use the newly-generated equivalent
+	 * expressions.  Otherwise we return the expression itself.
+	 * @param newEquivs The newly-generated equivalent expressions.
+	 * @return Expressions that are equivalent to the given expression.
+	 */
+	private List<Expression> getEquivalentExpressions(Expression expr, Set<Effect> effects, Expression control, Map<Result, ArrayList<Expression>> newEquivs) {
+		if (control == null) {
+			List<Expression> result = expr == null ? null : equivalences.get(effects).get(expressionEvaluator.getResult(expr, effects));
+			if (result == null) {
+				assert expr == null || expressionEvaluator.isStatic(expr) || newEquivs.isEmpty() : expr.toString();
+				return Collections.singletonList(expr);
+			} else
+				return new ArrayList<Expression>(result);
+		} else if (expr == control && effects.isEmpty())
+			return new ArrayList<Expression>(newEquivs.get(expressionEvaluator.getResult(expr, effects)));
+		else
+			return Collections.singletonList(expr);
+	}
+
+	/**
+	 * Handle a new expression create during equivalence expansion by
+	 * setting its results and adding it to the list of new expressions
+	 * if it is not the same as the expression from which it was created.
+	 * @param newEquivs The newly-generated equivalent expressions.
+	 * @param exprsToExpand The expressions that we want to expand.
+	 * @param newExpr The new expression.
+	 * @param expr The expression from which the new expression was created.
+	 * @param result The result of the two expressions.
+	 * @param evaledExprs The set of expressions we have evaluated.
+	 */
+	private void handleNewEquivalentExpr(Map<Result, ArrayList<Expression>> newEquivs, Queue<Expression> exprsToExpand, Expression newExpr, Expression expr, Result result, Set<Expression> evaledExprs) {
+		if (evaledExprs.contains(newExpr))  // TODO: I shouldn't need this.  But I currently miss some things (I think because I only expand once), which, if I later generate them from scratch, would cause me to generate duplicates during expansion.
+			return;
+		expressionEvaluator.copyResults(expr, newExpr);
+		if (!expr.equals(newExpr)) {
+			assert !newEquivs.containsKey(result) || !newEquivs.get(result).contains(newExpr) : newExpr + " from " + expr;
+			Utils.addToListMap(newEquivs, result, newExpr);
+			//System.out.println("Adding " + newExpr + " from " + expr);
+			exprsToExpand.add(newExpr);
+		}
+	}
+
+	/**
+	 * Finds calls that are equivalent to the given one and adds
+	 * them to curEquivalences.
+	 * @param call The entire call expression.
+	 * @param receiver The receiver part of the call.
+	 * @param method The method being called.
+	 * @param arguments The arguments.
+	 * @param result The result of the call.
+	 * @param type The type of the result of the call.
+	 * @param control The control expression.  See getEquivalentExpressions.
+	 * @param newEquivs The newly-generated equivalent expressions.
+	 * @param exprsToExpand The expressions that we want to expand.
+	 * @param evaledExprs The set of expressions we have evaluated.
+	 * @throws DebugException
+	 */
+	private void expandCall(Expression call, Expression receiver, Method method, Expression[] arguments, Result result, IJavaType type, Expression control, Map<Result, ArrayList<Expression>> newEquivs, Queue<Expression> exprsToExpand, Set<Expression> evaledExprs) throws DebugException {
+		String name = method.name();
+		IJavaType receiverType = getReceiverType(receiver, method, Collections.<Effect>emptySet());
+		OverloadChecker overloadChecker = new OverloadChecker(receiverType, stack, target, typeCache, subtypeChecker);
+		overloadChecker.setMethod(method);
+		ArrayList<ArrayList<Expression>> newArguments = new ArrayList<ArrayList<Expression>>(arguments.length);
+		ArrayList<TypeConstraint> argConstraints = new ArrayList<TypeConstraint>(arguments.length);
+		Set<Effect> curArgEffects = receiver == null || method.isConstructor() ? Collections.<Effect>emptySet() : expressionEvaluator.getResult(receiver, Collections.<Effect>emptySet()).getEffects();
+		for (int i = 0; i < arguments.length; i++) {
+			Expression curArg = arguments[i];
+			IJavaType argType = EclipseUtils.getTypeAndLoadIfNeeded((String)method.argumentTypeNames().get(i), stack, target, typeCache);
+			newArguments.add(getExpansionArgs(getEquivalentExpressions(curArg, curArgEffects, control, newEquivs), i, argType, method, overloadChecker));
+			argConstraints.add(new SupertypeBound(argType));
+			curArgEffects = expressionEvaluator.getResult(curArg, curArgEffects).getEffects();
+		}
+		MethodConstraint receiverConstraint = new MethodConstraint(name, UnknownConstraint.getUnknownConstraint(), argConstraints, sideEffectHandler.isHandlingSideEffects());
+		Set<String> fulfillingType = new HashSet<String>();
+		List<Expression> newCalls = new ArrayList<Expression>();
+		for (Expression e: getEquivalentExpressions(receiver, Collections.<Effect>emptySet(), control, newEquivs)) {
+			if (e != null && !isValidType(e.getStaticType(), receiverConstraint, fulfillingType))  // I think this will only fail if the value is null, so I could optimize it by confirming that and removing the extra work here.
+				e = expressionMaker.makeParenthesized(downcast(e, receiverType));  // FIXME: Use castType like in Deterministic.getEquivalentExpressoins
+			makeAllCalls(method, name, e, newCalls, newArguments, new ArrayList<Expression>(newArguments.size()), type, result);
+		}
+		for (Expression newCall: newCalls)
+			handleNewEquivalentExpr(newEquivs, exprsToExpand, newCall, call, result, evaledExprs);
+	}
+	
+	/**
+	 * Creates all possible calls/creations using the given actuals.
+	 * @param method The method being called.
+	 * @param name The method name.
+	 * @param receiver The receiving object for method calls or a type
+	 * literal representing the type being created for creations.
+	 * @param results The list to add the unique calls created. 
+	 * @param possibleActuals A list of all the possible actuals for each argument.
+	 * @param curActuals The current list of actuals, which is built
+	 * up through recursion.
+	 * @param returnType The return type of the method.
+	 * @param result The result of all these calls.
+	 */
+	private void makeAllCalls(Method method, String name, Expression receiver, List<Expression> results, ArrayList<ArrayList<Expression>> possibleActuals, ArrayList<Expression> curActuals, IJavaType returnType, Result result) {
+		if (curActuals.size() == possibleActuals.size())
+			results.add(makeEquivalenceCall(method, name, returnType, receiver, curActuals, Collections.<Effect>emptySet(), result));
+		else {
+			int depth = curActuals.size();
+			for (Expression e : possibleActuals.get(depth)) {
+				curActuals.add(e);
+				makeAllCalls(method, name, receiver, results, possibleActuals, curActuals, returnType, result);
+				curActuals.remove(depth);
+			}
+		}
+	}
+	
+	/**
+	 * A class that maps expressions to the expressions
+	 * that contain it.
+	 */
+	private static class ExpressionParents {
+	
+		private final Map<Expression, ArrayList<Expression>> parents;
+		private final ArrayList<Expression> emptyList;
+
+		public ExpressionParents() {
+			this.parents = new HashMap<Expression, ArrayList<Expression>>();
+			this.emptyList = new ArrayList<Expression>(0);
+		}
+		
+		/**
+		 * Computes and stores the parents of the given expression.
+		 * @param expr The expressions whose parents we should compute.
+		 */
+		public void addParents(Expression expr) {
+			if (expr instanceof NumberLiteral || expr instanceof SimpleName || expr instanceof NullLiteral || expr instanceof ThisExpression)
+				return;
+			else if (expr instanceof PrefixExpression)
+				Utils.addToListMap(parents, ((PrefixExpression)expr).getOperand(), expr);
+			else if (expr instanceof InfixExpression) {
+				InfixExpression infix = (InfixExpression)expr;
+				Utils.addToListMap(parents, infix.getLeftOperand(), infix);
+				if (infix.getLeftOperand() != infix.getRightOperand())
+					Utils.addToListMap(parents, infix.getRightOperand(), infix);
+			} else if (expr instanceof FieldAccess) {
+				Utils.addToListMap(parents, ((FieldAccess)expr).getExpression(), expr);
+			} else if (expr instanceof ArrayAccess) {
+				ArrayAccess access = (ArrayAccess)expr;
+				Utils.addToListMap(parents, access.getArray(), access);
+				if (access.getArray() != access.getIndex())
+					Utils.addToListMap(parents, access.getIndex(), access);
+			} else if (expr instanceof MethodInvocation) {
+				MethodInvocation call = (MethodInvocation)expr;
+				addParentsForCall(call, call.getExpression(), call.arguments());
+			} else if (expr instanceof ClassInstanceCreation) {
+				ClassInstanceCreation call = (ClassInstanceCreation)expr;
+				addParentsForCall(call, call.getExpression(), call.arguments());
+			} else
+				throw new IllegalArgumentException("Unexpected expression " + expr);
+		}
+		
+		/**
+		 * Computes and adds parents for a call.
+		 * @param call The call expression.
+		 * @param receiver The receiver.
+		 * @param args The arguments.
+		 */
+		private void addParentsForCall(Expression call, Expression receiver, Expression[] args) {
+			if (receiver != null)
+				Utils.addToListMap(parents, receiver, call);
+			for (Expression arg: new HashSet<Expression>(Arrays.asList(args)))
+				if (arg != receiver)
+					Utils.addToListMap(parents, arg, call);
+		}
+		
+		/**
+		 * Gets the expressions that contain the given expression
+		 * as a subexpression.
+		 * @param expr The expression whose parents to get.
+		 * @return The expressions that contain the given
+		 * expression as a subexpression.
+		 */
+		public ArrayList<Expression> getParents(Expression expr) {
+			ArrayList<Expression> result = parents.get(expr);
+			if (result == null)  // As an optimization, instead of storing lots of empty lists, we store nothing and reuse the constant empty list.
+				return emptyList;
+			else {
+				assert (new HashSet<Expression>(result)).size() == result.size() : expr + " " + result;
+				return result;
+			}
 		}
 		
 	}

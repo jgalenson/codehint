@@ -24,10 +24,13 @@ import org.eclipse.jdt.core.JavaModelException;
 import codehint.ast.BooleanLiteral;
 import codehint.ast.Expression;
 import codehint.ast.InfixExpression;
+import codehint.ast.MethodInvocation;
 import codehint.ast.NullLiteral;
 import codehint.ast.NumberLiteral;
 import codehint.ast.ParenthesizedExpression;
+import codehint.ast.PrefixExpression;
 import codehint.ast.ThisExpression;
+import codehint.ast.TypeLiteral;
 
 import org.eclipse.jdt.debug.core.IJavaClassType;
 import org.eclipse.jdt.debug.core.IJavaDebugTarget;
@@ -228,6 +231,8 @@ public abstract class ExpressionGenerator {
 	protected final IJavaReferenceType thisType;
 	protected final IJavaProject project;
 	protected final IJavaType intType;
+	protected final IJavaValue oneValue;
+	protected final Expression one;
 	
 	protected Map<Set<Effect>, Map<Result, ArrayList<Expression>>> equivalences;
 	protected IImportDeclaration[] imports;
@@ -252,6 +257,8 @@ public abstract class ExpressionGenerator {
 		}
 		this.project = EclipseUtils.getProject(stack);
 		this.intType = EclipseUtils.getFullyQualifiedType("int", stack, target, typeCache);
+		this.oneValue = target.newValue(1);
+		this.one = expressionMaker.makeInt(1, oneValue, intType, thread);
 	}
 	
 	/**
@@ -731,6 +738,26 @@ public abstract class ExpressionGenerator {
 					return false;
 		return true;
 	}
+
+	/**
+	 * Creates a call (method or constructor) during equivalence expansion.
+	 * @param method The method being called.
+	 * @param name The method name.
+	 * @param returnType The return type of the method.
+	 * @param receiver The receiving object for method calls or a type
+	 * literal representing the type being created for creations.
+	 * @param curActuals The current list of actuals, which is built
+	 * up through recursion.
+	 * @param effects The current side effects.
+	 * @param result The result of all these calls.
+	 * @return A call with the given information.
+	 */
+	protected Expression makeEquivalenceCall(Method method, String name, IJavaType returnType, Expression receiver, ArrayList<Expression> curActuals, Set<Effect> effects, Result result) {
+		if ("<init>".equals(name))
+			return expressionMaker.makeClassInstanceCreation(((TypeLiteral)receiver).getType(), curActuals, method, effects, result);
+		else
+			return expressionMaker.makeCall(name, receiver, curActuals, method, returnType, effects, result);
+	}
 	
 	void addEquivalentExpression(Expression e, Set<Effect> curEffects) {
 		Map<Result, ArrayList<Expression>> curEquivalences = equivalences.get(curEffects);
@@ -739,6 +766,121 @@ public abstract class ExpressionGenerator {
 			equivalences.put(curEffects, curEquivalences);
 		}
 		Utils.addToListMap(curEquivalences, expressionEvaluator.getResult(e, curEffects), e);
+	}
+
+	/**
+	 * Gets the type of the given expression to use for expanding equivalences.
+	 * @param expr The expression.
+	 * @param result The result of the expression.
+	 * @return The type of the given expression to use for expanding equivalences.
+	 * @throws DebugException
+	 */
+	protected IJavaType getEquivalenceType(Expression expr, Result result) throws DebugException {
+		IJavaType type = expressionEvaluator.isStatic(expr) ? expressionEvaluator.getStaticType(expr) : result.getValue().getValue().getJavaType();
+		if (expressionEvaluator.getMethod(expr) != null) {  // If this is a call, use the declared type of the method, not the dynamic type of the value.
+			Method method = expressionEvaluator.getMethod(expr);
+			type = EclipseUtils.getFullyQualifiedType(method.isConstructor() ? method.declaringType().name() : expressionEvaluator.getMethod(expr).returnTypeName(), stack, target, typeCache);
+		}
+		return type;
+	}
+	
+	/**
+	 * Checks whether the given type satisfies the given constraint
+	 * using the specified cache as a shortcut.
+	 * @param type The type.
+	 * @param constraint The constraint.
+	 * @param fulfillingType A cache of types that fulfill the constraint.
+	 * @return Whether the given type satisfies the given constraint.
+	 * @throws DebugException
+	 */
+	protected boolean isValidType(IJavaType type, TypeConstraint constraint, Set<String> fulfillingType) throws DebugException {
+		String typeName = type == null ? null : type.getName();
+		if (fulfillingType.contains(typeName)) {
+			return true;  // Cache the fulfilling types, since there can be a ton of equivalent expressions at higher depths and computing isFulfilledBy can take a lot of time.
+		} else if (constraint.isFulfilledBy(type, subtypeChecker, typeCache, stack, target)) {
+			fulfillingType.add(typeName);
+			return true;
+		} else
+			return false;
+	}
+	
+	/**
+	 * Ensures that the given infix operation is useful with respect
+	 * to our heuristics that remove uninteresting expressions like
+	 * x+0 or x+x.
+	 * @param l The left side.
+	 * @param op The operation.
+	 * @param r The right side.
+	 * @return Whether or not the given infix expression is useful.
+	 * @throws DebugException
+	 */
+	protected boolean isUsefulInfix(Expression l, InfixExpression.Operator op, Expression r) throws DebugException {
+		//IJavaValue rValue = expressionEvaluator.getValue(r, Collections.<Effect>emptySet());
+		if (op == InfixExpression.Operator.PLUS)
+			return !isConstant(l) && (r == one || (mightNotCommute(l, r) || l.toString().compareTo(r.toString()) < 0));
+		else if (op == InfixExpression.Operator.TIMES)
+			return !isConstant(l) && (/*r == two || */(mightNotCommute(l, r) || l.toString().compareTo(r.toString()) <= 0));
+		else if (op == InfixExpression.Operator.MINUS)
+			return !isConstant(l) && (r == one || (mightNotCommute(l, r) || l.toString().compareTo(r.toString()) != 0)) && !(r instanceof PrefixExpression && ((PrefixExpression)r).getOperator() == PrefixExpression.Operator.MINUS);
+		else if (op == InfixExpression.Operator.DIVIDE)
+			return !isConstant(l) && (/*r == two || */(mightNotCommute(l, r) || l.toString().compareTo(r.toString()) != 0));
+		else if (EclipseUtils.isInt(l.getStaticType()) && EclipseUtils.isInt(r.getStaticType()))
+			return l.toString().compareTo(r.toString()) < 0 && (!(l instanceof PrefixExpression) || !(r instanceof PrefixExpression));
+		else
+			return l.toString().compareTo(r.toString()) < 0;
+	}
+	
+	/**
+	 * Checks whether or not two expressions might not commute.
+	 * This will only be the case if we are handling side effects
+	 * and at least one expression might have side effects.
+	 * TODO: This should really check if the expressions contain call,
+	 * e.g., foo().x + bar().y should return true.
+	 * @param l An operand.
+	 * @param r An operand.
+	 * @return
+	 */
+	protected boolean mightNotCommute(Expression l, Expression r) {
+		return sideEffectHandler.isHandlingSideEffects() && (l instanceof MethodInvocation || r instanceof MethodInvocation);
+	}
+
+	/**
+	 * Gets the type of the receiver.
+	 * @param expression The expression representing the receiver.
+	 * @param method The method being called.
+	 * @param curEffects The current effects.
+	 * @return The type of the receiver.
+	 * @throws DebugException
+	 */
+	protected IJavaType getReceiverType(Expression expression, Method method, Set<Effect> curEffects) throws DebugException {
+		IJavaType receiverType = EclipseUtils.getTypeAndLoadIfNeeded(method.declaringType().name(), stack, target, typeCache);
+		if (receiverType == null)  // The above line will fail for anonymous classes.
+			receiverType = (expression == null ? stack.getThis() : expressionEvaluator.getValue(expression, curEffects)).getJavaType();
+		return receiverType;
+	}
+
+	/**
+	 * Finds the arguments to use for the given argument of the
+	 * given call by casting the given possibilities.  This should
+	 * be used during equivalence expansion.
+	 * @param possibleArgs The possible arguments.
+	 * @param argIndex The index of the current arguments.
+	 * @param argType The type of the argument.
+	 * @param method The method being called.
+	 * @param overloadChecker The overload checker.
+	 * @return The expressions to use for the given argument.
+	 * @throws DebugException 
+	 */
+	protected ArrayList<Expression> getExpansionArgs(List<Expression> possibleArgs, int argIndex, IJavaType argType, Method method, OverloadChecker overloadChecker) {
+		ArrayList<Expression> allCurArgPossibilities = new ArrayList<Expression>();
+		for (Expression arg: possibleArgs) {
+			if (overloadChecker.needsCast(argType, arg.getStaticType(), argIndex))  // If the method is overloaded, when executing the expression we might get "Ambiguous call" compile errors, so we put in a cast to remove the ambiguity.
+				arg = expressionMaker.makeCast(arg, argType);
+			if (arg instanceof NullLiteral && method.isVarArgs() && argIndex == method.argumentTypeNames().size() - 1)
+				continue;//arg = expressionMaker.makeCast(arg, ((IJavaArrayType)argType).getComponentType(), arg.getValue(), valueCache, thread);
+			allCurArgPossibilities.add(arg);
+		}
+		return allCurArgPossibilities;
 	}
 
 }
