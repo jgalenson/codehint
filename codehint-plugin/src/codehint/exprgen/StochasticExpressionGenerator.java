@@ -301,14 +301,28 @@ public class StochasticExpressionGenerator extends ExpressionGenerator {
 		for (Expression expr: primitives)
 			if (EclipseUtils.isInt(expr.getStaticType()))
 				rightExprs.add(expr);
-		rightExprs.add(expressionMaker.makeNull(thread));  // As a hack we use null to stand for unary negation.
+		if (!(num instanceof PrefixExpression) && !(num instanceof InfixExpression))  // Disallow things like -(-x) and -(x + y).
+				rightExprs.add(expressionMaker.makeNull(thread));  // As a hack we use null to stand for unary negation.
+		if (rightExprs.isEmpty())
+			return null;
 		ExpressionWeightedList rightChoices = new ExpressionWeightedList(expressionEvaluator, weights);
 		rightChoices.addAllWeighted(rightExprs);
 		Expression right = rightChoices.getWeighted();
 		if (right instanceof NullLiteral)
 			return expressionMaker.makePrefix(num, PrefixExpression.Operator.MINUS, thread);
-		else
-			return expressionMaker.makeInfix(num, NUMBER_BINARY_OPS[random.nextInt(NUMBER_BINARY_OPS.length)], right, intType, thread);
+		else {
+			Operator op = NUMBER_BINARY_OPS[random.nextInt(NUMBER_BINARY_OPS.length)];
+			if (!mightNotCommute(num, right)) {
+				int cmp = num.toString().compareTo(right.toString());
+				if ((op == InfixExpression.Operator.PLUS || op == InfixExpression.Operator.TIMES) && cmp > 0) {
+					Expression tmp = num;
+					num = right;
+					right = tmp;
+				} else if ((op == InfixExpression.Operator.MINUS || op == InfixExpression.Operator.DIVIDE) && cmp == 0)
+					return null;
+			}
+			return expressionMaker.makeInfix(num, op, right, intType, thread);
+		}
 	}
 	
 	/**
