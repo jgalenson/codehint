@@ -1516,7 +1516,6 @@ public final class DeterministicExpressionGenerator extends ExpressionGenerator 
 						throw new OperationCanceledException();
 					if (isUsefulInfix(l, infix.getOperator(), r)) {
 						InfixExpression newInfix = expressionMaker.makeInfix(l, infix.getOperator(), r, type);
-						expressionEvaluator.copyResults(expr, newInfix);
 						addIfNew(curEquivalences, newInfix, expr, maxDepth);
 					}
 				}
@@ -1530,7 +1529,6 @@ public final class DeterministicExpressionGenerator extends ExpressionGenerator 
     				if (curMonitor.isCanceled())
     					throw new OperationCanceledException();
 					ArrayAccess newArrayAccess = expressionMaker.makeArrayAccess(type, a, i);
-					expressionEvaluator.copyResults(expr, newArrayAccess);
 					addIfNew(curEquivalences, newArrayAccess, expr, maxDepth);
 				}
 		} else if (expr instanceof FieldAccess) {
@@ -1539,7 +1537,6 @@ public final class DeterministicExpressionGenerator extends ExpressionGenerator 
 			expandEquivalencesRec(fieldAccess.getExpression(), newlyExpanded, curEffects, maxDepth);
 			for (Expression e : getEquivalentExpressionsOrGiven(fieldAccess.getExpression(), new FieldConstraint(fieldAccess.getName().getIdentifier(), UnknownConstraint.getUnknownConstraint()), curEffects, maxDepth - 1)) {
 				FieldAccess newFieldAccess = expressionMaker.makeFieldAccess(e, fieldAccess.getName().getIdentifier(), type, field);
-				expressionEvaluator.copyResults(expr, newFieldAccess);
 				addIfNew(curEquivalences, newFieldAccess, expr, maxDepth);
 			}
 		} else if (expr instanceof PrefixExpression) {
@@ -1547,7 +1544,6 @@ public final class DeterministicExpressionGenerator extends ExpressionGenerator 
 			expandEquivalencesRec(prefix.getOperand(), newlyExpanded, curEffects, maxDepth);
 			for (Expression e : getEquivalentExpressions(prefix.getOperand(), UnknownConstraint.getUnknownConstraint(), curEffects, maxDepth - 1)) {
 				PrefixExpression newPrefix = expressionMaker.makePrefix(e, prefix.getOperator());
-				expressionEvaluator.copyResults(expr, newPrefix);
 				addIfNew(curEquivalences, newPrefix, expr, maxDepth);
 			}
 		} else if (expr instanceof MethodInvocation) {
@@ -1575,8 +1571,10 @@ public final class DeterministicExpressionGenerator extends ExpressionGenerator 
 	 * @param The maximum depth.
 	 */
 	private void addIfNew(ArrayList<Expression> curEquivalences, Expression newExpr, Expression curExpr, int maxDepth) {
-		if (!newExpr.equals(curExpr) && getDepth(newExpr) <= maxDepth)
+		if (!newExpr.equals(curExpr) && getDepth(newExpr) <= maxDepth) {
+			expressionEvaluator.copyResults(curExpr, newExpr);
 			addEquivalentExpression(curEquivalences, newExpr);
+		}
 	}
 
 	/**
@@ -1735,10 +1733,8 @@ public final class DeterministicExpressionGenerator extends ExpressionGenerator 
 		List<Expression> newCalls = new ArrayList<Expression>();
 		for (Expression e : getEquivalentExpressionsOrGiven(expression, new MethodConstraint(name, UnknownConstraint.getUnknownConstraint(), argConstraints, sideEffectHandler.isHandlingSideEffects()), curEffects, maxDepth - 1))
 			makeAllCalls(method, name, e, newCalls, newArguments, new ArrayList<Expression>(newArguments.size()), type, curEffects, result, maxDepth);
-		for (Expression newCall : newCalls) {
-			expressionEvaluator.copyResults(call, newCall);
+		for (Expression newCall : newCalls)
 			addIfNew(curEquivalences, newCall, call, maxDepth);
-		}
 	}
 	
 	/**
