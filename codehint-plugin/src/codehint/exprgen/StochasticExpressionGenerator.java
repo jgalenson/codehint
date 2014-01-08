@@ -33,7 +33,6 @@ import com.sun.jdi.Method;
 import com.sun.jdi.TypeComponent;
 
 import codehint.ast.ArrayAccess;
-import codehint.ast.CastExpression;
 import codehint.ast.ClassInstanceCreation;
 import codehint.ast.Expression;
 import codehint.ast.FieldAccess;
@@ -42,12 +41,10 @@ import codehint.ast.InfixExpression.Operator;
 import codehint.ast.MethodInvocation;
 import codehint.ast.NullLiteral;
 import codehint.ast.NumberLiteral;
-import codehint.ast.ParenthesizedExpression;
 import codehint.ast.PlaceholderExpression;
 import codehint.ast.PrefixExpression;
 import codehint.ast.SimpleName;
 import codehint.ast.ThisExpression;
-import codehint.ast.TypeLiteral;
 import codehint.dialogs.SynthesisDialog;
 import codehint.effects.Effect;
 import codehint.effects.SideEffectHandler;
@@ -604,11 +601,29 @@ public class StochasticExpressionGenerator extends ExpressionGenerator {
 				assert expr == null || expressionEvaluator.isStatic(expr) || newEquivs.isEmpty() : expr.toString();
 				return Collections.singletonList(expr);
 			} else
-				return new ArrayList<Expression>(result);
+				return capDepth(result, getDepth(expr));
 		} else if (expr == control && effects.isEmpty())
-			return new ArrayList<Expression>(newEquivs.get(expressionEvaluator.getResult(expr, effects)));
+			return capDepth(newEquivs.get(expressionEvaluator.getResult(expr, effects)), getDepth(expr));
 		else
 			return Collections.singletonList(expr);
+	}
+	
+	/**
+	 * Return a new list containing the elements of the given list
+	 * whose depth does not exceed the given depth.
+	 * @param exprs The expressions to filter.
+	 * @param maxDepth The maximum depth of expressions to return.
+	 * @return A new list containing the elements of the given list
+	 * whose depth is at most the given depth.
+	 */
+	private List<Expression> capDepth(List<Expression> exprs, int maxDepth) {
+		ArrayList<Expression> result = new ArrayList<Expression>();
+		for (Expression expr: exprs)
+			if (getDepth(expr) <= maxDepth)
+				result.add(expr);
+		if (result.isEmpty() && !exprs.isEmpty())  // Always return at least one element when possible.
+			result.add(exprs.get(0));
+		return result;
 	}
 
 	/**

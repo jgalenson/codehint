@@ -21,10 +21,15 @@ import org.eclipse.jdt.core.IMethod;
 import org.eclipse.jdt.core.IType;
 import org.eclipse.jdt.core.JavaModelException;
 
+import codehint.ast.ArrayAccess;
 import codehint.ast.BooleanLiteral;
+import codehint.ast.CastExpression;
+import codehint.ast.ClassInstanceCreation;
 import codehint.ast.Expression;
+import codehint.ast.FieldAccess;
 import codehint.ast.InfixExpression;
 import codehint.ast.MethodInvocation;
+import codehint.ast.Name;
 import codehint.ast.NullLiteral;
 import codehint.ast.NumberLiteral;
 import codehint.ast.ParenthesizedExpression;
@@ -594,7 +599,7 @@ public abstract class ExpressionGenerator {
 	protected Expression castArgIfNecessary(Expression a, OverloadChecker overloadChecker, IJavaType argType, int curArgIndex) {
 		if (overloadChecker.needsCast(argType, a.getStaticType(), curArgIndex)) {  // If the method is overloaded, when executing the expression we might get "Ambiguous call" compile errors, so we put in a cast to remove the ambiguity.
 			//System.out.println("Adding cast to type " + argType.toString() + " to argument " + a.toString() + " at index "+ curArgIndex + " of method " + method.declaringType() + "." + method.name() + " with " + method.argumentTypeNames().size() + " arguments.");
-			a = (Expression)expressionMaker.makeCast(a, argType);
+			a = expressionMaker.makeCast(a, argType);
 		}
 		return a;
 	}
@@ -882,5 +887,59 @@ public abstract class ExpressionGenerator {
 		}
 		return allCurArgPossibilities;
 	}
+
+    /**
+     * Gets the depth of the given expression.
+     * This should not be called by clients; please use
+     * getDepth instead.
+     * @param expr The expression whose depth we want.
+     * @return The depth of the given expression.
+     */
+    protected int getDepth(Expression expr) {
+    	if (expr == null)
+    		return 0;
+    	Object depthOpt = expressionEvaluator.getDepthOpt(expr);
+    	if (depthOpt != null)
+    		return ((Integer)depthOpt).intValue();
+    	int depth;
+    	if (expr instanceof NumberLiteral || expr instanceof BooleanLiteral || expr instanceof Name || expr instanceof ThisExpression || expr instanceof NullLiteral || expr instanceof TypeLiteral)
+			depth = 0;
+    	else if (expr instanceof ParenthesizedExpression)
+    		depth = getDepth(((ParenthesizedExpression)expr).getExpression());
+		else if (expr instanceof InfixExpression) {
+			InfixExpression infix = (InfixExpression)expr;
+			depth = Math.max(getDepth(infix.getLeftOperand()), getDepth(infix.getRightOperand())) + 1;
+		} else if (expr instanceof ArrayAccess) {
+			ArrayAccess array = (ArrayAccess)expr;
+			depth = Math.max(getDepth(array.getArray()), getDepth(array.getIndex())) + 1;
+		} else if (expr instanceof FieldAccess) {
+			depth = getDepth(((FieldAccess)expr).getExpression()) + 1;
+		} else if (expr instanceof PrefixExpression) {
+			depth = getDepth(((PrefixExpression)expr).getOperand()) + 1;
+		} else if (expr instanceof MethodInvocation) {
+			MethodInvocation call = (MethodInvocation)expr;
+			int maxChildDepth = call.getExpression() == null ? 0 : getDepth(call.getExpression());
+			for (Expression curArg: call.arguments()) {
+				int curArgDepth = getDepth(curArg);
+				if (curArgDepth > maxChildDepth)
+					maxChildDepth = curArgDepth;
+			}
+			depth = maxChildDepth + 1;
+		} else if (expr instanceof ClassInstanceCreation) {
+			ClassInstanceCreation call = (ClassInstanceCreation)expr;
+			int maxChildDepth = call.getExpression() == null ? 0 : getDepth(call.getExpression());
+			for (Expression curArg: call.arguments()) {
+				int curArgDepth = getDepth(curArg);
+				if (curArgDepth > maxChildDepth)
+					maxChildDepth = curArgDepth;
+			}
+			depth = maxChildDepth + 1;
+		} else if (expr instanceof CastExpression) {
+			depth = getDepth(((CastExpression)expr).getExpression());
+		} else
+			throw new RuntimeException("Unexpected expression " + expr.toString());
+    	expressionEvaluator.setDepth(expr, depth);
+    	return depth;
+    }
 
 }

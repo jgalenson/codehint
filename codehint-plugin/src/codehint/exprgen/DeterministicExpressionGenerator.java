@@ -2044,7 +2044,8 @@ public final class DeterministicExpressionGenerator extends ExpressionGenerator 
      * @param expr The expression whose depth we want.
      * @return The depth of the given expression.
      */
-    private int getDepth(Expression expr) {
+    @Override
+    protected int getDepth(Expression expr) {
     	if (expr == null)
     		return 0;
     	int id = expr.getID();
@@ -2060,7 +2061,7 @@ public final class DeterministicExpressionGenerator extends ExpressionGenerator 
 			throw new RuntimeException(e);
 		}
     	Integer numBooleansSeen = uniqueValuesSeenForType.get("boolean");
-		int depth = getDepthImpl(expr) + (UniqueASTChecker.isUnique(expr, varName) ? 0 : 1) + (BadMethodFieldChecker.hasBad(expr, expressionEvaluator, weights, hasBadMethodsFields) ? 1 : 0) + (BadConstantChecker.hasBad(expr, expressionEvaluator, weights, hasBadConstants) ? 1 : 0) + (numBooleansSeen != null && numBooleansSeen == 2 && booleanType.equals(exprType) ? 1 : 0);
+		int depth = super.getDepth(expr) + (UniqueASTChecker.isUnique(expr, varName) ? 0 : 1) + (BadMethodFieldChecker.hasBad(expr, expressionEvaluator, weights, hasBadMethodsFields) ? 1 : 0) + (BadConstantChecker.hasBad(expr, expressionEvaluator, weights, hasBadConstants) ? 1 : 0) + (numBooleansSeen != null && numBooleansSeen == 2 && booleanType.equals(exprType) ? 1 : 0);
 		realDepths.put(id, depth);
 		return depth;
     }
@@ -2077,9 +2078,9 @@ public final class DeterministicExpressionGenerator extends ExpressionGenerator 
      * arguments, and method name.
      */
     private int getDepthOfCall(Expression receiver, ArrayList<Expression> args, Method method) {
-    	int depth = getDepthImpl(receiver);
+    	int depth = super.getDepth(receiver);
     	for (Expression arg: args)
-    		depth = Math.max(depth, getDepthImpl(arg));
+    		depth = Math.max(depth, super.getDepth(arg));
     	UniqueASTChecker uniqueChecker = new UniqueASTChecker(varName);
     	BadMethodFieldChecker badMethodFieldChecker = new BadMethodFieldChecker(expressionEvaluator, weights);
     	BadConstantChecker badConstantChecker = new BadConstantChecker(expressionEvaluator, weights);
@@ -2097,60 +2098,6 @@ public final class DeterministicExpressionGenerator extends ExpressionGenerator 
     	}
     	Integer numBooleansSeen = uniqueValuesSeenForType.get("boolean");
     	return depth + 1 + (uniqueChecker.isUnique ? 0 : 1) + (badMethodFieldChecker.hasBad || BadMethodFieldChecker.isBadMethod(method, receiver, weights) ? 1 : 0) + (badConstantChecker.hasBad ? 1 : 0) + (numBooleansSeen != null && numBooleansSeen == 2 && "boolean".equals(method.returnTypeName()) ? 1 : 0);
-    }
-
-    /**
-     * Gets the depth of the given expression.
-     * This should not be called by clients; please use
-     * getDepth instead.
-     * @param expr The expression whose depth we want.
-     * @return The depth of the given expression.
-     */
-    private int getDepthImpl(Expression expr) {
-    	if (expr == null)
-    		return 0;
-    	Object depthOpt = expressionEvaluator.getDepthOpt(expr);
-    	if (depthOpt != null)
-    		return ((Integer)depthOpt).intValue();
-    	int depth;
-    	if (expr instanceof NumberLiteral || expr instanceof BooleanLiteral || expr instanceof Name || expr instanceof ThisExpression || expr instanceof NullLiteral || expr instanceof TypeLiteral)
-			depth = 0;
-    	else if (expr instanceof ParenthesizedExpression)
-    		depth = getDepthImpl(((ParenthesizedExpression)expr).getExpression());
-		else if (expr instanceof InfixExpression) {
-			InfixExpression infix = (InfixExpression)expr;
-			depth = Math.max(getDepthImpl(infix.getLeftOperand()), getDepthImpl(infix.getRightOperand())) + 1;
-		} else if (expr instanceof ArrayAccess) {
-			ArrayAccess array = (ArrayAccess)expr;
-			depth = Math.max(getDepthImpl(array.getArray()), getDepthImpl(array.getIndex())) + 1;
-		} else if (expr instanceof FieldAccess) {
-			depth = getDepthImpl(((FieldAccess)expr).getExpression()) + 1;
-		} else if (expr instanceof PrefixExpression) {
-			depth = getDepthImpl(((PrefixExpression)expr).getOperand()) + 1;
-		} else if (expr instanceof MethodInvocation) {
-			MethodInvocation call = (MethodInvocation)expr;
-			int maxChildDepth = call.getExpression() == null ? 0 : getDepthImpl(call.getExpression());
-			for (Expression curArg: call.arguments()) {
-				int curArgDepth = getDepthImpl(curArg);
-				if (curArgDepth > maxChildDepth)
-					maxChildDepth = curArgDepth;
-			}
-			depth = maxChildDepth + 1;
-		} else if (expr instanceof ClassInstanceCreation) {
-			ClassInstanceCreation call = (ClassInstanceCreation)expr;
-			int maxChildDepth = call.getExpression() == null ? 0 : getDepthImpl(call.getExpression());
-			for (Expression curArg: call.arguments()) {
-				int curArgDepth = getDepthImpl(curArg);
-				if (curArgDepth > maxChildDepth)
-					maxChildDepth = curArgDepth;
-			}
-			depth = maxChildDepth + 1;
-		} else if (expr instanceof CastExpression) {
-			depth = getDepthImpl(((CastExpression)expr).getExpression());
-		} else
-			throw new RuntimeException("Unexpected expression " + expr.toString());
-    	expressionEvaluator.setDepth(expr, depth);
-    	return depth;
     }
     
     // Informative utility methods.
