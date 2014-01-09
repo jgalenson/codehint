@@ -507,11 +507,16 @@ public class StochasticExpressionGenerator extends ExpressionGenerator {
 				expandExpression(parent, cur, newEquivs, exprsToExpand, evaledExprs, monitor);
 		}
 		// Register the new expressions.
+		Map<Result, ArrayList<Expression>> equivMap = equivalences.get(Collections.<Effect>emptySet());
 		for (Map.Entry<Result, ArrayList<Expression>> entry: newEquivs.entrySet()) {
-			Utils.addAllToListMap(equivalences.get(Collections.<Effect>emptySet()), entry.getKey(), entry.getValue());  // Add to equivalence map.
+			Utils.addAllToListMap(equivMap, entry.getKey(), entry.getValue());  // Add to equivalence map.
 			//System.out.println(entry.getValue());
-			if (specCache.get(entry.getKey()).booleanValue())  // Show to user if they pass the spec.
+			if (specCache.get(entry.getKey()).booleanValue()) {  // Show to user if they pass the spec.
 				newResults.addAll(entry.getValue());
+				String resultString = expressionEvaluator.getResultString(equivMap.get(entry.getKey()).get(0));
+				for (Expression newExpr: entry.getValue())  // Set the result string for new equivalent expressions.
+					expressionEvaluator.setResultString(newExpr, resultString);
+			}
 			for (Expression newExpr: entry.getValue())
 				handleNewExpression(newExpr, evaledExprs, parents);  // Add it to the list of candidates.
 		}
