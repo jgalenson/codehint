@@ -45,6 +45,7 @@ import codehint.ast.PlaceholderExpression;
 import codehint.ast.PrefixExpression;
 import codehint.ast.SimpleName;
 import codehint.ast.ThisExpression;
+import codehint.ast.TypeLiteral;
 import codehint.dialogs.SynthesisDialog;
 import codehint.effects.Effect;
 import codehint.effects.SideEffectHandler;
@@ -598,7 +599,7 @@ public class StochasticExpressionGenerator extends ExpressionGenerator {
 		if (control == null) {
 			List<Expression> result = expr == null ? null : equivalences.get(effects).get(expressionEvaluator.getResult(expr, effects));
 			if (result == null) {
-				assert expr == null || expressionEvaluator.isStatic(expr) || newEquivs.isEmpty() : expr.toString();
+				assert expr == null || expressionEvaluator.isStatic(expr) || expr instanceof TypeLiteral || newEquivs.isEmpty() : expr.toString();
 				return Collections.singletonList(expr);
 			} else
 				return capDepth(result, getDepth(expr));
@@ -683,7 +684,7 @@ public class StochasticExpressionGenerator extends ExpressionGenerator {
 		Set<String> fulfillingType = new HashSet<String>();
 		List<Expression> newCalls = new ArrayList<Expression>();
 		for (Expression e: getEquivalentExpressions(receiver, Collections.<Effect>emptySet(), control, newEquivs)) {
-			if (e != null && !isValidType(e.getStaticType(), receiverConstraint, fulfillingType))  // I think this will only fail if the value is null, so I could optimize it by confirming that and removing the extra work here.
+			if (e != null && !isValidType(e.getStaticType(), receiverConstraint, fulfillingType) && !(e instanceof TypeLiteral))  // I think this will only fail if the value is null, so I could optimize it by confirming that and removing the extra work here.
 				e = expressionMaker.makeParenthesized(downcast(e, receiverType));  // FIXME: Use castType like in Deterministic.getEquivalentExpressoins
 			makeAllCalls(method, name, e, newCalls, newArguments, new ArrayList<Expression>(newArguments.size()), type, result);
 		}
