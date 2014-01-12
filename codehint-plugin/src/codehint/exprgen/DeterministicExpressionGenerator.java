@@ -76,7 +76,6 @@ import com.sun.jdi.Method;
  */
 public final class DeterministicExpressionGenerator extends ExpressionGenerator {
 	
-	private final IJavaType booleanType;
 	private final IJavaType objectType;
 	private final Expression zero;
 	private final Map<Integer, Integer> realDepths;
@@ -98,7 +97,6 @@ public final class DeterministicExpressionGenerator extends ExpressionGenerator 
 	
 	public DeterministicExpressionGenerator(IJavaDebugTarget target, IJavaStackFrame stack, SideEffectHandler sideEffectHandler, ExpressionMaker expressionMaker, ExpressionEvaluator expressionEvaluator, SubtypeChecker subtypeChecker, TypeCache typeCache, EvaluationManager evalManager, StaticEvaluator staticEvaluator, Weights weights) {
 		super(target, stack, sideEffectHandler, expressionMaker, expressionEvaluator, subtypeChecker, typeCache, evalManager, staticEvaluator, weights);
-		this.booleanType = EclipseUtils.getFullyQualifiedType("boolean", stack, target, typeCache);
 		this.objectType = EclipseUtils.getFullyQualifiedType("java.lang.Object", stack, target, typeCache);
 		this.zero = expressionMaker.makeInt(0, target.newValue(0), intType, thread);
 		this.realDepths = new HashMap<Integer, Integer>();
@@ -430,7 +428,7 @@ public final class DeterministicExpressionGenerator extends ExpressionGenerator 
     					// Array access, a[i].
     					if (l.getStaticType() instanceof IJavaArrayType && EclipseUtils.isInt(r.getStaticType())) {
     						IJavaType elemType = ExpressionMaker.getArrayElementType(l);
-    						if (elemType != null && (isHelpfulType(elemType, depth, maxDepth) || mightBeHelpfulWithDowncast(elemType))) {
+    						if (elemType != null && (isHelpfulType(elemType, depth, maxDepth) || mightBeHelpfulWithDowncast(elemType, typeConstraint))) {
     							// Get the value if we can and skip things with null arrays or out-of-bounds indices.
     							Expression accessExpr = expressionMaker.makeArrayAccess(l, r, thread);
     							if (accessExpr != null)
@@ -592,7 +590,7 @@ public final class DeterministicExpressionGenerator extends ExpressionGenerator 
 	private void addLocals(int depth, int maxDepth, ArrayList<Expression> curLevel) throws DebugException {
 		for (IJavaVariable l : stack.getLocalVariables()) {
 			IJavaType lType = EclipseUtils.getTypeOfVariableAndLoadIfNeeded(l, stack);
-			if (isHelpfulType(lType, depth, maxDepth) || mightBeHelpfulWithDowncast(lType))
+			if (isHelpfulType(lType, depth, maxDepth) || mightBeHelpfulWithDowncast(lType, typeConstraint))
 				addUniqueExpressionToList(curLevel, expressionMaker.makeVar(l.getName(), (IJavaValue)l.getValue(), lType, thread), depth, maxDepth);
 		}
 	}
@@ -631,7 +629,7 @@ public final class DeterministicExpressionGenerator extends ExpressionGenerator 
 			IJavaType fieldType = EclipseUtils.getTypeAndLoadIfNeeded(field.typeName(), stack, target, typeCache);
 			/*if (fieldType == null)
 				System.err.println("I cannot get the class of " + objTypeImpl.name() + "." + field.name() + "(" + field.typeName() + ")");*/
-			if (fieldType != null && (isHelpfulType(fieldType, depth, maxDepth) || mightBeHelpfulWithDowncast(fieldType))) {
+			if (fieldType != null && (isHelpfulType(fieldType, depth, maxDepth) || mightBeHelpfulWithDowncast(fieldType, typeConstraint))) {
 				Expression fieldExpr = makeFieldAccess(e, field, fieldType); 
 				addUniqueExpressionToList(ops, fieldExpr, depth, maxDepth);
 				if (field.isStatic())
@@ -690,7 +688,7 @@ public final class DeterministicExpressionGenerator extends ExpressionGenerator 
 			IJavaType returnType = getReturnType(e, method, isConstructor);
 			/*if (returnType == null)
 				System.err.println("I cannot get the class of the return type of " + objTypeImpl.name() + "." + method.name() + "() (" + method.returnTypeName() + ")");*/
-			if (returnType != null && (isHelpfulType(returnType, depth, maxDepth) || method.isConstructor() || mightBeHelpfulWithDowncast(returnType))) {  // Constructors have void type... 
+			if (returnType != null && (isHelpfulType(returnType, depth, maxDepth) || method.isConstructor() || mightBeHelpfulWithDowncast(returnType, typeConstraint))) {  // Constructors have void type... 
 				List<?> argumentTypeNames = method.argumentTypeNames();
 				// TODO: Improve overloading detection.
 				overloadChecker.setMethod(method);
@@ -1174,11 +1172,8 @@ public final class DeterministicExpressionGenerator extends ExpressionGenerator 
 			else {
 				if (value != null) {
 					addEquivalentExpressionOnlyIfNewValue(e, result, curEffects);
-					if (e.getStaticType() != null) {
-						String typeName = e.getStaticType().getName();
-						Integer numValuesSeenOfType = uniqueValuesSeenForType.get(typeName);
-						uniqueValuesSeenForType.put(typeName, numValuesSeenOfType == null ? 1 : numValuesSeenOfType + 1);
-					}
+					if (e.getStaticType() != null)
+						Utils.incrementMap(uniqueValuesSeenForType, e.getStaticType().getName());
 				}
 				list.add(e);
 			}
@@ -1213,21 +1208,6 @@ public final class DeterministicExpressionGenerator extends ExpressionGenerator 
 			return depth < maxDepth || typeConstraint.isFulfilledBy(curType, subtypeChecker, typeCache, stack, target);
 		Integer maxHelpfulDepth = helpfulTypes.get(curType.getName());
 		return maxHelpfulDepth != null && depth <= maxHelpfulDepth;
-	}
-	
-	/**
-	 * Determines whether an expression of the given type might be
-	 * useful after a downcast (i.e., whether a value of the given
-	 * type might be of some subtype that is useful).
-	 * @param curType The type to test.
-	 * @return Whether an expression of the given type might be
-	 * useful after a downcast
-	 */
-	private boolean mightBeHelpfulWithDowncast(IJavaType curType) {
-		for (IJavaType constraintType: typeConstraint.getTypes(stack, target, typeCache))
-			if (subtypeChecker.isSubtypeOf(constraintType, curType))
-				return true;
-		return false;
 	}
 	
 	/**

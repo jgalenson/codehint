@@ -236,6 +236,7 @@ public abstract class ExpressionGenerator {
 	protected final IJavaReferenceType thisType;
 	protected final IJavaProject project;
 	protected final IJavaType intType;
+	protected final IJavaType booleanType;
 	protected final IJavaValue oneValue;
 	protected final Expression one;
 	
@@ -262,6 +263,7 @@ public abstract class ExpressionGenerator {
 		}
 		this.project = EclipseUtils.getProject(stack);
 		this.intType = EclipseUtils.getFullyQualifiedType("int", stack, target, typeCache);
+		this.booleanType = EclipseUtils.getFullyQualifiedType("boolean", stack, target, typeCache);
 		this.oneValue = target.newValue(1);
 		this.one = expressionMaker.makeInt(1, oneValue, intType, thread);
 	}
@@ -656,6 +658,22 @@ public abstract class ExpressionGenerator {
 	private static boolean hasSimilarMethod(ReferenceType type, Method method) {
 		for (Method cur: type.methodsByName(method.name(), method.signature()))
 			if (cur.isPublic())  // Some supertypes might have non-public version of the method, so ignore them.
+				return true;
+		return false;
+	}
+	
+	/**
+	 * Determines whether an expression of the given type might be
+	 * useful after a downcast (i.e., whether a value of the given
+	 * type might be of some subtype that is useful).
+	 * @param curType The type to test.
+	 * @param typeConstraint The type constraint.
+	 * @return Whether an expression of the given type might be
+	 * useful after a downcast
+	 */
+	protected boolean mightBeHelpfulWithDowncast(IJavaType curType, TypeConstraint typeConstraint) {
+		for (IJavaType constraintType: typeConstraint.getTypes(stack, target, typeCache))
+			if (subtypeChecker.isSubtypeOf(constraintType, curType))
 				return true;
 		return false;
 	}

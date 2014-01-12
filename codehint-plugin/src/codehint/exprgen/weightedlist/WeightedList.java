@@ -1,39 +1,103 @@
 package codehint.exprgen.weightedlist;
 
+import java.util.AbstractList;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Random;
+
 /**
- * A list that supports a randomized get operation that
- * gets elements according to their associated weight.
- * The list does not support removing elements, as the
- * data structure it currently supports makes that expensive,
- * and it is not needed for our purpose.
- * @param <T> The type of elements in the list.
+ * A class that represents a weighted list of elements.
+ * These elements can be extracted with probability
+ * proportional to their weights.
+ *
+ * @param <T> The type of the elements in the list.
  */
-public interface WeightedList<T> {
-
-	/**
-	 * Adds the given element to the list.
-	 * @param elem The element to add.
-	 */
-	public abstract void addWeighted(T elem);
-
-	/**
-	 * Gets an element from the list according to
-	 * the weights of the elements.
-	 * @return An element chosen from this list
-	 * according to the weights.
-	 */
-	public abstract T getWeighted();
-
-	/**
-	 * Gets the size of the list.
-	 * @return The size of the list.
-	 */
-	public abstract int size();
+public class WeightedList<T> extends AbstractList<T> implements IWeightedList<T> {
+	
+	protected final ArrayList<T> elems;
+	protected final ArrayList<Double> cumulativeWeights;
+	protected double totalWeight;
+	protected static final Random random = new Random();
 	
 	/**
-	 * Gets the total weight of all elements in this list.
-	 * @return The total weight of all elements in this list.
+	 * Creates an empty list.
 	 */
-	public abstract double getTotalWeight();
+	public WeightedList() {
+		this.elems = new ArrayList<T>();
+		this.cumulativeWeights = new ArrayList<Double>();
+		totalWeight = 0d;
+	}
+	
+	public WeightedList(T[] elems, double[] weights) {
+		this();
+		for (int i = 0; i < elems.length; i++)
+			addWeighted(elems[i], weights[i]);
+	}
+	
+	public void addWeighted(T elem, double weight) {
+		elems.add(elem);
+		totalWeight += weight;
+		cumulativeWeights.add(totalWeight);
+	}
+	
+	/* (non-Javadoc)
+	 * @see codehint.exprgen.weightedlist.WeightedList#getWeighted()
+	 */
+	@Override
+	public T getWeighted() {
+		if (elems.isEmpty())
+			return null;
+		double rand = random.nextDouble() * totalWeight;
+		int index = Collections.binarySearch(cumulativeWeights, rand);
+		if (index < 0)  // If we happen to pick a number in the list, we use it.
+			index = -index - 1;
+		return elems.get(index);
+	}
+
+	/* (non-Javadoc)
+	 * @see codehint.exprgen.weightedlist.WeightedList#getTotalWeight()
+	 */
+	@Override
+	public double getTotalWeight() {
+		return totalWeight;
+	}
+	
+	/* (non-Javadoc)
+	 * @see codehint.exprgen.weightedlist.WeightedList#size()
+	 */
+	@Override
+	public int size() {
+		return elems.size();
+	}
+	
+	/**
+	 * Gets the element at the specified index,
+	 * ignoring the weights.
+	 * @param index The index.
+	 * @return The element stored at the specified
+	 * index, ignoring the weights.
+	 */
+	@Override
+	public T get(int index) {
+		return elems.get(index);
+	}
+	
+	@Override
+	public String toString() {
+		int numElems = elems.size();
+		if (numElems == 0)
+			return "";
+		StringBuilder sb = new StringBuilder();
+		double cumulativeWeight = 0d;
+		for (int i = 0; true; i++) {
+			double curCumulativeWeight = cumulativeWeights.get(i);
+			sb.append(elems.get(i)).append("(").append(curCumulativeWeight - cumulativeWeight).append(")");
+			if (i == numElems - 1)
+				break;
+			cumulativeWeight = curCumulativeWeight;
+			sb.append(", ");
+		}
+		return sb.toString();
+	}
 
 }

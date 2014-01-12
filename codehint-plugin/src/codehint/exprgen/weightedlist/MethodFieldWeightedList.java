@@ -7,7 +7,7 @@ import com.sun.jdi.TypeComponent;
 import codehint.exprgen.ProbabilityComputer;
 import codehint.exprgen.Weights;
 
-public class MethodFieldWeightedList extends AbstractWeightedList<TypeComponent> {
+public class MethodFieldWeightedList extends SimpleWeightedList<TypeComponent> {
 	
 	private final Weights weights;
 	

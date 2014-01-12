@@ -152,6 +152,17 @@ public class Utils {
 	}
 	
 	/**
+	 * Increments the integer stored for the given
+	 * key in the given map.
+	 * @param map The map.
+	 * @param key The key.
+	 */
+	public static <T> void incrementMap(Map<T, Integer> map, T key) {
+		Integer numValuesSeenOfType = map.get(key);
+		map.put(key, numValuesSeenOfType == null ? 1 : numValuesSeenOfType + 1);
+	}
+	
+	/**
 	 * Gets a printable version of the given String
 	 * by quoting unprintable characters like newlines.
 	 * @param s The string.

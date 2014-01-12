@@ -56,9 +56,10 @@ import codehint.exprgen.typeconstraint.MethodConstraint;
 import codehint.exprgen.typeconstraint.SupertypeBound;
 import codehint.exprgen.typeconstraint.TypeConstraint;
 import codehint.exprgen.typeconstraint.UnknownConstraint;
-import codehint.exprgen.weightedlist.CombinationWeightedList;
 import codehint.exprgen.weightedlist.ExpressionWeightedList;
 import codehint.exprgen.weightedlist.MethodFieldWeightedList;
+import codehint.exprgen.weightedlist.WeightedCombinationWeightedList;
+import codehint.exprgen.weightedlist.IWeightedList;
 import codehint.exprgen.weightedlist.WeightedList;
 import codehint.property.Property;
 import codehint.utils.EclipseUtils;
@@ -68,23 +69,27 @@ import codehint.utils.Utils;
 // TODO: Get bigram probabilities of some sort.  They're especially helpful for equivalence expansion.
 public class StochasticExpressionGenerator extends ExpressionGenerator {
 
-	private static final int MAX_ITERS = 200;
-	private static final int MAX_CANDIDATES = 100;
-	
-	private final static InfixExpression.Operator[] NUMBER_BINARY_OPS = new InfixExpression.Operator[] { InfixExpression.Operator.PLUS, InfixExpression.Operator.MINUS, InfixExpression.Operator.TIMES, InfixExpression.Operator.DIVIDE };
+	private static final int MAX_ITERS = 400;
+	private static final int MAX_CANDIDATES = 500;
+	private static final int MAX_VALUES = 100;
 	
 	private final Random random;
+	private final WeightedList<InfixExpression.Operator> infixOperators;	
 	
 	private ExpressionWeightedList primitives;
 	private ExpressionWeightedList objects;
+	private ExpressionWeightedList arrs;
 	private ExpressionWeightedList nulls;
 	private ExpressionWeightedList names;
 	private ExpressionCombinationWeightedList candidates;
 	private CandidateLists candidatesList;
+
+	private Map<String, Integer> uniqueValuesSeenForType;
 	
 	public StochasticExpressionGenerator(IJavaDebugTarget target, IJavaStackFrame stack, SideEffectHandler sideEffectHandler, ExpressionMaker expressionMaker, ExpressionEvaluator expressionEvaluator, SubtypeChecker subtypeChecker, TypeCache typeCache, EvaluationManager evalManager, StaticEvaluator staticEvaluator, Weights weights) {
 		super(target, stack, sideEffectHandler, expressionMaker, expressionEvaluator, subtypeChecker, typeCache, evalManager, staticEvaluator, weights);
 		this.random = new Random();
+		this.infixOperators = new WeightedList<InfixExpression.Operator>(new InfixExpression.Operator[] { InfixExpression.Operator.PLUS, InfixExpression.Operator.MINUS, InfixExpression.Operator.TIMES, InfixExpression.Operator.DIVIDE }, new double[] { ExprStats.INFIX_PLUS_PROB, ExprStats.INFIX_MINUS_PROB, ExprStats.INFIX_TIMES_PROB, ExprStats.INFIX_DIV_PROB });
 	}
 
 	@Override
@@ -92,12 +97,14 @@ public class StochasticExpressionGenerator extends ExpressionGenerator {
 		this.names = new ExpressionWeightedList(expressionEvaluator, weights);
 		this.primitives = new ExpressionWeightedList(expressionEvaluator, weights);
 		this.objects = new ExpressionWeightedList(expressionEvaluator, weights);
+		this.arrs = new ExpressionWeightedList(expressionEvaluator, weights);
 		this.nulls = new ExpressionWeightedList(expressionEvaluator, weights);
-		this.candidates = new ExpressionCombinationWeightedList(new ExpressionWeightedList[] { primitives, objects, nulls, names });
+		this.candidates = makeCandidateWeightedList(searchOperators);
 		this.candidatesList = new CandidateLists();
 		try {
 			initSearch();
 			this.equivalences.put(Collections.<Effect>emptySet(), new HashMap<Result, ArrayList<Expression>>());
+			this.uniqueValuesSeenForType = new HashMap<String, Integer>();
 			return genExprs(property, typeConstraint, searchConstructors, searchOperators, synthesisDialog, monitor);
 		} catch (DebugException e) {
 			throw new RuntimeException(e);
@@ -107,23 +114,47 @@ public class StochasticExpressionGenerator extends ExpressionGenerator {
 		
 	}
 	
+	/**
+	 * Makes the candidate weighted list.
+	 * @param searchOperators Whether to search operators.
+	 * @return The weighted list from which to choose
+	 * the initial candidate to extend.
+	 */
+	private ExpressionCombinationWeightedList makeCandidateWeightedList(boolean searchOperators) {
+		ArrayList<IWeightedList<Expression>> objWeightedLists = new ArrayList<IWeightedList<Expression>>(3);
+		objWeightedLists.add(objects);
+		objWeightedLists.add(nulls);
+		objWeightedLists.add(names);
+		ExpressionCombinationWeightedList objs = new ExpressionCombinationWeightedList(objWeightedLists, new double[] { ExprStats.INSTANCE_OP_PROB, 0, ExprStats.STATIC_OP_PROB });
+		ArrayList<IWeightedList<Expression>> allWeightedLists = new ArrayList<IWeightedList<Expression>>(3);
+		allWeightedLists.add(primitives);
+		allWeightedLists.add(arrs);
+		allWeightedLists.add(objs);
+		return new ExpressionCombinationWeightedList(allWeightedLists, new double[] { searchOperators ? ExprStats.PRIM_OP_PROB : 0, ExprStats.ARR_OP_PROB, ExprStats.OBJECT_OP_PROB });
+	}
+	
 	private ArrayList<Expression> genExprs(Property property, TypeConstraint typeConstraint, boolean searchConstructors, boolean searchOperators, final SynthesisDialog synthesisDialog, IProgressMonitor monitor) throws DebugException, JavaModelException {
-		ExpressionCombinationWeightedList receivers = new ExpressionCombinationWeightedList(new ExpressionWeightedList[] { objects, names });
 		Set<Expression> evaledExprs = new HashSet<Expression>();
 		Map<Result, Boolean> specCache = new HashMap<Result, Boolean>();
 		ExpressionParents parents = new ExpressionParents();
 		ArrayList<Expression> results = new ArrayList<Expression>();
+		Map<Result, ArrayList<Expression>> curEquivMap = equivalences.get(Collections.<Effect>emptySet());
 		addSeeds(typeConstraint);
 		results.addAll(evalManager.evaluateExpressions(candidatesList, property, getVarType(typeConstraint), synthesisDialog, monitor, ""));
-		for (Expression expr: candidatesList)
+		for (Expression expr: candidatesList) {
 			addEquivalentExpression(expr, Collections.<Effect>emptySet());
-		for (int i = 0; i < MAX_ITERS && candidatesList.size() < MAX_CANDIDATES; i++) {
+			Utils.incrementMap(uniqueValuesSeenForType, expr instanceof NullLiteral ? "null" : expr.getStaticType().getName());
+		}
+		int i;
+		for (i = 0; i < MAX_ITERS && curEquivMap.size() < MAX_VALUES && candidatesList.size() < MAX_CANDIDATES; i++) {
 			if (monitor.isCanceled())
 				throw new OperationCanceledException();
 			//System.out.println("Iter " + i + " candidates: " + candidates);
-			Expression curExpr = searchOperators ? candidates.getWeighted() : receivers.getWeighted();
+			Expression curExpr = candidates.getWeighted();
+			if (curExpr == null)
+				continue;
 			//System.out.println("Expr: " + curExpr);
-			Expression newExpr = extendExpression(curExpr, evaledExprs, searchConstructors, searchOperators);
+			Expression newExpr = extendExpression(curExpr, evaledExprs, typeConstraint, searchConstructors, searchOperators);
 			//System.out.println(" New expr: " + newExpr);
 			/*if (newExpr == null)
 					System.out.println(curExpr);*/
@@ -141,7 +172,8 @@ public class StochasticExpressionGenerator extends ExpressionGenerator {
 						System.out.println(" " + newExpr + " already seen");*/
 			}
 		}
-		//System.out.println("Candidates: " + candidates);
+		//System.out.println(candidatesList.size() + " candidates (" + curEquivMap.size() + " unique values) in " + i + " iters: " + candidates);
+		//System.out.println("Unique values: " + curEquivMap.keySet());
 		return results;
 	}
 
@@ -151,12 +183,14 @@ public class StochasticExpressionGenerator extends ExpressionGenerator {
 	 * @param newExpr The newly-generated expression.
 	 * @param evaledExprs The set of evaluated expressions.
 	 * @param parents The map of parent expressions.
+	 * @throws DebugException 
 	 */
-	private void handleNewExpression(Expression newExpr, Set<Expression> evaledExprs, ExpressionParents parents) {
+	private void handleNewExpression(Expression newExpr, Set<Expression> evaledExprs, ExpressionParents parents) throws DebugException {
 		candidates.addWeighted(newExpr);
 		assert !evaledExprs.contains(newExpr) : newExpr;
 		evaledExprs.add(newExpr);
 		parents.addParents(newExpr);
+		Utils.incrementMap(uniqueValuesSeenForType, newExpr.getStaticType().getName());
 	}
 
 	/**
@@ -237,6 +271,7 @@ public class StochasticExpressionGenerator extends ExpressionGenerator {
 	 * Extends the given expression.
 	 * @param expr The expression to extend.
 	 * @param evaledExprs The set of expressions we have already evaluated.
+	 * @param typeConstraint The type constraint.
 	 * @param searchConstructors Whether we should search constructors.
 	 * @param searchOperators Whether we should search operators.
 	 * @return A new expression that extends the given expression,
@@ -244,7 +279,7 @@ public class StochasticExpressionGenerator extends ExpressionGenerator {
 	 * @throws DebugException
 	 * @throws JavaModelException
 	 */
-	private Expression extendExpression(Expression expr, Set<Expression> evaledExprs, boolean searchConstructors, boolean searchOperators) throws DebugException, JavaModelException {
+	private Expression extendExpression(Expression expr, Set<Expression> evaledExprs, TypeConstraint typeConstraint, boolean searchConstructors, boolean searchOperators) throws DebugException, JavaModelException {
 		IJavaValue value = expressionEvaluator.getValue(expr, Collections.<Effect>emptySet());
 		if (value.isNull()) {
 			//System.out.println(" Extending null");
@@ -252,7 +287,7 @@ public class StochasticExpressionGenerator extends ExpressionGenerator {
 		}
 		IJavaType type = expr.getStaticType();
 		if (EclipseUtils.isObjectOrInterface(type))
-			return extendObject(expr, evaledExprs, searchConstructors);
+			return extendObject(expr, evaledExprs, typeConstraint, searchConstructors);
 		else if (searchOperators && EclipseUtils.isInt(type))
 			return extendNumber(expr);
 		else if (EclipseUtils.isArray(type))
@@ -269,18 +304,19 @@ public class StochasticExpressionGenerator extends ExpressionGenerator {
 	 * which we can extend by making a static access.
 	 * @param evaledExprs The set of expressions we have already evaluated.
 	 * We use this to avoid re-evaluating a call we have already evaluated.
+	 * @param typeConstraint The type constraint.
 	 * @param searchConstructors Whether we should search constructors.
 	 * @return A new expression that extends the given object.
 	 * @throws DebugException
 	 * @throws JavaModelException
 	 */
-	private Expression extendObject(Expression receiver, Set<Expression> evaledExprs, boolean searchConstructors) throws DebugException, JavaModelException {
+	private Expression extendObject(Expression receiver, Set<Expression> evaledExprs, TypeConstraint typeConstraint, boolean searchConstructors) throws DebugException, JavaModelException {
 		if (classBlacklist.contains(receiver.getStaticType().getName()))
 			return null;
 		boolean isStatic = expressionEvaluator.isStatic(receiver);
 		IJavaType receiverType = getActualTypeForDowncast(receiver, isStatic);
 		// Get possible fields and methods.
-		MethodFieldWeightedList comps = new MethodFieldWeightedList(weights);
+		MethodFieldWeightedList comps = new TargetedMethodFieldWeightedList(typeConstraint, receiver, weights);
 		for (Method method: getMethods(receiverType, sideEffectHandler))
 			if (isUsefulMethod(method, receiver, searchConstructors && method.isConstructor()) && (!isStatic || method.isStatic()))
 				comps.addWeighted(method);
@@ -346,21 +382,18 @@ public class StochasticExpressionGenerator extends ExpressionGenerator {
 	 * @throws DebugException
 	 */
 	private Expression extendNumber(Expression num) throws DebugException {
-		ArrayList<Expression> rightExprs = new ArrayList<Expression>();
+		ExpressionWeightedList rightChoices = new ExpressionWeightedList(expressionEvaluator, weights);
 		for (Expression expr: primitives)
 			if (EclipseUtils.isInt(expr.getStaticType()))
-				rightExprs.add(expr);
-		if (!(num instanceof PrefixExpression) && !(num instanceof InfixExpression))  // Disallow things like -(-x) and -(x + y).
-				rightExprs.add(expressionMaker.makeNull(thread));  // As a hack we use null to stand for unary negation.
-		if (rightExprs.isEmpty())
-			return null;
-		ExpressionWeightedList rightChoices = new ExpressionWeightedList(expressionEvaluator, weights);
-		rightChoices.addAllWeighted(rightExprs);
-		Expression right = rightChoices.getWeighted();
-		if (right instanceof NullLiteral)
+				rightChoices.addWeighted(expr);
+		boolean canDoPrefix = !(num instanceof PrefixExpression) && !(num instanceof InfixExpression);  // Disallow things like -(-x) and -(x + y).
+		if (rightChoices.isEmpty() || random.nextDouble() * ExprStats.PRIM_OP_PROB < (canDoPrefix ? ExprStats.PREFIX_PROB : 0)) {
+			if (!canDoPrefix)
+				return null;
 			return expressionMaker.makePrefix(num, PrefixExpression.Operator.MINUS, thread);
-		else {
-			Operator op = NUMBER_BINARY_OPS[random.nextInt(NUMBER_BINARY_OPS.length)];
+		} else {
+			Expression right = rightChoices.getWeighted();
+			Operator op = infixOperators.getWeighted();
 			if (!mightNotCommute(num, right)) {
 				int cmp = num.toString().compareTo(right.toString());
 				if ((op == InfixExpression.Operator.PLUS || op == InfixExpression.Operator.TIMES) && cmp > 0) {
@@ -385,53 +418,93 @@ public class StochasticExpressionGenerator extends ExpressionGenerator {
 		Result arrResult = expressionEvaluator.getResult(arr, Collections.<Effect>emptySet());
 		int arrLen = ((IJavaArray)arrResult.getValue().getValue()).getLength();
 		Set<Effect> arrEffects = arrResult.getEffects();
-		ArrayList<Expression> indexExprs = new ArrayList<Expression>();
+		ExpressionWeightedList indexChoices = new ExpressionWeightedList(expressionEvaluator, weights);
 		for (Expression expr: primitives)
 			if (EclipseUtils.isInt(expr.getStaticType())) {
 				int index = Integer.parseInt(expressionEvaluator.getValue(expr, arrEffects).getValueString());
 				if (index >= 0 && index < arrLen)
-					indexExprs.add(expr);
+					indexChoices.addWeighted(expr);
 			}
-		indexExprs.add(expressionMaker.makeNull(thread));  // As a hack we use null to stand in for array length.
-		ExpressionWeightedList indexChoices = new ExpressionWeightedList(expressionEvaluator, weights);
-		indexChoices.addAllWeighted(indexExprs);
-		Expression index = indexChoices.getWeighted();  // indexExprs is guaranteed to be non-null because of the length.
-		if (index instanceof NullLiteral)
+		if (indexChoices.isEmpty() || random.nextDouble() * ExprStats.ARR_OP_PROB < ExprStats.ARR_LEN_PROB)
 			return expressionMaker.makeFieldAccess(arr, "length", intType, null, thread);
 		else
-			return expressionMaker.makeArrayAccess(arr, index, thread);
+			return expressionMaker.makeArrayAccess(arr, indexChoices.getWeighted(), thread);
 	}
 	
 	/**
-	 * A weighted list that contains some subset of our
-	 * individual combination lists.
+	 * A weighted list of methods and fields that biases
+	 * the search towards useful types.
 	 */
-	private class ExpressionCombinationWeightedList extends CombinationWeightedList<Expression> {
+	private class TargetedMethodFieldWeightedList extends MethodFieldWeightedList {
+		
+		private final TypeConstraint typeConstraint;
+		private final Expression receiver;
 
-		public ExpressionCombinationWeightedList(WeightedList<Expression>[] weightedLists) {
-			super(weightedLists);
+		public TargetedMethodFieldWeightedList(TypeConstraint typeConstraint, Expression receiver, Weights weights) {
+			super(weights);
+			this.typeConstraint = typeConstraint;
+			this.receiver = receiver;
 		}
 
 		@Override
-		public void addWeighted(Expression expr) {
-			addCandidate(expr);
+		public double getWeight(TypeComponent comp) {
+			double weight = super.getWeight(comp);
+			IJavaType type = comp instanceof Field ? EclipseUtils.getTypeAndLoadIfNeeded(((Field)comp).typeName(), stack, target, typeCache) : getReturnType(receiver, (Method)comp, ((Method)comp).isConstructor());
+			try {
+				weight *= getTypeFactor(type);
+			} catch (DebugException e) {
+				throw new RuntimeException(e);
+			}
+			return weight;
+		}
+		
+		/**
+		 * Gets the factor by which to multiple the given type's
+		 * weight.  Biases the search toward types that fulfill
+		 * the type constraint and away from those that have
+		 * already been seen more.
+		 * @param type The type.
+		 * @return The multiplicative factor to change the type's
+		 * weight in a weighted list.
+		 * @throws DebugException
+		 */
+		private double getTypeFactor(IJavaType type) throws DebugException {
+			if (typeConstraint.isFulfilledBy(type, subtypeChecker, typeCache, stack, target))
+				return 20;
+			else if (mightBeHelpfulWithDowncast(type, typeConstraint))
+				return 10;
+			else {
+				Integer numValuesForType = uniqueValuesSeenForType.get(type.getName());
+				if (numValuesForType == null)
+					return 1;
+				else if (numValuesForType == 2 && booleanType.equals(type))
+					return .01d;
+				else  // Return a smaller number the more values of this type we have seen.
+					return 1 / Math.sqrt(numValuesForType + 1);
+			}
+		}
+		
+	}
+	
+	private class ExpressionCombinationWeightedList extends WeightedCombinationWeightedList<Expression> {
+
+		public ExpressionCombinationWeightedList(ArrayList<IWeightedList<Expression>> weightedLists, double[] weights) {
+			super(weightedLists, weights);
 		}
 
-		/**
-		 * Adds the given expression to the correct weighted list.
-		 * @param expr The expression to add.
-		 */
-		private void addCandidate(Expression expr) {
+		public void addWeighted(Expression expr) {
 			if (EclipseUtils.isPrimitive(expr.getStaticType()))
 				primitives.addWeighted(expr);
 			else if (expressionEvaluator.isStatic(expr))
 				names.addWeighted(expr);
 			else if (expressionEvaluator.getValue(expr, Collections.<Effect>emptySet()).isNull())
 				nulls.addWeighted(expr);
+			else if (EclipseUtils.isArray(expr.getStaticType()))
+				arrs.addWeighted(expr);
 			else
 				objects.addWeighted(expr);
 		}
-
+		
 	}
 	
 	/**
@@ -447,18 +520,20 @@ public class StochasticExpressionGenerator extends ExpressionGenerator {
 				return primitives.get(index);
 			else if (index < primitives.size() + objects.size())
 				return objects.get(index - primitives.size());
+			else if (index < primitives.size() + objects.size() + arrs.size())
+				return arrs.get(index - primitives.size() - objects.size());
 			else
-				return nulls.get(index - primitives.size() - objects.size());
+				return nulls.get(index - primitives.size() - objects.size() - arrs.size());
 		}
 
 		@Override
 		public int size() {
-			return primitives.size() + objects.size() + nulls.size();
+			return primitives.size() + objects.size() + arrs.size() + nulls.size();
 		}
 		
 		@Override
 		public String toString() {
-			return primitives.toString() + "; " + objects.toString() + "; " + nulls.toString();
+			return primitives.toString() + "; " + objects.toString() + "; " + arrs.toString() + ";" + nulls.toString();
 		}
 		
 	}
@@ -646,9 +721,13 @@ public class StochasticExpressionGenerator extends ExpressionGenerator {
 	private void handleNewEquivalentExpr(Map<Result, ArrayList<Expression>> newEquivs, Queue<Expression> exprsToExpand, Expression newExpr, Expression expr, Result result, Set<Expression> evaledExprs) {
 		if (evaledExprs.contains(newExpr))  // TODO: I shouldn't need this.  But I currently miss some things (I think because I only expand once), which, if I later generate them from scratch, would cause me to generate duplicates during expansion.
 			return;
-		expressionEvaluator.copyResults(expr, newExpr);
 		if (!expr.equals(newExpr)) {
 			assert !newEquivs.containsKey(result) || !newEquivs.get(result).contains(newExpr) : newExpr + " from " + expr;
+			if (ProbabilityComputer.getNormalizedProbability(newExpr, expressionEvaluator, weights) < ProbabilityComputer.getNormalizedProbability(expr, expressionEvaluator, weights) / 10) {
+				//System.out.println("Skipping " + newExpr);
+				return;  // Don't add low probability equivalent expressions.
+			}
+			expressionEvaluator.copyResults(expr, newExpr);
 			Utils.addToListMap(newEquivs, result, newExpr);
 			//System.out.println("Adding " + newExpr + " from " + expr);
 			exprsToExpand.add(newExpr);

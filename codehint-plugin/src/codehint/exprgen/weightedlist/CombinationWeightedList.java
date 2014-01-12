@@ -1,22 +1,25 @@
 package codehint.exprgen.weightedlist;
 
+import java.util.List;
 import java.util.Random;
 
 /**
- * A weighted list built out of other weighted lists.
+ * A weighted list built out of other weighted lists
+ * that uses the weights of each component list.
  * @param <T> The type of the elements in the list.
  */
-public abstract class CombinationWeightedList<T> implements WeightedList<T> {
+public abstract class CombinationWeightedList<T> implements IWeightedList<T> {
 	
-	private static final Random random = new Random();
+	protected static final Random random = new Random();
 	
-	private final WeightedList<T>[] weightedLists;
+	// I use a List rather than an array here because Java doesn't let you create generic arrays because of covariance, but you can create generic lists.
+	protected final List<IWeightedList<T>> weightedLists;
 
 	/**
 	 * Constructs a new combination weighted list.
 	 * @param weightedLists The component weighted lists.
 	 */
-	public CombinationWeightedList(WeightedList<T>[] weightedLists) {
+	public CombinationWeightedList(List<IWeightedList<T>> weightedLists) {
 		this.weightedLists = weightedLists;
 	}
 
@@ -25,7 +28,7 @@ public abstract class CombinationWeightedList<T> implements WeightedList<T> {
 		if (size() == 0)
 			return null;
 		double rand = random.nextDouble() * getTotalWeight();
-		for (WeightedList<T> weightedList: weightedLists)
+		for (IWeightedList<T> weightedList: weightedLists)
 			if (rand < weightedList.getTotalWeight())
 				return weightedList.getWeighted();
 			else
@@ -36,7 +39,7 @@ public abstract class CombinationWeightedList<T> implements WeightedList<T> {
 	@Override
 	public int size() {
 		int size = 0;
-		for (WeightedList<T> weightedList: weightedLists)
+		for (IWeightedList<T> weightedList: weightedLists)
 			size += weightedList.size();
 		return size;
 	}
@@ -44,19 +47,19 @@ public abstract class CombinationWeightedList<T> implements WeightedList<T> {
 	@Override
 	public double getTotalWeight() {
 		double totalWeight = 0;
-		for (WeightedList<T> weightedList: weightedLists)
+		for (IWeightedList<T> weightedList: weightedLists)
 			totalWeight += weightedList.getTotalWeight();
 		return totalWeight;
 	}
 	
 	@Override
 	public String toString() {
-		int iMax = weightedLists.length - 1;
+		int iMax = weightedLists.size() - 1;
 		if (iMax == -1)
 			return "[]";
 		StringBuilder sb = new StringBuilder();
 		for (int i = 0; ; i++) {
-			sb.append(weightedLists[i].toString());
+			sb.append(weightedLists.get(i).toString());
 			if (i == iMax)
 				return sb.toString();
 			sb.append(";  ");

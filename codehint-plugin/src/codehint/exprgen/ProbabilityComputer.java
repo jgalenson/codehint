@@ -7,8 +7,11 @@ import codehint.ast.Expression;
 import codehint.ast.FieldAccess;
 import codehint.ast.InfixExpression;
 import codehint.ast.MethodInvocation;
+import codehint.ast.NullLiteral;
 import codehint.ast.PrefixExpression;
 import codehint.ast.SimpleName;
+import codehint.ast.ThisExpression;
+
 import com.sun.jdi.Field;
 import com.sun.jdi.Method;
 
@@ -50,18 +53,18 @@ public class ProbabilityComputer extends ASTVisitor {
 
 	@Override
 	public boolean visit(MethodInvocation node) {
-		return visitMethod(node);
+		return visitMethod(node, ExprStats.CALL_PROB);
 	}
 
 	@Override
 	public boolean visit(ClassInstanceCreation node) {
-		return visitMethod(node);
+		return visitMethod(node, ExprStats.NEW_PROB);
 	}
 	
-	private boolean visitMethod(Expression node) {
-		double fieldProb = getMethodProbability(expressionEvaluator.getMethod(node), weights);
-		prob *= fieldProb;
-		probSum += fieldProb;
+	private boolean visitMethod(Expression node, double typeProb) {
+		double methodProb = getMethodProbability(expressionEvaluator.getMethod(node), weights) * typeProb;
+		prob *= methodProb;
+		probSum += methodProb;
 		count++;
 		return true;
 	}
@@ -75,21 +78,22 @@ public class ProbabilityComputer extends ASTVisitor {
 	
 	@Override
 	public boolean visit(FieldAccess node) {
-		return visitField(expressionEvaluator.getField(node));  // field is null for array length
+		Field field = expressionEvaluator.getField(node);
+		return visitField(field, field == null ? ExprStats.ARR_LEN_PROB : ExprStats.FIELD_PROB);  // field is null for array length
 	}
 	
 	@Override
 	public boolean visit(SimpleName node) {
 		Field field = expressionEvaluator.getField(node);
 		if (field != null && field.isPublic())  // Don't count unqualified non-public field accesses.
-			return visitField(field);
+			return visitField(field, ExprStats.FIELD_PROB);
 		else
 			count++;
 		return true;
 	}
 	
-	private boolean visitField(Field field) {
-		double fieldProb = getFieldProbability(field, weights);
+	private boolean visitField(Field field, double typeProb) {
+		double fieldProb = getFieldProbability(field, weights) * typeProb;
 		prob *= fieldProb;
 		probSum += fieldProb;
 		count++;
@@ -105,24 +109,35 @@ public class ProbabilityComputer extends ASTVisitor {
 	
 	@Override
 	public boolean visit(InfixExpression node) {
-		return visitAverage();
+		return visitAverage(ExprStats.INFIX_PROB * ExprStats.getInfixOperatorProbability(node.getOperator().toString()));
 	}
 	
 	@Override
 	public boolean visit(PrefixExpression node) {
-		return visitAverage();
+		return visitAverage(ExprStats.PREFIX_PROB * ExprStats.getPrefixOperatorProbability(node.getOperator().toString()));
 	}
 	
 	@Override
 	public boolean visit(ArrayAccess node) {
-		return visitAverage();
+		return visitAverage(ExprStats.ARR_ACCESS_PROB);
 	}
 	
-	private boolean visitAverage() {
-		prob *= weights.getAverageWeight();
-		probSum += weights.getAverageWeight();
+	private boolean visitAverage(double typeProb) {
+		double weight = weights.getAverageWeight() * typeProb;
+		prob *= weight;
+		probSum += weight;
 		count++;
 		return true;
+	}
+	
+	@Override
+	public boolean visit(NullLiteral node) {
+		return visitAverage(ExprStats.NULL_PROB);
+	}
+	
+	@Override
+	public boolean visit(ThisExpression node) {
+		return visitAverage(ExprStats.THIS_PROB);
 	}
 	
 }
