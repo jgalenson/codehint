@@ -10,6 +10,7 @@ import com.sun.jdi.Field;
 import com.sun.jdi.Method;
 
 import codehint.utils.EclipseUtils;
+import codehint.utils.Utils;
 
 /**
  * Stores our database of methods and fields seen in real code.
@@ -51,7 +52,7 @@ public class Weights {
 		return averageWeight;
 	}
 	
-	private long getTotal() {
+	public long getTotal() {
 		return total;
 	}
 	
@@ -65,9 +66,7 @@ public class Weights {
 		Map<String, Integer> calls = weights.get(typeName.replace("$", "."));
 		if (calls == null)
 			return averageWeight;
-		/*int numCallsOn = 0;
-		for (Integer n: calls.values())
-			numCallsOn += n;
+		/*int numCallsOn = Utils.getValueTotal(calls);
 		assert numCallsOn > 0;*/
 		Integer numCallsTo = calls.get(key);
 		if (numCallsTo == null)
@@ -95,17 +94,24 @@ public class Weights {
 		Integer numCallsTo = calls.get(key);
 		if (numCallsTo == null)
 			return true;
-		int numCallsOn = 0;
-		for (Integer n: calls.values())
-			numCallsOn += n;
+		int numCallsOn = Utils.getValueTotal(calls);
 		return numCallsTo < ((numCallsOn / (double)calls.size()) / 5);
 	}
 	
-	public boolean seenMethod(Method method) {
+	public int getMethodCount(Method method) {
 		Map<String, Integer> calls = weights.get(method.declaringType().name().replace("$", "."));
 		if (calls == null)
-			return false;
-		return calls.get(getMethodKey(method)) != null;
+			return 0;
+		Integer count = calls.get(getMethodKey(method));
+		return count == null ? 0 : count;
+	}
+	
+	public boolean seenMethod(Method method) {
+		return getMethodCount(method) != 0;
+	}
+	
+	public boolean seenType(String typeName) {
+		return weights.get(typeName.replace("$", ".")) != null;
 	}
 
 	public boolean isBadConstant(Method method, int i, Field field) {

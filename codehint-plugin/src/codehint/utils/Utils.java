@@ -163,6 +163,18 @@ public class Utils {
 	}
 	
 	/**
+	 * Gets the sum of the values in the given map.
+	 * @param map The map.
+	 * @return The sum of the integer values in the given map.
+	 */
+	public static int getValueTotal(Map<?, Integer> map) {
+		int count = 0;
+		for (Integer n: map.values())
+			count += n;
+		return count;
+	}
+	
+	/**
 	 * Gets a printable version of the given String
 	 * by quoting unprintable characters like newlines.
 	 * @param s The string.

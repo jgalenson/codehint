@@ -94,7 +94,7 @@ public class StochasticExpressionGenerator extends ExpressionGenerator {
 
 	@Override
 	public ArrayList<Expression> generateExpression(Property property, TypeConstraint typeConstraint, String varName, boolean searchConstructors, boolean searchOperators, SynthesisDialog synthesisDialog, IProgressMonitor monitor, int maxExprDepth) {
-		this.names = new ExpressionWeightedList(expressionEvaluator, weights);
+		this.names = new StaticNameWeightedList(expressionEvaluator, weights);
 		this.primitives = new ExpressionWeightedList(expressionEvaluator, weights);
 		this.objects = new ExpressionWeightedList(expressionEvaluator, weights);
 		this.arrs = new ExpressionWeightedList(expressionEvaluator, weights);
@@ -217,7 +217,7 @@ public class StochasticExpressionGenerator extends ExpressionGenerator {
 				if (!Flags.isStatic(imp.getFlags())) {
 					IJavaReferenceType importedType = (IJavaReferenceType)EclipseUtils.getTypeAndLoadIfNeeded(fullName, stack, target, typeCache);
 					if (importedType != null) {
-						if (hasStaticFieldOrMethod(importedType))
+						if (hasPublicStaticFieldOrMethod(importedType))
 							names.addWeighted(expressionMaker.makeStaticName(shortName, importedType, thread));
 					}
 				}
@@ -226,16 +226,16 @@ public class StochasticExpressionGenerator extends ExpressionGenerator {
 	}
 	
 	/**
-	 * Checks whether the given type has a static field or method.
+	 * Checks whether the given type has a public static field or method.
 	 * @param type The type to check.
-	 * @return Whether the given type has a static field or method.
+	 * @return Whether the given type has a public static field or method.
 	 */
-	private boolean hasStaticFieldOrMethod(IJavaType type) {
+	private boolean hasPublicStaticFieldOrMethod(IJavaType type) {
 		for (Method method: getMethods(type, sideEffectHandler))
-			if (method.isStatic())
+			if (method.isStatic() && method.isPublic())
 				return true;
 		for (Field field: getFields(type))
-			if (field.isStatic())
+			if (field.isStatic() && field.isPublic())
 				return true;
 		return false;
 	}
@@ -503,6 +503,45 @@ public class StochasticExpressionGenerator extends ExpressionGenerator {
 				arrs.addWeighted(expr);
 			else
 				objects.addWeighted(expr);
+		}
+		
+	}
+	
+	/**
+	 * A weighted list that computes probabilities by
+	 * how often static methods or fields are accessed
+	 * on the given name.
+	 */
+	private class StaticNameWeightedList extends ExpressionWeightedList {
+
+		public StaticNameWeightedList(ExpressionEvaluator expressionEvaluator, Weights weights) {
+			super(expressionEvaluator, weights);
+		}
+		
+		/*
+		 * Note that this involves looping over all of a type's
+		 * methods and so is expensive.  If I end up needing to
+		 * call this a lot, it would be more efficient to store
+		 * the information in the model itself.
+		 */
+		@Override
+		public double getWeight(Expression expr) {
+			try {
+				IJavaType type = expressionEvaluator.getStaticType(expr);
+				if (!weights.seenType(type.getName()))
+					return weights.getAverageWeight();
+				int methodCount = 0;
+				for (Method method: getMethods(type, sideEffectHandler))
+					if (method.isStatic() && isUsefulMethod(method, expr, false))
+						methodCount += weights.getMethodCount(method);
+				if (methodCount == 0)
+					return 0.05d / (double)weights.getTotal();
+				return methodCount / (double)weights.getTotal();
+			} catch (DebugException e) {
+				throw new RuntimeException(e);
+			} catch (JavaModelException e) {
+				throw new RuntimeException(e);
+			}
 		}
 		
 	}

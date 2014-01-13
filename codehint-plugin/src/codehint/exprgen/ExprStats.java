@@ -5,22 +5,22 @@ import java.util.Map;
 
 public final class ExprStats {
 	
-	public static final double CALL_PROB = .39618;
-	public static final double INFIX_PROB = .13922;
-	public static final double FIELD_PROB = .09765;
-	public static final double NULL_PROB = .0617;
-	public static final double NEW_PROB = .05082;
-	public static final double THIS_PROB = .02938;
-	public static final double PREFIX_PROB = .01936;
-	public static final double ARR_ACCESS_PROB = .01534;
-	public static final double ARR_LEN_PROB = .00809;
+	public static final double CALL_PROB = .40500;
+	public static final double INFIX_PROB = .14232;
+	public static final double FIELD_PROB = .08099;
+	public static final double NULL_PROB = .06307;
+	public static final double NEW_PROB = .05195;
+	public static final double THIS_PROB = .03003;
+	public static final double PREFIX_PROB = .019797;
+	public static final double ARR_ACCESS_PROB = .01225;
+	public static final double ARR_LEN_PROB = .00827;
 	
 	public static final double PRIM_OP_PROB = INFIX_PROB + PREFIX_PROB;
 	public static final double OBJECT_OP_PROB = CALL_PROB + FIELD_PROB + NEW_PROB;
 	public static final double ARR_OP_PROB = ARR_ACCESS_PROB + ARR_LEN_PROB;
 	
-	public static final double STATIC_OP_PROB = 0.24295;
-	public static final double INSTANCE_OP_PROB = 0.75705;
+	public static final double STATIC_OP_PROB = 0.25226;
+	public static final double INSTANCE_OP_PROB = 1 - STATIC_OP_PROB;
 	
 	public static final double INFIX_PLUS_PROB = 0.19478;
 	public static final double INFIX_MINUS_PROB = 0.04554;
