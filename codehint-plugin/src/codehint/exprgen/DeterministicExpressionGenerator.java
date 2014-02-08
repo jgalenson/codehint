@@ -664,6 +664,8 @@ public final class DeterministicExpressionGenerator extends ExpressionGenerator 
 			return;
 		while (curType != null && !curType.equals(e.getStaticType()) && (downcastTypes.contains(curType.getName()) || uniqueValuesSeenForType.containsKey(curType.getName())))
 			curType = ((IJavaClassType)curType).getSuperclass();  // As a heuristic optimization, avoid downcasting to types we've seen before.
+		if (curType == null)
+			curType = e.getStaticType();
 		boolean isSubtype = !curType.equals(e.getStaticType());
 		if (isSubtype) {
 			//System.out.println("Downcasting " + e + " to " + curType.getName());
@@ -1317,10 +1319,10 @@ public final class DeterministicExpressionGenerator extends ExpressionGenerator 
 	private void makeAllCalls(Method method, String name, Expression receiver, List<Expression> results, ArrayList<ArrayList<Expression>> possibleActuals, ArrayList<Expression> curActuals, IJavaType returnType, Set<Effect> effects, Result result, int maxDepth) {
 		if (curMonitor.isCanceled())
 			throw new OperationCanceledException();
-		if (curActuals.size() == possibleActuals.size())
+		if (curActuals.size() == possibleActuals.size()) {
 			if (getDepthOfCall(receiver, curActuals, method) <= maxDepth)  // Optimization: Do an early check to ensure we don't generate expressions that are too large.  We would filter it out later, but this would cause us to create lots of new ASTS, which can be very slow.
 				results.add(makeEquivalenceCall(method, name, returnType, receiver, curActuals, effects, result));
-		else {
+		} else {
 			int depth = curActuals.size();
 			for (Expression e : possibleActuals.get(depth)) {
 				curActuals.add(e);
