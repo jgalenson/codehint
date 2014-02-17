@@ -480,6 +480,8 @@ public class ExpressionEvaluator {
 			if (!"V".equals(operandResult.getValue().getValue().getSignature()))
 				result = new Result(computePrefixOp(operandResult.getValue().getValue(), prefix.getOperator()), operandResult.getEffects(), valueCache, thread);
 		} else if (e instanceof MethodInvocation || e instanceof ClassInstanceCreation) {
+			if (!effects.isEmpty() && !effectsMightMatterCall(e))
+				return reEvaluateExpression(e, Collections.<Effect>emptySet(), expressionGenerator);
 			Method method = getMethod(e);
 			//String methodName = null;
 			IJavaType receiverStaticType = null;
@@ -554,6 +556,26 @@ public class ExpressionEvaluator {
 			SideEffectHandler.undoEffects(effects);
 			//System.out.println("Got toString of " + expr.toString());
 		}
+	}
+	
+	private boolean effectsMightMatterCall(Expression e) throws DebugException {
+		if (e instanceof MethodInvocation) {
+			MethodInvocation call = (MethodInvocation)e;
+			IJavaType receiverType = call.getExpression() == null ? stack.getReferenceType() : call.getExpression().getStaticType();
+			if (effectsMightMatter(receiverType))
+				return true;
+			for (Expression arg: call.arguments())
+				if (effectsMightMatter(arg.getStaticType()))
+					return true;
+		} else if (e instanceof ClassInstanceCreation) {
+			return true;  // Constructors could rely on static state that could have changed.
+		} else
+			throw new RuntimeException("Unexpected expression type:" + e.getClass().getName());
+		return false;
+	}
+	
+	private static boolean effectsMightMatter(IJavaType type) throws DebugException {
+		return !EclipseUtils.isPrimitive(type) && !"java.lang.String".equals(type.getName());
 	}
 	
 	// The spec is at http://docs.oracle.com/javase/specs/jls/se7/html/jls-15.html.
