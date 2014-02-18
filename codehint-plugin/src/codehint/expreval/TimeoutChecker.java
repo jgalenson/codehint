@@ -19,8 +19,9 @@ import codehint.exprgen.TypeCache;
 import codehint.utils.EclipseUtils;
 
 public class TimeoutChecker extends Job {
-	
+
 	public static final long TIMEOUT_TIME_MS = 1000l;
+	public static final long EFFECT_TIMEOUT_TIME_MS = 5 * TIMEOUT_TIME_MS;
 	
 	private final IJavaThread thread;
 	private final IJavaObject exceptionObj;
@@ -28,6 +29,7 @@ public class TimeoutChecker extends Job {
 	private IJavaFieldVariable countField;
 	private int lastCheckCount;
 	private boolean killed;
+	private boolean isHandlingSideEffects;
 	
 	private IJavaClassType awtWindowType;
 	private IJavaValue[] awtWindows;
@@ -109,7 +111,7 @@ public class TimeoutChecker extends Job {
 				}
 				lastCheckCount = count;
 			}
-			schedule(TIMEOUT_TIME_MS);
+			schedule(isHandlingSideEffects ? EFFECT_TIMEOUT_TIME_MS : TIMEOUT_TIME_MS);
 		}
 		return Status.OK_STATUS;
 	}
@@ -159,13 +161,15 @@ public class TimeoutChecker extends Job {
 		return false;
 	}
 
-	public void start() {
+	public void start(boolean isHandlingSideEffects) {
+		this.isHandlingSideEffects = isHandlingSideEffects;
 		setPriority(Job.SHORT);
 		schedule();
 	}
 	
 	public void stop() {
-		cleanupWindows();  // Cleanup any windows that might have opened but we didn't kill after timeouts.
+		if (thread.isSuspended())
+			cleanupWindows();  // Cleanup any windows that might have opened but we didn't kill after timeouts.
 		cancel();
 	}
 	

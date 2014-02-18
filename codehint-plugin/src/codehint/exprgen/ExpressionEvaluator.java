@@ -298,7 +298,7 @@ public class ExpressionEvaluator {
 		Set<Effect> resultEffects = null;
 		//long startTime = System.currentTimeMillis();
 		try {
-			//System.out.println("Calling " + (receiverValue != null ? receiver : receiver.getStaticType()).toString().replace("\n", "\\n") + "." + method.name() + " with args " + args.toString());
+			//System.out.println("Calling " + (receiverValue != null ? receiverValue : receiverStaticType).toString().replace("\n", "\\n") + "." + method.name() + " with args " + java.util.Arrays.toString(argValues));
 			timeoutChecker.startEvaluating(null);
 			nativeHandler.blockNativeCalls();
 			sideEffectHandler.startHandlingSideEffects();
@@ -312,14 +312,14 @@ public class ExpressionEvaluator {
 				value = ((IJavaObject)receiverValue).sendMessage(method.name(), method.signature(), argValues, thread, null);
 			//System.out.println("Got " + value);
 		} catch (DebugException e) {
-			//System.out.println("Crashed on " + receiver.toString().replace("\n", "\\n") + "." + method.name() + " with args " + args.toString().replace("\n", "\\n") + " got " + EclipseUtils.getExceptionMessage(e));
+			//System.out.println("Crashed on " + (receiverValue != null ? receiverValue : receiverStaticType).toString().replace("\n", "\\n") + "." + method.name() + " with args " + java.util.Arrays.toString(argValues).replace("\n", "\\n") + " got " + EclipseUtils.getExceptionMessage(e));
 			numCrashes++;
 			value = target.voidValue();
 		} finally {
 			resultEffects = isOutermost ? sideEffectHandler.stopHandlingSideEffects() : sideEffectHandler.getSideEffects();
 			nativeHandler.allowNativeCalls();
 			timeoutChecker.stopEvaluating();
-			//System.out.println("Calling " + (receiverValue != null ? receiver : receiver.getStaticType()).toString().replace("\n", "\\n") + "." + method.name() + " with args " + args.toString() + " got " + value + " with effects " + effects + " and took " + (System.currentTimeMillis() - startTime) + "ms.");
+			//System.out.println("Calling " + (receiverValue != null ? receiverValue : receiverStaticType).toString().replace("\n", "\\n") + "." + method.name() + " with args " + java.util.Arrays.toString(argValues) + " got " + value + " with effects " + effects + " and took " + (System.currentTimeMillis() - startTime) + "ms.");
 		}
 		return new Result(value, resultEffects, valueCache, thread);
 	}
@@ -341,11 +341,6 @@ public class ExpressionEvaluator {
 	}
 	
 	private Set<Effect> getArgValues(Set<Effect> effects, ArrayList<Expression> args, IJavaValue[] argValues) {
-		boolean seenEffects = !effects.isEmpty();
-		if (seenEffects) {
-			//System.out.println("Replaying/re-evaluating starting at receiver: " + receiver + ", " + args.toString());
-			sideEffectHandler.redoAndRecordEffects(effects);
-		}
 		for (int i = 0; i < argValues.length; i++) {
 			Expression arg = args.get(i);
 			Result argResult = getResult(arg, effects);

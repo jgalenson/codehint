@@ -220,6 +220,8 @@ public abstract class ExpressionGenerator {
 		methodPreconditions.put("java.util.Arrays copyOfRange ([FII)[F", new Predicate[] { new NonNull(1), new In(new Arg(2), 1), new GE(new Arg(3), new Arg(2)) });
 		methodPreconditions.put("java.util.Arrays copyOfRange ([DII)[D", new Predicate[] { new NonNull(1), new In(new Arg(2), 1), new GE(new Arg(3), new Arg(2)) });
 		methodPreconditions.put("java.util.Arrays copyOfRange ([ZII)[Z", new Predicate[] { new NonNull(1), new In(new Arg(2), 1), new GE(new Arg(3), new Arg(2)) });
+		
+		methodPreconditions.put("java.awt.Component getFontMetrics (Ljava/awt/Font;)Ljava/awt/FontMetrics;", new Predicate[] { new NonNull(1) });
 	}
 	
 	protected final IJavaDebugTarget target;

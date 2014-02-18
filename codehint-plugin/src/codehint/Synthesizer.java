@@ -282,7 +282,7 @@ public class Synthesizer {
 			job.setPriority(Job.LONG);
 			//job.setUser(true);
 			job.schedule();
-			timeoutChecker.start();
+			timeoutChecker.start(sideEffectHandler.isEnabled());
 		}
 		
 	}
@@ -359,7 +359,7 @@ public class Synthesizer {
 					EvaluationManager evalManager = new EvaluationManager(false, nativeHandler == null, frame, synthesisDialog.getExpressionEvaluator(), new SubtypeChecker(frame, target, typeCache), typeCache, valueCache, timeoutChecker);
 					evalManager.init();
 					try {
-						timeoutChecker.start();
+						timeoutChecker.start(handledEffects);
 						if (nativeHandler != null) {
 							breakpointDisabler.disableBreakpoints();
 							nativeHandler.enable(true);
