@@ -136,7 +136,8 @@ public class SideEffectHandler {
 						|| typeName.equals("java.lang.String")  // A String's value array will never change and we don't care about its hashCode.
 						|| typeName.equals("java.lang.Class")
 						|| typeName.equals("java.lang.CharacterDataLatin1")
-						|| typeName.equals("java.lang.Integer$IntegerCache"))
+						|| typeName.equals("java.lang.Integer$IntegerCache")
+						|| typeName.equals("java.lang.Integer"))
 					continue;
 				List<IJavaObject> instances = null;
 				for (IField field: itype.getFields()) {
@@ -162,6 +163,7 @@ public class SideEffectHandler {
 						}
 					}
 				}
+				//System.out.println(typeName + ": " + (instances == null ? 0 : instances.size()));
 			} catch (JavaModelException e) {
 				//System.out.println("Bad times on " + type.name());
 				continue;  // Calling getFields() on some anonymous classes throws an exception....

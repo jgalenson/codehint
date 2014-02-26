@@ -298,7 +298,7 @@ public class ExpressionEvaluator {
 		Set<Effect> resultEffects = null;
 		//long startTime = System.currentTimeMillis();
 		try {
-			//System.out.println("Calling " + (receiverValue != null ? receiverValue : receiverStaticType).toString().replace("\n", "\\n") + "." + method.name() + " with args " + java.util.Arrays.toString(argValues));
+			//System.out.println("Calling " + (receiverValue != null ? receiverValue : receiverStaticType).toString().replace("\n", "\\n") + "." + method.name() + " with args " + java.util.Arrays.toString(argValues) + " with effects " + effects);
 			timeoutChecker.startEvaluating(null);
 			nativeHandler.blockNativeCalls();
 			sideEffectHandler.startHandlingSideEffects();
@@ -319,7 +319,7 @@ public class ExpressionEvaluator {
 			resultEffects = isOutermost ? sideEffectHandler.stopHandlingSideEffects() : sideEffectHandler.getSideEffects();
 			nativeHandler.allowNativeCalls();
 			timeoutChecker.stopEvaluating();
-			//System.out.println("Calling " + (receiverValue != null ? receiverValue : receiverStaticType).toString().replace("\n", "\\n") + "." + method.name() + " with args " + java.util.Arrays.toString(argValues) + " got " + value + " with effects " + effects + " and took " + (System.currentTimeMillis() - startTime) + "ms.");
+			//System.out.println("Calling " + (receiverValue != null ? receiverValue : receiverStaticType).toString().replace("\n", "\\n") + "." + method.name() + " with args " + java.util.Arrays.toString(argValues) + " got " + value + " with effects " + resultEffects + " and took " + (System.currentTimeMillis() - startTime) + "ms.");
 		}
 		return new Result(value, resultEffects, valueCache, thread);
 	}
@@ -364,7 +364,7 @@ public class ExpressionEvaluator {
 		if (result != null)
 			return result;
 		try {
-			//System.out.println("Re-evaluating " + expr + " with effects " + effects);
+			//System.out.println("Re-evaluating " + expr.toString().replace("\n", "\\n") + " with effects " + effects.toString().replace("\n", "\\n"));
 			sideEffectHandler.startHandlingSideEffects();
 			sideEffectHandler.redoAndRecordEffects(effects);
 			result = reEvaluateExpression(expr, effects, expressionGenerator);
@@ -538,6 +538,7 @@ public class ExpressionEvaluator {
 			return EclipseUtils.javaStringOfValue(value, stack, true);
 		Result result = getResult(expr, Collections.<Effect>emptySet());
 		Set<Effect> effects = result == null ? Collections.<Effect>emptySet() : result.getEffects();
+		//long startTime = System.currentTimeMillis();
 		try {
 			//System.out.println("Getting toString of " + expr + " with effects " + effects);
 			SideEffectHandler.redoEffects(effects);
@@ -549,7 +550,7 @@ public class ExpressionEvaluator {
 		} finally {
 			timeoutChecker.stopEvaluating();
 			SideEffectHandler.undoEffects(effects);
-			//System.out.println("Got toString of " + expr.toString());
+			//System.out.println("Got toString of " + expr.toString() + " in " + (System.currentTimeMillis() - startTime) + "ms.");
 		}
 	}
 	
