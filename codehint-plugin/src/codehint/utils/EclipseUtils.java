@@ -1077,7 +1077,9 @@ public final class EclipseUtils {
      * @throws DebugException 
      */
     public static IJavaValue evaluate(String stringValue, final IJavaStackFrame stack) throws DebugException {
-        IAstEvaluationEngine engine = getASTEvaluationEngine(stack);
+    	//long startTime = System.currentTimeMillis();
+    	//System.out.println("Evaluating " + stringValue);
+    	IAstEvaluationEngine engine = getASTEvaluationEngine(stack);
         final IEvaluationResult[] results = new IEvaluationResult[1];
         IEvaluationListener listener = new IEvaluationListener() {
             @Override
@@ -1112,6 +1114,7 @@ public final class EclipseUtils {
 			} catch (InterruptedException e) {
 				throw new RuntimeException(e);
 			}
+			//System.out.println("Evaluating " + stringValue + " took " + (System.currentTimeMillis() - startTime) + "ms and timed out.");
 		    return null;
 		}
 		if (result.hasErrors()) {
@@ -1119,6 +1122,7 @@ public final class EclipseUtils {
 			//showError("Evaluation error", msg, null);
 			throw new EvaluationManager.EvaluationError(msg);
 		}
+		//System.out.println("Evaluating " + stringValue + " took " + (System.currentTimeMillis() - startTime) + "ms.");
 		return result.getValue();
     }
     
@@ -1196,7 +1200,7 @@ public final class EclipseUtils {
      */
     private static IJavaType loadAndGetType(String typeName, IJavaStackFrame stack, IJavaDebugTarget target, TypeCache typeCache) {
     	try {
-    		loadClass(typeName, stack);
+    		loadClass(typeName, stack, target, typeCache);
     	} catch (EvaluationError e) {  // In some cases types appear to be legal statically (they compile) but crash on evaluation, so we catch that here.
     		typeCache.markIllegal(typeName);
     		return null;
@@ -1215,7 +1219,26 @@ public final class EclipseUtils {
      * @param typeName The name of the type to load.
      * @param stack The current stack frame.
      */
-    private static void loadClass(String typeName, IJavaStackFrame stack) {
+    private static void loadClass(String typeName, IJavaStackFrame stack, IJavaDebugTarget target, TypeCache typeCache) {
+    	try {
+    		//long startTime = System.currentTimeMillis();
+    		//System.out.println("Loading class " + typeName);
+    		while (typeName.endsWith("[]"))  // Class.forName needs array types to be in signature form.
+    			typeName = "[L" + typeName.substring(0, typeName.length() - 2) + ";";
+    		((IJavaClassType)EclipseUtils.getFullyQualifiedType("java.lang.Class", stack, target, typeCache)).sendMessage("forName", "(Ljava/lang/String;)Ljava/lang/Class;", new IJavaValue[] { target.newValue(typeName) }, (IJavaThread)stack.getThread());
+    		//System.out.println("Loaded class " + typeName + " in " + (System.currentTimeMillis() - startTime) + "ms.");
+    	} catch (DebugException e) {
+    		throw new RuntimeException(e);
+    	}
+    }
+    
+    /**
+     * Loads the given type.
+     * TODO: Replace this with loadClass().
+     * @param typeName The name of the type to load.
+     * @param stack The current stack frame.
+     */
+    private static void loadClassSlow(String typeName, IJavaStackFrame stack) {
     	try {
     		int dollar = typeName.indexOf('$');  // For inner classes, we seem to need to load the outer class first.
     		if (dollar != -1)
@@ -1271,11 +1294,11 @@ public final class EclipseUtils {
 			return var.getJavaType();
 		} catch (DebugException e1) {
 			try {
-				loadClass(var.getReferenceTypeName(), stack);
+				loadClassSlow(var.getReferenceTypeName(), stack);
 				return var.getJavaType();
 			} catch (DebugException e2) {
 				try {
-					loadClass(var.getSignature().substring(1, var.getSignature().length() - 1).replace("/", "."), stack);
+					loadClassSlow(var.getSignature().substring(1, var.getSignature().length() - 1).replace("/", "."), stack);
 					return var.getJavaType();
 				} catch (DebugException e3) {
 					throw new RuntimeException(e1);
