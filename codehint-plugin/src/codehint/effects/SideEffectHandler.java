@@ -300,37 +300,39 @@ public class SideEffectHandler {
 
 		@Override
 		public boolean handleEvent(Event event, JDIDebugTarget target, boolean suspendVote, EventSet eventSet) {
-			if (effectsMap == null)  // We're not currently tracking side effects.
-				return true;
-			if (event instanceof WatchpointEvent) {
-				WatchpointEvent watchEvent = (WatchpointEvent)event;
-				//System.out.println(event + " on " + FieldLVal.makeFieldLVal(watchEvent.object(), watchEvent.field()).toString());
-				ObjectReference obj = watchEvent.object();
-				if (obj != null && obj.uniqueID() > maxID) {
-					//System.out.println("Ignoring new object " + obj.toString());
+			synchronized (SideEffectHandler.this) {
+				if (effectsMap == null)  // We're not currently tracking side effects.
 					return true;
-				}
-				if (watchEvent instanceof ModificationWatchpointEvent) {
-					ModificationWatchpointEvent modEvent = (ModificationWatchpointEvent)watchEvent;
-					if (!modEvent.location().method().isStaticInitializer())  // If the field is modified in a static initializer, it must be the initialization of a static field of a newly-loaded class, which we don't want to revert.
-						recordEffect(FieldLVal.makeFieldLVal(obj, modEvent.field()), modEvent.valueCurrent(), modEvent.valueToBe());
-					return true;
-				} else if (watchEvent instanceof AccessWatchpointEvent) {
-					AccessWatchpointEvent readEvent = (AccessWatchpointEvent)watchEvent;
-					Value oldVal = readEvent.valueCurrent();
-					if (oldVal instanceof ArrayReference)
-						backupArray(FieldLVal.makeFieldLVal(obj, readEvent.field()), oldVal);
-					/*else
+				if (event instanceof WatchpointEvent) {
+					WatchpointEvent watchEvent = (WatchpointEvent)event;
+					//System.out.println(event + " on " + FieldLVal.makeFieldLVal(watchEvent.object(), watchEvent.field()).toString());
+					ObjectReference obj = watchEvent.object();
+					if (obj != null && obj.uniqueID() > maxID) {
+						//System.out.println("Ignoring new object " + obj.toString());
+						return true;
+					}
+					if (watchEvent instanceof ModificationWatchpointEvent) {
+						ModificationWatchpointEvent modEvent = (ModificationWatchpointEvent)watchEvent;
+						if (!modEvent.location().method().isStaticInitializer())  // If the field is modified in a static initializer, it must be the initialization of a static field of a newly-loaded class, which we don't want to revert.
+							recordEffect(FieldLVal.makeFieldLVal(obj, modEvent.field()), modEvent.valueCurrent(), modEvent.valueToBe());
+						return true;
+					} else if (watchEvent instanceof AccessWatchpointEvent) {
+						AccessWatchpointEvent readEvent = (AccessWatchpointEvent)watchEvent;
+						Value oldVal = readEvent.valueCurrent();
+						if (oldVal instanceof ArrayReference)
+							backupArray(FieldLVal.makeFieldLVal(obj, readEvent.field()), oldVal);
+						/*else
 						System.out.println("Ignoring read on non-array Object");*/
-					return true;
+						return true;
+					}
 				}
+				return super.handleEvent(event, target, suspendVote, eventSet);
 			}
-			return super.handleEvent(event, target, suspendVote, eventSet);
 		}
 		
 	}
 
-	private void recordEffect(FieldLVal lval, Value oldVal, Value newVal) {
+	private synchronized void recordEffect(FieldLVal lval, Value oldVal, Value newVal) {
 		if (oldVal != newVal && (oldVal == null || !oldVal.equals(newVal))) {
 			if (readArrays.contains(lval))  // If the static type of the field is Object, we might track it twice, in write and array read.
 				return;
@@ -353,7 +355,7 @@ public class SideEffectHandler {
 			System.out.println("Unchanged " + lval.toString() + " from " + oldVal);*/
 	}
 
-	private void backupArray(FieldLVal lval, Value oldVal) {
+	private synchronized void backupArray(FieldLVal lval, Value oldVal) {
 		if (changedFields.contains(lval))  // If the static type of the field is Object, we might track it twice, in write and array read.
 			return;
 		if (!readFieldsMap.containsKey(lval)) {
@@ -365,7 +367,7 @@ public class SideEffectHandler {
 		}
 	}
 	
-	private Set<Effect> getEffects() {
+	private synchronized Set<Effect> getEffects() {
 		Set<Effect> effects = new HashSet<Effect>();
 		for (Map.Entry<FieldLVal, MutablePair<RVal, RVal>> entry: effectsMap.entrySet()) {
 			// We need to update the new rval if it's an array because its entries might have changed.
@@ -484,7 +486,7 @@ public class SideEffectHandler {
 	private Set<FieldLVal> readArrays;
 	private Set<ArrayReference> backedUpArrays;
 	
-	public void startHandlingSideEffects() {
+	public synchronized void startHandlingSideEffects() {
 		if (!enabled)
 			return;
 		if (effectsMap == null) {
@@ -528,7 +530,7 @@ public class SideEffectHandler {
 			return effects;
 	}
 	
-	public Set<Effect> stopHandlingSideEffects() {
+	public synchronized Set<Effect> stopHandlingSideEffects() {
 		Set<Effect> effects = getSideEffects();
 		effectsMap = null;
 		readFieldsMap = null;
@@ -616,7 +618,7 @@ public class SideEffectHandler {
 		}
 	}
 
-	public void redoAndRecordEffects(Set<Effect> effects) {
+	public synchronized void redoAndRecordEffects(Set<Effect> effects) {
 		for (Effect effect: effects) {
 			if (effect.getLval() instanceof FieldLVal) {
 				FieldLVal lval = (FieldLVal)effect.getLval();
