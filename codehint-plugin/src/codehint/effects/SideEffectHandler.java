@@ -139,6 +139,8 @@ public class SideEffectHandler {
 						|| typeName.equals("java.lang.Integer$IntegerCache")
 						|| typeName.equals("java.lang.Integer"))
 					continue;
+				if (typeName.equals("java.util.concurrent.locks.AbstractQueuedSynchronizer"))
+					continue;  // Heuristically avoiding undoing side effects on sync variables, which can cause hangs in Swing.
 				List<IJavaObject> instances = null;
 				for (IField field: itype.getFields()) {
 					if (!Flags.isFinal(field.getFlags()) || canBeArray(field)) {
