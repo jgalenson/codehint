@@ -533,6 +533,8 @@ public final class DeterministicExpressionGenerator extends ExpressionGenerator 
     				// Calls to static methods and fields of imported classes.
     				for (IImportDeclaration imp : imports) {
     					String fullName = imp.getElementName();
+    					if (classBlacklist.contains(fullName))
+    						continue;
     					String shortName = EclipseUtils.getUnqualifiedName(fullName);  // Use the unqualified typename for brevity.
     					if (!imp.isOnDemand()) {  // TODO: What should we do with import *s?  It might be too expensive to try all static methods.  This ignores them.
     						if (Flags.isStatic(imp.getFlags())) {
