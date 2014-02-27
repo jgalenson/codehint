@@ -18,21 +18,23 @@ import codehint.utils.UnorderedPair;
 public class ValueCache {
 	
 	private final IJavaDebugTarget target;
+	private final IJavaThread thread;
 	private final Map<IJavaValue, Value> valueCache;
 	private final Map<Integer, IJavaValue> intVals;
 	private IJavaValue f;
 	private IJavaValue t;
-	private final Map<String, IJavaValue> stringVals;
+	private final Map<String, Value> stringVals;
 	private final ArrayList<IJavaObject> collectionDisableds;
 	private final Map<UnorderedPair<IJavaObject, IJavaObject>, Boolean> objectEquals;
 	
-	public ValueCache(IJavaDebugTarget target) {
+	public ValueCache(IJavaDebugTarget target, IJavaThread thread) {
 		this.target = target;
+		this.thread = thread;
 		valueCache = new HashMap<IJavaValue, Value>();
 		intVals = new HashMap<Integer, IJavaValue>();
 		t = null;
 		f = null;
-		stringVals = new HashMap<String, IJavaValue>();
+		stringVals = new HashMap<String, Value>();
 		collectionDisableds = new ArrayList<IJavaObject>();
 		objectEquals = new HashMap<UnorderedPair<IJavaObject, IJavaObject>, Boolean>();
 	}
@@ -92,13 +94,14 @@ public class ValueCache {
 	 * @param s a String.
 	 * @return The IJavaValue for the given String.
 	 */
-	public IJavaValue getStringJavaValue(String s) {
-		IJavaValue value = stringVals.get(s);
+	public Value getStringJavaValue(String s) {
+		Value value = stringVals.get(s);
 		try {
-			if (value == null || !value.isAllocated()) {
-				value = disableObjectCollection((IJavaObject)target.newValue(s));
+			if (value == null) {
+				value = new StringValue(disableObjectCollection((IJavaObject)target.newValue(s)), thread, this);
 				stringVals.put(s, value);
-			}
+			} else
+				assert value.getValue().isAllocated();  // This check is somewhat slow, so we put it in an assertion.
 		} catch (DebugException e) {
 			throw new RuntimeException(e);
 		}

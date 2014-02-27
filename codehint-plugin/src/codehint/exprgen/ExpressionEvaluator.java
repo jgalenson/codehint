@@ -229,7 +229,7 @@ public class ExpressionEvaluator {
 		IJavaType lType = l.getJavaType();
 		IJavaType rType = r.getJavaType();
 		if (op == InfixExpression.Operator.PLUS && ((lType != null && "java.lang.String".equals(lType.getName())) || (rType != null && "java.lang.String".equals(rType.getName()))))
-			return valueCache.getStringJavaValue(l.getValueString() + r.getValueString());
+			return valueCache.getStringJavaValue(l.getValueString() + r.getValueString()).getValue();
 		throw new RuntimeException("Unknown infix operation: " + op.toString() + " for " + left.toString() + " of type " + lType.toString() + " and " + right.toString() + " of type " + rType.toString());
 	}
 

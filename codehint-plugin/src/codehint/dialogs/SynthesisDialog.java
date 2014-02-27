@@ -262,7 +262,7 @@ public abstract class SynthesisDialog extends ModelessDialog {
 		this.thread = (IJavaThread)stack.getThread();
 		this.evaluationEngine = engine;
 		this.typeCache = new TypeCache();
-		this.valueCache = new ValueCache(target);
+		this.valueCache = new ValueCache(target, thread);
 		this.subtypeChecker = new SubtypeChecker(stack, target, typeCache);
 		this.timeoutChecker = new TimeoutChecker(thread, stack, target, typeCache);
 		this.nativeHandler = new NativeHandler(thread, stack, target, typeCache);

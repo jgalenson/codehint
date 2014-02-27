@@ -350,7 +350,7 @@ public class Synthesizer {
 				@Override
 				protected IStatus run(IProgressMonitor monitor) {
 					IJavaDebugTarget target = (IJavaDebugTarget)frame.getDebugTarget();
-					ValueCache valueCache = new ValueCache(target);
+					ValueCache valueCache = new ValueCache(target, thread);
 					NativeHandler nativeHandler = blockedNatives ? new NativeHandler(thread, frame, target, typeCache) : null;
 					BreakpointDisabler breakpointDisabler = new BreakpointDisabler();
 					SideEffectHandler effectHandler = handledEffects ? new SideEffectHandler(frame, EclipseUtils.getProject(frame)) : null;

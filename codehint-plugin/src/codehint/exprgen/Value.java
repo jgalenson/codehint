@@ -34,7 +34,7 @@ public class Value {
 			if (wrapper != null)
 				return wrapper;
 			if (value != null && "Ljava/lang/String;".equals(value.getSignature()))
-				wrapper = new StringValue(value, thread, valueCache);
+				return valueCache.getStringJavaValue(value.getValueString());
 			else
 				wrapper = new Value(value, thread, valueCache);
 			valueCache.addValue(wrapper);

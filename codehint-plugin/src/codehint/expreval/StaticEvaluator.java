@@ -64,6 +64,8 @@ public class StaticEvaluator {
 	 * it, or void if the evaluation crashed.
 	 */
 	public IJavaValue evaluateCall(Expression receiver, ArrayList<Expression> args, Method method, IJavaDebugTarget target) {
+		//long startTime = System.currentTimeMillis();
+		//System.out.println("Evaluating " + receiver.toString().replaceAll("[\n]", "\\\\n") + "." + method.name() + args.toString().replaceAll("[\n]", "\\\\n"));
 		String declaringType = method.declaringType().name();
 		if (!"java.lang.String".equals(declaringType) && !"java.util.Arrays".equals(declaringType))
 			return null;
@@ -82,7 +84,7 @@ public class StaticEvaluator {
 					result = evaluateStringConstructorCall(argVals, method, target);
 				else {
 					Value receiverValue = expressionEvaluator.getResult(receiver, Collections.<Effect>emptySet()).getValue();
-					result = evaluateStringCall(receiverValue.getValue() instanceof IJavaClassObject ? null : stringOfValue(receiverValue.getValue()), receiverValue.getValue(), argVals, method, target);
+					result = evaluateStringCall(receiverValue.getValue() instanceof IJavaClassObject ? null : stringOfValue(receiverValue), receiverValue.getValue(), argVals, method, target);
 				}
 			} else if ("java.util.Arrays".equals(declaringType))
 				result = evaluateArraysCall(argVals, method, target);
@@ -93,7 +95,7 @@ public class StaticEvaluator {
 		}
 		/*if (target.voidValue().equals(result))
 			System.out.println("Unexpected crash on " + receiver.getExpression().toString().replace("\n", "\\n") + "." + method.name() + args.toString().replace("\n", "\\n"));*/
-		//System.out.println("Evaluating " + receiver.getExpression().toString().replaceAll("[\n]", "\\\\n") + "." + method.name() + args.toString().replaceAll("[\n]", "\\\\n") + " and got " + (result == null ? "null" : result.toString().replaceAll("[\n]", "\\\\n")));
+		//System.out.println("Evaluating " + receiver.toString().replaceAll("[\n]", "\\\\n") + "." + method.name() + args.toString().replaceAll("[\n]", "\\\\n") + " and got " + (result == null ? "null" : result.toString().replaceAll("[\n]", "\\\\n")) + " in " + (System.currentTimeMillis() - startTime) + "ms.");
 		return result;
 	}
 	
@@ -862,7 +864,7 @@ public class StaticEvaluator {
 	// Convert actual values to IJavaValues
 	
 	private IJavaValue valueOfString(String s) {
-		return valueCache.getStringJavaValue(s);
+		return valueCache.getStringJavaValue(s).getValue();
 	}
 	
 	private IJavaValue valueOfInt(int n) {
