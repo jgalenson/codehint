@@ -14,9 +14,17 @@ public class Result {
 	private final Value value;
 	private final Set<Effect> effects;
 	
-	public Result(IJavaValue value, Set<Effect> effects, ValueCache valueCache, IJavaThread thread) {
-		this.value = Value.makeValue(value, valueCache, thread);
+	protected Result(Value value, Set<Effect> effects) {
+		this.value = value;
 		this.effects = effects;
+	}
+	
+	public Result(Value value) {
+		this(value, Collections.<Effect>emptySet());
+	}
+	
+	public Result(IJavaValue value, Set<Effect> effects, ValueCache valueCache, IJavaThread thread) {
+		this(Value.makeValue(value, valueCache, thread), effects);
 	}
 
 	public Result(IJavaValue value, ValueCache valueCache, IJavaThread thread) {

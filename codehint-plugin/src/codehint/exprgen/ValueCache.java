@@ -20,23 +20,25 @@ public class ValueCache {
 	private final IJavaDebugTarget target;
 	private final IJavaThread thread;
 	private final Map<IJavaValue, Value> valueCache;
-	private final Map<Integer, IJavaValue> intVals;
-	private IJavaValue f;
-	private IJavaValue t;
+	private final Map<Integer, Value> intVals;
+	private final Value f;
+	private final Value t;
 	private final Map<String, Value> stringVals;
 	private final ArrayList<IJavaObject> collectionDisableds;
 	private final Map<UnorderedPair<IJavaObject, IJavaObject>, Boolean> objectEquals;
+	private final Value voidValue;
 	
 	public ValueCache(IJavaDebugTarget target, IJavaThread thread) {
 		this.target = target;
 		this.thread = thread;
 		valueCache = new HashMap<IJavaValue, Value>();
-		intVals = new HashMap<Integer, IJavaValue>();
-		t = null;
-		f = null;
+		intVals = new HashMap<Integer, Value>();
+		t = Value.makeValue(target.newValue(true), this, thread);
+		f = Value.makeValue(target.newValue(false), this, thread);
 		stringVals = new HashMap<String, Value>();
 		collectionDisableds = new ArrayList<IJavaObject>();
 		objectEquals = new HashMap<UnorderedPair<IJavaObject, IJavaObject>, Boolean>();
+		this.voidValue = Value.makeValue(target.voidValue(), this, thread);
 	}
 	
 	/**
@@ -63,10 +65,10 @@ public class ValueCache {
 	 * @param n An int.
 	 * @return The IJavaValue for the given int.
 	 */
-	public IJavaValue getIntJavaValue(int n) {
-		IJavaValue value = intVals.get(n);
+	public Value getIntJavaValue(int n) {
+		Value value = intVals.get(n);
 		if (value == null) {
-			value = target.newValue(n);
+			value = Value.makeValue(target.newValue(n), this, thread);
 			intVals.put(n, value);
 		}
 		return value;
@@ -77,16 +79,8 @@ public class ValueCache {
 	 * @param b A boolean.
 	 * @return The IJavaValue for the given boolean.
 	 */
-	public IJavaValue getBooleanJavaValue(boolean b) {
-		if (b) {
-			if (t == null)
-				t = target.newValue(b);
-			return t;
-		} else {
-			if (f == null)
-				f = target.newValue(b);
-			return f;
-		}
+	public Value getBooleanJavaValue(boolean b) {
+		return b ? t : f;
 	}
 
 	/**
@@ -150,6 +144,10 @@ public class ValueCache {
 		boolean result = Value.objectEquals(x, y, thread);
 		objectEquals.put(pair, result);
 		return result;
+	}
+	
+	public Value voidValue() {
+		return voidValue;
 	}
 
 }

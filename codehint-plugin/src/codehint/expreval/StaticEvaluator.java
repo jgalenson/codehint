@@ -15,6 +15,7 @@ import org.eclipse.jdt.debug.core.IJavaClassObject;
 import org.eclipse.jdt.debug.core.IJavaDebugTarget;
 import org.eclipse.jdt.debug.core.IJavaPrimitiveValue;
 import org.eclipse.jdt.debug.core.IJavaStackFrame;
+import org.eclipse.jdt.debug.core.IJavaThread;
 import org.eclipse.jdt.debug.core.IJavaValue;
 
 import codehint.ast.Expression;
@@ -35,6 +36,7 @@ import com.sun.jdi.Method;
 public class StaticEvaluator {
 	
 	private final IJavaStackFrame stack;
+	private final IJavaThread thread;
 	private final ExpressionEvaluator expressionEvaluator;
 	private final TypeCache typeCache;
 	private final ValueCache valueCache;
@@ -44,6 +46,7 @@ public class StaticEvaluator {
 	
 	public StaticEvaluator(IJavaStackFrame stack, ExpressionEvaluator expressionEvaluator, TypeCache typeCache, ValueCache valueCache) {
 		this.stack = stack;
+		this.thread = (IJavaThread)stack.getThread();
 		this.expressionEvaluator = expressionEvaluator;
 		this.typeCache = typeCache;
 		this.valueCache = valueCache;
@@ -63,13 +66,13 @@ public class StaticEvaluator {
 	 * the given arguments, or null if we could not evaluate
 	 * it, or void if the evaluation crashed.
 	 */
-	public IJavaValue evaluateCall(Expression receiver, ArrayList<Expression> args, Method method, IJavaDebugTarget target) {
+	public Value evaluateCall(Expression receiver, ArrayList<Expression> args, Method method, IJavaDebugTarget target) {
 		//long startTime = System.currentTimeMillis();
 		//System.out.println("Evaluating " + receiver.toString().replaceAll("[\n]", "\\\\n") + "." + method.name() + args.toString().replaceAll("[\n]", "\\\\n"));
 		String declaringType = method.declaringType().name();
 		if (!"java.lang.String".equals(declaringType) && !"java.util.Arrays".equals(declaringType))
 			return null;
-		IJavaValue result = null;
+		Value result = null;
 		try {
 			Value[] argVals = new Value[args.size()];
 			for (int i = 0; i < args.size(); i++) {
@@ -84,7 +87,7 @@ public class StaticEvaluator {
 					result = evaluateStringConstructorCall(argVals, method, target);
 				else {
 					Value receiverValue = expressionEvaluator.getResult(receiver, Collections.<Effect>emptySet()).getValue();
-					result = evaluateStringCall(receiverValue.getValue() instanceof IJavaClassObject ? null : stringOfValue(receiverValue), receiverValue.getValue(), argVals, method, target);
+					result = evaluateStringCall(receiverValue.getValue() instanceof IJavaClassObject ? null : stringOfValue(receiverValue), receiverValue, argVals, method, target);
 				}
 			} else if ("java.util.Arrays".equals(declaringType))
 				result = evaluateArraysCall(argVals, method, target);
@@ -104,7 +107,7 @@ public class StaticEvaluator {
 	}
 
 	@SuppressWarnings("deprecation")
-	private IJavaValue evaluateStringConstructorCall(Value[] args, Method method, IJavaDebugTarget target) throws DebugException {
+	private Value evaluateStringConstructorCall(Value[] args, Method method, IJavaDebugTarget target) throws DebugException {
 		String sig = method.signature();
 		if ("()V".equals(sig))
 			return valueOfString("");
@@ -162,7 +165,7 @@ public class StaticEvaluator {
 		  Signature: (Ljava/lang/StringBuilder;)V
 	 */
 	
-	private IJavaValue evaluateStringCall(String receiver, IJavaValue receiverValue, Value[] args, Method method, IJavaDebugTarget target) throws DebugException {
+	private Value evaluateStringCall(String receiver, Value receiverValue, Value[] args, Method method, IJavaDebugTarget target) throws DebugException {
 		String name = method.name();
 		String sig = method.signature();
 		if ("length".equals(name))
@@ -342,7 +345,7 @@ public class StaticEvaluator {
 			if (args[0].getValue().isNull())
 				return valueOfString("null");
 			else if (isNonNullString(args[0]))
-				return args[0].getValue();
+				return args[0];
 			else
 				return null;
 		}
@@ -404,7 +407,7 @@ public class StaticEvaluator {
 		  Signature: (Ljava/lang/Object;)I
 	 */
 
-	private IJavaValue evaluateArraysCall(Value[] args, Method method, IJavaDebugTarget target) throws DebugException {
+	private Value evaluateArraysCall(Value[] args, Method method, IJavaDebugTarget target) throws DebugException {
 		String name = method.name();
 		String sig = method.signature();
 		if ("binarySearch".equals(name) && "([JJ)I".equals(sig))
@@ -639,9 +642,9 @@ public class StaticEvaluator {
 		}
 	 */
 
-	private IJavaValue handleCrash(IJavaDebugTarget target) {
+	private Value handleCrash(IJavaDebugTarget target) {
 		numCrashes++;
-		return target.voidValue();
+		return valueCache.voidValue();
 	}
 	
 	// Check type
@@ -863,20 +866,20 @@ public class StaticEvaluator {
 	
 	// Convert actual values to IJavaValues
 	
-	private IJavaValue valueOfString(String s) {
-		return valueCache.getStringJavaValue(s).getValue();
+	private Value valueOfString(String s) {
+		return valueCache.getStringJavaValue(s);
 	}
 	
-	private IJavaValue valueOfInt(int n) {
+	private Value valueOfInt(int n) {
 		return valueCache.getIntJavaValue(n);
 	}
 	
-	private IJavaValue valueOfBoolean(boolean b) {
+	private Value valueOfBoolean(boolean b) {
 		return valueCache.getBooleanJavaValue(b);
 	}
 	
-	private static IJavaValue valueOfChar(char c, IJavaDebugTarget target) {
-		return target.newValue(c);
+	private Value valueOfChar(char c, IJavaDebugTarget target) {
+		return Value.makeValue(target.newValue(c), valueCache, thread);
 	}
 	
 	private static IJavaValue valueOfByte(byte b, IJavaDebugTarget target) {
@@ -899,94 +902,94 @@ public class StaticEvaluator {
 		return target.newValue(d);
 	}
 	
-	private IJavaArray valueOfCharArr(char[] a, IJavaDebugTarget target) throws DebugException {
+	private Value valueOfCharArr(char[] a, IJavaDebugTarget target) throws DebugException {
 		IJavaArrayType charArrType = (IJavaArrayType)EclipseUtils.getFullyQualifiedType("char[]", stack, target, typeCache);
 		IJavaArray result = valueCache.disableObjectCollection(charArrType.newInstance(a.length));
 		IJavaValue[] arrValues = new IJavaValue[a.length];
 		for (int i = 0; i < a.length; i++)
-			arrValues[i] = valueOfChar(a[i], target);
+			arrValues[i] = valueOfChar(a[i], target).getValue();
 		result.setValues(arrValues);
-		return result;
+		return Value.makeValue(result, valueCache, thread);
 	}
 	
-	private IJavaArray valueOfByteArr(byte[] a, IJavaDebugTarget target) throws DebugException {
+	private Value valueOfByteArr(byte[] a, IJavaDebugTarget target) throws DebugException {
 		IJavaArrayType byteArrType = (IJavaArrayType)EclipseUtils.getFullyQualifiedType("byte[]", stack, target, typeCache);
 		IJavaArray result = valueCache.disableObjectCollection(byteArrType.newInstance(a.length));
 		IJavaValue[] arrValues = new IJavaValue[a.length];
 		for (int i = 0; i < a.length; i++)
 			arrValues[i] = valueOfByte(a[i], target);
 		result.setValues(arrValues);
-		return result;
+		return Value.makeValue(result, valueCache, thread);
 	}
 	
-	private IJavaArray valueOfStringArr(String[] a, IJavaDebugTarget target) throws DebugException {
+	private Value valueOfStringArr(String[] a, IJavaDebugTarget target) throws DebugException {
 		IJavaArrayType stringArrType = (IJavaArrayType)EclipseUtils.getFullyQualifiedType("java.lang.String[]", stack, target, typeCache);
 		IJavaArray result = valueCache.disableObjectCollection(stringArrType.newInstance(a.length));
 		IJavaValue[] arrValues = new IJavaValue[a.length];
 		for (int i = 0; i < a.length; i++)
-			arrValues[i] = (a[i] == null ? target.nullValue() : valueOfString(a[i]));
+			arrValues[i] = (a[i] == null ? target.nullValue() : valueOfString(a[i]).getValue());
 		result.setValues(arrValues);
-		return result;
+		return Value.makeValue(result, valueCache, thread);
 	}
 	
-	private IJavaArray valueOfLongArr(long[] a, IJavaDebugTarget target) throws DebugException {
+	private Value valueOfLongArr(long[] a, IJavaDebugTarget target) throws DebugException {
 		IJavaArrayType longArrType = (IJavaArrayType)target.getJavaTypes("long[]")[0];
 		IJavaArray result = valueCache.disableObjectCollection(longArrType.newInstance(a.length));
 		IJavaValue[] arrValues = new IJavaValue[a.length];
 		for (int i = 0; i < a.length; i++)
 			arrValues[i] = valueOfLong(a[i], target);
 		result.setValues(arrValues);
-		return result;
+		return Value.makeValue(result, valueCache, thread);
 	}
 	
-	private IJavaArray valueOfShortArr(short[] a, IJavaDebugTarget target) throws DebugException {
+	private Value valueOfShortArr(short[] a, IJavaDebugTarget target) throws DebugException {
 		IJavaArrayType shortArrType = (IJavaArrayType)EclipseUtils.getFullyQualifiedType("short[]", stack, target, typeCache);
 		IJavaArray result = valueCache.disableObjectCollection(shortArrType.newInstance(a.length));
 		IJavaValue[] arrValues = new IJavaValue[a.length];
 		for (int i = 0; i < a.length; i++)
 			arrValues[i] = valueOfShort(a[i], target);
 		result.setValues(arrValues);
-		return result;
+		return Value.makeValue(result, valueCache, thread);
 	}
 	
-	private IJavaArray valueOfIntArr(int[] a, IJavaDebugTarget target) throws DebugException {
+	private Value valueOfIntArr(int[] a, IJavaDebugTarget target) throws DebugException {
 		IJavaArrayType intArrType = (IJavaArrayType)EclipseUtils.getFullyQualifiedType("int[]", stack, target, typeCache);
 		IJavaArray result = valueCache.disableObjectCollection(intArrType.newInstance(a.length));
 		IJavaValue[] arrValues = new IJavaValue[a.length];
 		for (int i = 0; i < a.length; i++)
-			arrValues[i] = valueOfInt(a[i]);
+			arrValues[i] = valueOfInt(a[i]).getValue();
 		result.setValues(arrValues);
-		return result;
+		return Value.makeValue(result, valueCache, thread);
 	}
 	
-	private IJavaArray valueOfFloatArr(float[] a, IJavaDebugTarget target) throws DebugException {
+	private Value valueOfFloatArr(float[] a, IJavaDebugTarget target) throws DebugException {
 		IJavaArrayType floatArrType = (IJavaArrayType)EclipseUtils.getFullyQualifiedType("float[]", stack, target, typeCache);
 		IJavaArray result = valueCache.disableObjectCollection(floatArrType.newInstance(a.length));
 		IJavaValue[] arrValues = new IJavaValue[a.length];
 		for (int i = 0; i < a.length; i++)
 			arrValues[i] = valueOfFloat(a[i], target);
 		result.setValues(arrValues);
-		return result;
+		return Value.makeValue(result, valueCache, thread);
 	}
 	
-	private IJavaArray valueOfDoubleArr(double[] a, IJavaDebugTarget target) throws DebugException {
+	private Value valueOfDoubleArr(double[] a, IJavaDebugTarget target) throws DebugException {
 		IJavaArrayType doubleArrType = (IJavaArrayType)EclipseUtils.getFullyQualifiedType("double[]", stack, target, typeCache);
 		IJavaArray result = valueCache.disableObjectCollection(doubleArrType.newInstance(a.length));
 		IJavaValue[] arrValues = new IJavaValue[a.length];
 		for (int i = 0; i < a.length; i++)
 			arrValues[i] = valueOfDouble(a[i], target);
 		result.setValues(arrValues);
-		return result;
+		return Value.makeValue(result, valueCache, thread);
 	}
 	
-	private IJavaArray valueOfBooleanArr(boolean[] a, IJavaDebugTarget target) throws DebugException {
+	private Value valueOfBooleanArr(boolean[] a, IJavaDebugTarget target) throws DebugException {
 		IJavaArrayType booleanArrType = (IJavaArrayType)EclipseUtils.getFullyQualifiedType("boolean[]", stack, target, typeCache);
 		IJavaArray result = valueCache.disableObjectCollection(booleanArrType.newInstance(a.length));
 		IJavaValue[] arrValues = new IJavaValue[a.length];
 		for (int i = 0; i < a.length; i++)
-			arrValues[i] = valueOfBoolean(a[i]);
+			arrValues[i] = valueOfBoolean(a[i]).getValue();
 		result.setValues(arrValues);
-		return result;
+		return Value.makeValue(result, valueCache, thread);
 	}
 
 }

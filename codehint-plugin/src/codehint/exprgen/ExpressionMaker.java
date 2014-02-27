@@ -169,10 +169,10 @@ public class ExpressionMaker {
 		Result operandResults = expressionEvaluator.computeResultForBinaryOp(left, right);
 		if (operandResults == null)
 			return null;
-		IJavaValue value = expressionEvaluator.computeInfixOp(expressionEvaluator.getValue(left, Collections.<Effect>emptySet()), op, operandResults.getValue().getValue(), left.getStaticType() != null ? left.getStaticType() : right.getStaticType());
+		Value value = expressionEvaluator.computeInfixOp(expressionEvaluator.getValue(left, Collections.<Effect>emptySet()), op, operandResults.getValue().getValue(), left.getStaticType() != null ? left.getStaticType() : right.getStaticType());
 		if (value == null)
 			return null;
-		Result result = new Result(value, operandResults.getEffects(), valueCache, thread);
+		Result result = new Result(value, operandResults.getEffects());
 		expressionEvaluator.setResult(e, result, Collections.<Effect>emptySet());
 		return e;
 	}
@@ -226,8 +226,8 @@ public class ExpressionMaker {
 		try {
 			PrefixExpression e = makePrefix(operand, op);
 			Result operandResult = expressionEvaluator.getResult(operand, Collections.<Effect>emptySet());
-			IJavaValue value = expressionEvaluator.computePrefixOp(operandResult.getValue().getValue(), op);
-			Result result = new Result(value, operandResult.getEffects(), valueCache, thread);
+			Value value = expressionEvaluator.computePrefixOp(operandResult.getValue().getValue(), op);
+			Result result = new Result(value, operandResult.getEffects());
 			expressionEvaluator.setResult(e, result, Collections.<Effect>emptySet());
 			return e;
 		} catch (DebugException ex) {
@@ -289,10 +289,10 @@ public class ExpressionMaker {
 		return e;
 	}
 
-	public InstanceofExpression makeInstanceOf(Expression obj, Type targetDomType, IJavaType booleanType, IJavaValue value, IJavaThread thread) throws DebugException {
+	public InstanceofExpression makeInstanceOf(Expression obj, Type targetDomType, IJavaType booleanType, Value value) throws DebugException {
 		assert booleanType.getName().equals("boolean");
 		InstanceofExpression e = new InstanceofExpression(booleanType, obj, targetDomType);
-		Result result = new Result(value, expressionEvaluator.getResult(obj, Collections.<Effect>emptySet()).getEffects(), valueCache, thread);
+		Result result = new Result(value, expressionEvaluator.getResult(obj, Collections.<Effect>emptySet()).getEffects());
 		expressionEvaluator.setResult(e, result, Collections.<Effect>emptySet());
 		return e;
 	}

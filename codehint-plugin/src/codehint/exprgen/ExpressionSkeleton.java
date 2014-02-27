@@ -936,7 +936,7 @@ public final class ExpressionSkeleton {
 				for (Map.Entry<String, ArrayList<codehint.ast.Expression>> res: exprResult.getExprs().entrySet())
 					for (codehint.ast.Expression expr: res.getValue()) {
 						IJavaValue exprValue = expressionEvaluator.getValue(expr, Collections.<Effect>emptySet());
-						Utils.addToListMap(resultExprs, res.getKey(), expressionMaker.makeInstanceOf(expr, rightOperand, booleanType, exprValue == null ? null : valueCache.getBooleanJavaValue(!exprValue.isNull() && subtypeChecker.isSubtypeOf(exprValue.getJavaType(), targetType)), thread));
+						Utils.addToListMap(resultExprs, res.getKey(), expressionMaker.makeInstanceOf(expr, rightOperand, booleanType, exprValue == null ? null : valueCache.getBooleanJavaValue(!exprValue.isNull() && subtypeChecker.isSubtypeOf(exprValue.getJavaType(), targetType))));
 					}
 				return new ExpressionsAndTypeConstraints(resultExprs, new SupertypeBound(booleanType));
 			} catch (DebugException e) {
