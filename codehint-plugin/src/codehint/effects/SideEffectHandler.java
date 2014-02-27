@@ -42,6 +42,7 @@ import org.eclipse.jdt.internal.debug.ui.BreakpointUtils;
 import codehint.utils.EclipseUtils;
 import codehint.utils.MutablePair;
 import codehint.utils.Pair;
+
 import com.sun.jdi.ArrayReference;
 import com.sun.jdi.ClassNotLoadedException;
 import com.sun.jdi.ClassType;
@@ -146,7 +147,9 @@ public class SideEffectHandler {
 					if (!Flags.isFinal(field.getFlags()) || canBeArray(field)) {
 						if (Flags.isStatic(field.getFlags())) {
 							if ((typeName.equals("javax.swing.UIDefaults") && field.getElementName().equals("PENDING"))
-									|| (typeName.equals("javax.swing.UIManager") && field.getElementName().equals("classLock")))
+									|| (typeName.equals("javax.swing.UIManager") && field.getElementName().equals("classLock"))
+									|| (typeName.equals("java.awt.Component") && field.getElementName().equals("LOCK"))
+									|| (typeName.equals("sun.util.logging.PlatformLogger$Level") && field.getElementName().equals("levelValues")))
 								continue;
 							fields.add(field);
 						} else {
@@ -300,6 +303,12 @@ public class SideEffectHandler {
 
 		@Override
 		public boolean handleEvent(Event event, JDIDebugTarget target, boolean suspendVote, EventSet eventSet) {
+			/*if (event instanceof WatchpointEvent)
+				System.out.println(event + " on " + FieldLVal.makeFieldLVal(((WatchpointEvent)event).object(), ((WatchpointEvent)event).field()).toString());
+			else if (event instanceof com.sun.jdi.event.ClassPrepareEvent)
+				System.out.println("Prep " + ((com.sun.jdi.event.ClassPrepareEvent)event).referenceType().name());
+			else
+				System.out.println(event);*/
 			synchronized (SideEffectHandler.this) {
 				if (effectsMap == null)  // We're not currently tracking side effects.
 					return true;
@@ -452,7 +461,8 @@ public class SideEffectHandler {
 		
 		@Override
 		public boolean handleClassPrepareEvent(ClassPrepareEvent event, JDIDebugTarget target, boolean suspendVote) {
-			//System.out.println("Prepare " + event.referenceType());
+			//long startTime = System.currentTimeMillis();
+			//System.out.println("Prepare " + event.referenceType().name());
 			try {
 				IType itype = project.findType(event.referenceType().name());
 				List<IField> fields = new ArrayList<IField>();
@@ -465,6 +475,7 @@ public class SideEffectHandler {
 					List<MyJavaWatchpoint> newWatchpoints = getFieldWatchpoints(fields, null);
 					addedWatchpoints.addAll(newWatchpoints);
 				}
+				//System.out.println("Prepared " + event.referenceType() + " in " + (System.currentTimeMillis()- startTime) + "ms.");
 			} catch (JavaModelException e) {
 				throw new RuntimeException(e);
 			}
@@ -640,6 +651,7 @@ public class SideEffectHandler {
 		@Override
 		public boolean handleEvent(Event event, JDIDebugTarget target, boolean suspendVote, EventSet eventSet) {
 			try {
+				//System.out.println("Reflection: " + event);
 				ThreadReference thread = ((LocatableEvent)event).thread();
 				StackFrame stack = thread.frame(0);
 				ObjectReference fieldValue = stack.thisObject();
