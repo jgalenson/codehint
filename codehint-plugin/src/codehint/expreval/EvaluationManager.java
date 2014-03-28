@@ -44,6 +44,7 @@ import codehint.ast.SimpleName;
 import codehint.ast.SuperMethodInvocation;
 import codehint.dialogs.SynthesisDialog;
 import codehint.effects.Effect;
+import codehint.effects.SideEffectHandler;
 import codehint.exprgen.ExpressionEvaluator;
 import codehint.exprgen.Result;
 import codehint.exprgen.SubtypeChecker;
@@ -89,6 +90,7 @@ public final class EvaluationManager {
 	private final IAstEvaluationEngine engine;
     private final ValueCache valueCache;
     private final TimeoutChecker timeoutChecker;
+    private final SideEffectHandler sideEffectHandler;
 	private final IJavaDebugTarget target;
 	private final IJavaThread thread;
 	private final ExpressionEvaluator expressionEvaluator;
@@ -111,13 +113,14 @@ public final class EvaluationManager {
 	private Map<String, Integer> methodResultsMap;
 	private int skipped;
 	
-	public EvaluationManager(boolean isFreeSearch, boolean disableBreakpoints, IJavaStackFrame stack, ExpressionEvaluator expressionEvaluator, SubtypeChecker subtypeChecker, TypeCache typeCache, ValueCache valueCache, TimeoutChecker timeoutChecker) {
+	public EvaluationManager(boolean isFreeSearch, boolean disableBreakpoints, IJavaStackFrame stack, ExpressionEvaluator expressionEvaluator, SubtypeChecker subtypeChecker, TypeCache typeCache, ValueCache valueCache, TimeoutChecker timeoutChecker, SideEffectHandler sideEffectHandler) {
 		this.isFreeSearch = isFreeSearch;
 		this.disableBreakpoints = disableBreakpoints;
 		this.stack = stack;
 		this.engine = EclipseUtils.getASTEvaluationEngine(stack);
 		this.valueCache = valueCache;
 		this.timeoutChecker = timeoutChecker;
+		this.sideEffectHandler = sideEffectHandler;
 		this.target = (IJavaDebugTarget)stack.getDebugTarget();
 		this.thread = (IJavaThread)stack.getThread();
 		this.expressionEvaluator = expressionEvaluator;
@@ -174,7 +177,20 @@ public final class EvaluationManager {
 				IJavaFieldVariable valuesField = implType.getField(valuesArrayName);
 				if (property != null && varType != null && "Object".equals(type))  // The pdspec might call methods on the objects, so we need their actual types.
 					type = EclipseUtils.sanitizeTypename(varType.getName());
-				evaluateExpressions(expressionsOfType.getValue(), validExprs, type, arePrimitives, property, validateStatically, valuesField);
+				if (sideEffectHandler.isHandlingSideEffects() && !validateStatically) {
+					// Evaluate expressions without effects separately from those with effects, since we can only batch things with the same effects.
+					ArrayList<Expression> noEffects = new ArrayList<Expression>();
+					ArrayList<Expression> haveEffects = new ArrayList<Expression>();
+					for (Expression expr: expressionsOfType.getValue()) {
+						if (expressionEvaluator.getResult(expr, Collections.<Effect>emptySet()).getEffects().isEmpty())
+							noEffects.add(expr);
+						else
+							haveEffects.add(expr);
+					}
+					evaluateExpressions(noEffects, validExprs, type, arePrimitives, property, validateStatically, valuesField);
+					evaluateExpressions(haveEffects, validExprs, type, arePrimitives, property, validateStatically, valuesField);
+				} else
+					evaluateExpressions(expressionsOfType.getValue(), validExprs, type, arePrimitives, property, validateStatically, valuesField);
 			}
 			return validExprs;
 		} catch (DebugException e) {
@@ -275,9 +291,17 @@ public final class EvaluationManager {
 				// Build and evaluate the evaluation string.
 				// TODO: If the user has variables with the same names as the ones I introduce, this will crash....
 				expressionsStr.append(preVarsString);
+				Set<Effect> effects = null;
 				int i;
-		    	for (i = startIndex; i < exprs.size() && numEvaluated < BATCH_SIZE; i++)
-		    		numEvaluated = buildStringForExpression(exprs.get(i), i, expressionsStr, arePrimitives, validateStatically, hasPropertyPrecondition, evalExprIndices, numEvaluated, temporaries, valuesArrayName);
+		    	for (i = startIndex; i < exprs.size() && numEvaluated < BATCH_SIZE; i++) {
+		    		Expression curExpr = exprs.get(i);
+		    		Set<Effect> curEffects = sideEffectHandler.isHandlingSideEffects() ? expressionEvaluator.getResult(curExpr, Collections.<Effect>emptySet()).getEffects() : null;
+		    		if (effects != null && !effects.equals(curEffects))
+		    			break;
+					numEvaluated = buildStringForExpression(curExpr, i, expressionsStr, arePrimitives, validateStatically, hasPropertyPrecondition, evalExprIndices, numEvaluated, temporaries, valuesArrayName);
+					if (numEvaluated == 1)
+		    			effects = curEffects;
+		    	}
 		    	DebugException error = null;
 		    	if (numEvaluated > 0) {
 			    	finishBuildingString(expressionsStr, numEvaluated, type, arePrimitives, validateStatically, valuesArrayName);
@@ -288,10 +312,17 @@ public final class EvaluationManager {
 			    		handleCompileFailure(exprs, startIndex, i, compiled, type);
 			    		continue;
 			    	}
-			    	timeoutChecker.startEvaluating(fullCountField);
-			    	IEvaluationResult result = Evaluator.evaluateExpression(compiled, engine, stack, disableBreakpoints);
-			    	timeoutChecker.stopEvaluating();
-			    	error = result.getException();
+			    	try {
+			    		sideEffectHandler.startHandlingSideEffects();
+			    		if (effects != null)
+			    			sideEffectHandler.redoAndRecordEffects(effects);
+			    		timeoutChecker.startEvaluating(fullCountField);
+			    		IEvaluationResult result = Evaluator.evaluateExpression(compiled, engine, stack, disableBreakpoints);
+				    	error = result.getException();
+			    	} finally {
+			    		timeoutChecker.stopEvaluating();
+			    		sideEffectHandler.stopHandlingSideEffects();
+			    	}
 		    	}
 	
 		    	// Get the results of the evaluation.
@@ -352,11 +383,11 @@ public final class EvaluationManager {
 	 */
 	private int buildStringForExpression(Expression curTypedExpr, int i, StringBuilder expressionsStr, boolean isPrimitive, boolean validateStatically, boolean hasPropertyPrecondition, ArrayList<Integer> evalExprIndices, int numEvaluated, Map<String, Integer> temporaries, String valuesArrayName) throws DebugException {
 		Expression curExpr = curTypedExpr;
-		ValueFlattener valueFlattener = new ValueFlattener(temporaries, methodResultsMap, expressionEvaluator, valueCache);
-		String curExprStr = valueFlattener.getResult(curExpr);
 		IJavaValue curValue = expressionEvaluator.getValue(curTypedExpr, Collections.<Effect>emptySet());
 		if (curValue == null || !validateStatically) {
 			StringBuilder curString = new StringBuilder();
+			ValueFlattener valueFlattener = new ValueFlattener(temporaries, methodResultsMap, expressionEvaluator, valueCache);
+			String curExprStr = valueFlattener.getResult(curExpr);
 			for (Map.Entry<String, Pair<Integer, String>> newTemp: valueFlattener.getNewTemporaries().entrySet()) {
 				curString.append(" ").append(newTemp.getValue().second).append(" _$tmp").append(newTemp.getValue().first).append(" = (").append(newTemp.getValue().second).append(")").append(getQualifier(null)).append("methodResults[").append(methodResultsMap.get(newTemp.getKey())).append("];\n");
 				temporaries.put(newTemp.getKey(), newTemp.getValue().first);
@@ -511,8 +542,11 @@ public final class EvaluationManager {
 				initValue = "null";
 			if (!"Object".equals(type) && engine.getCompiledExpression(type + " _$curValue = " + initValue + ";  boolean _$curValid = " + validVal + ";", stack).hasErrors()) {
 				// The pdspec crashed on all things of this type.  But we ignore Objects since it might work for some subtypes but not others.
-				for (int j = i - 1; j >= startIndex; j--)
+				// TODO: I could optimize this by marking this type as illegal when handling side effects and hence batch sizes are 1.
+				for (int j = i - 1; j >= startIndex; j--) {
+					//System.out.println(exprs.get(j) + " does not compile with pdspec " + validVal + " in free search.");
 					exprs.remove(j);
+				}
 				monitor.worked(exprs.size());
 				return;
 			}
@@ -539,7 +573,7 @@ public final class EvaluationManager {
 					crashingExpressions.add(exprs.get(j).toString());
 				exprs.remove(j);
 				numDeleted++;
-				//System.out.println(exprStr + " does not compile.");
+				//System.out.println(expr + " does not compile with pdspec " + validVal + ".");
 			}
 		}
 		if (numDeleted == 0)  // In this case, the error is probably our fault and not due to erasure.

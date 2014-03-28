@@ -353,10 +353,10 @@ public class Synthesizer {
 					ValueCache valueCache = new ValueCache(target, thread);
 					NativeHandler nativeHandler = blockedNatives ? new NativeHandler(thread, frame, target, typeCache) : null;
 					BreakpointDisabler breakpointDisabler = new BreakpointDisabler();
-					SideEffectHandler effectHandler = handledEffects ? new SideEffectHandler(frame, EclipseUtils.getProject(frame)) : null;
+					SideEffectHandler effectHandler = new SideEffectHandler(frame, EclipseUtils.getProject(frame));
 					// TODO: Run the following off the UI thread like above when we do the first synthesis.
 					TimeoutChecker timeoutChecker = new TimeoutChecker(thread, frame, target, typeCache);
-					EvaluationManager evalManager = new EvaluationManager(false, nativeHandler == null, frame, synthesisDialog.getExpressionEvaluator(), new SubtypeChecker(frame, target, typeCache), typeCache, valueCache, timeoutChecker);
+					EvaluationManager evalManager = new EvaluationManager(false, nativeHandler == null, frame, synthesisDialog.getExpressionEvaluator(), new SubtypeChecker(frame, target, typeCache), typeCache, valueCache, timeoutChecker, effectHandler);
 					evalManager.init();
 					try {
 						timeoutChecker.start(handledEffects);
@@ -365,7 +365,7 @@ public class Synthesizer {
 							nativeHandler.enable(true);
 							nativeHandler.blockNativeCalls();
 						}
-						if (effectHandler != null) {
+						if (handledEffects) {
 							effectHandler.enable(true);
 							effectHandler.start(synthesisDialog.getProgressMonitor());
 							effectHandler.startHandlingSideEffects();
@@ -385,7 +385,7 @@ public class Synthesizer {
 							breakpointDisabler.reenableBreakpoints();
 							nativeHandler.allowNativeCalls();
 						}
-						if (effectHandler != null) {
+						if (handledEffects) {
 							effectHandler.stopHandlingSideEffects();
 							effectHandler.stop(synthesisDialog.getProgressMonitor());
 						}
