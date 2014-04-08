@@ -128,7 +128,7 @@ public class Utils {
 	 * actuals for each argument.
 	 * @return The number of calls with the given possible actuals.
 	 */
-	public static long getNumCalls(ArrayList<? extends ArrayList<?>> allPossibleActuals) {
+	public static long getNumCalls(Collection<? extends ArrayList<?>> allPossibleActuals) {
 		long total = 1L;
 		for (ArrayList<?> possibleActuals: allPossibleActuals) {
 			total *= possibleActuals.size();

@@ -2,24 +2,20 @@ package codehint.ast;
 
 import java.util.Stack;
 
-public class ParentASTVisitor extends ASTVisitor {
+public class ParentASTFlattener extends ASTFlattener {
 	
 	protected final Stack<ASTNode> parents;
 	
-	protected ParentASTVisitor() {
+	protected ParentASTFlattener() {
 		parents = new Stack<ASTNode>();
 	}
-
+	
 	@Override
-	public boolean preVisit(ASTNode node) {
+	protected void flatten(Expression node, StringBuilder sb) {
 		parents.push(node);
-		return true;
-	}
-
-	@Override
-	public void postVisit(ASTNode node) {
-		ASTNode p = parents.pop();
-		assert p == node;
+		super.flatten(node, sb);
+		ASTNode n = parents.pop();
+		assert node == n;
 	}
 	
 	protected boolean parentIsName(ASTNode node) {

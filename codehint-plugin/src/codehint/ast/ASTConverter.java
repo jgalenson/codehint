@@ -110,6 +110,8 @@ public final class ASTConverter extends ASTVisitor {
 			return copy((org.eclipse.jdt.core.dom.Expression)node);
 		else if (node instanceof org.eclipse.jdt.core.dom.CompilationUnit)
 			return new CompilationUnit(((org.eclipse.jdt.core.dom.CompilationUnit)node).getProblems());
+		else if (node instanceof org.eclipse.jdt.core.dom.ExpressionStatement)
+			return copy(((org.eclipse.jdt.core.dom.ExpressionStatement)node).getExpression());
 		else
 			throw new IllegalArgumentException("Unexpected ast node " + node.getClass().toString());
 	}
@@ -245,7 +247,7 @@ public final class ASTConverter extends ASTVisitor {
 	}
 
 	private static ClassInstanceCreation copy(org.eclipse.jdt.core.dom.ClassInstanceCreation node) {
-		return new ClassInstanceCreation(copy(node.getType()), copyList(node.arguments()));
+		return new ClassInstanceCreation(copy(node.getType()), copyList(node.arguments()), node.getAnonymousClassDeclaration());
 	}
 
 	private static ConditionalExpression copy(org.eclipse.jdt.core.dom.ConditionalExpression node) {
@@ -396,7 +398,7 @@ public final class ASTConverter extends ASTVisitor {
 	}
 
 	private static Assignment copy(org.eclipse.jdt.core.dom.Assignment node) {
-		return new Assignment(null, copy(node.getLeftHandSide()), copy(node.getOperator()), copy(node.getRightHandSide()));
+		return new Assignment(copy(node.getLeftHandSide()), copy(node.getOperator()), copy(node.getRightHandSide()));
 	}
 	
 	private static Assignment.Operator copy(org.eclipse.jdt.core.dom.Assignment.Operator node) {
@@ -430,7 +432,7 @@ public final class ASTConverter extends ASTVisitor {
 	private static Expression[] copyList(List<?> orig) {
 		Expression[] copy = new Expression[orig.size()];
 		for (int i = 0; i < copy.length; i++)
-			copy[i] = copy((org.eclipse.jdt.core.dom.Expression)orig.get(i));
+			copy[i] = (Expression)copy((org.eclipse.jdt.core.dom.ASTNode)orig.get(i));
 		return copy;
 	}
 	
@@ -450,5 +452,9 @@ public final class ASTConverter extends ASTVisitor {
 			return EclipseUtils.getTypeAndLoadIfNeeded(binding.getReturnType().getQualifiedName(), EclipseUtils.getStackFrame(), (IJavaDebugTarget)EclipseUtils.getStackFrame().getDebugTarget(), new TypeCache());
 		}
 	}*/
+	
+	public static Block copy(org.eclipse.jdt.core.dom.Block block) {
+		return new Block(copyList(block.statements()));
+	}
 
 }

@@ -2,13 +2,13 @@ package codehint.exprgen;
 
 import java.util.Comparator;
 
-import codehint.ast.Expression;
+import codehint.ast.Statement;
 
 /**
  * Sorts expressions based on how often their methods and fields
  * appear in our database.
  */
-public class ExpressionSorter implements Comparator<Expression> {
+public class ExpressionSorter implements Comparator<Statement> {
 	
 	private final ExpressionEvaluator expressionEvaluator;
 	private final Weights weights;
@@ -19,9 +19,9 @@ public class ExpressionSorter implements Comparator<Expression> {
 	}
 
 	@Override
-	public int compare(Expression e1, Expression e2) {
-		double p1 = ProbabilityComputer.getProbability(e1, expressionEvaluator, weights);
-		double p2 = ProbabilityComputer.getProbability(e2, expressionEvaluator, weights);
+	public int compare(Statement s1, Statement s2) {
+		double p1 = ProbabilityComputer.getProbability(s1, expressionEvaluator, weights);
+		double p2 = ProbabilityComputer.getProbability(s2, expressionEvaluator, weights);
 		//System.out.println(e1 + " " + p1);
 		//System.out.println(e2 + " " + p2);
 		if (p1 < p2)
@@ -29,7 +29,7 @@ public class ExpressionSorter implements Comparator<Expression> {
 		else if (p1 > p2)
 			return -1;
 		else
-			return e1.toString().length() - e2.toString().length();
+			return s1.toString().length() - s2.toString().length();
 	}
 
 }

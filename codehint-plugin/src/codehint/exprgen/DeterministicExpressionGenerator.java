@@ -22,6 +22,7 @@ import org.eclipse.jdt.core.JavaModelException;
 import codehint.ast.ASTNode;
 import codehint.ast.ASTVisitor;
 import codehint.ast.ArrayAccess;
+import codehint.ast.Block;
 import codehint.ast.BooleanLiteral;
 import codehint.ast.CastExpression;
 import codehint.ast.ClassInstanceCreation;
@@ -39,6 +40,7 @@ import codehint.ast.PlaceholderExpression;
 import codehint.ast.PrefixExpression;
 import codehint.ast.SimpleName;
 import codehint.ast.SimpleType;
+import codehint.ast.Statement;
 import codehint.ast.StringLiteral;
 import codehint.ast.ThisExpression;
 import codehint.ast.TypeLiteral;
@@ -46,11 +48,14 @@ import codehint.ast.TypeLiteral;
 import org.eclipse.jdt.debug.core.IJavaArrayType;
 import org.eclipse.jdt.debug.core.IJavaClassType;
 import org.eclipse.jdt.debug.core.IJavaDebugTarget;
+import org.eclipse.jdt.debug.core.IJavaFieldVariable;
 import org.eclipse.jdt.debug.core.IJavaReferenceType;
 import org.eclipse.jdt.debug.core.IJavaStackFrame;
 import org.eclipse.jdt.debug.core.IJavaType;
 import org.eclipse.jdt.debug.core.IJavaValue;
 import org.eclipse.jdt.debug.core.IJavaVariable;
+import org.eclipse.jdt.internal.debug.core.model.JDIType;
+
 import codehint.DataCollector;
 import codehint.dialogs.SynthesisDialog;
 import codehint.effects.Effect;
@@ -63,12 +68,14 @@ import codehint.exprgen.typeconstraint.SupertypeBound;
 import codehint.exprgen.typeconstraint.TypeConstraint;
 import codehint.exprgen.typeconstraint.UnknownConstraint;
 import codehint.property.Property;
+import codehint.property.StateProperty;
 import codehint.property.ValueProperty;
 import codehint.utils.EclipseUtils;
 import codehint.utils.Utils;
 
 import com.sun.jdi.Field;
 import com.sun.jdi.Method;
+import com.sun.jdi.ReferenceType;
 
 
 /**
@@ -106,7 +113,7 @@ public final class DeterministicExpressionGenerator extends ExpressionGenerator 
 	}
 	
 	/**
-	 * Generates all the expressions (up to a certain depth) whose value
+	 * Generates all the statements (up to a certain depth) whose value
 	 * in the current stack frame is that of the demonstration.
 	 * @param property The property entered by the user.
 	 * @param typeConstraint The constraint on the type of the expressions
@@ -114,16 +121,17 @@ public final class DeterministicExpressionGenerator extends ExpressionGenerator 
 	 * @param varName The name of the variable being assigned.
 	 * @param searchConstructors Whether or not to search constructors.
 	 * @param searchOperators Whether or not to search operator expressions.
-	 * @param synthesisDialog The synthesis dialog to pass the valid expressions,
+	 * @param searchStatements Whether or not to search statements.
+	 * @param synthesisDialog The synthesis dialog to pass the valid statements,
 	 * or null if we should not pass anything.
 	 * @param monitor Progress monitor.
-	 * @param maxExprDepth The maximum depth of expressions to search.
-	 * @return A list containing strings of all the expressions (up
+	 * @param maxExprDepth The maximum depth of statements to search.
+	 * @return A list containing strings of all the statements (up
 	 * to the given depth) whose result in the current stack frame satisfies
 	 * the given pdspec.
 	 */
 	@Override
-	public ArrayList<Expression> generateExpression(Property property, TypeConstraint typeConstraint, String varName, boolean searchConstructors, boolean searchOperators, SynthesisDialog synthesisDialog, IProgressMonitor monitor, int maxExprDepth) {
+	public ArrayList<? extends Statement> generateStatement(Property property, TypeConstraint typeConstraint, String varName, boolean searchConstructors, boolean searchOperators, boolean searchStatements, SynthesisDialog synthesisDialog, IProgressMonitor monitor, int maxExprDepth) {
 		monitor.beginTask("Expression generation and evaluation", IProgressMonitor.UNKNOWN);
 		
 		try {
@@ -138,7 +146,7 @@ public final class DeterministicExpressionGenerator extends ExpressionGenerator 
 			this.downcastTypes = new HashSet<String>();
 			initSearch();
 			
-			ArrayList<Expression> results = genAllExprs(maxExprDepth, property, searchConstructors, searchOperators, synthesisDialog, monitor);
+			ArrayList<? extends Statement> results = genAllExprs(maxExprDepth, property, searchConstructors, searchOperators, searchStatements, synthesisDialog, monitor);
 
 			/*for (Map.Entry<Value, ArrayList<Expression>> entry : equivalences.entrySet())
 				System.out.println(entry.getKey() + " -> " + entry.getValue().toString());
@@ -163,6 +171,7 @@ public final class DeterministicExpressionGenerator extends ExpressionGenerator 
 	 * @param property The property entered by the user.
 	 * @param searchConstructors Whether or not to search constructors.
 	 * @param searchOperators Whether or not to search operator expressions.
+	 * @param searchStatements Whether or not to search statements.
 	 * @param synthesisDialog The synthesis dialog to pass the valid expressions,
 	 * or null if we should not pass anything.
 	 * @param monitor Progress monitor.
@@ -170,7 +179,7 @@ public final class DeterministicExpressionGenerator extends ExpressionGenerator 
 	 * current stack frame satisfies the current pdspec.
 	 * @throws DebugException 
 	 */
-	private ArrayList<Expression> genAllExprs(int maxDepth, Property property, boolean searchConstructors, boolean searchOperators, final SynthesisDialog synthesisDialog, IProgressMonitor monitor) throws DebugException {
+	private ArrayList<? extends Statement> genAllExprs(int maxDepth, Property property, boolean searchConstructors, boolean searchOperators, boolean searchStatements, final SynthesisDialog synthesisDialog, IProgressMonitor monitor) throws DebugException {
 		long startTime = System.currentTimeMillis();
 		int initNumCrashes = getNumCrashes();
 		
@@ -188,32 +197,44 @@ public final class DeterministicExpressionGenerator extends ExpressionGenerator 
 				nextLevel = evaluateExpressions(curLevel, null, null, monitor, depth, maxDepth);
 			}
 		}
-		ArrayList<Expression> results = evaluateExpressions(curLevel, property, synthesisDialog, monitor, maxDepth, maxDepth);
+		ArrayList<Expression> validExprs = evaluateExpressions(curLevel, property, synthesisDialog, monitor, maxDepth, maxDepth);
 		int numEvaled = getNumExprsSearched() - initNumCrashes;
 		
 		//printEquivalenceInfo();
 		//System.out.println("Took " + (System.currentTimeMillis() - startTime) + " milliseconds pre-expansion.");
 		
 		// Expand equivalences.
-		final ArrayList<Expression> extraResults = expandEquivalences(results, maxDepth, monitor);
+		final ArrayList<Expression> extraValidExprs = expandEquivalences(validExprs, maxDepth, monitor);
     	if (synthesisDialog != null)
-    		synthesisDialog.addExpressions(extraResults);
-		results.addAll(extraResults);
+    		synthesisDialog.addStatements(extraValidExprs);
+		validExprs.addAll(extraValidExprs);
+
+		List<Statement> validStmts = Collections.<Statement>emptyList();
+		if (searchStatements) {
+			ArrayList<Statement> stmts = genStmts(curLevel, property, monitor);
+			validStmts = evaluateExpressions(stmts, property, synthesisDialog, monitor, maxDepth, maxDepth);
+			System.out.println("Generated " + stmts.size() + " statements of which " + validStmts.size() + " were valid.");
+		}
 
 		//getMaxLineInfo();
 		
 		long time = System.currentTimeMillis() - startTime; 
 		int numSearched = getNumExprsSearched() - initNumCrashes;
-		EclipseUtils.log("Generated " + numSearched + " expressions (of which " + numEvaled + " were evaluated) at depth " + maxDepth + " and found " + results.size() + " valid expressions and took " + time + " milliseconds.");
-		DataCollector.log("gen", "spec=" + (property == null ? "" : property.toString()), "depth=" + maxDepth, "evaled=" + numEvaled, "gen=" + numSearched, "valid=" + results.size(), "time=" + time);
+		EclipseUtils.log("Generated " + numSearched + " statements (of which " + numEvaled + " were evaluated) at depth " + maxDepth + " and found " + validExprs.size() + " valid statements and took " + time + " milliseconds.");
+		DataCollector.log("gen", "spec=" + (property == null ? "" : property.toString()), "depth=" + maxDepth, "evaled=" + numEvaled, "gen=" + numSearched, "valid=" + validExprs.size(), "time=" + time);
 		
+		if (validStmts.isEmpty())
+			return validExprs;
+		ArrayList<Statement> results = new ArrayList<Statement>(validExprs.size() + validStmts.size());
+		results.addAll(validExprs);
+		results.addAll(validStmts);
     	return results;
 	}
-	
+
 	/**
 	 * Evaluates the given expressions and returns those that
 	 * do not crash and satisfy the given pdspec if it is non-null.
-	 * @param exprs The expressions to evaluate.
+	 * @param stmts The statements to evaluate.
 	 * @param property The property entered by the user.
 	 * @param synthesisDialog The synthesis dialog to pass the valid
 	 * expressions, or null if we should not pass anything.
@@ -224,17 +245,17 @@ public final class DeterministicExpressionGenerator extends ExpressionGenerator 
 	 * given pdspec if it is non-null.
 	 * @throws DebugException
 	 */
-	private ArrayList<Expression> evaluateExpressions(ArrayList<Expression> exprs, Property property, SynthesisDialog synthesisDialog, IProgressMonitor monitor, int depth, int maxDepth) throws DebugException {
+	private <T extends Statement> ArrayList<T> evaluateExpressions(ArrayList<T> stmts, Property property, SynthesisDialog synthesisDialog, IProgressMonitor monitor, int depth, int maxDepth) throws DebugException {
 		String taskNameSuffix = " " + (depth + 1) + "/" + (maxDepth + 1);
-		ArrayList<Expression> evaluatedExprs = new ArrayList<Expression>();
-		ArrayList<Expression> unevaluatedExprs = new ArrayList<Expression>();
+		ArrayList<T> evaluatedExprs = new ArrayList<T>();
+		ArrayList<T> unevaluatedExprs = new ArrayList<T>();
 		
-    	for (Expression e : exprs) {
-    		IJavaValue value = expressionEvaluator.getValue(e, Collections.<Effect>emptySet());
-    		if (value != null && !"V".equals(value.getSignature()))
-    			evaluatedExprs.add(e);
+    	for (T s : stmts) {
+    		Result result = expressionEvaluator.getResult(s, Collections.<Effect>emptySet());
+    		if (result != null && (!(s instanceof Expression) || !"V".equals(result.getValue().getValue().getSignature())))
+    			evaluatedExprs.add(s);
     		else
-    			unevaluatedExprs.add(e);
+    			unevaluatedExprs.add(s);
     	}
     	
     	//System.out.println("Generated " + (unevaluatedExprs.size() + getNumExprsSearched()) + " total expressions at depth " + depth + ", of which " + unevaluatedExprs.size() + " still need to be evaluated and " + (evalManager.getNumCrashes() + staticEvaluator.getNumCrashes() + expressionMaker.getNumCrashes()) + " crashed.");
@@ -244,7 +265,7 @@ public final class DeterministicExpressionGenerator extends ExpressionGenerator 
     	
     	if (property != null && unevaluatedExprs.isEmpty() && !EvaluationManager.canEvaluateStatically(property))
 			evalManager.cacheMethodResults(evaluatedExprs);
-		ArrayList<Expression> results = evalManager.evaluateExpressions(evaluatedExprs, property, getVarType(typeConstraint), synthesisDialog, monitor, taskNameSuffix);
+		ArrayList<T> results = evalManager.evaluateStatements(evaluatedExprs, property, getVarType(typeConstraint), synthesisDialog, monitor, taskNameSuffix);
     	if (unevaluatedExprs.size() > 0) {
 
     		/*int printCount = 0;
@@ -275,9 +296,10 @@ public final class DeterministicExpressionGenerator extends ExpressionGenerator 
 	    	}*/
     		
     		// We evaluate these separately because we need to set their value and add them to our equivalent expressions map; we have already done this for those whose value we already knew.
-    		ArrayList<Expression> result = evalManager.evaluateExpressions(unevaluatedExprs, property, getVarType(typeConstraint), synthesisDialog, monitor, taskNameSuffix);
-    		for (Expression e: result)
-    			addEquivalentExpression(e, Collections.<Effect>emptySet());
+    		ArrayList<T> result = evalManager.evaluateStatements(unevaluatedExprs, property, getVarType(typeConstraint), synthesisDialog, monitor, taskNameSuffix);
+    		for (Statement e: result)
+    			if (e instanceof Expression)
+    				addEquivalentExpression((Expression)e, Collections.<Effect>emptySet());
     		results.addAll(result);
     	}
     	return results;
@@ -713,7 +735,7 @@ public final class DeterministicExpressionGenerator extends ExpressionGenerator 
 					Expression receiver = getCallReceiver(e, method, isSubtype);
 					String name = getCallName(receiver, method);
 					int maxArgDepth = pruneManyArgCalls(method, allPossibleActuals, depth, depth - 1);
-					Set<Effect> receiverEffects = isConstructor ? Collections.<Effect>emptySet() : expressionEvaluator.getResult(e, Collections.<Effect>emptySet()).getEffects();
+					Set<Effect> receiverEffects = isConstructor ? Collections.<Effect>emptySet() : expressionEvaluator.getEffects(e, Collections.<Effect>emptySet());
 					makeAllCalls(method, name, receiver, returnType, ops, receiverEffects, argTypes, allPossibleActuals, new ArrayList<Expression>(allPossibleActuals.size()), depth, maxDepth, maxArgDepth, overloadChecker);
                     if (method.isStatic())
                         staticAccesses.add(method.declaringType().name() + " " + method.name() + " " + method.signature());
@@ -796,6 +818,131 @@ public final class DeterministicExpressionGenerator extends ExpressionGenerator 
 		if (weights.isUncommon(method.declaringType().name(), Weights.getMethodKey(method)))
 			depthFactor--;
 		return (int)(50 * Math.pow(10, Math.max(0, depthFactor)));  // 50 at depth 1, 500 at depth 2, 5000 at depth 3, etc.
+	}
+	
+	/**
+	 * Generates statements out of the given expressions that might
+	 * satisfy the given pdspec.
+	 * We currently heuristically only generate certain statements.
+	 * First, we compute all of the variables whose post-value is
+	 * read in the pdspec.  We then generate all type-safe assignments
+	 * of the given expressions to those variables as well as all calls
+	 * where those variables are passed as parameters.  This is not
+	 * complete, as it will miss many statements.
+	 * TODO: Improve this heuristic to be more efficient or search
+	 * more statements.
+	 * @param curLevel The expressions of the current depth.
+	 * @param property The property entered by the user.
+	 * @param monitor The progress monitor.
+	 * @return Statements that might meet the given pdspec.  Note that
+	 * we do not actually check them against the pdspec.
+	 * @throws DebugException
+	 */
+	private ArrayList<Statement> genStmts(ArrayList<Expression> curLevel, Property property, IProgressMonitor monitor) throws DebugException {
+		Map<String, ArrayList<Expression>> varUses = new HashMap<String, ArrayList<Expression>>();
+		Set<String> primedVars = ((StateProperty)property).getPostVariables();
+		Set<String> primedObjects = new HashSet<String>();
+		curMonitor = SubMonitor.convert(monitor, "Statement generation (assignment)", primedVars.size() * curLevel.size() + curLevel.size());
+		// Make assignments to the modified variables.
+		for (String varName: primedVars) {
+			IJavaVariable javaVar = stack.findVariable(varName);
+			IJavaType varType = EclipseUtils.getTypeOfVariableAndLoadIfNeeded(javaVar, stack);
+			Expression var = null;
+			if (javaVar instanceof IJavaFieldVariable) {  // The variable is actually a field.
+				Expression thisReceiver = stack.isStatic() ? expressionMaker.makeStaticName(stack.getReceivingTypeName(), thisType, thread) : expressionMaker.makeThis(stack.getThis(), thisType, thread);
+				Field field = ((ReferenceType)((JDIType)((IJavaFieldVariable)javaVar).getReceivingType()).getUnderlyingType()).fieldByName(varName);
+				var = expressionMaker.makeFieldVar(varName, varType, thisReceiver, field, thread);
+			} else  // It is a normal variable.
+				var = expressionMaker.makeVar(varName, (IJavaValue)javaVar.getValue(), varType, thread);
+			for (Expression cur: curLevel) {
+				if (subtypeChecker.isSubtypeOf(cur.getStaticType(), varType) && !cur.equals(var))
+					Utils.addToListMap(varUses, varName, expressionMaker.makeAssignment(var, cur));
+				curMonitor.worked(1);
+			}
+			if (EclipseUtils.isObjectOrInterface(varType))
+				primedObjects.add(varName);
+		}
+		// Make standalone calls that pass in the modified variables.
+		for (Expression cur: curLevel) {
+			if (cur instanceof MethodInvocation)
+				for (String varName: VarFinder.hasVar(primedObjects, cur))
+					Utils.addToListMap(varUses, varName, cur);
+			curMonitor.worked(1);
+		}
+		// Combine into blocks
+		ArrayList<Statement> result = new ArrayList<Statement>();
+		/*for (Map.Entry<String, ArrayList<Expression>> uses: varUses.entrySet()) {
+			System.out.println(uses.getKey() + ":");
+			for (Expression expr: uses.getValue())
+				System.out.println("  " + expr.toString() + " (" + expressionEvaluator.getResult(expr, Collections.<Effect>emptySet()) + ")");
+		}*/
+		curMonitor.done();
+		curMonitor = SubMonitor.convert(monitor, "Statement generation (blocks)", (int)Utils.getNumCalls(varUses.values()));
+		makeBlocks(new ArrayList<ArrayList<Expression>>(varUses.values()), new ArrayList<Expression>(varUses.size()), result);
+		/*for (Statement stmt: result)
+			System.out.println(stmt.toString() + " (" + expressionEvaluator.getResult(stmt, Collections.<Effect>emptySet()) + ")");*/
+		curMonitor.done();
+		return result;
+	}
+	
+	/**
+	 * A class that finds all of the given variables
+	 * that exist in the given expression.
+	 */
+	private static class VarFinder extends ParentASTVisitor {
+		
+		private final Set<String> targetVars;
+		private final Set<String> myVars;
+
+		public VarFinder(Set<String> targetVars) {
+			this.targetVars = targetVars;
+			this.myVars = new HashSet<String>();
+		}
+		
+		@Override
+		public boolean visit(SimpleName node) {
+			if (targetVars.contains(node.getIdentifier()) && !parentIsName(node))
+				myVars.add(node.getIdentifier());
+			return true;
+		}
+		
+		public static Set<String> hasVar(Set<String> vars, Expression expr) {
+			VarFinder varFinder = new VarFinder(vars);
+			expr.accept(varFinder);
+			return varFinder.myVars;
+		}
+	}
+	
+	/**
+	 * Recursively makes a Block object for each sequence of Expressions
+	 * represented by varUses, whose first inner list is all the expressions
+	 * that can be first in the block, whose second list is all those that
+	 * can be second, and so forth.  So if varUses has expressions e_{ij}
+	 * representing varUses.get(i).get(j), this builds blocks of the form
+	 * { e_{0i}; e_{1j}; ... }.
+	 * TODO: We really should consider doing these in any order.
+	 * @param varUses The expressions from which to build blocks, where the
+	 * first inner list is all the expressions that can be first in the block
+	 * and so forth.
+	 * @param curBlock The current block that is being build up recursively.
+	 * @param result Where the resulting blocks are stored.
+	 */
+	private void makeBlocks(ArrayList<ArrayList<Expression>> varUses, ArrayList<Expression> curBlock, ArrayList<Statement> result) {
+		if (curMonitor.isCanceled())
+			throw new OperationCanceledException();
+		if (curBlock.size() == varUses.size()) {
+			Block block = expressionMaker.makeBlock(curBlock);
+			if (block != null)
+				result.add(block);
+			curMonitor.worked(1);
+		} else {
+			int index = curBlock.size();
+			for (Expression cur: varUses.get(index)) {
+				curBlock.add(cur);
+				makeBlocks(varUses, curBlock, result);
+				curBlock.remove(index);
+			}
+		}
 	}
 	
 	/**
@@ -1297,7 +1444,7 @@ public final class DeterministicExpressionGenerator extends ExpressionGenerator 
 			ArrayList<Expression> nextArgs = curEffects.isEmpty() ? uniqueExpressions : getArgs(uniqueExpressions, receiver, method, overloadChecker, actualTypes[argNum], argNum, maxArgDepth);
 			for (Expression e : nextArgs) {
 				curActuals.add(e);
-				makeAllCalls(method, name, receiver, returnType, ops, expressionEvaluator.getResult(e, curEffects).getEffects(), actualTypes, defaultPossibleActuals, curActuals, depth, maxDepth, maxArgDepth, overloadChecker);
+				makeAllCalls(method, name, receiver, returnType, ops, expressionEvaluator.getEffects(e, curEffects), actualTypes, defaultPossibleActuals, curActuals, depth, maxDepth, maxArgDepth, overloadChecker);
 				curActuals.remove(argNum);
 			}
 		}
@@ -1492,7 +1639,7 @@ public final class DeterministicExpressionGenerator extends ExpressionGenerator 
 		} else if (expr instanceof InfixExpression) {
 			InfixExpression infix = (InfixExpression)expr;
 			expandEquivalencesRec(infix.getLeftOperand(), newlyExpanded, curEffects, maxDepth);
-			Set<Effect> intermediateEffects = expressionEvaluator.getResult(infix.getLeftOperand(), curEffects).getEffects();
+			Set<Effect> intermediateEffects = expressionEvaluator.getEffects(infix.getLeftOperand(), curEffects);
 			expandEquivalencesRec(infix.getRightOperand(), newlyExpanded, intermediateEffects, maxDepth);
 			for (Expression l : getEquivalentExpressions(infix.getLeftOperand(), UnknownConstraint.getUnknownConstraint(), curEffects, maxDepth - 1))
 				for (Expression r : getEquivalentExpressions(infix.getRightOperand(), UnknownConstraint.getUnknownConstraint(), intermediateEffects, maxDepth - 1)) {
@@ -1506,7 +1653,7 @@ public final class DeterministicExpressionGenerator extends ExpressionGenerator 
 		} else if (expr instanceof ArrayAccess) {
 			ArrayAccess array = (ArrayAccess)expr;
 			expandEquivalencesRec(array.getArray(), newlyExpanded, curEffects, maxDepth);
-			Set<Effect> intermediateEffects = expressionEvaluator.getResult(array.getArray(), curEffects).getEffects();
+			Set<Effect> intermediateEffects = expressionEvaluator.getEffects(array.getArray(), curEffects);
 			expandEquivalencesRec(array.getIndex(), newlyExpanded, intermediateEffects, maxDepth);
 			for (Expression a : getEquivalentExpressions(array.getArray(), UnknownConstraint.getUnknownConstraint(), curEffects, maxDepth - 1))
 				for (Expression i : getEquivalentExpressions(array.getIndex(), UnknownConstraint.getUnknownConstraint(), intermediateEffects, maxDepth - 1)) {
@@ -1702,7 +1849,7 @@ public final class DeterministicExpressionGenerator extends ExpressionGenerator 
 		overloadChecker.setMethod(method);
 		ArrayList<ArrayList<Expression>> newArguments = new ArrayList<ArrayList<Expression>>(arguments.length);
 		ArrayList<TypeConstraint> argConstraints = new ArrayList<TypeConstraint>(arguments.length);
-		Set<Effect> curArgEffects = expression == null || method.isConstructor() ? Collections.<Effect>emptySet() : expressionEvaluator.getResult(expression, curEffects).getEffects();
+		Set<Effect> curArgEffects = expression == null || method.isConstructor() ? Collections.<Effect>emptySet() : expressionEvaluator.getEffects(expression, curEffects);
 		for (int i = 0; i < arguments.length; i++) {
 			Expression curArg = arguments[i];
 			expandEquivalencesRec(curArg, newlyExpanded, curArgEffects, maxDepth);
@@ -1710,7 +1857,7 @@ public final class DeterministicExpressionGenerator extends ExpressionGenerator 
 			TypeConstraint argConstraint = new SupertypeBound(argType);
 			newArguments.add(getExpansionArgs(getEquivalentExpressions(curArg, argConstraint, curArgEffects, maxDepth - 1), i, argType, method, overloadChecker));
 			argConstraints.add(argConstraint);
-			curArgEffects = expressionEvaluator.getResult(curArg, curArgEffects).getEffects();
+			curArgEffects = expressionEvaluator.getEffects(curArg, curArgEffects);
 		}
 		int curDepth = getDepth(call);
 		pruneManyArgCalls(newArguments, curDepth, curDepth - 1, method);

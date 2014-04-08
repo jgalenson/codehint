@@ -93,7 +93,7 @@ public class StochasticExpressionGenerator extends ExpressionGenerator {
 	}
 
 	@Override
-	public ArrayList<Expression> generateExpression(Property property, TypeConstraint typeConstraint, String varName, boolean searchConstructors, boolean searchOperators, SynthesisDialog synthesisDialog, IProgressMonitor monitor, int maxExprDepth) {
+	public ArrayList<Expression> generateStatement(Property property, TypeConstraint typeConstraint, String varName, boolean searchConstructors, boolean searchOperators, boolean searchStatements, SynthesisDialog synthesisDialog, IProgressMonitor monitor, int maxExprDepth) {
 		this.names = new StaticNameWeightedList(expressionEvaluator, weights);
 		this.primitives = new ExpressionWeightedList(expressionEvaluator, weights);
 		this.objects = new ExpressionWeightedList(expressionEvaluator, weights);
@@ -102,6 +102,8 @@ public class StochasticExpressionGenerator extends ExpressionGenerator {
 		this.candidates = makeCandidateWeightedList(searchOperators);
 		this.candidatesList = new CandidateLists();
 		try {
+			if (searchStatements)  // FIXME: Implement searching statements stochastically.
+				EclipseUtils.showWarning("Cannot search statements", "The stochastic search cannot yet search statements.", null);
 			initSearch();
 			this.equivalences.put(Collections.<Effect>emptySet(), new HashMap<Result, ArrayList<Expression>>());
 			this.uniqueValuesSeenForType = new HashMap<String, Integer>();
@@ -140,7 +142,7 @@ public class StochasticExpressionGenerator extends ExpressionGenerator {
 		ArrayList<Expression> results = new ArrayList<Expression>();
 		Map<Result, ArrayList<Expression>> curEquivMap = equivalences.get(Collections.<Effect>emptySet());
 		addSeeds(typeConstraint);
-		results.addAll(evalManager.evaluateExpressions(candidatesList, property, getVarType(typeConstraint), synthesisDialog, monitor, ""));
+		results.addAll(evalManager.evaluateStatements(candidatesList, property, getVarType(typeConstraint), synthesisDialog, monitor, ""));
 		for (Expression expr: candidatesList) {
 			addEquivalentExpression(expr, Collections.<Effect>emptySet());
 			Utils.incrementMap(uniqueValuesSeenForType, expr instanceof NullLiteral ? "null" : expr.getStaticType().getName());
@@ -165,7 +167,7 @@ public class StochasticExpressionGenerator extends ExpressionGenerator {
 					Display.getDefault().asyncExec(new Runnable(){
 						@Override
 						public void run() {
-							synthesisDialog.addExpressions(newResults);
+							synthesisDialog.addStatements(newResults);
 						}
 			    	});
 				} /* else
@@ -261,7 +263,7 @@ public class StochasticExpressionGenerator extends ExpressionGenerator {
 			List<Expression> exprList = Collections.singletonList(expr);
 	    	if (property != null && !EvaluationManager.canEvaluateStatically(property))
 				evalManager.cacheMethodResults(exprList);
-			satisfies = !evalManager.evaluateExpressions(exprList, property, getVarType(typeConstraint), null, monitor, "").isEmpty();
+			satisfies = !evalManager.evaluateStatements(exprList, property, getVarType(typeConstraint), null, monitor, "").isEmpty();
 		}
 		specCache.put(result, satisfies);
 		return satisfies;
@@ -666,7 +668,7 @@ public class StochasticExpressionGenerator extends ExpressionGenerator {
 		} else if (expr instanceof InfixExpression) {
 			InfixExpression infix = (InfixExpression)expr;
 			for (Expression l: getEquivalentExpressions(infix.getLeftOperand(), Collections.<Effect>emptySet(), control, newEquivs))
-				for (Expression r: getEquivalentExpressions(infix.getRightOperand(), expressionEvaluator.getResult(l, Collections.<Effect>emptySet()).getEffects(), control, newEquivs)) {
+				for (Expression r: getEquivalentExpressions(infix.getRightOperand(), expressionEvaluator.getEffects(l, Collections.<Effect>emptySet()), control, newEquivs)) {
 					if (monitor.isCanceled())
 						throw new OperationCanceledException();
 					if (isUsefulInfix(l, infix.getOperator(), r)) {
@@ -684,7 +686,7 @@ public class StochasticExpressionGenerator extends ExpressionGenerator {
 		} else if (expr instanceof ArrayAccess) {
 			ArrayAccess arrayAccess = (ArrayAccess)expr;
 			for (Expression a: getEquivalentExpressions(arrayAccess.getArray(), Collections.<Effect>emptySet(), control, newEquivs))
-				for (Expression i: getEquivalentExpressions(arrayAccess.getIndex(), expressionEvaluator.getResult(a, Collections.<Effect>emptySet()).getEffects(), control, newEquivs)) {
+				for (Expression i: getEquivalentExpressions(arrayAccess.getIndex(), expressionEvaluator.getEffects(a, Collections.<Effect>emptySet()), control, newEquivs)) {
 					if (monitor.isCanceled())
 						throw new OperationCanceledException();
 					ArrayAccess newArrayAccess = expressionMaker.makeArrayAccess(type, a, i);
@@ -795,13 +797,13 @@ public class StochasticExpressionGenerator extends ExpressionGenerator {
 		overloadChecker.setMethod(method);
 		ArrayList<ArrayList<Expression>> newArguments = new ArrayList<ArrayList<Expression>>(arguments.length);
 		ArrayList<TypeConstraint> argConstraints = new ArrayList<TypeConstraint>(arguments.length);
-		Set<Effect> curArgEffects = receiver == null || method.isConstructor() ? Collections.<Effect>emptySet() : expressionEvaluator.getResult(receiver, Collections.<Effect>emptySet()).getEffects();
+		Set<Effect> curArgEffects = receiver == null || method.isConstructor() ? Collections.<Effect>emptySet() : expressionEvaluator.getEffects(receiver, Collections.<Effect>emptySet());
 		for (int i = 0; i < arguments.length; i++) {
 			Expression curArg = arguments[i];
 			IJavaType argType = EclipseUtils.getTypeAndLoadIfNeeded((String)method.argumentTypeNames().get(i), stack, target, typeCache);
 			newArguments.add(getExpansionArgs(getEquivalentExpressions(curArg, curArgEffects, control, newEquivs), i, argType, method, overloadChecker));
 			argConstraints.add(new SupertypeBound(argType));
-			curArgEffects = expressionEvaluator.getResult(curArg, curArgEffects).getEffects();
+			curArgEffects = expressionEvaluator.getEffects(curArg, curArgEffects);
 		}
 		MethodConstraint receiverConstraint = new MethodConstraint(name, UnknownConstraint.getUnknownConstraint(), argConstraints, sideEffectHandler.isHandlingSideEffects());
 		Set<String> fulfillingType = new HashSet<String>();

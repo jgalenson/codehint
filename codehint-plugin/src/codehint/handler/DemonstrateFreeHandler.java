@@ -9,7 +9,7 @@ import org.eclipse.ui.handlers.HandlerUtil;
 import codehint.Synthesizer;
 import codehint.Synthesizer.SynthesisWorker;
 import codehint.dialogs.InitialSynthesisDialog;
-import codehint.dialogs.TypePropertyDialog;
+import codehint.dialogs.StatePropertyDialog;
 import codehint.utils.EclipseUtils;
 
 public class DemonstrateFreeHandler extends AbstractHandler {
@@ -21,8 +21,8 @@ public class DemonstrateFreeHandler extends AbstractHandler {
 			EclipseUtils.showError("Error", "Please start debugging.", null);
 			return null;
 		}
-		InitialSynthesisDialog dialog = new InitialSynthesisDialog(HandlerUtil.getActiveShell(event), null, null, stack, new TypePropertyDialog(null, null, stack, "", null), new SynthesisWorker(null, null));
-		Synthesizer.synthesizeAndInsertExpressions(null, null, dialog, stack, false);
+		InitialSynthesisDialog dialog = new InitialSynthesisDialog(HandlerUtil.getActiveShell(event), null, null, stack, new StatePropertyDialog(null, stack, "", null), new SynthesisWorker(null, null));
+		Synthesizer.synthesizeAndInsertStatements(null, null, dialog, stack, false);
 		return null;
 	}
 

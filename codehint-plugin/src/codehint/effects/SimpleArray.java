@@ -9,7 +9,7 @@ import com.sun.jdi.Value;
 
 public class SimpleArray extends ArrayValue {
 	
-	public SimpleArray(ArrayReference value, List<Value> values) {
+	SimpleArray(ArrayReference value, List<Value> values) {
 		super(value, values);
 	}
 	

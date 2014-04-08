@@ -12,7 +12,7 @@ public class NestedArray extends ArrayValue {
 	
 	private final ArrayValue[] nestedValues;
 	
-	public NestedArray(ArrayReference value, List<Value> values, ArrayValue[] nestedValues) {
+	NestedArray(ArrayReference value, List<Value> values, ArrayValue[] nestedValues) {
 		super(value, values);
 		this.nestedValues = nestedValues;
 	}

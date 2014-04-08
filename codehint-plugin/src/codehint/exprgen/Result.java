@@ -14,7 +14,7 @@ public class Result {
 	private final Value value;
 	private final Set<Effect> effects;
 	
-	protected Result(Value value, Set<Effect> effects) {
+	public Result(Value value, Set<Effect> effects) {
 		this.value = value;
 		this.effects = effects;
 	}

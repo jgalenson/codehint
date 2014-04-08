@@ -409,6 +409,8 @@ public class SideEffectHandler {
 				//System.out.println("Unchanged arg arr from " + info.second);*/
 			}
 		}
+		for (Effect effect: manualEffects)
+			effects.add(effect);
 		for (Effect effect: effects) {
 			disableCollection(effect.getNewVal().getValue());
 			storeCollectionDisableds(effect.getOldVal().getValue());
@@ -496,6 +498,7 @@ public class SideEffectHandler {
 	private Set<FieldLVal> changedFields;
 	private Set<FieldLVal> readArrays;
 	private Set<ArrayReference> backedUpArrays;
+	private Set<Effect> manualEffects;
 	
 	public synchronized void startHandlingSideEffects() {
 		if (!enabled)
@@ -507,6 +510,7 @@ public class SideEffectHandler {
 			changedFields = new HashSet<FieldLVal>();
 			readArrays = new HashSet<FieldLVal>();
 			backedUpArrays = new HashSet<ArrayReference>();
+			manualEffects = new HashSet<Effect>();
 		}
 	}
 
@@ -549,6 +553,7 @@ public class SideEffectHandler {
 		changedFields = null;
 		readArrays = null;
 		backedUpArrays = null;
+		manualEffects = null;
 		undoEffects(effects);
 		return effects;
 	}
@@ -631,13 +636,16 @@ public class SideEffectHandler {
 
 	public synchronized void redoAndRecordEffects(Set<Effect> effects) {
 		for (Effect effect: effects) {
-			if (effect.getLval() instanceof FieldLVal) {
-				FieldLVal lval = (FieldLVal)effect.getLval();
+			LVal lval = effect.getLval();
+			if (lval instanceof FieldLVal) {
+				FieldLVal flval = (FieldLVal)effect.getLval();
 				if (!(effect.getOldVal().getValue() instanceof ArrayReference))
-					recordEffect(lval, effect.getOldVal().getValue(), effect.getNewVal().getValue());
+					recordEffect(flval, effect.getOldVal().getValue(), effect.getNewVal().getValue());
 				else
-					backupArray(lval, effect.getOldVal().getValue());
+					backupArray(flval, effect.getOldVal().getValue());
 			}
+			if (lval instanceof VarLVal || lval instanceof ArrayAccessLVal)
+				manualEffects.add(effect);  // These effects happen only from our algorithms and not during evaluations, so we store them manually.
 		}
 		redoEffects(effects);
 	}

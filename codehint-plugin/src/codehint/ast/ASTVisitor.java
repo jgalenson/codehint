@@ -142,5 +142,9 @@ public class ASTVisitor {
 	public boolean visit(TypeLiteral node) {
 		return true;
 	}
+	
+	public boolean visit(Block node) {
+		return true;
+	}
 
 }

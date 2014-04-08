@@ -15,6 +15,8 @@ import org.eclipse.jdt.debug.core.IJavaValue;
 
 import codehint.ast.ArrayAccess;
 import codehint.ast.ArrayType;
+import codehint.ast.Assignment;
+import codehint.ast.Block;
 import codehint.ast.BooleanLiteral;
 import codehint.ast.CastExpression;
 import codehint.ast.CharacterLiteral;
@@ -40,6 +42,7 @@ import codehint.ast.PrimitiveType;
 import codehint.ast.QualifiedName;
 import codehint.ast.SimpleName;
 import codehint.ast.SimpleType;
+import codehint.ast.Statement;
 import codehint.ast.StringLiteral;
 import codehint.ast.SuperFieldAccess;
 import codehint.ast.SuperMethodInvocation;
@@ -292,7 +295,7 @@ public class ExpressionMaker {
 	public InstanceofExpression makeInstanceOf(Expression obj, Type targetDomType, IJavaType booleanType, Value value) throws DebugException {
 		assert booleanType.getName().equals("boolean");
 		InstanceofExpression e = new InstanceofExpression(booleanType, obj, targetDomType);
-		Result result = new Result(value, expressionEvaluator.getResult(obj, Collections.<Effect>emptySet()).getEffects());
+		Result result = new Result(value, expressionEvaluator.getEffects(obj, Collections.<Effect>emptySet()));
 		expressionEvaluator.setResult(e, result, Collections.<Effect>emptySet());
 		return e;
 	}
@@ -425,6 +428,29 @@ public class ExpressionMaker {
 			} else
 				throw new RuntimeException(e);
 		}
+	}
+	
+	public Assignment makeAssignment(Expression lhs, Expression rhs) {
+		try {
+			Assignment assign = new Assignment(lhs, Assignment.Operator.ASSIGN, rhs);
+			Result lhsResult = expressionEvaluator.evaluateExpressionWithEffects(lhs, Collections.<Effect>emptySet(), null);
+			Result rhsResult = expressionEvaluator.evaluateExpressionWithEffects(rhs, lhsResult.getEffects(), null);
+			Result result = expressionEvaluator.computeAssignment(lhs, rhs, Collections.<Effect>emptySet(), lhsResult, rhsResult);
+			assert result != null;
+			expressionEvaluator.setResult(assign, result, Collections.<Effect>emptySet());
+			return assign;
+		} catch (DebugException ex) {
+			throw new RuntimeException(ex);
+		}
+	}
+	
+	public Block makeBlock(ArrayList<Expression> body) {
+		Block block = new Block(body.toArray(new Statement[body.size()]));
+		Result result = expressionEvaluator.computeBlock(body, Collections.<Effect>emptySet());
+		if (result == null)  // A block could unexpectedly crash due to intermediate effects.
+			return null;
+		expressionEvaluator.setResult(block, result, Collections.<Effect>emptySet());
+		return block;
 	}
 
 }

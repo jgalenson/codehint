@@ -105,7 +105,9 @@ import codehint.Synthesizer;
 import codehint.Synthesizer.SynthesisWorker;
 import codehint.ast.ASTNode;
 import codehint.ast.ASTVisitor;
+import codehint.ast.Block;
 import codehint.ast.Expression;
+import codehint.ast.Statement;
 import codehint.effects.Effect;
 import codehint.effects.SideEffectHandler;
 import codehint.expreval.EvaluationManager;
@@ -147,7 +149,7 @@ public abstract class SynthesisDialog extends ModelessDialog {
 
     protected final IJavaStackFrame stack;
 
-    protected ArrayList<Expression> results;
+    protected ArrayList<Statement> results;
     protected Property property;
 	
 	private final String initialSkeletonText;
@@ -157,6 +159,7 @@ public abstract class SynthesisDialog extends ModelessDialog {
 	private String skeletonResult;
 	private Button searchConstructorsButton;
 	private Button searchOperatorsButton;
+	private Button searchStatementsButton;
 	protected Button searchNativeCalls;
 	protected Button handleSideEffects;
 	private boolean blockedNativeCalls;
@@ -183,9 +186,9 @@ public abstract class SynthesisDialog extends ModelessDialog {
     private int maxToStringLen;
     private int maxEffectsLen;
     private boolean needsToStringColumn;
-    protected ArrayList<Expression> expressions;
-    private ArrayList<Expression> lastExpressions;
-    protected ArrayList<Expression> filteredExpressions;
+    protected ArrayList<Statement> statements;
+    private ArrayList<Statement> lastStatements;
+    protected ArrayList<Statement> filteredStatements;
     private Button checkAllButton;
     private Button uncheckAllButton;
     private static final int checkSelectedButtonID = IDialogConstants.CLIENT_ID + 2;
@@ -252,9 +255,9 @@ public abstract class SynthesisDialog extends ModelessDialog {
 		this.maxToStringLen = 0;
 		this.maxEffectsLen = 0;
 		this.needsToStringColumn = false;
-		this.expressions = null;
-		this.lastExpressions = null;
-		this.filteredExpressions = null;
+		this.statements = null;
+		this.lastStatements = null;
+		this.filteredStatements = null;
 		this.amFiltering = false;
 		this.synthesisWorker = synthesisWorker;
 		this.project = EclipseUtils.getProject(stack);
@@ -301,6 +304,8 @@ public abstract class SynthesisDialog extends ModelessDialog {
 		if (!EclipseUtils.isObject(varType))
 			searchConstructorsButton.setEnabled(false);
 		searchOperatorsButton = createCheckBoxButton(skeletonButtonComposite, "Search operators");
+		searchStatementsButton = createCheckBoxButton(skeletonButtonComposite, "Search statements");
+		searchStatementsButton.setEnabled(false);  // Handle side effects is off by default
 		
 		Composite searchOptionsComposite = makeChildComposite(skeletonComposite, GridData.HORIZONTAL_ALIGN_CENTER, 0);
 		searchNativeCalls = createCheckBoxButton(searchOptionsComposite, "Call non-standard native methods (fast but dangerous)");
@@ -311,6 +316,15 @@ public abstract class SynthesisDialog extends ModelessDialog {
         PlatformUI.getWorkbench().getHelpSystem().setHelp(handleSideEffects, Activator.PLUGIN_ID + "." + "handle-side-effects");
         if (!sideEffectHandler.canHandleSideEffects())
         	handleSideEffects.setEnabled(false);
+        handleSideEffects.addSelectionListener(new SelectionAdapter() {
+            @Override
+			public void widgetSelected(SelectionEvent e) {
+                boolean canSearchStatements = handleSideEffects.getSelection() && canSearchStatements();
+				searchStatementsButton.setEnabled(canSearchStatements);
+				if (!canSearchStatements)
+					searchStatementsButton.setSelection(false);
+            }
+        });
 		
 		Composite topButtonComposite = makeChildComposite(composite, GridData.HORIZONTAL_ALIGN_CENTER, 0);
 		addSearchButtons(topButtonComposite);
@@ -325,12 +339,12 @@ public abstract class SynthesisDialog extends ModelessDialog {
 			public void handleEvent(Event event) {
 				TableItem item = (TableItem)event.item;
 				int index = event.index;
-				Expression expr = filteredExpressions.get(index);
-				item.setData(expr);
-				String exprLabel = getExpressionLabel(expr);
-				String resultLabel = getValueLabel(expr);
-				String toStringLabel = getToStringLabel(expr);
-				String effectsLabel = getEffectsLabel(expr);
+				Statement stmt = filteredStatements.get(index);
+				item.setData(stmt);
+				String exprLabel = getStatementLabel(stmt);
+				String resultLabel = getValueLabel(stmt);
+				String toStringLabel = getToStringLabel(stmt);
+				String effectsLabel = getEffectsLabel(stmt);
 				item.setText(new String[] { exprLabel, resultLabel, toStringLabel, effectsLabel });
 				if (exprLabel.length() > maxExprLen) {
 					table.getColumn(0).pack();
@@ -371,7 +385,7 @@ public abstract class SynthesisDialog extends ModelessDialog {
     	(new TableViewerColumn(tableViewer, column1)).setLabelProvider(new ColumnLabelProvider() {
 			@Override
 			public String getToolTipText(Object element) {
-				Expression expr = (Expression)element;
+				Statement expr = (Statement)element;
 				String javadoc = getJavadocs(expr, expressionEvaluator, true);
 				if (javadoc == null)
 					return null;
@@ -518,6 +532,10 @@ public abstract class SynthesisDialog extends ModelessDialog {
 					propertyDialog = new StatePropertyDialog(propertyDialog.getVarName(), stack, curTextIsTypeName ? "" : curText, propertyDialog.getExtraMessage());
 				else
 					throw new IllegalArgumentException();
+				boolean canSearchStatements = canSearchStatements();
+				searchStatementsButton.setEnabled(canSearchStatements);
+				if (!canSearchStatements)
+					searchStatementsButton.setSelection(false);
 				comboIndex = index;
 				for (Control c: pdspecComposite.getChildren())
 					c.dispose();
@@ -742,10 +760,21 @@ public abstract class SynthesisDialog extends ModelessDialog {
     	}
     	return hasError;
     }
+
+    /**
+     * Checks whether we can search statements.  We only want to search statements
+     * during free synthesis (not when the user right-clicked a variable), when
+     * the pdspec is a property pdspec, not a value or type demonstration, and when
+     * we can handle side effects (since statements without side effects are useless).
+     * @return whether we can search statements.
+     */
+	private boolean canSearchStatements() {
+		return varType == null && propertyDialog instanceof StatePropertyDialog && sideEffectHandler.canHandleSideEffects();
+	}
     
     // Logic code
     
-    public ArrayList<Expression> getExpressions() {
+    public ArrayList<Statement> getResults() {
      	return results;
     }
     
@@ -827,10 +856,10 @@ public abstract class SynthesisDialog extends ModelessDialog {
         if (buttonId == searchCancelButtonID) {
         	searchCancelButtonPressed(buttonId);
         } else if (buttonId == IDialogConstants.OK_ID) {
-         	results = new ArrayList<Expression>();
+         	results = new ArrayList<Statement>();
          	for (int i = 0; i < table.getItemCount(); i++)
          		if (table.getItem(i).getChecked())
-         			results.add((Expression)table.getItem(i).getData());
+         			results.add((Statement)table.getItem(i).getData());
     	}
         super.buttonPressed(buttonId);
     }
@@ -849,8 +878,8 @@ public abstract class SynthesisDialog extends ModelessDialog {
 		skeletonResult = skeletonInput.getText();
 		skeleton = ExpressionSkeleton.fromString(skeletonResult, target, stack, expressionMaker, expressionEvaluator, evaluationEngine, subtypeChecker, typeCache, valueCache, evalManager, staticEvaluator, expressionGenerator, sideEffectHandler);
 		startEndSynthesis(isAutomatic ? SynthesisState.AUTO_START : SynthesisState.START);
-		lastExpressions = expressions;
-		showResults(new ArrayList<Expression>());
+		lastStatements = statements;
+		showResults(new ArrayList<Statement>());
 		valueCache.allowCollectionOfDisabledObjects();  // Allow collection of objects from previous search.
 		this.shouldContinue = !isAutomatic && searchButtonId == searchCancelButtonID;
 		// Reset column sort indicators.
@@ -898,23 +927,23 @@ public abstract class SynthesisDialog extends ModelessDialog {
         getButton(IDialogConstants.CANCEL_ID).setEnabled(!isStarting);
 		if (state == SynthesisState.END && searchButtonId == searchCancelButtonID && shouldContinue)
 			numSearches++;
-        startOrEndWork(isStarting, state == SynthesisState.END && expressions.isEmpty() ? "No expressions found.  You may press \"Continue Search\" to search further or change some search options." : null);
+        startOrEndWork(isStarting, state == SynthesisState.END && statements.isEmpty() ? "No expressions found.  You may press \"Continue Search\" to search further or change some search options." : null);
     	amSearching = isStarting;
     	if (state == SynthesisState.END) {
-    		javadocPrefetcher = new JavadocPrefetcher(this.filteredExpressions, this.expressionEvaluator);
+    		javadocPrefetcher = new JavadocPrefetcher(this.filteredStatements, this.expressionEvaluator);
     		javadocPrefetcher.setPriority(Job.DECORATE);
     		javadocPrefetcher.schedule();
-    		if (expressions.isEmpty() && numSearches == 1 && !handledSideEffects)  // Automatically continue search if no results were found at depth 1.
+    		if (statements.isEmpty() && numSearches == 1 && !handledSideEffects)  // Automatically continue search if no results were found at depth 1.
     			startSearch(property, searchButtonId);
     		else
     			searchButtonId = -1;
-    	} else if (state == SynthesisState.UNFINISHED && lastExpressions != null) {
-    		showResults(lastExpressions);
+    	} else if (state == SynthesisState.UNFINISHED && lastStatements != null) {
+    		showResults(lastStatements);
     		searchButtonId = -1;
     	}
     	if (!isStarting)
     		filterText.setText("");
-    	filterComposite.setVisible(!isStarting && !expressions.isEmpty());
+    	filterComposite.setVisible(!isStarting && !statements.isEmpty());
     }
 	
 	protected void startOrEndWork(boolean isStarting, String message) {
@@ -940,9 +969,9 @@ public abstract class SynthesisDialog extends ModelessDialog {
 			synthesisWorker.synthesize(this, evalManager, numSearches, timeoutChecker, nativeHandler.isEnabled(), sideEffectHandler);
 	}
 	
-	protected void showResults(ArrayList<Expression> exprs) {
-		expressions = exprs;
-		filteredExpressions = expressions;
+	protected void showResults(ArrayList<Statement> stmts) {
+		statements = stmts;
+		filteredStatements = statements;
 		showResults();
 	}
 
@@ -950,23 +979,23 @@ public abstract class SynthesisDialog extends ModelessDialog {
 	// Copy fields used to avoid a race with closing the dialog.
 	private final class JavadocPrefetcher extends Job {
 		
-		private final ArrayList<Expression> expressions;
+		private final ArrayList<Statement> statements;
 		private final ExpressionEvaluator expressionEvaluator;
 
-		private JavadocPrefetcher(ArrayList<Expression> expressions, ExpressionEvaluator expressionEvaluator) {
+		private JavadocPrefetcher(ArrayList<Statement> statements, ExpressionEvaluator expressionEvaluator) {
 			super("Javadoc prefetch");
-			this.expressions = expressions;
+			this.statements = statements;
 			this.expressionEvaluator = expressionEvaluator;
 		}
 
 		@Override
 		protected IStatus run(IProgressMonitor monitor) {
-			int num = Math.min(expressions.size(), 20);
+			int num = Math.min(statements.size(), 20);
 			monitor.beginTask("Javadoc prefetch", num);
 			for (int i = 0; i < num; i++) {
 				if (monitor.isCanceled())
 					return Status.CANCEL_STATUS;
-				getJavadocs(expressions.get(i), expressionEvaluator, false);
+				getJavadocs(statements.get(i), expressionEvaluator, false);
 				monitor.worked(1);
 			}
 			monitor.done();
@@ -1032,9 +1061,9 @@ public abstract class SynthesisDialog extends ModelessDialog {
 		return javadoc;
 	}
 	
-	private String getJavadocs(Expression expr, final ExpressionEvaluator expressionEvaluator, final boolean prettify) {
+	private String getJavadocs(Statement statement, final ExpressionEvaluator expressionEvaluator, final boolean prettify) {
     	final StringBuffer javadocs = new StringBuffer();
-    	expr.accept(new ASTVisitor() {
+    	statement.accept(new ASTVisitor() {
     		@Override
     		public void postVisit(ASTNode node) {
     			if (node instanceof Expression) {
@@ -1135,27 +1164,27 @@ public abstract class SynthesisDialog extends ModelessDialog {
     	
     }
     
-    public void addExpressions(ArrayList<Expression> foundExprs) {
-    	expressions.addAll(foundExprs);
+    public void addStatements(ArrayList<? extends Statement> foundStmts) {
+    	statements.addAll(foundStmts);
     	if (sorterWorker != null)
     		sorterWorker.cancel();
-		sorterWorker = new SorterWorker(expressions);
+		sorterWorker = new SorterWorker(statements);
 		sorterWorker.setPriority(Job.LONG);
 		sorterWorker.schedule();
     }
 
 	private final class SorterWorker extends Job {
 		
-		private final ArrayList<Expression> expressions;
+		private final ArrayList<Statement> statements;
 
-		private SorterWorker(ArrayList<Expression> expressions) {
+		private SorterWorker(ArrayList<Statement> statements) {
 			super("Result sorter");
-			this.expressions = expressions;
+			this.statements = statements;
 		}
 
 		@Override
 		protected IStatus run(IProgressMonitor monitor) {
-	    	Collections.sort(expressions, expressionSorter);
+	    	Collections.sort(statements, expressionSorter);
 	    	if (monitor.isCanceled())
 	    		return Status.CANCEL_STATUS;
 	    	Display.getDefault().asyncExec(new Runnable(){
@@ -1183,6 +1212,10 @@ public abstract class SynthesisDialog extends ModelessDialog {
     	return searchOperatorsButton.getSelection();
     }
     
+    public boolean searchStatements() {
+    	return searchStatementsButton.getSelection() && searchStatementsButton.isEnabled();
+    }
+    
     public boolean blockedNativeCalls() {
     	return blockedNativeCalls;
     }
@@ -1195,12 +1228,12 @@ public abstract class SynthesisDialog extends ModelessDialog {
     
     protected void showResults() {
 		// Set and show the results.
-    	table.setItemCount(filteredExpressions.size());
-    	needsToStringColumn = needsToStringColumn || needsToStringColumn(filteredExpressions);
+    	table.setItemCount(filteredStatements.size());
+    	needsToStringColumn = needsToStringColumn || needsToStringColumn(filteredStatements);
 		table.getColumn(2).setWidth(needsToStringColumn ? Math.max(table.getColumn(2).getWidth(), TABLE_WIDTH / 3) : 0);
     	table.clearAll();
     	// Enable/Disable check/selection buttons.
-    	boolean haveResults = !filteredExpressions.isEmpty();
+    	boolean haveResults = !filteredStatements.isEmpty();
     	checkAllButton.setEnabled(haveResults);
     	uncheckAllButton.setEnabled(haveResults);
     	checkSelectedButton.setEnabled(haveResults);
@@ -1214,26 +1247,26 @@ public abstract class SynthesisDialog extends ModelessDialog {
     	column.addSelectionListener(new SelectionAdapter() {
             @Override
 			public void widgetSelected(SelectionEvent e) {
-            	if (filteredExpressions == null)
+            	if (filteredStatements == null)
             		return;
             	final int direction = table.getSortColumn() == column ? (table.getSortDirection() == SWT.DOWN ? SWT.UP : SWT.DOWN) : SWT.DOWN;
-            	Collections.sort(filteredExpressions, new Comparator<Expression>() {
+            	Collections.sort(filteredStatements, new Comparator<Statement>() {
 					@Override
-					public int compare(Expression e1, Expression e2) {
+					public int compare(Statement s1, Statement s2) {
 			    		int result;
 			    		if (index == 0)
-			    			result = getExpressionLabel(e1).compareTo(getExpressionLabel(e2));
+			    			result = getStatementLabel(s1).compareTo(getStatementLabel(s2));
 			    		else if (index == 1 || index == 2) {
-			    			IJavaValue e1Value = expressionEvaluator.getValue(e1, Collections.<Effect>emptySet());
-			    			IJavaValue e2Value = expressionEvaluator.getValue(e2, Collections.<Effect>emptySet());
-			    			if (e1 instanceof IJavaPrimitiveValue && e2 instanceof IJavaPrimitiveValue)
+			    			IJavaValue e1Value = s1 instanceof Expression ? expressionEvaluator.getValue((Expression)s1, Collections.<Effect>emptySet()) : null;
+			    			IJavaValue e2Value = s2 instanceof Expression ? expressionEvaluator.getValue((Expression)s2, Collections.<Effect>emptySet()) : null;
+			    			if (s1 instanceof IJavaPrimitiveValue && s2 instanceof IJavaPrimitiveValue)
 			    				result = (int)(((IJavaPrimitiveValue)e1Value).getDoubleValue() - ((IJavaPrimitiveValue)e2Value).getDoubleValue());
 			    			else if (index == 1)
-			    				result = getValueLabel(e1).compareTo(getValueLabel(e2));
+			    				result = getValueLabel(s1).compareTo(getValueLabel(s2));
 			    			else// if (index == 2)
-			    				result = getToStringLabel(e1).compareTo(getToStringLabel(e2));
+			    				result = getToStringLabel(s1).compareTo(getToStringLabel(s2));
 			    		} else if (index == 3)
-		    				result = getEffectsLabel(e1).compareTo(getEffectsLabel(e2));
+		    				result = getEffectsLabel(s1).compareTo(getEffectsLabel(s2));
 			    		else
 			    			throw new RuntimeException("Unexpected column: " + index);
 			    		if (direction == SWT.UP)
@@ -1250,29 +1283,38 @@ public abstract class SynthesisDialog extends ModelessDialog {
     	return column;
     }
     
-    private static String getExpressionLabel(Expression e) {
-    	return e.toString();
+    private static String getStatementLabel(Statement e) {
+    	if (e instanceof Block)  // Display blocks without the braces.
+    		return ((Block)e).getBodyString();
+    	else
+    		return e.toString();
     }
     
-    private String getValueLabel(Expression e) {
+    private String getValueLabel(Statement e) {
     	try {
-			return EclipseUtils.javaStringOfValue(expressionEvaluator.getValue(e, Collections.<Effect>emptySet()), stack, false);
+    		if (e instanceof Expression)
+    			return EclipseUtils.javaStringOfValue(expressionEvaluator.getValue((Expression)e, Collections.<Effect>emptySet()), stack, false);
+    		else
+    			return "";
 		} catch (DebugException ex) {
 			throw new RuntimeException(ex);
 		}
     }
     
-    private String getToStringLabel(Expression e) {
-    	return expressionEvaluator.getResultString(e);
+    private String getToStringLabel(Statement e) {
+    	if (e instanceof Expression)
+    		return expressionEvaluator.getResultString((Expression)e);
+    	else
+    		return "";
     }
     
-    private String getEffectsLabel(Expression e) {
+    private String getEffectsLabel(Statement e) {
     	return expressionEvaluator.getResult(e, Collections.<Effect>emptySet()).getResultString("");
     }
     
-    private static boolean needsToStringColumn(ArrayList<Expression> expressions) {
-    	for (Expression expr: expressions)
-    		if (needsToStringColumn(expr.getStaticType()))
+    private static boolean needsToStringColumn(ArrayList<Statement> statements) {
+    	for (Statement stmt: statements)
+    		if (stmt instanceof Expression && needsToStringColumn(((Expression)stmt).getStaticType()))
     			return true;
     	return false;
     }
@@ -1316,7 +1358,7 @@ public abstract class SynthesisDialog extends ModelessDialog {
 	
 	private void filterExpressions(String text) {
 		if (text.isEmpty()) {
-			filteredExpressions = expressions;
+			filteredStatements = statements;
 			if (monitorLabel != null) {
 				monitorLabel.dispose();
 				monitorComposite.getParent().layout(true);
@@ -1335,9 +1377,9 @@ public abstract class SynthesisDialog extends ModelessDialog {
 				javadocPrefetcher.cancel();
 			amFiltering = true;
 			startOrEndWork(true, null);
-			filteredExpressions = new ArrayList<Expression>();
+			filteredStatements = new ArrayList<Statement>();
 			showResults();
-			filterWorker = new FilterWorker(text, expressions, expressionEvaluator);
+			filterWorker = new FilterWorker(text, statements, expressionEvaluator);
 			filterWorker.setPriority(Job.LONG);
 			filterWorker.schedule();
 		}
@@ -1347,23 +1389,23 @@ public abstract class SynthesisDialog extends ModelessDialog {
 	private final class FilterWorker extends Job {
 		
 		private final String[] filterWords;
-		private final ArrayList<Expression> expressions;
+		private final ArrayList<Statement> statements;
 		private final ExpressionEvaluator expressionEvaluator;
 
-		private FilterWorker(String filterText, ArrayList<Expression> expressions, ExpressionEvaluator expressionEvaluator) {
+		private FilterWorker(String filterText, ArrayList<Statement> statements, ExpressionEvaluator expressionEvaluator) {
 			super("Result filter");
 			this.filterWords = filterText.toLowerCase().split(" +");
-			this.expressions = expressions;
+			this.statements = statements;
 			this.expressionEvaluator = expressionEvaluator;
 		}
 
 		@Override
 		protected IStatus run(IProgressMonitor monitor) {
-			final ArrayList<Expression> filteredExpressions = SynthesisDialog.this.filteredExpressions;
-			SynthesisDialog.this.monitor.beginTask("Result filter", expressions.size());
+			final ArrayList<Statement> filteredExpressions = SynthesisDialog.this.filteredStatements;
+			SynthesisDialog.this.monitor.beginTask("Result filter", statements.size());
 			long lastUpdate = 0;
 			int lastUpdateSize = 0;
-			exprLoop: for (Expression expr: expressions) {
+			exprLoop: for (Statement stmt: statements) {
 				if (SynthesisDialog.this.monitor.isCanceled())
 					return finished(false);
 				long curTime = System.currentTimeMillis();
@@ -1378,16 +1420,16 @@ public abstract class SynthesisDialog extends ModelessDialog {
 					lastUpdateSize = filteredExpressions.size();
 				}
 				SynthesisDialog.this.monitor.worked(1);
-				String exprString = expr.toString().toLowerCase();
+				String exprString = stmt.toString().toLowerCase();
 				String javadocs = null;
 				boolean readJavadocs = false;
 				for (String filterWord: filterWords) {
 					if (exprString.contains(filterWord))
 						continue;
-					if (expressionEvaluator.getResultString(expr).toLowerCase().contains(filterWord))
+					if (stmt instanceof Expression && expressionEvaluator.getResultString((Expression)stmt).toLowerCase().contains(filterWord))
 						continue;
 					if (!readJavadocs) {  // Lazily initialize for efficiency.
-						javadocs = getJavadocs(expr, expressionEvaluator, false);
+						javadocs = getJavadocs(stmt, expressionEvaluator, false);
 						readJavadocs = true;
 						if (javadocs != null)
 							javadocs = javadocs.toLowerCase();
@@ -1395,7 +1437,7 @@ public abstract class SynthesisDialog extends ModelessDialog {
 					if (javadocs == null || !javadocs.contains(filterWord))
 						continue exprLoop;  // We count things without Javadocs as not matching.
 				}
-				filteredExpressions.add(expr);
+				filteredExpressions.add(stmt);
 			}
 			SynthesisDialog.this.monitor.done();
 	    	return finished(true);
@@ -1406,8 +1448,8 @@ public abstract class SynthesisDialog extends ModelessDialog {
 				@Override
 				public void run() {
 					if (!finished)  // Restore the original list of expressions if we cancelled.
-						filteredExpressions = expressions;
-					startOrEndWork(false, filteredExpressions.isEmpty() ? "All expressions have been filtered away." : null);
+						filteredStatements = statements;
+					startOrEndWork(false, filteredStatements.isEmpty() ? "All expressions have been filtered away." : null);
 					amFiltering = false;
 					showResults();
 				}
@@ -1539,9 +1581,9 @@ public abstract class SynthesisDialog extends ModelessDialog {
 		monitorComposite = null;
 		monitor = null;
 		table = null;
-		expressions = null;
-		lastExpressions = null;
-		filteredExpressions = null;
+		statements = null;
+		lastStatements = null;
+		filteredStatements = null;
 		checkAllButton = null;
 		uncheckAllButton = null;
 		checkSelectedButton = null;

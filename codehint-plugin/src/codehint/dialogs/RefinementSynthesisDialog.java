@@ -13,10 +13,11 @@ import org.eclipse.swt.widgets.Shell;
 import codehint.Synthesizer.RefinementWorker;
 import codehint.Synthesizer.SynthesisWorker;
 import codehint.ast.Expression;
+import codehint.ast.Statement;
 
 public class RefinementSynthesisDialog extends SynthesisDialog {
 	
-	private ArrayList<Expression> initialExprs;
+	private ArrayList<Statement> initialStmts;
 	private final RefinementWorker worker;
 	private final boolean blockedNatives;
 	private final boolean handledEffects;
@@ -55,7 +56,7 @@ public class RefinementSynthesisDialog extends SynthesisDialog {
 	@Override
 	protected void enableDisableSearchButtons(boolean isStartingSearch, boolean pdspecAndSkeletonAreValid) {
 		super.enableDisableSearchButtons(isStartingSearch, pdspecAndSkeletonAreValid);
-		refineCancelButton.setEnabled(isStartingSearch || pdspecAndSkeletonAreValid || initialExprs == null);
+		refineCancelButton.setEnabled(isStartingSearch || pdspecAndSkeletonAreValid || initialStmts == null);
 	}
 
     @Override
@@ -63,7 +64,7 @@ public class RefinementSynthesisDialog extends SynthesisDialog {
         if (buttonId == refineCancelButtonID)
         	searchCancelButtonPressed(buttonId);
         else if (buttonId == clearButtonID) {
-        	showResults(initialExprs);
+        	showResults(initialStmts);
         	clearButton.setEnabled(false);
         } else
         	super.buttonPressed(buttonId);
@@ -71,7 +72,7 @@ public class RefinementSynthesisDialog extends SynthesisDialog {
 
 	@Override
 	protected void searchCancelButtonPressed(int buttonId) {
-        if (!amSearching && initialExprs == null)
+        if (!amSearching && initialStmts == null)
 			evalCandidates();
         else
         	super.searchCancelButtonPressed(buttonId);
@@ -80,12 +81,12 @@ public class RefinementSynthesisDialog extends SynthesisDialog {
 	@Override
 	protected void startOrEndWork(boolean isStarting, String message) {
 		super.startOrEndWork(isStarting, message);
-		setButtonText(refineCancelButton, isStarting ? "Cancel" : initialExprs == null ? "Init" : "Refine");
-		clearButton.setEnabled(!isStarting && initialExprs != null && !(initialExprs.size() == expressions.size() && initialExprs.equals(expressions)));
+		setButtonText(refineCancelButton, isStarting ? "Cancel" : initialStmts == null ? "Init" : "Refine");
+		clearButton.setEnabled(!isStarting && initialStmts != null && !(initialStmts.size() == statements.size() && initialStmts.equals(statements)));
 	}
 
-	public void setInitialRefinementExpressions(ArrayList<Expression> exprs) {
-		initialExprs = exprs;
+	public void setInitialRefinementStatements(ArrayList<Statement> stmts) {
+		initialStmts = new ArrayList<Statement>(stmts);
 		endSynthesis(SynthesisState.END);
 	}
 
@@ -104,7 +105,7 @@ public class RefinementSynthesisDialog extends SynthesisDialog {
 	}
 	
     private void evalCandidates() {
-		filteredExpressions = expressions = new ArrayList<Expression>();
+		filteredStatements = statements = new ArrayList<Statement>();
 		startEndSynthesis(SynthesisState.START);
 		searchCancelButton.setEnabled(false);
 		worker.evaluateLine(blockedNatives, handledEffects, this, stack, thread);
@@ -113,7 +114,7 @@ public class RefinementSynthesisDialog extends SynthesisDialog {
 	@Override
 	public void cleanup() {
 		super.cleanup();
-		initialExprs.clear();
+		initialStmts.clear();
 		refineCancelButton = null;
 		clearButton = null;
 	}

@@ -34,6 +34,7 @@ import codehint.ast.NullLiteral;
 import codehint.ast.NumberLiteral;
 import codehint.ast.ParenthesizedExpression;
 import codehint.ast.PrefixExpression;
+import codehint.ast.Statement;
 import codehint.ast.ThisExpression;
 import codehint.ast.TypeLiteral;
 
@@ -271,7 +272,7 @@ public abstract class ExpressionGenerator {
 	}
 	
 	/**
-	 * Generates all the expressions (up to a certain depth) whose value
+	 * Generates all the statements (up to a certain depth) whose value
 	 * in the current stack frame is that of the demonstration.
 	 * @param property The property entered by the user.
 	 * @param typeConstraint The constraint on the type of the expressions
@@ -279,15 +280,16 @@ public abstract class ExpressionGenerator {
 	 * @param varName The name of the variable being assigned.
 	 * @param searchConstructors Whether or not to search constructors.
 	 * @param searchOperators Whether or not to search operator expressions.
-	 * @param synthesisDialog The synthesis dialog to pass the valid expressions,
+	 * @param searchStatements Whether or not to search statements.
+	 * @param synthesisDialog The synthesis dialog to pass the valid statements,
 	 * or null if we should not pass anything.
 	 * @param monitor Progress monitor.
-	 * @param maxExprDepth The maximum depth of expressions to search.
-	 * @return A list containing strings of all the expressions (up
+	 * @param maxExprDepth The maximum depth of statements to search.
+	 * @return A list containing strings of all the statements (up
 	 * to the given depth) whose result in the current stack frame satisfies
 	 * the given pdspec.
 	 */
-	public abstract ArrayList<Expression> generateExpression(Property property, TypeConstraint typeConstraint, String varName, boolean searchConstructors, boolean searchOperators, SynthesisDialog synthesisDialog, IProgressMonitor monitor, int maxExprDepth);
+	public abstract ArrayList<? extends Statement> generateStatement(Property property, TypeConstraint typeConstraint, String varName, boolean searchConstructors, boolean searchOperators, boolean searchStatements, SynthesisDialog synthesisDialog, IProgressMonitor monitor, int maxExprDepth);
 	
 	protected void initSearch() throws JavaModelException, DebugException {
 		this.equivalences = new HashMap<Set<Effect>, Map<Result, ArrayList<Expression>>>();

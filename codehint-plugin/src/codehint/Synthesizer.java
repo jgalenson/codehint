@@ -27,6 +27,7 @@ import org.eclipse.debug.core.model.IThread;
 import org.eclipse.debug.core.model.IVariable;
 import org.eclipse.jdt.core.dom.AST;
 import org.eclipse.jdt.core.dom.ASTParser;
+import org.eclipse.jdt.core.dom.MethodDeclaration;
 import org.eclipse.jdt.debug.core.IJavaArray;
 import org.eclipse.jdt.debug.core.IJavaDebugTarget;
 import org.eclipse.jdt.debug.core.IJavaObject;
@@ -47,12 +48,15 @@ import org.eclipse.ui.texteditor.ITextEditor;
 import codehint.ast.ASTConverter;
 import codehint.ast.ASTNode;
 import codehint.ast.ArrayAccess;
+import codehint.ast.Block;
+import codehint.ast.ClassInstanceCreation;
 import codehint.ast.Expression;
 import codehint.ast.FieldAccess;
 import codehint.ast.IntLiteral;
 import codehint.ast.MethodInvocation;
 import codehint.ast.QualifiedName;
 import codehint.ast.SimpleName;
+import codehint.ast.Statement;
 import codehint.dialogs.InitialSynthesisDialog;
 import codehint.dialogs.ObjectValuePropertyDialog;
 import codehint.dialogs.PrimitiveValuePropertyDialog;
@@ -97,15 +101,15 @@ public class Synthesizer {
 	private static List<String> addedChosenStmts;
 	private static Map<String, String> initialFiles;
 	private static ExpressionEvaluator.Metadata metadata;
-	private static Map<String, List<Expression>> initialExprs;
+	private static Map<String, List<Statement>> initialStmts;
 	private static Set<String> handledEffects;
 	private static Set<String> blockedNatives;
 	
 	/**
-	 * Synthesizes expressions and inserts them into the code.
+	 * Synthesizes statements and inserts them into the code.
 	 * It first opens the synthesis dialog, which lets the user
 	 * give a pdspec and skeleton and synthesizes and shows the
-	 * candidate expressions.
+	 * candidate statements.
 	 * Once the user selects some, it inserts them into the code.
 	 * @param variable The variable (really, LHS) that should be 
 	 * assigned the synthesized expressions.
@@ -114,34 +118,34 @@ public class Synthesizer {
 	 * @param synthesisDialog The dialog that handles the synthesis.
 	 * @param stack The current stack frame.
 	 * @param replaceCurLine Whether or the current line should
-	 * be replaced by the inserted expressions or if they should
+	 * be replaced by the inserted statements or if they should
 	 * be added after it.
 	 */
-	public static void synthesizeAndInsertExpressions(final IVariable variable, final String fullVarName, final InitialSynthesisDialog synthesisDialog, final IJavaStackFrame stack, final boolean replaceCurLine) {
+	public static void synthesizeAndInsertStatements(final IVariable variable, final String fullVarName, final InitialSynthesisDialog synthesisDialog, final IJavaStackFrame stack, final boolean replaceCurLine) {
 		try {
 			String varString = variable == null ? "" : variable.toString();
 			synthesisDialog.open();
 			Property property = synthesisDialog.getProperty();
 			ExpressionSkeleton skeleton = synthesisDialog.getSkeleton();
-			List<Expression> finalExpressions = synthesisDialog.getExpressions();
+			List<Statement> finalStatements = synthesisDialog.getResults();
 			ExpressionEvaluator expressionEvaluator = synthesisDialog.getExpressionEvaluator();
 			boolean blockedNativeCalls = synthesisDialog.blockedNativeCalls();
 			boolean handledSideEffects = synthesisDialog.handledSideEffects();
 			synthesisDialog.cleanup();
-	        if (finalExpressions == null) {
+	        if (finalStatements == null) {
 		    	if (property != null && skeleton != null) {
 		    		EclipseUtils.log("Cancelling synthesis for " + varString + " with property " + property.toString() + " and skeleton " + skeleton.toString() + ".");
 		    		DataCollector.log("cancel", "spec=" + property.toString(), "skel=" + skeleton.toString());
 		    	}
 				return;
-	        } else if (finalExpressions.isEmpty())
+	        } else if (finalStatements.isEmpty())
 				return;
 			
-			List<String> validExpressionStrings = snippetsOfExpressions(finalExpressions);
+			List<String> validStatementsStrings = snippetsOfStatements(finalStatements);
 			
 			//Construct the textual line to insert.  Working in text seems easier than
 			// using the AST manipulators for now, but this may need revisited later.  
-			String statement = generateChooseOrChosenStmt(fullVarName, validExpressionStrings);
+			String statement = generateChooseOrChosenStmt(fullVarName, validStatementsStrings);
 
 			//Insert the new text
 			try {
@@ -171,25 +175,25 @@ public class Synthesizer {
 			addBreakpoint(resource, typename, line);
 
 			// TODO: Using the text of the statement as a key is not a very good idea.
-			if (finalExpressions.size() > 1) {
+			if (finalStatements.size() > 1) {
 				initialDemonstrations.put(statement, property);
-				metadata.addMetadataFor(finalExpressions, expressionEvaluator);
-				initialExprs.put(statement, finalExpressions);
+				metadata.addMetadataFor(finalStatements, expressionEvaluator);
+				initialStmts.put(statement, finalStatements);
 				if (blockedNativeCalls)
 					blockedNatives.add(statement);
 				if (handledSideEffects)
 					handledEffects.add(statement);
 			}
 
-			IJavaValue value = property instanceof ValueProperty ? ((ValueProperty)property).getValue() : expressionEvaluator.getValue(finalExpressions.get(0), Collections.<Effect>emptySet());
+			IJavaValue value = property instanceof ValueProperty ? ((ValueProperty)property).getValue() : (finalStatements.get(0) instanceof Expression ? expressionEvaluator.getValue((Expression)finalStatements.get(0), Collections.<Effect>emptySet()) : null);
 			if (variable != null && value != null)
 				variable.setValue(value);
 			
 			//NOTE: Our current implementation does not save.  Without a manual save, our added 
 			// code gets ignored for this invocation.  Should we force a save and restart?
 
-	    	EclipseUtils.log("Finishing synthesis for " + varString + " with property " + property.toString() + " and skeleton " + skeleton.toString() + ".  Found " + finalExpressions.size() + " user-approved expressions and inserted " + statement);
-	    	DataCollector.log("finish", "spec=" + property.toString(), "skel=" + skeleton.toString(), "found=" + finalExpressions.size());
+	    	EclipseUtils.log("Finishing synthesis for " + varString + " with property " + property.toString() + " and skeleton " + skeleton.toString() + ".  Found " + finalStatements.size() + " user-approved statements and inserted " + statement);
+	    	DataCollector.log("finish", "spec=" + property.toString(), "skel=" + skeleton.toString(), "found=" + finalStatements.size());
 	    	return;
 		} catch (DebugException e) {
 			e.printStackTrace();
@@ -212,7 +216,7 @@ public class Synthesizer {
 		}
 		
 		/**
-		 * Synthesizes the expressions that meet the user's specifications.
+		 * Synthesizes the statements that meet the user's specifications.
 		 * It does this on a separate thread and then reports the results
 		 * back to the synthesis dialog on the UI thread.
 		 * @param synthesisDialog The dialog controlling the synthesis.
@@ -227,11 +231,12 @@ public class Synthesizer {
 			final ExpressionSkeleton skeleton = synthesisDialog.getSkeleton();
 			final boolean searchConstructors = synthesisDialog.searchConstructors();
 			final boolean searchOperators = synthesisDialog.searchOperators();
-			Job job = new Job("Expression generation") {
+			final boolean searchStatements = synthesisDialog.searchStatements();
+			Job job = new Job("Statement generation") {
 				@Override
 				protected IStatus run(IProgressMonitor monitor) {
 					EclipseUtils.log("Beginning synthesis for " + varName + " with property " + property.toString() + " and skeleton " + skeleton.toString() + " with extra depth " + extraDepth + ".");
-					DataCollector.log("start", "spec=" + property.toString(), "skel=" + skeleton.toString(), "exdep=" + extraDepth, "cons=" + searchConstructors, "ops=" + searchOperators, "block-natives=" + blockNatives, "handle-effects=" + sideEffectHandler.isEnabled());
+					DataCollector.log("start", "spec=" + property.toString(), "skel=" + skeleton.toString(), "exdep=" + extraDepth, "cons=" + searchConstructors, "ops=" + searchOperators, "stmts=" + searchStatements, "block-natives=" + blockNatives, "handle-effects=" + sideEffectHandler.isEnabled());
 					boolean unfinished = false;
 					BreakpointDisabler breakpointDisabler = new BreakpointDisabler();
 					breakpointDisabler.disableBreakpoints();
@@ -243,7 +248,7 @@ public class Synthesizer {
 					try {
 						evalManager.init();
 						sideEffectHandler.start(synthesisDialog.getProgressMonitor());
-						skeleton.synthesize(property, varName, varStaticType, extraDepth, searchConstructors, searchOperators, synthesisDialog, synthesisDialog.getProgressMonitor());
+						skeleton.synthesize(property, varName, varStaticType, extraDepth, searchConstructors, searchOperators, searchStatements, synthesisDialog, synthesisDialog.getProgressMonitor());
 			        	return Status.OK_STATUS;
 					} catch (EvaluationError e) {
 						unfinished = true;
@@ -251,7 +256,7 @@ public class Synthesizer {
 						return new Status(IStatus.ERROR, Activator.PLUGIN_ID, e.getMessage());
 					} catch (OperationCanceledException e) {
 						EclipseUtils.log("Cancelling synthesis for " + varName + " with property " + property.toString() + " and skeleton " + skeleton.toString() + ".");
-						DataCollector.log("cancel", "spec=" + property.toString(), "skel=" + skeleton.toString(), "exdep=" + extraDepth, "cons=" + searchConstructors, "ops=" + searchOperators, "block-natives=" + blockNatives, "handle-effects=" + sideEffectHandler.isEnabled());
+						DataCollector.log("cancel", "spec=" + property.toString(), "skel=" + skeleton.toString(), "exdep=" + extraDepth, "cons=" + searchConstructors, "ops=" + searchOperators, "stmts=" + searchStatements, "block-natives=" + blockNatives, "handle-effects=" + sideEffectHandler.isEnabled());
 						unfinished = true;
 						return Status.CANCEL_STATUS;
 					} catch (SkeletonError e) {
@@ -321,32 +326,32 @@ public class Synthesizer {
 	}
 	
 	/**
-	 * Class that refines the given expressions to keep only those
+	 * Class that refines the given statements to keep only those
 	 * that meet the user's specifications.
 	 */
 	public static class RefinementWorker {
 		
-		private final ArrayList<Expression> typedExprs;
+		private final ArrayList<Statement> typedStmts;
 		private final IJavaType varType;
 		private final TypeCache typeCache;
-		private ArrayList<Expression> exprs;
+		private ArrayList<Statement> stmts;
 		
 		/**
 		 * Creates a new RefinementWorker that will filter
-		 * the given expressions.
-		 * @param typedExprs The candidate expressions to filter.
+		 * the given statements.
+		 * @param stmts The candidate statements to filter.
 		 * @param varType The type of the variable being
 		 * assigned.
 		 * @param typeCache The type cache.
 		 */
-		public RefinementWorker(ArrayList<Expression> typedExprs, IJavaType varType, TypeCache typeCache) {
+		public RefinementWorker(ArrayList<Statement> stmts, IJavaType varType, TypeCache typeCache) {
 			this.typeCache = typeCache;
-			this.typedExprs = typedExprs;
+			this.typedStmts = stmts;
 			this.varType = varType;
 		}
 		
 		public void evaluateLine(final boolean blockedNatives, final boolean handledEffects, final RefinementSynthesisDialog synthesisDialog, final IJavaStackFrame frame, final IJavaThread thread) {
-			Job job = new Job("Expression generation") {
+			Job job = new Job("Statement generation") {
 				@Override
 				protected IStatus run(IProgressMonitor monitor) {
 					IJavaDebugTarget target = (IJavaDebugTarget)frame.getDebugTarget();
@@ -376,10 +381,14 @@ public class Synthesizer {
 								e.printStackTrace();
 							}
 						}
-						exprs = evalManager.evaluateExpressions(typedExprs, null, null, synthesisDialog, synthesisDialog.getProgressMonitor(), "Evaluating previous results");
+						stmts = evalManager.evaluateStatements(typedStmts, null, null, synthesisDialog, synthesisDialog.getProgressMonitor(), "Evaluating previous results");
 						return Status.OK_STATUS;
 					} catch (RuntimeException e) {
+						e.printStackTrace();
 						throw e;
+					} catch (Exception e) {
+						e.printStackTrace();
+						throw new RuntimeException(e);
 					} finally {
 						if (nativeHandler != null) {
 							breakpointDisabler.reenableBreakpoints();
@@ -390,7 +399,7 @@ public class Synthesizer {
 							effectHandler.stop(synthesisDialog.getProgressMonitor());
 						}
 						timeoutChecker.stop();
-						synthesisDialog.setInitialRefinementExpressions(exprs);
+						synthesisDialog.setInitialRefinementStatements(stmts);
 						tryToResetEvalManager(synthesisDialog, evalManager);
 					}
 				}
@@ -400,7 +409,7 @@ public class Synthesizer {
 		}
 
 		/**
-		 * Refines the current expressions and keeps only those
+		 * Refines the current statements and keeps only those
 		 * that meet the user's specifications.
 		 * @param synthesisDialog The dialog controlling the synthesis.
 		 * @param evalManager The evaluation manager.
@@ -408,7 +417,7 @@ public class Synthesizer {
 		public void refine(RefinementSynthesisDialog synthesisDialog, EvaluationManager evalManager) {
 			Property property = synthesisDialog.getProperty();
    			try {
-   				evalManager.evaluateExpressions(exprs, property, varType, synthesisDialog, synthesisDialog.getProgressMonitor(), "");
+   				evalManager.evaluateStatements(stmts, property, varType, synthesisDialog, synthesisDialog.getProgressMonitor(), "");
    				synthesisDialog.endSynthesis(SynthesisState.END);
    			} catch (EvaluationError e) {
    		    	EclipseUtils.showError("Error", e.getMessage(), e);
@@ -456,7 +465,7 @@ public class Synthesizer {
 	               		if(matcher.matches()) {
 	               			IBreakpoint[] breakpoints = thread.getBreakpoints();  // Cache this, since some things I do before I use it might reset it.
 	                    	TypeCache typeCache = new TypeCache();
-                    		refineExpressions(frame, matcher, thread, line, breakpoints, typeCache);
+                    		refineStatements(frame, matcher, thread, line, breakpoints, typeCache);
 	               			return;  // We often get duplicate events that would trigger this, but they must all be equivalent, so only handle the first. 
 	               		}
 	               		
@@ -492,7 +501,10 @@ public class Synthesizer {
 									String chosenStmt = addedChosenStmts.get(i);
 									int index = text.indexOf(chosenStmt);
 									if (index != -1) {  // Replace "CodeHint.chosen(...)" with "...".
-										document.replace(index, chosenStmt.length(), chosenStmt.substring("CodeHint.chosen(".length(), chosenStmt.length() - 1));
+										String newChosenStmt = chosenStmt.substring("CodeHint.chosen(".length(), chosenStmt.length() - 1);
+										if (newChosenStmt.contains("/*"))  // Handle blocks by removing the wrapping anonymous class.
+											newChosenStmt = newChosenStmt.substring(newChosenStmt.indexOf("/*") + 2, newChosenStmt.indexOf("*/"));
+										document.replace(index, chosenStmt.length(), newChosenStmt);
 										int startIndex = index - 1;
 										while (cleanText.charAt(startIndex) != '\n')
 											startIndex--;
@@ -539,7 +551,7 @@ public class Synthesizer {
 	     * to suspend.
 	     * @throws DebugException
 	     */
-		private static void refineExpressions(IJavaStackFrame frame, Matcher matcher, IThread thread, int lineNumber, IBreakpoint[] breakpoints, TypeCache typeCache) throws DebugException {
+		private static void refineStatements(IJavaStackFrame frame, Matcher matcher, IThread thread, int lineNumber, IBreakpoint[] breakpoints, TypeCache typeCache) throws DebugException {
 	    	String curLine = matcher.group(0).trim();
    			
 	    	EclipseUtils.log("Beginning refinement for " + curLine + ".");
@@ -552,21 +564,27 @@ public class Synthesizer {
 	    	IJavaType varStaticType = lhsVar != null ? lhsVar.getJavaType() : null;
    			String varStaticTypeName = lhsVar != null ? EclipseUtils.sanitizeTypename(lhsVar.getReferenceTypeName()) : matcher.group(1);
 
-   			ArrayList<Expression> typedExprs = new ArrayList<Expression>();
-   			List<Expression> oldExprs = initialExprs.get(curLine);
-   			if (oldExprs != null) {
-   				for (Expression e: oldExprs)  // Use the old expressions since we might have metadata about them (e.g., Method, Field).
-   					typedExprs.add(e);
+   			ArrayList<Statement> typedStmts = new ArrayList<Statement>();
+   			List<Statement> oldStmts = initialStmts.get(curLine);
+   			if (oldStmts != null) {
+   				for (Statement s: oldStmts)  // Use the old statements since we might have metadata about them (e.g., Method, Field).
+   					typedStmts.add(s);
    			} else {
-	   			// Parse the expression.
-	   			ASTNode node = ASTConverter.parseExpr(parser, matcher.group(3));
-	   			// Get the possible expressions in a generic list.
+	   			// Parse the expression.  We remove comments, which we use to encode blocks.
+	   			ASTNode node = ASTConverter.parseExpr(parser, matcher.group(3).replace("/*", "").replace("*/", ""));
+	   			// Get the possible statements in a generic list.
 	   			for (Expression expr: ((MethodInvocation)node).arguments()) {
-	   				expr.setStaticType(varStaticType);
-	   				typedExprs.add(expr);
+	   				if (expr instanceof ClassInstanceCreation && ((ClassInstanceCreation)expr).getAnonymousClassDeclaration() != null) {
+	   					MethodDeclaration decl = ((MethodDeclaration)((ClassInstanceCreation)expr).getAnonymousClassDeclaration().bodyDeclarations().get(0));
+	   					Block block = ASTConverter.copy((org.eclipse.jdt.core.dom.Block)decl.getBody().statements().get(0));
+	   					typedStmts.add(block);
+	   				} else {
+	   					expr.setStaticType(varStaticType);
+	   					typedStmts.add(expr);
+	   				}
 	   			}
    			}
-        	assert typedExprs.size() > 0;  // We must have at least one expression.
+        	assert typedStmts.size() > 0;  // We must have at least one statement.
 
    			Property initialProperty = initialDemonstrations.containsKey(curLine) ? initialDemonstrations.get(curLine) : null;
    			          
@@ -580,15 +598,15 @@ public class Synthesizer {
    				}
    			});
    			// Get the new concrete value from the user.
-   			final SynthesisDialog synthesisDialog = getRefinementDialog(curLine, typedExprs, varname, varStaticType, varStaticTypeName, frame, typeCache, initialProperty);
+   			final SynthesisDialog synthesisDialog = getRefinementDialog(curLine, typedStmts, varname, varStaticType, varStaticTypeName, frame, typeCache, initialProperty);
    			Display.getDefault().syncExec(new Runnable() {
    				@Override
    				public void run() {
    					synthesisDialog.open();
    				}
    			});
-   			ArrayList<Expression> validExprs = synthesisDialog.getExpressions();
-   			if (validExprs == null) {
+   			ArrayList<Statement> validStmts = synthesisDialog.getResults();
+   			if (validStmts == null) {
    				//The user cancelled, just drop back into the debugger and let the 
    				//use do what they want.  Attempting to execute the line will result
    				//in a crash anyway, so they can't screw anything up
@@ -597,16 +615,22 @@ public class Synthesizer {
    				return;
    			}
 
-   			if (validExprs.isEmpty()) {
-   				EclipseUtils.showError("Error", "No legal expressions remain after refinement.", null);
-   				throw new RuntimeException("No legal expressions remain after refinement");
+   			if (validStmts.isEmpty()) {
+   				EclipseUtils.showError("Error", "No legal statements remain after refinement.", null);
+   				throw new RuntimeException("No legal statements remain after refinement");
    			}
-   			IJavaValue value = synthesisDialog.getExpressionEvaluator().getValue(validExprs.get(0), Collections.<Effect>emptySet());  // The returned values could be different, so we arbitrarily use the first one.  This might not be the best thing to do.
+   			IJavaValue value = null;
+   			for (Statement s: validStmts) {
+   				if (s instanceof Expression) {
+   		   			value = synthesisDialog.getExpressionEvaluator().getValue((Expression)s, Collections.<Effect>emptySet());  // The returned values could be different, so we arbitrarily use the first one.  This might not be the best thing to do.
+   		   			break;
+   				}
+   			}
 
    			Property newProperty = synthesisDialog.getProperty() == null ? initialProperty : synthesisDialog.getProperty();  // The user might not have entered a pdspec (e.g., they refined or just selected some things), in which case we use the old one.
-   			String newLine = rewriteLine(matcher, varname, curLine, newProperty, validExprs, lineNumber);
+   			String newLine = rewriteLine(matcher, varname, curLine, newProperty, validStmts, lineNumber);
 
-   			if (validExprs.size() == 1) {
+   			if (validStmts.size() == 1) {
    				// If there's only a single possibility remaining, remove the breakpoint.
    				assert breakpoints.length > 0 : breakpoints.length;
    				// If there are multiple breakpoints at this line, only remove one (presumably the user added the others).
@@ -618,16 +642,16 @@ public class Synthesizer {
    					throw new RuntimeException("Cannot delete breakpoint.");
    				}
    			} else
-   				metadata.addMetadataFor(validExprs, synthesisDialog.getExpressionEvaluator());
+   				metadata.addMetadataFor(validStmts, synthesisDialog.getExpressionEvaluator());
    			
    			// TODO: Handle case when this is null (maybe do it above when we workaround it being null).  Creating a JDILocalVariable requires knowing about where the current scope ends, though.
-   			if (lhsVar != null)
+   			if (lhsVar != null && value != null)
    				lhsVar.setValue(value);
 
    			synthesisDialog.cleanup();
    			
-   			EclipseUtils.log("Ending refinement for " + curLine + ".  " + (newLine == null ? "Statement unchanged." : "Went from " + typedExprs.size() + " expressions to " + validExprs.size() + ".  New statement: " + newLine));
-   			DataCollector.log("refine-finish", "pre=" + typedExprs.size(), "post=" + validExprs.size());
+   			EclipseUtils.log("Ending refinement for " + curLine + ".  " + (newLine == null ? "Statement unchanged." : "Went from " + typedStmts.size() + " statements to " + validStmts.size() + ".  New statement: " + newLine));
+   			DataCollector.log("refine-finish", "pre=" + typedStmts.size(), "post=" + validStmts.size());
    			
    			// Immediately continue the execution.
    			thread.resume();
@@ -684,14 +708,14 @@ public class Synthesizer {
 	     * the expressions.
 	     * @param curLine The old line of code.
 	     * @param property The pdspec given by the user.
-	     * @param validExprs The new expressions.
+	     * @param validStmts The new statements.
 	     * @param lineNumber
 	     * @return
 	     */
-		private static String rewriteLine(Matcher matcher, String varname, String curLine, Property property, ArrayList<Expression> validExprs, final int lineNumber) {
-			List<String> newExprsStrs = snippetsOfExpressions(validExprs);
+		private static String rewriteLine(Matcher matcher, String varname, String curLine, Property property, ArrayList<Statement> validStmts, final int lineNumber) {
+			List<String> newStmtStrs = snippetsOfStatements(validStmts);
 			String varDeclaration = matcher.group(1) != null ? matcher.group(1) + " " : "";
-			final String newLine = varDeclaration + generateChooseOrChosenStmt(varname, newExprsStrs);
+			final String newLine = varDeclaration + generateChooseOrChosenStmt(varname, newStmtStrs);
 			// If we don't execute this on the UI thread we get an exception, although it still works.
 			Display.getDefault().syncExec(new Runnable() {
 				@Override
@@ -705,8 +729,8 @@ public class Synthesizer {
 			});
    			initialDemonstrations.remove(curLine);
 			initialDemonstrations.put(newLine, property);
-			initialExprs.remove(curLine);
-			initialExprs.put(newLine, validExprs);
+			initialStmts.remove(curLine);
+			initialStmts.put(newLine, validStmts);
 			if (blockedNatives.remove(curLine))
 				blockedNatives.add(newLine);
 			if (handledEffects.remove(curLine))
@@ -764,7 +788,7 @@ public class Synthesizer {
 	     * dialog will default to asking for the type of pdspec the
 	     * user gave the last time at this line.
 	     * @param curLine The current line.
-	     * @param exprs The initial set of expressions.
+	     * @param stmts The initial set of statements.
 	     * @param varName The name of the variable being assigned
 	     * the expressions.
 	     * @param varStaticType The static type of the variable.
@@ -777,7 +801,7 @@ public class Synthesizer {
 	     * pdspec the user gave the last time at this line.
 	     * @throws DebugException
 	     */
-	    private static RefinementSynthesisDialog getRefinementDialog(String curLine, ArrayList<Expression> exprs, String varName, IJavaType varStaticType, String varStaticTypeName, IJavaStackFrame stackFrame, TypeCache typeCache, Property oldProperty) throws DebugException {
+	    private static RefinementSynthesisDialog getRefinementDialog(String curLine, ArrayList<Statement> stmts, String varName, IJavaType varStaticType, String varStaticTypeName, IJavaStackFrame stackFrame, TypeCache typeCache, Property oldProperty) throws DebugException {
 			Shell shell = getShell();
 			PropertyDialog propertyDialog = null;
 			if (oldProperty == null || oldProperty instanceof StateProperty)
@@ -792,7 +816,7 @@ public class Synthesizer {
 				propertyDialog = new LambdaPropertyDialog(varName, varStaticType.getName(), varStaticType, stackFrame, oldProperty.toString(), extraMessage);*/
 			else
 				throw new IllegalArgumentException(oldProperty.toString());
-			return new RefinementSynthesisDialog(shell, varStaticTypeName, varStaticType, stackFrame, propertyDialog, new SynthesisWorker(varName, varStaticType), new RefinementWorker(exprs, varStaticType, typeCache), blockedNatives.contains(curLine), handledEffects.contains(curLine));
+			return new RefinementSynthesisDialog(shell, varStaticTypeName, varStaticType, stackFrame, propertyDialog, new SynthesisWorker(varName, varStaticType), new RefinementWorker(stmts, varStaticType, typeCache), blockedNatives.contains(curLine), handledEffects.contains(curLine));
 	    }
 	    
 	    /**
@@ -834,18 +858,18 @@ public class Synthesizer {
 	 * Generates the text of a choose or chosen call
 	 * that should be inserted into the document.
 	 * @param varname The name of the variable being assigned.
-	 * @param expressions The candidate expressions.
+	 * @param statements The candidate statements.
 	 * @return The text of the choose or chosen call
 	 * to insert.
 	 */
-    private static String generateChooseOrChosenStmt(String varname, List<String> expressions) {
-    	String functionName = "CodeHint." + (expressions.size() == 1 ? "chosen" : "choose");
+    private static String generateChooseOrChosenStmt(String varname, List<String> statements) {
+    	String functionName = "CodeHint." + (statements.size() == 1 ? "chosen" : "choose");
 		String statementRHSExpr = functionName + "(";
-		String newExprsString = expressions.toString();
-		newExprsString = newExprsString.substring(1, newExprsString.length() - 1);
-		statementRHSExpr += newExprsString;
+		String newStmtsString = statements.toString();
+		newStmtsString = newStmtsString.substring(1, newStmtsString.length() - 1);
+		statementRHSExpr += newStmtsString;
 		statementRHSExpr += ")";
-		if (expressions.size() == 1)
+		if (statements.size() == 1)
 			addedChosenStmts.add(statementRHSExpr);
 		return (varname == null ? "" : varname + " = ") + statementRHSExpr + ";";
     }
@@ -874,7 +898,7 @@ public class Synthesizer {
     	addedChosenStmts = new ArrayList<String>();
     	initialFiles = new HashMap<String, String>();
     	metadata = ExpressionEvaluator.Metadata.emptyMetadata();
-    	initialExprs = new HashMap<String, List<Expression>>();
+    	initialStmts = new HashMap<String, List<Statement>>();
     	handledEffects = new HashSet<String>();
     	blockedNatives = new HashSet<String>();
     	Display.getDefault().asyncExec(new Runnable() {
@@ -901,7 +925,7 @@ public class Synthesizer {
     	addedChosenStmts = null;
     	initialFiles = null;
     	metadata = null;
-    	initialExprs = null;
+    	initialStmts = null;
     	handledEffects = null;
     	blockedNatives = null;
     	ExpressionGenerator.clear();
@@ -923,14 +947,20 @@ public class Synthesizer {
     }
 	
 	/**
-	 * Gets a list of the snippets of the given evaluated expressions.
-	 * @param results List of evaluated expressions.
-	 * @return The snippets of the given evaluated expressions.
+	 * Gets a list of the snippets of the given evaluated statements.
+	 * We encode blocks as comments inside anonymous class declarations
+	 * so we can encode them as expressions.
+	 * @param results List of evaluated statements.
+	 * @return The snippets of the given evaluated statements.
 	 */
-	private static List<String> snippetsOfExpressions(List<Expression> results) {
+	private static List<String> snippetsOfStatements(List<Statement> results) {
 		List<String> resultStrs = new ArrayList<String>(results.size());
-		for (Expression result : results)
-			resultStrs.add(result.toString());
+		for (Statement result : results) {
+			String str = result.toString();
+			if (result instanceof Block)
+				str = "new Object() { private void stmt() { /*" + str.replace("\n", " ") + "*/ } }";
+			resultStrs.add(str);
+		}
 		return resultStrs;
 	}
 

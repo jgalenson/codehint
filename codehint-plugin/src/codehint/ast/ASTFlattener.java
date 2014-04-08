@@ -3,7 +3,7 @@ package codehint.ast;
 /**
  * Adapted from org.eclipse.jdt.internal.core.dom.NaiveASTFlattener.
  */
-public abstract class ASTFlattener extends ASTVisitor {
+public abstract class ASTFlattener {
 	
 	public String getResult(ASTNode node) {
 		StringBuilder sb = new StringBuilder();
@@ -16,7 +16,9 @@ public abstract class ASTFlattener extends ASTVisitor {
 			flatten((Expression)node, sb);
 		else if (node instanceof Type)
 			flatten((Type)node, sb);
-		 else
+		else if (node instanceof Block)
+			flatten((Block)node, sb);
+		else
 			throw new RuntimeException("Unexpected expression type " + node.getClass().toString());
 	}
 	
@@ -267,6 +269,17 @@ public abstract class ASTFlattener extends ASTVisitor {
 		sb.append('{');
 		doList(node.expressions(), sb);
 		sb.append('}');
+	}
+	
+	protected void flatten(Block node, StringBuilder sb) {
+		sb.append("{\n");
+		for (int i = 0; i < node.statements().length; i++) {
+			flatten(node.statements()[i], sb);
+			sb.append(";");
+			if (node.statements()[i] instanceof Expression)
+				sb.append("\n");
+		}
+		sb.append("}");
 	}
 	
 	protected void doList(Expression[] children, StringBuilder sb) {

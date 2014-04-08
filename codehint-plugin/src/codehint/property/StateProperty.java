@@ -13,12 +13,14 @@ import org.eclipse.jdt.debug.core.IJavaVariable;
 import org.eclipse.jdt.debug.eval.IAstEvaluationEngine;
 
 import codehint.ast.ASTConverter;
-import codehint.ast.ASTFlattener;
 import codehint.ast.ASTNode;
 import codehint.ast.ASTVisitor;
 import codehint.ast.CompilationUnit;
 import codehint.ast.Expression;
+import codehint.ast.FieldAccess;
 import codehint.ast.MethodInvocation;
+import codehint.ast.ParentASTFlattener;
+import codehint.ast.ParentASTVisitor;
 import codehint.ast.SimpleName;
 import codehint.utils.EclipseUtils;
 
@@ -35,6 +37,7 @@ public class StateProperty extends Property {
 	private final Expression property;
 	private final String propertyStr;
 	private final Set<String> preVariables;
+	private final Set<String> postVariables;
 	/*private final Map<Integer, IJavaValue> preNodeValues;
 	private final Set<Integer> postNodes;
 	private final ArrayList<Expression> freeVars;*/
@@ -46,6 +49,7 @@ public class StateProperty extends Property {
 		PrePostVariableFinder prePostFinder = new PrePostVariableFinder(stack);
 		property.accept(prePostFinder);
 		this.preVariables = prePostFinder.getPreVariables();
+		this.postVariables = prePostFinder.getPostVariables();
 		/*this.preNodeValues = prePostFinder.getPreNodes();
 		this.postNodes = prePostFinder.getPostNodes();
 		this.freeVars = prePostFinder.getFreeVars();*/
@@ -95,6 +99,10 @@ public class StateProperty extends Property {
 	
 	public Set<String> getPreVariables() {
 		return preVariables;
+	}
+	
+	public Set<String> getPostVariables() {
+		return postVariables;
 	}
 
 	/**
@@ -161,10 +169,11 @@ public class StateProperty extends Property {
 		
 	}
 	
-	private static class PrePostVariableFinder extends ASTVisitor {
+	private static class PrePostVariableFinder extends ParentASTVisitor {
 		
 		private final IJavaStackFrame stack;
 		private final Set<String> preVariables;
+		private final Set<String> postVariables;
 		/*private final Map<Integer, IJavaValue> preNodeValues;
 		private final Set<Integer> postNodes;
 		private final ArrayList<Expression> freeVars;*/
@@ -172,6 +181,7 @@ public class StateProperty extends Property {
 		public PrePostVariableFinder(IJavaStackFrame stack) {
 			this.stack = stack;
 			this.preVariables = new HashSet<String>();
+			this.postVariables = new HashSet<String>();
 			/*this.preNodeValues = new HashMap<Integer, IJavaValue>();
 			this.postNodes = new HashSet<Integer>();
 			this.freeVars = new ArrayList<Expression>();*/
@@ -187,8 +197,9 @@ public class StateProperty extends Property {
 				node.setStaticType(var.getJavaType());*/
 				return false;
 			} else if (isPost(node)) {
-				/*postNodes.add(node.getID());
 				String varName = ((SimpleName)node.arguments()[0]).getIdentifier();
+				postVariables.add(varName);
+				/*postNodes.add(node.getID());
 				IJavaVariable var = stack.findVariable(varName);
 				assert var != null || varName.equals(FREE_VAR_NAME);
 				if (var == null)
@@ -203,6 +214,8 @@ public class StateProperty extends Property {
 		@Override
 		public boolean visit(SimpleName node) {
 			try {
+				if (parentIsName(node))
+					return true;  // Ignore names.
 				IJavaVariable var = stack.findVariable(node.getIdentifier());
 				if (var != null) {
 					preVariables.add(node.getIdentifier());
@@ -217,6 +230,10 @@ public class StateProperty extends Property {
 
     	public Set<String> getPreVariables() {
 			return preVariables;
+		}
+
+    	public Set<String> getPostVariables() {
+			return postVariables;
 		}
     	
     	/*public Map<Integer, IJavaValue> getPreNodes() {
@@ -233,7 +250,7 @@ public class StateProperty extends Property {
 		
 	}
 	
-	private static final class StateASTFlattener extends ASTFlattener {
+	private static final class StateASTFlattener extends ParentASTFlattener {
 
 		private final String lhs;
 		private final String arg;
@@ -259,9 +276,11 @@ public class StateProperty extends Property {
 		@Override
 		protected void flatten(SimpleName node, StringBuilder sb) {
 			try {
-				if (stack.findVariable(node.getIdentifier()) != null) {
+				if (parentIsName(node))
+					super.flatten(node, sb);
+				else if (stack.findVariable(node.getIdentifier()) != null)
 					sb.append(getRenamedVar(node.getIdentifier()));
-				} else
+				else
 					super.flatten(node, sb);
 			} catch (DebugException e) {
 				throw new RuntimeException(e);

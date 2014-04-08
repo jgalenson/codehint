@@ -10,6 +10,7 @@ import codehint.ast.MethodInvocation;
 import codehint.ast.NullLiteral;
 import codehint.ast.PrefixExpression;
 import codehint.ast.SimpleName;
+import codehint.ast.Statement;
 import codehint.ast.ThisExpression;
 
 import com.sun.jdi.Field;
@@ -31,8 +32,8 @@ public class ProbabilityComputer extends ASTVisitor {
 		this.count = 0;
 	}
 	
-	public static double getProbability(Expression expr, ExpressionEvaluator expressionEvaluator, Weights weights) {
-		return visit(expr, expressionEvaluator, weights).prob;
+	public static double getProbability(Statement stmt, ExpressionEvaluator expressionEvaluator, Weights weights) {
+		return visit(stmt, expressionEvaluator, weights).prob;
 	}
 	
 	public static double getNormalizedProbability(Expression expr, ExpressionEvaluator expressionEvaluator, Weights weights) {
@@ -45,9 +46,9 @@ public class ProbabilityComputer extends ASTVisitor {
 		return ret;
 	}
 	
-	private static ProbabilityComputer visit(Expression expr, ExpressionEvaluator expressionEvaluator, Weights weights) {
+	private static ProbabilityComputer visit(Statement stmt, ExpressionEvaluator expressionEvaluator, Weights weights) {
 		ProbabilityComputer visitor = new ProbabilityComputer(expressionEvaluator, weights);
-		expr.accept(visitor);
+		stmt.accept(visitor);
 		return visitor;
 	}
 

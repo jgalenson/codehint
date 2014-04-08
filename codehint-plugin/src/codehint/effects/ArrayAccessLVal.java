@@ -1,29 +1,34 @@
 package codehint.effects;
 
-
 import com.sun.jdi.ArrayReference;
 import com.sun.jdi.ClassNotLoadedException;
 import com.sun.jdi.InvalidTypeException;
 import com.sun.jdi.Value;
 
-public class ArgArrLVal extends LVal {
+public class ArrayAccessLVal extends ArgArrLVal {
 	
-	protected final ArrayReference arr;
-	
-	public ArgArrLVal(ArrayReference arr) {
-		this.arr = arr;
+	private final int index;
+
+	public ArrayAccessLVal(ArrayReference arr, int index) {
+		super(arr);
+		this.index = index;
 	}
 
 	@Override
 	public Value getValue() {
-		return arr;
+		return arr.getValue(index);
+	}
+
+	@Override
+	public void setValue(Value value) throws InvalidTypeException, ClassNotLoadedException {
+		arr.setValue(index, value);
 	}
 
 	@Override
 	public int hashCode() {
 		final int prime = 31;
-		int result = 1;
-		result = prime * result + ((arr == null) ? 0 : arr.hashCode());
+		int result = super.hashCode();
+		result = prime * result + index;
 		return result;
 	}
 
@@ -31,11 +36,13 @@ public class ArgArrLVal extends LVal {
 	public boolean equals(Object obj) {
 		if (this == obj)
 			return true;
-		if (obj == null)
+		if (!super.equals(obj))
 			return false;
 		if (getClass() != obj.getClass())
 			return false;
-		ArgArrLVal other = (ArgArrLVal) obj;
+		ArrayAccessLVal other = (ArrayAccessLVal) obj;
+		if (index != other.index)
+			return false;
 		if (arr == null) {
 			if (other.arr != null)
 				return false;
@@ -43,15 +50,10 @@ public class ArgArrLVal extends LVal {
 			return false;
 		return true;
 	}
-
+	
 	@Override
 	public String toString() {
-		return arr.toString();
+		return super.toString() + "[" + index + "]";
 	}
 
-	@Override
-	public void setValue(Value value) throws InvalidTypeException, ClassNotLoadedException {
-		((ArrayValue)value).resetTo(arr);
-	}
-	
 }

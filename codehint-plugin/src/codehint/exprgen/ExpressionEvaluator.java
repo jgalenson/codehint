@@ -3,6 +3,8 @@ package codehint.exprgen;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -12,6 +14,7 @@ import org.eclipse.debug.core.DebugException;
 import codehint.ast.ASTNode;
 import codehint.ast.ASTVisitor;
 import codehint.ast.ArrayAccess;
+import codehint.ast.Assignment;
 import codehint.ast.BooleanLiteral;
 import codehint.ast.CastExpression;
 import codehint.ast.CharacterLiteral;
@@ -30,6 +33,7 @@ import codehint.ast.PostfixExpression;
 import codehint.ast.PrefixExpression;
 import codehint.ast.QualifiedName;
 import codehint.ast.SimpleName;
+import codehint.ast.Statement;
 import codehint.ast.StringLiteral;
 import codehint.ast.ThisExpression;
 
@@ -39,23 +43,34 @@ import org.eclipse.jdt.debug.core.IJavaClassObject;
 import org.eclipse.jdt.debug.core.IJavaClassType;
 import org.eclipse.jdt.debug.core.IJavaDebugTarget;
 import org.eclipse.jdt.debug.core.IJavaObject;
+import org.eclipse.jdt.debug.core.IJavaPrimitiveValue;
 import org.eclipse.jdt.debug.core.IJavaReferenceType;
 import org.eclipse.jdt.debug.core.IJavaStackFrame;
 import org.eclipse.jdt.debug.core.IJavaThread;
 import org.eclipse.jdt.debug.core.IJavaType;
 import org.eclipse.jdt.debug.core.IJavaValue;
+import org.eclipse.jdt.internal.debug.core.model.JDIDebugTarget;
+import org.eclipse.jdt.internal.debug.core.model.JDIObjectValue;
 
+import codehint.effects.ArrayAccessLVal;
 import codehint.effects.Effect;
+import codehint.effects.FieldLVal;
+import codehint.effects.LVal;
+import codehint.effects.RVal;
 import codehint.effects.SideEffectHandler;
+import codehint.effects.VarLVal;
 import codehint.expreval.NativeHandler;
 import codehint.expreval.StaticEvaluator;
 import codehint.expreval.TimeoutChecker;
 import codehint.utils.EclipseUtils;
 import codehint.utils.Utils;
 
+import com.sun.jdi.ArrayReference;
 import com.sun.jdi.ClassNotLoadedException;
 import com.sun.jdi.Field;
 import com.sun.jdi.Method;
+import com.sun.jdi.ObjectReference;
+import com.sun.jdi.VirtualMachine;
 
 public class ExpressionEvaluator {
 
@@ -523,6 +538,11 @@ public class ExpressionEvaluator {
 			result = reEvaluateExpression(((CastExpression)e).getExpression(), effects, expressionGenerator);
 		} else if (e instanceof ParenthesizedExpression) {
 			result = reEvaluateExpression(((ParenthesizedExpression)e).getExpression(), effects, expressionGenerator);
+		} else if (e instanceof Assignment && ((Assignment)e).getOperator() == Assignment.Operator.ASSIGN) {
+			Assignment assign = (Assignment)e;
+			Result lhsResult = reEvaluateExpression(assign.getLeftHandSide(), effects, null);
+			Result rhsResult = reEvaluateExpression(assign.getRightHandSide(), lhsResult.getEffects(), null);
+			result = computeAssignment(assign.getLeftHandSide(), assign.getRightHandSide(), effects, lhsResult, rhsResult);
 		} else
 			throw new RuntimeException("Unexpected expression type:" + e.getClass().getName());
 		//if (statePropertyEvaluator == null)  // If this is non-null, we are evaluating a property, so we don't want to cache results.
@@ -572,6 +592,81 @@ public class ExpressionEvaluator {
 	
 	private static boolean effectsMightMatter(IJavaType type) throws DebugException {
 		return !EclipseUtils.isPrimitive(type) && !"java.lang.String".equals(type.getName());
+	}
+	
+	Result computeAssignment(Expression lhs, Expression rhs, Set<Effect> effects, Result lhsResult, Result rhsResult) throws DebugException {
+		if ("V".equals(rhsResult.getValue().getValue().getSignature()))
+			return null;
+		Set<Effect> assignEffects = new HashSet<Effect>(rhsResult.getEffects());
+		// Generate the lval based on whether the lhs is a field access, array access, or variable.
+		LVal lval = null;
+		Field lhsField = getField(lhs);
+		if (lhsField != null) {  // The lhs is a field access
+			ObjectReference obj = null;
+			if (!lhsField.isStatic())  // Get the receiver object, which is either explicit or an implicit this.
+				obj = ((JDIObjectValue)(lhs instanceof SimpleName ? stack.getThis() : getValue(((FieldAccess)lhs).getExpression(), effects))).getUnderlyingObject();
+			lval = FieldLVal.makeFieldLVal(obj, lhsField);
+		} else if (lhs instanceof ArrayAccess) {  // The lhs is an array access
+			ArrayAccess access = (ArrayAccess)lhs;
+			Result arrayResult = getResult(access.getArray(), effects);
+			int index = ((IJavaPrimitiveValue)getValue(access.getIndex(), arrayResult.getEffects())).getIntValue();
+			lval = new ArrayAccessLVal((ArrayReference)getJDIValue(arrayResult.getValue().getValue()), index);
+		} else {
+			lval = new VarLVal(((SimpleName)lhs).getIdentifier(), thread);
+		}
+		// Add the new effect of the assignment.
+		try {
+			SideEffectHandler.redoEffects(rhsResult.getEffects());  // Executing the lhs and rhs could change the lval's value before the assignment (e.g., x = incX()), so we replay their effects first.
+			RVal oldRval = RVal.makeRVal(lval.getValue());
+			RVal newRval = RVal.makeRVal(getJDIValue(rhsResult.getValue().getValue()));
+			if (!oldRval.equals(newRval)) {
+				for (Iterator<Effect> it = assignEffects.iterator(); it.hasNext(); )
+					if (it.next().getLval().equals(lval))  // Overwrite existing effects to the same lval.
+						it.remove();
+				assignEffects.add(new Effect(lval, oldRval, newRval));
+			}
+		} finally {
+			SideEffectHandler.undoEffects(rhsResult.getEffects());
+		}
+		return new Result(rhsResult.getValue(), assignEffects);
+	}
+	
+	private com.sun.jdi.Value getJDIValue(IJavaValue javaValue) throws DebugException {
+		if (javaValue instanceof JDIObjectValue)
+			return ((JDIObjectValue)javaValue).getUnderlyingObject();
+		else {
+			VirtualMachine vm = ((JDIDebugTarget)stack.getDebugTarget()).getVM();
+			IJavaType type = javaValue.getJavaType();
+			if ("V".equals(type.getSignature()))
+				return vm.mirrorOfVoid();
+			IJavaPrimitiveValue primValue = (IJavaPrimitiveValue)javaValue;
+			if (EclipseUtils.isInt(type))
+				return vm.mirrorOf(primValue.getIntValue());
+			else if (EclipseUtils.isBoolean(type))
+				return vm.mirrorOf(primValue.getBooleanValue());
+			else if (EclipseUtils.isLong(type))
+				return vm.mirrorOf(primValue.getLongValue());
+			else if (EclipseUtils.isByte(type))
+				return vm.mirrorOf(primValue.getByteValue());
+			else if (EclipseUtils.isChar(type))
+				return vm.mirrorOf(primValue.getCharValue());
+			else if (EclipseUtils.isShort(type))
+				return vm.mirrorOf(primValue.getShortValue());
+			else if (EclipseUtils.isFloat(type))
+				return vm.mirrorOf(primValue.getFloatValue());
+			else// if (EclipseUtils.isDouble(type))
+				return vm.mirrorOf(primValue.getDoubleValue());
+		}
+	}
+	
+	Result computeBlock(ArrayList<Expression> body, Set<Effect> effects) {
+		for (Expression expr: body) {
+			Result result = evaluateExpressionWithEffects(expr, effects, null);
+			if (result == null)
+				return null;
+			effects = result.getEffects();
+		}
+		return new Result(valueCache.voidValue(), effects);
 	}
 	
 	// The spec is at http://docs.oracle.com/javase/specs/jls/se7/html/jls-15.html.
@@ -633,8 +728,8 @@ public class ExpressionEvaluator {
 		return result.getValue().getValue();
 	}
 
-	public void setResult(Expression e, Result r, Set<Effect> effects) {
-		Utils.addToMapMap(results, effects, e.getID(), r);
+	public void setResult(Statement s, Result r, Set<Effect> effects) {
+		Utils.addToMapMap(results, effects, s.getID(), r);
 	}
 
 	public void copyResults(Expression oldExpr, Expression newExpr) {
@@ -647,8 +742,8 @@ public class ExpressionEvaluator {
 		}
 	}
 
-	public Result getResult(Expression e, Set<Effect> effects) {
-		return getResult(e.getID(), effects);
+	public Result getResult(Statement s, Set<Effect> effects) {
+		return getResult(s.getID(), effects);
 	}
 
 	private Result getResult(int id, Set<Effect> effects) {
@@ -656,6 +751,10 @@ public class ExpressionEvaluator {
 		if (effectResults == null)
 			return null;
 		return effectResults.get(id);
+	}
+	
+	public Set<Effect> getEffects(Statement s, Set<Effect> effects) {
+		return getResult(s, effects).getEffects();
 	}
 	
 	public void setResultString(Expression e, String resultString) {
@@ -745,7 +844,7 @@ public class ExpressionEvaluator {
 			return new Metadata(new HashMap<Integer, Method>(), new HashMap<Integer, Field>());
 		}
 		
-		public void addMetadataFor(List<Expression> exprs, final ExpressionEvaluator expressionEvaluator) {
+		public void addMetadataFor(List<Statement> stmts, final ExpressionEvaluator expressionEvaluator) {
 			ASTVisitor visitor = new ASTVisitor() {
 	    		@Override
 	    		public void postVisit(ASTNode node) {
@@ -760,8 +859,8 @@ public class ExpressionEvaluator {
 	    			}
 	    		}
 			};
-			for (Expression e: exprs)
-				e.accept(visitor);
+			for (Statement s: stmts)
+				s.accept(visitor);
 		}
 		
 	}

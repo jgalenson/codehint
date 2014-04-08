@@ -2,6 +2,8 @@ package codehint.ast;
 
 import java.util.Arrays;
 
+import org.eclipse.jdt.core.dom.AnonymousClassDeclaration;
+
 import codehint.utils.Utils;
 
 public class ClassInstanceCreation extends Expression {
@@ -10,17 +12,23 @@ public class ClassInstanceCreation extends Expression {
 	private final Type type;
 	private final Expression[] arguments;
 	private final Expression[] typeArguments;
+	private final AnonymousClassDeclaration optionalAnonymousClassDeclaration;  // TODO: Make my own version of this AST.
 	
-	public ClassInstanceCreation(Expression expression, Type type, Expression[] arguments, Expression[] typeArguments) {
+	public ClassInstanceCreation(Expression expression, Type type, Expression[] arguments, Expression[] typeArguments, AnonymousClassDeclaration optionalAnonymousClassDeclaration) {
 		super(type.getStaticType());
 		this.expression = expression;
 		this.type = type;
 		this.arguments = arguments;
 		this.typeArguments = typeArguments;
+		this.optionalAnonymousClassDeclaration = optionalAnonymousClassDeclaration;
 	}
 	
 	public ClassInstanceCreation(Type type, Expression[] arguments) {
-		this(null, type, arguments, null);
+		this(type, arguments, null);
+	}
+	
+	public ClassInstanceCreation(Type type, Expression[] arguments, AnonymousClassDeclaration optionalAnonymousClassDeclaration) {
+		this(null, type, arguments, null, optionalAnonymousClassDeclaration);
 	}
 	
 	public Expression getExpression() {
@@ -37,6 +45,10 @@ public class ClassInstanceCreation extends Expression {
 
 	public Expression[] typeArguments() {
 		return typeArguments;
+	}
+	
+	public AnonymousClassDeclaration getAnonymousClassDeclaration() {
+		return optionalAnonymousClassDeclaration;
 	}
 	
 	@Override

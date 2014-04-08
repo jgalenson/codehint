@@ -53,7 +53,7 @@ public class DemonstrateValueHandler extends CommandHandler {
 		else
 			propertyDialog = new PrimitiveValuePropertyDialog(path, varTypeName, stack, initValue, null);
 		InitialSynthesisDialog dialog = new InitialSynthesisDialog(shell, varTypeName, varType, stack, propertyDialog, new SynthesisWorker(path, varType));
-		Synthesizer.synthesizeAndInsertExpressions(variable, path, dialog, stack, initValue.length() > 0);
+		Synthesizer.synthesizeAndInsertStatements(variable, path, dialog, stack, initValue.length() > 0);
     }
 
 	public static void handleFromText(Matcher matcher, IJavaStackFrame stack) {
