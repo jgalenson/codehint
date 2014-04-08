@@ -312,16 +312,18 @@ public final class EvaluationManager {
 			    		handleCompileFailure(exprs, startIndex, i, compiled, type);
 			    		continue;
 			    	}
+			    	boolean isHandlingSideEffects = sideEffectHandler.isHandlingSideEffects();
 			    	try {
 			    		sideEffectHandler.startHandlingSideEffects();
 			    		if (effects != null)
-			    			sideEffectHandler.redoAndRecordEffects(effects);
+			    			SideEffectHandler.redoEffects(effects);
 			    		timeoutChecker.startEvaluating(fullCountField);
 			    		IEvaluationResult result = Evaluator.evaluateExpression(compiled, engine, stack, disableBreakpoints);
 				    	error = result.getException();
 			    	} finally {
 			    		timeoutChecker.stopEvaluating();
-			    		sideEffectHandler.stopHandlingSideEffects();
+			    		if (!isHandlingSideEffects)
+			    			sideEffectHandler.stopHandlingSideEffects();
 			    	}
 		    	}
 	
