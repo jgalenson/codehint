@@ -47,6 +47,11 @@ public abstract class LambdaProperty extends Property {
 	}
 	
 	@Override
+	public boolean usesLHS() {
+		return true;
+	}
+	
+	@Override
 	public String toString() {
 		String typeStr = typeName == null ? "" : ": " + typeName;
 		return lhs.toString() + typeStr + " => " + rhs.toString();

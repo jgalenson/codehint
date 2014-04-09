@@ -38,6 +38,7 @@ public class StateProperty extends Property {
 	private final String propertyStr;
 	private final Set<String> preVariables;
 	private final Set<String> postVariables;
+	private final boolean usesLHS;
 	/*private final Map<Integer, IJavaValue> preNodeValues;
 	private final Set<Integer> postNodes;
 	private final ArrayList<Expression> freeVars;*/
@@ -46,10 +47,11 @@ public class StateProperty extends Property {
 		this.lhs = lhs;
 		this.property = property;
 		this.propertyStr = propertyStr;
-		PrePostVariableFinder prePostFinder = new PrePostVariableFinder(stack);
+		PrePostVariableFinder prePostFinder = new PrePostVariableFinder(lhs, stack);
 		property.accept(prePostFinder);
 		this.preVariables = prePostFinder.getPreVariables();
 		this.postVariables = prePostFinder.getPostVariables();
+		this.usesLHS = prePostFinder.usesLHS();
 		/*this.preNodeValues = prePostFinder.getPreNodes();
 		this.postNodes = prePostFinder.getPostNodes();
 		this.freeVars = prePostFinder.getFreeVars();*/
@@ -103,6 +105,11 @@ public class StateProperty extends Property {
 	
 	public Set<String> getPostVariables() {
 		return postVariables;
+	}
+	
+	@Override
+	public boolean usesLHS() {
+		return usesLHS;
 	}
 
 	/**
@@ -170,18 +177,22 @@ public class StateProperty extends Property {
 	}
 	
 	private static class PrePostVariableFinder extends ParentASTVisitor {
-		
+
+		private final String lhs;
 		private final IJavaStackFrame stack;
 		private final Set<String> preVariables;
 		private final Set<String> postVariables;
+		private boolean usesLHS;
 		/*private final Map<Integer, IJavaValue> preNodeValues;
 		private final Set<Integer> postNodes;
 		private final ArrayList<Expression> freeVars;*/
 		
-		public PrePostVariableFinder(IJavaStackFrame stack) {
+		public PrePostVariableFinder(String lhs, IJavaStackFrame stack) {
+			this.lhs = lhs;
 			this.stack = stack;
 			this.preVariables = new HashSet<String>();
 			this.postVariables = new HashSet<String>();
+			this.usesLHS = false;
 			/*this.preNodeValues = new HashMap<Integer, IJavaValue>();
 			this.postNodes = new HashSet<Integer>();
 			this.freeVars = new ArrayList<Expression>();*/
@@ -199,6 +210,7 @@ public class StateProperty extends Property {
 			} else if (isPost(node)) {
 				String varName = ((SimpleName)node.arguments()[0]).getIdentifier();
 				postVariables.add(varName);
+				usesLHS = usesLHS || varName.equals(lhs);
 				/*postNodes.add(node.getID());
 				IJavaVariable var = stack.findVariable(varName);
 				assert var != null || varName.equals(FREE_VAR_NAME);
@@ -235,6 +247,10 @@ public class StateProperty extends Property {
     	public Set<String> getPostVariables() {
 			return postVariables;
 		}
+    	
+    	public boolean usesLHS() {
+    		return usesLHS;
+    	}
     	
     	/*public Map<Integer, IJavaValue> getPreNodes() {
     		return preNodeValues;

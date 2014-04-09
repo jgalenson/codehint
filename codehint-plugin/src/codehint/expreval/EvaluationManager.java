@@ -286,6 +286,7 @@ public final class EvaluationManager {
 	private <T extends Statement> void evaluateStatements(ArrayList<T> stmts, ArrayList<T> validStmts, String type, boolean arePrimitives, Property property, boolean validateStatically, IJavaFieldVariable valuesField) {
 		try {
 			boolean hasPropertyPrecondition = propertyPreconditions.length() > 0;
+			boolean propertyUsesLHS = property == null ? true : property.usesLHS();
 			String valuesArrayName = valuesField == null ? null : valuesField.getName();
 			for (int startIndex = 0; startIndex < stmts.size(); ) {
 				if (monitor.isCanceled())
@@ -298,27 +299,41 @@ public final class EvaluationManager {
 				// Build and evaluate the evaluation string.
 				// TODO: If the user has variables with the same names as the ones I introduce, this will crash....
 				statementsStr.append(preVarsString);
+				boolean allAlreadyEvaluated = true;
 				Set<Effect> effects = null;
 				int i;
 		    	for (i = startIndex; i < stmts.size() && numEvaluated < BATCH_SIZE; i++) {
 		    		Statement curStmt = stmts.get(i);
 		    		Set<Effect> curEffects = null;
-		    		if (sideEffectHandler.isHandlingSideEffects()) {
-		    			Result result = expressionEvaluator.getResult(curStmt, Collections.<Effect>emptySet());
-		    			if (result != null)
-		    				curEffects = result.getEffects();
-		    		}
+	    			Result result = expressionEvaluator.getResult(curStmt, Collections.<Effect>emptySet());
+		    		if (sideEffectHandler.isHandlingSideEffects() && result != null)
+	    				curEffects = result.getEffects();
+		    		if (result == null)
+		    			allAlreadyEvaluated = false;
 		    		if (effects != null && !effects.equals(curEffects))
 		    			break;
-					numEvaluated = buildStringForStatement(curStmt, i, statementsStr, arePrimitives, validateStatically, hasPropertyPrecondition, evalStmtIndices, numEvaluated, temporaries, valuesArrayName);
+					numEvaluated = buildStringForStatement(curStmt, i, statementsStr, arePrimitives, validateStatically, hasPropertyPrecondition, propertyUsesLHS, evalStmtIndices, numEvaluated, temporaries, valuesArrayName);
 					if (numEvaluated == 1)
 		    			effects = curEffects;
 		    	}
+		    	boolean isSimple = false;
+		    	IJavaValue value = null;
 		    	DebugException error = null;
 		    	if (numEvaluated > 0) {
-			    	finishBuildingString(statementsStr, numEvaluated, type, arePrimitives, validateStatically, valuesArrayName);
-			    	
-			    	String finalStr = statementsStr.toString();
+		    		String finalStr = null;
+		    		if (numEvaluated == 1) {  // Try to optimize the evaluation string if it is only evaluating one statement.
+		    			Statement stmt = stmts.get(evalStmtIndices.get(0));
+		    			Result result = expressionEvaluator.getResult(stmt, Collections.<Effect>emptySet());
+		    			if (result != null && (!(stmt instanceof Expression) || !propertyUsesLHS)) {  // We can optimize things whose result we know and whose value doesn't matter.
+		    				finalStr = validVal;  // In these cases our evaluation string is simply the pdspec string.
+		    				isSimple = true;
+		    			}
+		    		}
+		    		if (finalStr == null) {
+		    			finishBuildingString(statementsStr, numEvaluated, allAlreadyEvaluated, type, arePrimitives, validateStatically, propertyUsesLHS, valuesArrayName);
+		    			finalStr = statementsStr.toString();
+		    		}
+		    		//System.out.println(finalStr);
 			    	ICompiledExpression compiled = engine.getCompiledExpression(finalStr, stack);
 			    	if (compiled.hasErrors()) {
 			    		handleCompileFailure(stmts, startIndex, i, compiled, type);
@@ -331,6 +346,8 @@ public final class EvaluationManager {
 			    			SideEffectHandler.redoEffects(effects);
 			    		timeoutChecker.startEvaluating(fullCountField);
 			    		IEvaluationResult result = Evaluator.evaluateExpression(compiled, engine, stack, disableBreakpoints);
+			    		if (isSimple)
+			    			value = result.getValue();
 				    	error = result.getException();
 			    	} finally {
 			    		timeoutChecker.stopEvaluating();
@@ -356,7 +373,7 @@ public final class EvaluationManager {
 			    	monitor.worked(numToSkip);
 		    	}
 		    	if (work > 0) {
-		    		ArrayList<T> newResults = getResultsFromArray(stmts, property, valuesField, startIndex, work, numEvaluated, validateStatically);
+		    		ArrayList<T> newResults = getResultsFromArray(stmts, property, value, valuesField, startIndex, work, numEvaluated, validateStatically);
 			    	reportResults(newResults);
 			    	validStmts.addAll(newResults);
 		    	}
@@ -385,6 +402,7 @@ public final class EvaluationManager {
 	 * or must have the child evaluation do it.
 	 * @param hasPropertyPrecondition Whether the current pdspec has a
 	 * precondition.
+	 * @param propertyUsesLHS Whether the current property uses the LHS.
 	 * @param evalStmtIndices A list that maps indices in the evaluation
 	 * string into indices in the list of all statements.
 	 * @param numEvaluated The number of statements the current statementsStr
@@ -397,16 +415,17 @@ public final class EvaluationManager {
 	 * statementsStr will evaluate.
 	 * @throws DebugException
 	 */
-	private int buildStringForStatement(Statement curStmt, int i, StringBuilder statementsStr, boolean isPrimitive, boolean validateStatically, boolean hasPropertyPrecondition, ArrayList<Integer> evalStmtIndices, int numEvaluated, Map<String, Integer> temporaries, String valuesArrayName) throws DebugException {
+	private int buildStringForStatement(Statement curStmt, int i, StringBuilder statementsStr, boolean isPrimitive, boolean validateStatically, boolean hasPropertyPrecondition, boolean propertyUsesLHS, ArrayList<Integer> evalStmtIndices, int numEvaluated, Map<String, Integer> temporaries, String valuesArrayName) throws DebugException {
 		Result curResult = expressionEvaluator.getResult(curStmt, Collections.<Effect>emptySet());
 		if (curResult == null || !validateStatically) {
 			StringBuilder curString = new StringBuilder();
 			ValueFlattener valueFlattener = new ValueFlattener(temporaries, methodResultsMap, expressionEvaluator, valueCache);
 			String curStmtStr = valueFlattener.getResult(curStmt);
-			for (Map.Entry<String, Pair<Integer, String>> newTemp: valueFlattener.getNewTemporaries().entrySet()) {
-				curString.append(" ").append(newTemp.getValue().second).append(" _$tmp").append(newTemp.getValue().first).append(" = (").append(newTemp.getValue().second).append(")").append(getQualifier(null)).append("methodResults[").append(methodResultsMap.get(newTemp.getKey())).append("];\n");
-				temporaries.put(newTemp.getKey(), newTemp.getValue().first);
-			}
+			if (propertyUsesLHS)
+				for (Map.Entry<String, Pair<Integer, String>> newTemp: valueFlattener.getNewTemporaries().entrySet()) {
+					curString.append(" ").append(newTemp.getValue().second).append(" _$tmp").append(newTemp.getValue().first).append(" = (").append(newTemp.getValue().second).append(")").append(getQualifier(null)).append("methodResults[").append(methodResultsMap.get(newTemp.getKey())).append("];\n");
+					temporaries.put(newTemp.getKey(), newTemp.getValue().first);
+				}
 			if (isFreeSearch && !isPrimitive)  // Variables now might have different types, so give each evaluation its own scope, but declare temporaries outside that since we reuse them.
 				curString.append("{\n");
 			String curRHSStr = curStmtStr;
@@ -414,7 +433,7 @@ public final class EvaluationManager {
 				curRHSStr = EclipseUtils.javaStringOfValue(curResult.getValue().getValue(), stack, false);
 			//curString.append(" // ").append(curStmt.toString()).append("\n");
 			String valueStr = "_$curValue";
-			if ((!validateStatically || !isPrimitive) && curStmt instanceof Expression) {
+			if ((!validateStatically || !isPrimitive) && curStmt instanceof Expression && propertyUsesLHS) {
 				if (isFreeSearch && !isPrimitive) {
 					IJavaType type = ((Expression)curStmt).getStaticType();
 					curString.append(" ").append(type == null ? "Object" : EclipseUtils.sanitizeTypename(type.getName()));
@@ -423,24 +442,27 @@ public final class EvaluationManager {
 			} else
 				valueStr = curRHSStr;
 			if (!validateStatically) {
-				if (canUseJar)
-					curString.append(" ").append(getQualifier(null)).append("valueCount = ").append(numEvaluated + 1).append(";\n ");
-				else
-					curString.append(" _$valueCountField.setInt(null, ").append(numEvaluated + 1).append(");\n ");
+				if (curResult == null) {
+					if (canUseJar)
+						curString.append(" ").append(getQualifier(null)).append("valueCount = ").append(numEvaluated + 1).append(";\n ");
+					else
+						curString.append(" _$valueCountField.setInt(null, ").append(numEvaluated + 1).append(");\n ");
+				}
 				if (hasPropertyPrecondition)
 					curString.append("if (" + propertyPreconditions + ") {\n ");
-				curString.append("_$curValid = ").append(validVal).append(";\n ");
-				curString.append(getQualifier(null)).append("valid[").append(numEvaluated).append("] = _$curValid;\n");
+				/*curString.append("_$curValid = ").append(validVal).append(";\n ");
+				curString.append(getQualifier(null)).append("valid[").append(numEvaluated).append("] = _$curValid;\n");*/
+				curString.append(getQualifier(null)).append("valid[").append(numEvaluated).append("] = ").append(validVal).append(";\n");
 			}
-			if (curStmt instanceof Expression)
+			if (curStmt instanceof Expression && curResult == null)
 				curString.append(" ").append(getQualifier(null)).append(valuesArrayName).append("[").append(numEvaluated).append("] = ").append(valueStr).append(";\n ");
 			/*else  // We replay the effects before evaluating this, so we do not want to execute the actual statement.
 				curString.append(" ").append(valueStr);*/
-			if (!isPrimitive && curStmt instanceof Expression) {
+			/*if (!isPrimitive && curStmt instanceof Expression) {
 				if (!validateStatically)
 					curString.append("if (_$curValid)\n  ");
 				curString.append(getQualifier(null)).append("toStrings[").append(numEvaluated).append("] = ").append(getToStringGetter((Expression)curStmt)).append(";\n ");
-			}
+			}*/
 			if (hasPropertyPrecondition && !validateStatically)
 				curString.append(" }\n ");
 			if (canUseJar)
@@ -464,16 +486,19 @@ public final class EvaluationManager {
 	 * which will be modified.
 	 * @param numEvaluated The number of statements this
 	 * evaluation string modifies.
+	 * @param allAlreadyEvaluated Whether all of the statements
+	 * evaluated by this string had already been evaluated.
 	 * @param type The type of the statements being evaluated.
 	 * @param arePrimitives Whether the statements being
 	 * evaluated are primitives.
 	 * @param validateStatically Whether we can evaluate the
 	 * pdspec ourselves or must have the child evaluation do it.
+	 * @param propertyUsesLHS Whether the current property uses the LHS.
 	 * @param valuesArrayName The name of the field that will
 	 * store the output values, or null if there are no output
 	 * values (i.e., for non-expressions).
 	 */
-	private void finishBuildingString(StringBuilder statementsStr, int numEvaluated, String type, boolean arePrimitives, boolean validateStatically, String valuesArrayName) {
+	private void finishBuildingString(StringBuilder statementsStr, int numEvaluated, boolean allAlreadyEvaluated, String type, boolean arePrimitives, boolean validateStatically, boolean propertyUsesLHS, String valuesArrayName) {
 		String newTypeString = "[" + numEvaluated + "]";
 		if (type.contains("[]")) {  // If this is an array type, we must specify our new size as the first array dimension, not the last one.
 		    int index = type.indexOf("[]");
@@ -482,22 +507,23 @@ public final class EvaluationManager {
 		    newTypeString = type + newTypeString;
 		StringBuilder prefix = new StringBuilder();
 		prefix.append("{\n");
-		if (valuesArrayName != null)
+		if (valuesArrayName != null && !allAlreadyEvaluated)
 			prefix.append(getQualifier(type + "[]")).append(valuesArrayName).append(" = new ").append(newTypeString).append(";\n");
 		if (!validateStatically)
 			prefix.append(getQualifier("boolean[]")).append("valid = new boolean[").append(numEvaluated).append("];\n");
 		else
 			prefix.append(getQualifier("boolean[]")).append("valid = null;\n");
-		if (!arePrimitives)
+		/*if (!arePrimitives)
 			prefix.append(getQualifier("String[]")).append("toStrings = new String[").append(numEvaluated).append("];\n");
 		else
-			prefix.append(getQualifier("String[]")).append("toStrings = null;\n");
-		prefix.append(getQualifier("int")).append("valueCount = 0;\n");
-		prefix.append(getQualifier("int")).append("fullCount = 0;\n");
-		if ((!validateStatically || !arePrimitives) && (!isFreeSearch || arePrimitives) && valuesArrayName != null)
+			prefix.append(getQualifier("String[]")).append("toStrings = null;\n");*/
+		if (!allAlreadyEvaluated)
+			prefix.append(getQualifier("int")).append("valueCount = 0;\n");
+		prefix.append(getQualifier("int")).append("fullCount = 0;\n");	
+		if ((!validateStatically || !arePrimitives) && (!isFreeSearch || arePrimitives) && valuesArrayName != null && propertyUsesLHS)
 			prefix.append(type).append(" _$curValue;\n");
-		if (!validateStatically)
-			prefix.append("boolean _$curValid;\n");
+		/*if (!validateStatically)
+			prefix.append("boolean _$curValid;\n");*/
 		if (!canUseJar) {
 			// Get the impl jar.
 			prefix.append("java.lang.reflect.Field _$implClassField = System.getSecurityManager().getClass().getDeclaredField(\"codeHintImplClass\");\n");
@@ -508,8 +534,8 @@ public final class EvaluationManager {
 				prefix.append("_$implClass.getDeclaredField(\"").append(valuesArrayName).append("\").set(null, ").append(valuesArrayName).append(");\n");
 			if (!validateStatically)
 				prefix.append("_$implClass.getDeclaredField(\"valid\").set(null, valid);\n");
-			if (!arePrimitives)
-				prefix.append("_$implClass.getDeclaredField(\"toStrings\").set(null, toStrings);\n");
+			/*if (!arePrimitives)
+				prefix.append("_$implClass.getDeclaredField(\"toStrings\").set(null, toStrings);\n");*/
 			prefix.append("Object[] methodResults = (Object[])_$implClass.getDeclaredField(\"methodResults\").get(null);\n");
 			// Setup integers.
 			prefix.append("java.lang.reflect.Field _$valueCountField = _$implClass.getDeclaredField(\"valueCount\");\n");
@@ -631,6 +657,9 @@ public final class EvaluationManager {
 	 * valid result.  See evaluateStatements for the
 	 * string on whose evaluation this is called.
 	 * @param stmts The statements that were evaluated.
+	 * @param property The pdspec.
+	 * @param value If this is non-null, it is the valid value and
+	 * we only checked one statement whose result we already knew. 
 	 * @param valuesField The field of the proper type to store the
 	 * results of the given statements.
 	 * @param count The number of statements that were successfully
@@ -639,7 +668,7 @@ public final class EvaluationManager {
 	 * given property (or all that do not crash if it is null).
 	 * @throws DebugException
 	 */
-	private <T extends Statement> ArrayList<T> getResultsFromArray(ArrayList<T> stmts, Property property, IJavaFieldVariable valuesField, int startIndex, int count, int numEvaluated, boolean validateStatically) throws DebugException {
+	private <T extends Statement> ArrayList<T> getResultsFromArray(ArrayList<T> stmts, Property property, IJavaValue value, IJavaFieldVariable valuesField, int startIndex, int count, int numEvaluated, boolean validateStatically) throws DebugException {
 		ArrayList<T> validStmts = new ArrayList<T>();
 		IJavaValue valuesFieldValue = valuesField == null ? null : (IJavaValue)valuesField.getValue();
 		IJavaValue[] values = numEvaluated == 0 || valuesFieldValue == null || valuesFieldValue.isNull() ? null : ((IJavaArray)valuesFieldValue).getValues();
@@ -680,7 +709,10 @@ public final class EvaluationManager {
     			if (typedStmt instanceof Expression)
     				validResultString = getResultString((Expression)typedStmt, curValue, toStrings, evalIndex);
     		} else {
-    			valid = "true".equals(valids[evalIndex].toString());
+    			if (value != null && !"V".equals(value.getSignature()))
+    				valid = ((IJavaPrimitiveValue)value).getBooleanValue();
+    			else
+    				valid = "true".equals(valids[evalIndex].toString());
     			if (valid && typedStmt instanceof Expression)
     				validResultString = getResultString((Expression)typedStmt, curValue, toStrings, evalIndex);
     		}
