@@ -1,5 +1,7 @@
 package codehint.effects;
 
+import java.io.IOException;
+import java.io.ObjectInputStream;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -8,6 +10,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.zip.GZIPInputStream;
 
 import org.eclipse.core.resources.IResource;
 import org.eclipse.core.resources.IWorkspaceRunnable;
@@ -68,10 +71,21 @@ public class SideEffectHandler {
 	private final IJavaStackFrame stack;
 	private final IJavaProject project;
 	private long maxID;
+	private final Set<String> neverModifiedFields;
 	
+	@SuppressWarnings("unchecked")
 	public SideEffectHandler(IJavaStackFrame stack, IJavaProject project) {
 		this.stack = stack;
 		this.project = project;
+		try {
+			ObjectInputStream is = new ObjectInputStream(new GZIPInputStream(EclipseUtils.getFileFromBundle("data" + System.getProperty("file.separator") + "notmod.gz")));
+			neverModifiedFields = (Set<String>)is.readObject();
+			is.close();
+		} catch (IOException e) {
+			throw new RuntimeException(e);
+		} catch (ClassNotFoundException e) {
+			throw new RuntimeException(e);
+		}
 	}
 	
 	// TODO: I could easily remove the requirement that we can get instance info.
@@ -138,12 +152,17 @@ public class SideEffectHandler {
 						|| typeName.equals("java.lang.Class")
 						|| typeName.equals("java.lang.CharacterDataLatin1")
 						|| typeName.equals("java.lang.Integer$IntegerCache")
-						|| typeName.equals("java.lang.Integer"))
+						|| typeName.equals("java.lang.Integer")
+						|| typeName.equals("sun.nio.cs.StandardCharsets")
+						|| typeName.equals("sun.awt.SunHints")
+						|| typeName.equals("java.awt.RenderingHints"))
 					continue;
 				if (typeName.equals("java.util.concurrent.locks.AbstractQueuedSynchronizer"))
 					continue;  // Heuristically avoiding undoing side effects on sync variables, which can cause hangs in Swing.
 				List<IJavaObject> instances = null;
 				for (IField field: itype.getFields()) {
+					if (neverModifiedFields.contains(typeName.replace("$", ".") + "." + field.getElementName()))
+						continue;
 					if (!Flags.isFinal(field.getFlags()) || canBeArray(field)) {
 						if (Flags.isStatic(field.getFlags())) {
 							if ((typeName.equals("javax.swing.UIDefaults") && field.getElementName().equals("PENDING"))
@@ -188,6 +207,7 @@ public class SideEffectHandler {
 		//System.out.println("fields: " + (System.currentTimeMillis() - startTime));
 		/*for (IField field: fields)
 			System.out.println(field);*/
+		//System.out.println(fields.size() + " fields");
 		return fields;
 	}
 	
