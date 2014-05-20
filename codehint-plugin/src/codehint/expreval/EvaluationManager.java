@@ -362,8 +362,8 @@ public final class EvaluationManager {
 		    	int work = i - startIndex;
 		    	int numToSkip = 0;
 		    	if (error != null) {
-					int fullCount = ((IJavaPrimitiveValue)fullCountField.getValue()).getIntValue();
-					int valueCount = ((IJavaPrimitiveValue)valueCountField.getValue()).getIntValue();
+					int fullCount = isSimple ? 0 : ((IJavaPrimitiveValue)fullCountField.getValue()).getIntValue();
+					int valueCount = isSimple ? 1 : ((IJavaPrimitiveValue)valueCountField.getValue()).getIntValue();
 		    		int crashingIndex = evalStmtIndices.get(fullCount);
 		    		Statement crasher = stmts.get(crashingIndex);
 					if (valueCount == fullCount || validateStatically)  // Ensure we crashed on the statement and not the pdspec.
