@@ -27,7 +27,7 @@ public class SimpleArray extends ArrayValue {
 	
 	@Override
 	public String toString() {
-		return String.valueOf(values);
+		return String.valueOf(values).replaceAll("\0", "");  // Printing out nulls looks weird, so we remove them.
 	}
 	
 }
