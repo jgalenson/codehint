@@ -1,5 +1,6 @@
 package codehint.dialogs;
 
+import java.net.UnknownHostException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
@@ -1019,12 +1020,13 @@ public abstract class SynthesisDialog extends ModelessDialog {
 				if (ifield != null)
 					return getJavadocFast(ifield, prettify);
 			}
-			return null;
 		} catch (JavaModelException e) {
-			throw new RuntimeException(e);
+			if (!(e.getException() instanceof UnknownHostException))
+				throw new RuntimeException(e);
 		} catch (DebugException e) {
 			throw new RuntimeException(e);
 		}
+		return null;
 	}
 	
 	// This is adapted from org.eclipse.jdt.internal.ui.text.javadoc.JavadocContentAccess2.getHTMLContentFromSource.
