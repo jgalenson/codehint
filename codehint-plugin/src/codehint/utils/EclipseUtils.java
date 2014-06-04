@@ -436,8 +436,8 @@ public final class EclipseUtils {
 	    		return type;
 	    	if (getASTEvaluationEngine(stack).getCompiledExpression(className + ".class", stack).hasErrors()) {
 		    	File libFile = extractLibrary(stack);
-		    	String evalStr = "Class.forName(\"" + className + "\", true, java.net.URLClassLoader.newInstance(new java.net.URL[] { new java.net.URL(\"file://" + libFile.getAbsolutePath() + "\") }))";
-	    		EclipseUtils.evaluate(evalStr, stack);
+		    	String evalStr = "Class.forName(\"" + className + "\", true, java.net.URLClassLoader.newInstance(new java.net.URL[] { new java.net.URL(\"file://" + libFile.getAbsolutePath().replace("\\", "\\\\") + "\") }))";
+		    	EclipseUtils.evaluate(evalStr, stack);
 		    	return (IJavaClassType)getFullyQualifiedTypeIfExistsUnchecked(className, target, typeCache);
 	    	} else
 	    		return (IJavaClassType)loadAndGetType(className, stack, target, typeCache);
