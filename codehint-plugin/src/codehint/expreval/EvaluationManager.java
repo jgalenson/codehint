@@ -530,7 +530,7 @@ public final class EvaluationManager {
 			prefix.append("_$implClassField.setAccessible(true);\n");
 			prefix.append("Class _$implClass = (Class)_$implClassField.get(null);\n");
 			// Setup local aliases
-			if (valuesArrayName != null)
+			if (valuesArrayName != null && !allAlreadyEvaluated)
 				prefix.append("_$implClass.getDeclaredField(\"").append(valuesArrayName).append("\").set(null, ").append(valuesArrayName).append(");\n");
 			if (!validateStatically)
 				prefix.append("_$implClass.getDeclaredField(\"valid\").set(null, valid);\n");
