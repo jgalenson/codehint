@@ -42,6 +42,7 @@ import org.eclipse.jdt.core.Signature;
 import org.eclipse.jdt.core.dom.ASTNode;
 import org.eclipse.jdt.core.dom.ASTParser;
 import org.eclipse.jdt.debug.core.IJavaArray;
+import org.eclipse.jdt.debug.core.IJavaArrayType;
 import org.eclipse.jdt.debug.core.IJavaClassType;
 import org.eclipse.jdt.debug.core.IJavaDebugTarget;
 import org.eclipse.jdt.debug.core.IJavaInterfaceType;
@@ -436,8 +437,17 @@ public final class EclipseUtils {
 	    		return type;
 	    	if (getASTEvaluationEngine(stack).getCompiledExpression(className + ".class", stack).hasErrors()) {
 		    	File libFile = extractLibrary(stack);
-		    	String evalStr = "Class.forName(\"" + className + "\", true, java.net.URLClassLoader.newInstance(new java.net.URL[] { new java.net.URL(\"file://" + libFile.getAbsolutePath().replace("\\", "\\\\") + "\") }))";
-		    	EclipseUtils.evaluate(evalStr, stack);
+		    	IJavaThread thread = (IJavaThread)stack.getThread();
+		    	IJavaObject url = null;
+		    	if (System.getProperty("os.name").startsWith("Windows")) {  // Windows paths are a bit different.
+		    		IJavaObject file = ((IJavaClassType)EclipseUtils.getFullyQualifiedType("java.io.File", stack, target, typeCache)).newInstance("(Ljava/lang/String;)V", new IJavaValue[] { target.newValue(libFile.getAbsolutePath()) }, thread);
+		    		url = (IJavaObject)((IJavaObject)file.sendMessage("toURI", "()Ljava/net/URI;", new IJavaValue[] { }, thread, null)).sendMessage("toURL", "()Ljava/net/URL;", new IJavaValue[] { }, thread, null);
+		    	} else
+		    		url = ((IJavaClassType)EclipseUtils.getFullyQualifiedType("java.net.URL", stack, target, typeCache)).newInstance("(Ljava/lang/String;)V", new IJavaValue[] { target.newValue("file://" + libFile.getAbsolutePath()) }, thread);
+		    	IJavaArray urlArr = ((IJavaArrayType)EclipseUtils.getFullyQualifiedType("java.net.URL[]", stack, target, typeCache)).newInstance(1);
+		    	urlArr.setValue(0, url);
+		    	IJavaValue classLoader = ((IJavaClassType)EclipseUtils.getFullyQualifiedType("java.net.URLClassLoader", stack, target, typeCache)).sendMessage("newInstance", "([Ljava/net/URL;)Ljava/net/URLClassLoader;", new IJavaValue[] { urlArr }, thread);
+		    	IJavaValue typ = ((IJavaClassType)EclipseUtils.getFullyQualifiedType("java.lang.Class", stack, target, typeCache)).sendMessage("forName", "(Ljava/lang/String;ZLjava/lang/ClassLoader;)Ljava/lang/Class;", new IJavaValue[] { target.newValue(className), target.newValue(true), classLoader }, thread);
 		    	return (IJavaClassType)getFullyQualifiedTypeIfExistsUnchecked(className, target, typeCache);
 	    	} else
 	    		return (IJavaClassType)loadAndGetType(className, stack, target, typeCache);
