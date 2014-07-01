@@ -12,7 +12,6 @@ import org.eclipse.swt.widgets.Shell;
 
 import codehint.Synthesizer.RefinementWorker;
 import codehint.Synthesizer.SynthesisWorker;
-import codehint.ast.Expression;
 import codehint.ast.Statement;
 
 public class RefinementSynthesisDialog extends SynthesisDialog {

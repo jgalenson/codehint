@@ -643,13 +643,13 @@ public final class EvaluationManager {
 	 * given expression.
 	 * @throws DebugException 
 	 */
-	private static String getToStringGetter(Expression expr) throws DebugException {
+	/*private static String getToStringGetter(Expression expr) throws DebugException {
 		String nullCheck = "_$curValue == null ? \"null\" : ";
 		if (expr.getStaticType() instanceof IJavaArrayType)
 			return nullCheck + "java.util.Arrays.toString((" + EclipseUtils.sanitizeTypename(expr.getStaticType().getName()) + ")_$curValue)";
 		else
 			return nullCheck + "_$curValue.toString()";
-	}
+	}*/
 	
 	/**
 	 * Gets the fully evaluated statements of those statements

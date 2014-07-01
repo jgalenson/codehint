@@ -84,7 +84,7 @@ public class StaticEvaluator {
 			}
 			if ("java.lang.String".equals(declaringType)) {
 				if (receiver == null)
-					result = evaluateStringConstructorCall(argVals, method, target);
+					result = evaluateStringConstructorCall(argVals, method);
 				else {
 					Value receiverValue = expressionEvaluator.getResult(receiver, Collections.<Effect>emptySet()).getValue();
 					result = evaluateStringCall(receiverValue.getValue() instanceof IJavaClassObject ? null : stringOfValue(receiverValue), receiverValue, argVals, method, target);
@@ -94,7 +94,7 @@ public class StaticEvaluator {
 		} catch (DebugException ex) {
 			throw new RuntimeException(ex);
 		} catch (Exception ex) {
-			result = handleCrash(target);
+			result = handleCrash();
 		}
 		/*if (target.voidValue().equals(result))
 			System.out.println("Unexpected crash on " + receiver.getExpression().toString().replace("\n", "\\n") + "." + method.name() + args.toString().replace("\n", "\\n"));*/
@@ -107,7 +107,7 @@ public class StaticEvaluator {
 	}
 
 	@SuppressWarnings("deprecation")
-	private Value evaluateStringConstructorCall(Value[] args, Method method, IJavaDebugTarget target) throws DebugException {
+	private Value evaluateStringConstructorCall(Value[] args, Method method) throws DebugException {
 		String sig = method.signature();
 		if ("()V".equals(sig))
 			return valueOfString("");
@@ -132,7 +132,7 @@ public class StaticEvaluator {
 					unsupportedEncodings.add(charsetName);
 				}
 			}
-			return handleCrash(target);
+			return handleCrash();
 		}
 		// String(byte[], int, int, java.nio.charset.Charset)
 		if ("([BLjava/lang/String;)V".equals(sig)) {
@@ -144,7 +144,7 @@ public class StaticEvaluator {
 					unsupportedEncodings.add(charsetName);
 				}
 			}
-			return handleCrash(target);
+			return handleCrash();
 		}
 		// String(byte[], java.nio.charset.Charset)
 		if ("([BII)V".equals(sig))
@@ -187,7 +187,7 @@ public class StaticEvaluator {
 					|| (codePointOffset < 0 && receiver.codePointCount(0, index) >= -codePointOffset))
 				return valueOfInt(receiver.offsetByCodePoints(index, codePointOffset));
 			else
-				return handleCrash(target);
+				return handleCrash();
 		}
 		if ("getBytes".equals(name) && sig.equals("(Ljava/lang/String;)[B")) {
 			String charsetName = stringOfValue(args[0]);
@@ -198,7 +198,7 @@ public class StaticEvaluator {
 					unsupportedEncodings.add(charsetName);
 				}
 			}
-			return handleCrash(target);
+			return handleCrash();
 		}
 		// getBytes
 		if ("getBytes".equals(name) && sig.equals("()[B"))
@@ -268,7 +268,7 @@ public class StaticEvaluator {
 					illegalPatterns.add(regex);
 				}
 			}
-			return handleCrash(target);
+			return handleCrash();
 		}
 		// contains
 		if ("contains".equals(name)) {
@@ -286,7 +286,7 @@ public class StaticEvaluator {
 					illegalPatterns.add(regex);
 				}
 			}
-			return handleCrash(target);
+			return handleCrash();
 		}
 		if ("replaceAll".equals(name)) {
 			String regex = stringOfValue(args[0]);
@@ -297,7 +297,7 @@ public class StaticEvaluator {
 					illegalPatterns.add(regex);
 				}
 			}
-			return handleCrash(target);
+			return handleCrash();
 		}
 		if ("replace".equals(name) && "(Ljava/lang/CharSequence;Ljava/lang/CharSequence;)Ljava/lang/String;".equals(sig)) {
 			if (isNullOrString(args[0]) && isNullOrString(args[1]))
@@ -315,7 +315,7 @@ public class StaticEvaluator {
 					illegalPatterns.add(regex);
 				}
 			}
-			return handleCrash(target);
+			return handleCrash();
 		}
 		if ("split".equals(name) && "(Ljava/lang/String;)[Ljava/lang/String;".equals(sig)) {
 			String regex = stringOfValue(args[0]);
@@ -326,7 +326,7 @@ public class StaticEvaluator {
 					illegalPatterns.add(regex);
 				}
 			}
-			return handleCrash(target);
+			return handleCrash();
 		}
 		// toLowerCase
 		if ("toLowerCase".equals(name) && "()Ljava/lang/String;".equals(sig))
@@ -442,18 +442,18 @@ public class StaticEvaluator {
 		if ("binarySearch".equals(name) && "([Ljava/lang/Object;Ljava/lang/Object;)I".equals(sig)) {
 			if (isNullOrStringArr(args[0]) && isNullOrString(args[1])) {
 				if (args[1].getValue().isNull())
-					return handleCrash(target);
+					return handleCrash();
 				else
 					return valueOfInt(Arrays.binarySearch(stringArrOfValue(args[0]), stringOfValue(args[1])));
 			} else if (((IJavaArray)args[0]).getLength() > 0 && isNullOrStringArr(args[0]) && !isNullOrString(args[1]))
-				return handleCrash(target);
+				return handleCrash();
 			 else
 				return null;
 		}
 		if ("binarySearch".equals(name) && "([Ljava/lang/Object;IILjava/lang/Object;)I".equals(sig)) {
 			if (isNullOrStringArr(args[0]) && isNullOrString(args[1])) {
 				if (args[3].getValue().isNull())
-					return handleCrash(target);
+					return handleCrash();
 				else
 					return valueOfInt(Arrays.binarySearch(stringArrOfValue(args[0]), intOfValue(args[1]), intOfValue(args[2]), stringOfValue(args[3])));
 			} else
@@ -462,18 +462,18 @@ public class StaticEvaluator {
 		if ("binarySearch".equals(name) && "([Ljava/lang/Object;Ljava/lang/Object;Ljava/util/Comparator;)I".equals(sig)) {
 			if (isNullOrStringArr(args[0]) && isNullOrString(args[1]) && args[2].getValue().isNull()) {
 				if (args[1].getValue().isNull())
-					return handleCrash(target);
+					return handleCrash();
 				else
 					return valueOfInt(Arrays.binarySearch(stringArrOfValue(args[0]), stringOfValue(args[1]), null));
 			} else if (args[2].getValue().isNull() && ((IJavaArray)args[0]).getLength() > 0 && isNullOrStringArr(args[0]) && !isNullOrString(args[1]))
-				return handleCrash(target);
+				return handleCrash();
 			else
 				return null;
 		}
 		if ("binarySearch".equals(name) && "([Ljava/lang/Object;IILjava/lang/Object;Ljava/util/Comparator;)I".equals(sig)) {
 			if (isNullOrStringArr(args[0]) && isNullOrString(args[3]) && args[4].getValue().isNull()) {
 				if (args[3].getValue().isNull())
-					return handleCrash(target);
+					return handleCrash();
 				else
 					return valueOfInt(Arrays.binarySearch(stringArrOfValue(args[0]), intOfValue(args[1]), intOfValue(args[2]), stringOfValue(args[3]), null));
 			} else
@@ -642,7 +642,7 @@ public class StaticEvaluator {
 		}
 	 */
 
-	private Value handleCrash(IJavaDebugTarget target) {
+	private Value handleCrash() {
 		numCrashes++;
 		return valueCache.voidValue();
 	}

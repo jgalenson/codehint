@@ -447,7 +447,7 @@ public final class EclipseUtils {
 		    	IJavaArray urlArr = ((IJavaArrayType)EclipseUtils.getFullyQualifiedType("java.net.URL[]", stack, target, typeCache)).newInstance(1);
 		    	urlArr.setValue(0, url);
 		    	IJavaValue classLoader = ((IJavaClassType)EclipseUtils.getFullyQualifiedType("java.net.URLClassLoader", stack, target, typeCache)).sendMessage("newInstance", "([Ljava/net/URL;)Ljava/net/URLClassLoader;", new IJavaValue[] { urlArr }, thread);
-		    	IJavaValue typ = ((IJavaClassType)EclipseUtils.getFullyQualifiedType("java.lang.Class", stack, target, typeCache)).sendMessage("forName", "(Ljava/lang/String;ZLjava/lang/ClassLoader;)Ljava/lang/Class;", new IJavaValue[] { target.newValue(className), target.newValue(true), classLoader }, thread);
+		    	((IJavaClassType)EclipseUtils.getFullyQualifiedType("java.lang.Class", stack, target, typeCache)).sendMessage("forName", "(Ljava/lang/String;ZLjava/lang/ClassLoader;)Ljava/lang/Class;", new IJavaValue[] { target.newValue(className), target.newValue(true), classLoader }, thread);
 		    	return (IJavaClassType)getFullyQualifiedTypeIfExistsUnchecked(className, target, typeCache);
 	    	} else
 	    		return (IJavaClassType)loadAndGetType(className, stack, target, typeCache);

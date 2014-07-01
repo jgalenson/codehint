@@ -17,7 +17,6 @@ import codehint.ast.ASTNode;
 import codehint.ast.ASTVisitor;
 import codehint.ast.CompilationUnit;
 import codehint.ast.Expression;
-import codehint.ast.FieldAccess;
 import codehint.ast.MethodInvocation;
 import codehint.ast.ParentASTFlattener;
 import codehint.ast.ParentASTVisitor;

@@ -970,7 +970,7 @@ public final class DeterministicExpressionGenerator extends ExpressionGenerator 
 	 * @throws DebugException
 	 * @throws JavaModelException
 	 */
-	private Map<String, Integer> getHelpfulTypesMap(int maxDepth, IProgressMonitor monitor) throws DebugException, JavaModelException {
+	/*private Map<String, Integer> getHelpfulTypesMap(int maxDepth, IProgressMonitor monitor) throws DebugException, JavaModelException {
 		if (typeConstraint instanceof MethodConstraint || typeConstraint instanceof FieldConstraint || typeConstraint instanceof UnknownConstraint)
 			return null;
 		curMonitor = SubMonitor.convert(monitor, "Finding useful types", IProgressMonitor.UNKNOWN);
@@ -1003,7 +1003,7 @@ public final class DeterministicExpressionGenerator extends ExpressionGenerator 
 		}
 		curMonitor.done();
 		return helpfulTypes;
-	}
+	}*/
 	
 	/**
 	 * Gets subtypes and supertypes of all types in the
@@ -1013,7 +1013,7 @@ public final class DeterministicExpressionGenerator extends ExpressionGenerator 
 	 * @param supertypes The map in which we store all supertypes.
 	 * @throws DebugException
 	 */
-	private void getSubSuperTypes(Map<String, Set<String>> typeGen, Map<String, Set<String>> subtypes, Map<String, Set<String>> supertypes) throws DebugException {
+	/*private void getSubSuperTypes(Map<String, Set<String>> typeGen, Map<String, Set<String>> subtypes, Map<String, Set<String>> supertypes) throws DebugException {
 		Set<String> allTypes = getAllTypes(typeGen);
 		tryToLoad(allTypes);
 		for (String typeName: allTypes) {
@@ -1025,14 +1025,14 @@ public final class DeterministicExpressionGenerator extends ExpressionGenerator 
 				}
 			}
 		}
-	}
+	}*/
 	
 	/**
 	 * Gets all the types referenced in the given map.
 	 * @param typeGen A map that contains types.
 	 * @return All the types referenced in the given map.
 	 */
-	private static Set<String> getAllTypes(Map<String, Set<String>> typeGen) {
+	/*private static Set<String> getAllTypes(Map<String, Set<String>> typeGen) {
 		Set<String> allTypes = new HashSet<String>();
 		for (Map.Entry<String, Set<String>> entry: typeGen.entrySet()) {
 			allTypes.add(entry.getKey());
@@ -1040,7 +1040,7 @@ public final class DeterministicExpressionGenerator extends ExpressionGenerator 
 				allTypes.add(typeName);
 		}
 		return allTypes;
-	}
+	}*/
 	
 	/**
 	 * Processes the given type by marking it as helpful and
@@ -1055,7 +1055,7 @@ public final class DeterministicExpressionGenerator extends ExpressionGenerator 
 	 * types to the maximum depth at which they are useful.
 	 * @param nextTypes The types we want to search next.
 	 */
-	private static void process(String typeName, int depth, Set<String> processedTypes, Map<String, Set<String>> typeGen, Map<String, Integer> helpfulTypes, Set<String> nextTypes) {
+	/*private static void process(String typeName, int depth, Set<String> processedTypes, Map<String, Set<String>> typeGen, Map<String, Integer> helpfulTypes, Set<String> nextTypes) {
 		if (processedTypes.contains(typeName))
 			return;
 		if (!helpfulTypes.containsKey(typeName))
@@ -1064,8 +1064,7 @@ public final class DeterministicExpressionGenerator extends ExpressionGenerator 
 		if (sources != null)
 			nextTypes.addAll(sources);
 		processedTypes.add(typeName);  // As an optimization, avoid checking a type multiple times.  Because we're doing a BFS, the first time will have the maximum depth.
-
-	}
+	}*/
 	
 	/**
 	 * Builds a mapping of the types that can be used to build
@@ -1077,7 +1076,7 @@ public final class DeterministicExpressionGenerator extends ExpressionGenerator 
 	 * @throws DebugException
 	 * @throws JavaModelException
 	 */
-	private Map<String, Set<String>> getTypeGen(int maxDepth, IProgressMonitor monitor) throws DebugException, JavaModelException {
+	/*private Map<String, Set<String>> getTypeGen(int maxDepth, IProgressMonitor monitor) throws DebugException, JavaModelException {
 		Map<String, Set<String>> typeGen = new HashMap<String, Set<String>>();
 		Set<String> processedTypes = new HashSet<String>();
 		Set<String> curTypes = new HashSet<String>();
@@ -1128,7 +1127,7 @@ public final class DeterministicExpressionGenerator extends ExpressionGenerator 
 			}
 		}
 		return typeGen;
-	}
+	}*/
 
 	/**
 	 * Adds types from method calls to the map of which types
@@ -1140,7 +1139,7 @@ public final class DeterministicExpressionGenerator extends ExpressionGenerator 
 	 * @param targetName If this is non-null, only consider methods
 	 * with the given name.
 	 */
-	private void addTypesFromCalls(Map<String, Set<String>> typeGen, String typeName, IJavaType type, boolean isStatic, String targetName) {
+	/*private void addTypesFromCalls(Map<String, Set<String>> typeGen, String typeName, IJavaType type, boolean isStatic, String targetName) {
 		for (Method method: getMethods(type, sideEffectHandler)) {
 			if (!isLegalMethod(method, thisType, false) || method.returnTypeName().equals("void") || (targetName != null && !targetName.equals(method.name())))
 				continue;
@@ -1149,7 +1148,7 @@ public final class DeterministicExpressionGenerator extends ExpressionGenerator 
 			if (!isStatic || method.isStatic())  // Only call static methods if it's an import.
 				Utils.addToSetMap(typeGen, method.returnTypeName(), typeName);
 		}
-	}
+	}*/
 
 	/**
 	 * Adds types from field accesses to the map of which types
@@ -1161,14 +1160,14 @@ public final class DeterministicExpressionGenerator extends ExpressionGenerator 
 	 * @param targetName If this is non-null, only consider fields
 	 * with the given name.
 	 */
-	private void addTypesFromFields(Map<String, Set<String>> typeGen, String typeName, IJavaType type, boolean isStatic, String targetName) {
+	/*private void addTypesFromFields(Map<String, Set<String>> typeGen, String typeName, IJavaType type, boolean isStatic, String targetName) {
 		for (Field field: getFields(type)) {
 			if (!isLegalField(field, thisType) || (targetName != null && !targetName.equals(field.name())))
 				continue;
 			if (!isStatic || field.isStatic())  // Only access static fields if it's an import.
 				Utils.addToSetMap(typeGen, field.typeName(), typeName);
 		}
-	}
+	}*/
 	
 	/**
 	 * Loads the types from imports and method returns
@@ -2085,7 +2084,7 @@ public final class DeterministicExpressionGenerator extends ExpressionGenerator 
 		
 		@Override
 		public boolean visit(InfixExpression node) {
-			if ((DeterministicExpressionGenerator.isConstantField(node.getLeftOperand(), expressionEvaluator) || DeterministicExpressionGenerator.isConstantField(node.getRightOperand(), expressionEvaluator)) && !hasCallParent(node)) {
+			if ((DeterministicExpressionGenerator.isConstantField(node.getLeftOperand(), expressionEvaluator) || DeterministicExpressionGenerator.isConstantField(node.getRightOperand(), expressionEvaluator)) && !hasCallParent()) {
 				hasBad = true;
 				return false;
 			}
@@ -2117,11 +2116,10 @@ public final class DeterministicExpressionGenerator extends ExpressionGenerator 
 		/**
 		 * Checks whether the given expression is contained
 		 * within a call or a constructor.
-		 * @param e The expression.
 		 * @return Whether the given expression is contained
 		 * within a call or a constructor.
 		 */
-		private boolean hasCallParent(Expression e) {
+		private boolean hasCallParent() {
 			for (ASTNode cur: parents)
 				if (cur instanceof MethodInvocation || cur instanceof ClassInstanceCreation)
 					return true;
