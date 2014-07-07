@@ -48,6 +48,7 @@ import codehint.utils.Pair;
 
 import com.sun.jdi.ArrayReference;
 import com.sun.jdi.ClassNotLoadedException;
+import com.sun.jdi.ClassObjectReference;
 import com.sun.jdi.ClassType;
 import com.sun.jdi.Field;
 import com.sun.jdi.IncompatibleThreadStateException;
@@ -684,8 +685,9 @@ public class SideEffectHandler {
 				StackFrame stack = thread.frame(0);
 				ObjectReference fieldValue = stack.thisObject();
 				ReferenceType fieldType = fieldValue.referenceType();
-				//String className = ((ObjectReference)fieldValue.getValue(fieldType.fieldByName("clazz"))).invokeMethod(thread, event.virtualMachine().classesByName("java.lang.Class").get(0).methodsByName("getName").get(0), new ArrayList<Value>(0), 0).toString();
-				String className = ((StringReference)((ObjectReference)fieldValue.getValue(fieldType.fieldByName("clazz"))).getValue(event.virtualMachine().classesByName("java.lang.Class").get(0).fieldByName("name"))).value();
+				//String className = ((ObjectReference)fieldValue.getValue(fieldType.fieldByName("clazz"))).invokeMethod(thread, event.virtualMachine().classesByName("java.lang.Class").get(0).methodsByName("getName").get(0), new ArrayList<Value>(0), 0).toString();  // Calling methods in the child JVM seems to crash here.
+				//String className = ((StringReference)((ObjectReference)fieldValue.getValue(fieldType.fieldByName("clazz"))).getValue(event.virtualMachine().classesByName("java.lang.Class").get(0).fieldByName("name"))).value();  // This works in JDK 7 but breaks in JDK 8 (because getting fields no longer calls SecurityManager.checkMemberAccess).
+				String className = ((ClassObjectReference)fieldValue.getValue(fieldType.fieldByName("clazz"))).reflectedType().name();
 				String fieldName = ((StringReference)fieldValue.getValue(fieldType.fieldByName("name"))).value();
 				Field field = event.virtualMachine().classesByName(className).get(0).fieldByName(fieldName);
 				List<Value> argValues = stack.getArgumentValues();
