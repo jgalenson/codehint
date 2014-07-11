@@ -43,6 +43,7 @@ import org.eclipse.jdt.core.dom.ASTNode;
 import org.eclipse.jdt.core.dom.ASTParser;
 import org.eclipse.jdt.debug.core.IJavaArray;
 import org.eclipse.jdt.debug.core.IJavaArrayType;
+import org.eclipse.jdt.debug.core.IJavaClassObject;
 import org.eclipse.jdt.debug.core.IJavaClassType;
 import org.eclipse.jdt.debug.core.IJavaDebugTarget;
 import org.eclipse.jdt.debug.core.IJavaInterfaceType;
@@ -1128,7 +1129,7 @@ public final class EclipseUtils {
 		    return null;
 		}
 		if (result.hasErrors()) {
-			String msg = "The following errors were encountered during evaluation.\n\n" + getErrors(result);
+			String msg = "The following errors were encountered during evaluation.\n\n" + getErrors(result);// + "\n\n" + stringValue;
 			//showError("Evaluation error", msg, null);
 			throw new EvaluationManager.EvaluationError(msg);
 		}
@@ -1228,18 +1229,30 @@ public final class EclipseUtils {
      * TODO: There must be a better way to do this.
      * @param typeName The name of the type to load.
      * @param stack The current stack frame.
+     * @return Whether the type was loaded.
      */
-    private static void loadClass(String typeName, IJavaStackFrame stack, IJavaDebugTarget target, TypeCache typeCache) {
+    public static boolean loadClass(String typeName, IJavaStackFrame stack, IJavaDebugTarget target, TypeCache typeCache) {
     	try {
     		//long startTime = System.currentTimeMillis();
     		//System.out.println("Loading class " + typeName);
-    		while (typeName.endsWith("[]"))  // Class.forName needs array types to be in signature form.
-    			typeName = "[L" + typeName.substring(0, typeName.length() - 2) + ";";
-    		((IJavaClassType)EclipseUtils.getFullyQualifiedType("java.lang.Class", stack, target, typeCache)).sendMessage("forName", "(Ljava/lang/String;)Ljava/lang/Class;", new IJavaValue[] { target.newValue(typeName) }, (IJavaThread)stack.getThread());
+    		String sigTypeName = typeName;
+    		while (sigTypeName.endsWith("[]"))  // Class.forName needs array types to be in signature form.
+    			sigTypeName = "[L" + sigTypeName.substring(0, sigTypeName.length() - 2) + ";";
+    		IJavaValue result = ((IJavaClassType)EclipseUtils.getFullyQualifiedType("java.lang.Class", stack, target, typeCache)).sendMessage("forName", "(Ljava/lang/String;)Ljava/lang/Class;", new IJavaValue[] { target.newValue(sigTypeName) }, (IJavaThread)stack.getThread());
+    		IJavaType type = ((IJavaClassObject)result).getInstanceType();
+    		typeCache.add(typeName, type);
     		//System.out.println("Loaded class " + typeName + " in " + (System.currentTimeMillis() - startTime) + "ms.");
     	} catch (DebugException e) {
-    		throw new RuntimeException(e);
+    		//System.out.println("Fast load of " + typeName + " failed.");
+    		try {
+				if (getASTEvaluationEngine(stack).getCompiledExpression(typeName + ".class", stack).hasErrors())
+					return false;  // We might be trying to load something illegal, in which case loadClassSlow would crash.
+			} catch (DebugException ex) {
+				throw new RuntimeException(ex);
+			}
+    		loadClassSlow(typeName, stack);  // For some things (e.g., CodeHint's own libraries?) slow works but fast does not.
     	}
+    	return true;
     }
     
     /**
@@ -1266,31 +1279,6 @@ public final class EclipseUtils {
      */
     private static String getClassLoadExpression(String typeName) {
     	return sanitizeTypename(typeName) + ".class";
-    }
-    
-    /**
-     * Tries to load the given types and returns whether or not
-     * all were successfully loaded.
-     * @param types The types to load.
-     * @param stack The stack frame.
-     * @return Whether all of the given types were loaded.
-     * @throws DebugException
-     */
-    public static boolean tryToLoadTypes(Collection<String> types, IJavaStackFrame stack) throws DebugException {
-    	StringBuilder sb = new StringBuilder();
-    	sb.append("{\nObject _$o;\n");
-    	for (String typeName: types)
-    		sb.append("_$o = ").append(getClassLoadExpression(typeName)).append(";\n");
-    	sb.append("}");
-    	String evalStr = sb.toString();
-    	if (getASTEvaluationEngine(stack).getCompiledExpression(evalStr, stack).hasErrors())
-    		return false;
-    	try {
-			evaluate(evalStr, stack);
-			return true;
-		} catch (DebugException e) {
-			return false;
-		}
     }
     
     /**
@@ -1498,7 +1486,8 @@ public final class EclipseUtils {
 		for (IType subitype: subitypes)
 			if (!subitype.isAnonymous() && subitype.getPackageFragment().getElementName().startsWith(packageName) && Flags.isPublic(subitype.getFlags()))
 				subtypeNames.add(getFullITypeName(subitype));
-		tryToLoadTypes(subtypeNames, stack);
+		for (String subtypeName: subtypeNames)
+			loadClass(subtypeName, stack, target, typeCache);
 		// Get the actual types.
 		monitor = SubMonitor.convert(monitor, taskName + ": finding subtypes", subtypeNames.size());
     	List<IJavaType> subtypes = new ArrayList<IJavaType>();

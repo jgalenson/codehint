@@ -1270,9 +1270,9 @@ public final class DeterministicExpressionGenerator extends ExpressionGenerator 
 		for (String typeName: typeNames)
 			if (typeCache.get(typeName) == null && !typeCache.isIllegal(typeName) && !typeCache.isCheckedLegal(typeName) && !isPrimitive(typeName))
 				unloadedTypeNames.add(typeName);
-		if (!unloadedTypeNames.isEmpty() && EclipseUtils.tryToLoadTypes(unloadedTypeNames, stack))
-			for (String typeName: unloadedTypeNames)  // Mark all the type names as legal so we will not have to check if they are illegal one-by-one, which is slow.
-				typeCache.markCheckedLegal(typeName);
+		for (String typeName: unloadedTypeNames)
+			if (EclipseUtils.loadClass(typeName, stack, target, typeCache))
+				typeCache.markCheckedLegal(typeName);  // Mark all the type names as legal so we will not have to check if they are illegal one-by-one, which is slow.
 	}
 	
 	/**
