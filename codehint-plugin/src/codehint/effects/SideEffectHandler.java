@@ -694,7 +694,7 @@ public class SideEffectHandler {
 				ObjectReference obj = (ObjectReference)argValues.get(0);
 				if (!field.isStatic() && obj == null)
 					return true;  // The execution will crash.
-				Value oldValue = field.isStatic() ? fieldType.getValue(field) : obj.getValue(field);
+				Value oldValue = field.isStatic() ? field.declaringType().getValue(field) : obj.getValue(field);
 				if (argValues.size() == 2) {  // We're setting the value of a field.
 					Value newValue = argValues.get(1);
 					if (newValue instanceof ObjectReference && EclipseUtils.isPrimitive(field.signature()))  // Unbox primitive values.
