@@ -393,8 +393,8 @@ public final class DeterministicExpressionGenerator extends ExpressionGenerator 
 				if (isHelpfulType(thisType, depth, maxDepth) && !stack.isStatic())
 					addUniqueExpressionToList(curLevel, expressionMaker.makeThis(stack.getThis(), thisType, thread), depth, maxDepth);
     		} else {
-				if (!sideEffectHandler.isHandlingSideEffects())  // TODO: Without this, the below line makes us crash on S1 at depth 2 with effect handling on.  Why?  But it's still helpful when effects are off (speeds up S1 at depth 1 noticeably), so I'm keeping it.
-					loadTypesFromMethods(nextLevel, imports);
+				/*if (!sideEffectHandler.isHandlingSideEffects())  // TODO: Without this, the below line makes us crash on S1 at depth 2 with effect handling on.  Why?  But it's still helpful when effects are off (speeds up S1 at depth 1 noticeably), so I'm keeping it.
+					loadTypesFromMethods(nextLevel, imports);*/
 	    		// Add calls to the desired type's (and those of its subtypes in the same package (for efficiency)) constructors (but only at the top-level).
 	    		if (searchConstructors && depth == maxDepth) {
 	    			for (IJavaType type: constraintTypes) {
@@ -714,7 +714,7 @@ public final class DeterministicExpressionGenerator extends ExpressionGenerator 
 			IJavaType returnType = getReturnType(e, method, isConstructor);
 			/*if (returnType == null)
 				System.err.println("I cannot get the class of the return type of " + objTypeImpl.name() + "." + method.name() + "() (" + method.returnTypeName() + ")");*/
-			if (returnType != null && (isHelpfulType(returnType, depth, maxDepth) || method.isConstructor() || mightBeHelpfulWithDowncast(returnType, typeConstraint))) {  // Constructors have void type... 
+			if (returnType != null && (isHelpfulType(returnType, depth, maxDepth) || method.isConstructor() || mightBeHelpfulWithDowncast(returnType, typeConstraint))) {  // Constructors have void type...
 				List<?> argumentTypeNames = method.argumentTypeNames();
 				// TODO: Improve overloading detection.
 				overloadChecker.setMethod(method);
@@ -1179,7 +1179,7 @@ public final class DeterministicExpressionGenerator extends ExpressionGenerator 
 	 * @param imports The imports.
 	 * @throws DebugException
 	 */
-	private void loadTypesFromMethods(List<Expression> nextLevel, IImportDeclaration[] imports) throws DebugException {
+	/*private void loadTypesFromMethods(List<Expression> nextLevel, IImportDeclaration[] imports) throws DebugException {
 		Set<String> importNames = new HashSet<String>();
 		for (IImportDeclaration imp : imports)
 			if (!imp.isOnDemand())
@@ -1193,6 +1193,10 @@ public final class DeterministicExpressionGenerator extends ExpressionGenerator 
 				checkFields(e.getStaticType(), typeNames, false);
 			}
 		}
+		if ((stack.isStatic() || stack.isConstructor()) && !stack.getReceivingTypeName().contains("<")) {
+			checkMethods(thisType, typeNames, false);
+			checkFields(thisType, typeNames, false);
+		}
 		for (IImportDeclaration imp : imports)
 			if (!imp.isOnDemand()) {
 				IJavaType impType = EclipseUtils.getTypeAndLoadIfNeeded(imp.getElementName(), stack, target, typeCache);
@@ -1200,7 +1204,7 @@ public final class DeterministicExpressionGenerator extends ExpressionGenerator 
 				checkFields(impType, typeNames, true);
 			}
 		tryToLoad(typeNames);
-	}
+	}*/
 
 	/**
 	 * Gets the types used as returns or arguments in
@@ -1213,7 +1217,7 @@ public final class DeterministicExpressionGenerator extends ExpressionGenerator 
 	 * the type names.
 	 * @param isImport If the receiver type comes from an import.
 	 */
-	private void checkMethods(IJavaType receiverType, Set<String> typeNames, boolean isImport) {
+	/*private void checkMethods(IJavaType receiverType, Set<String> typeNames, boolean isImport) {
 		for (Method method : getMethods(receiverType, sideEffectHandler)) {
 			if (isLegalMethod(method, thisType, false) && !method.returnTypeName().equals("void") && (!isImport || method.isStatic())) {
 				addTypeName(method.returnTypeName(), typeNames);
@@ -1223,7 +1227,7 @@ public final class DeterministicExpressionGenerator extends ExpressionGenerator 
 					addTypeName((String)argType, typeNames);
 			}
 		}
-	}
+	}*/
 
 	/**
 	 * Gets the types used for fields of the given
@@ -1236,7 +1240,7 @@ public final class DeterministicExpressionGenerator extends ExpressionGenerator 
 	 * the type names.
 	 * @param isImport If the receiver type comes from an import.
 	 */
-	private void checkFields(IJavaType receiverType, Set<String> typeNames, boolean isImport) {
+	/*private void checkFields(IJavaType receiverType, Set<String> typeNames, boolean isImport) {
 		for (Field field: getFields(receiverType)) {
 			if (isLegalField(field, thisType) && (!isImport || field.isStatic())) {
 				addTypeName(field.typeName(), typeNames);
@@ -1244,7 +1248,7 @@ public final class DeterministicExpressionGenerator extends ExpressionGenerator 
 					addTypeName(field.declaringType().name(), typeNames);
 			}
 		}
-	}
+	}*/
 	
 	/**
 	 * Adds the given type name to the given set.
@@ -1253,18 +1257,18 @@ public final class DeterministicExpressionGenerator extends ExpressionGenerator 
 	 * @param typeName The name of the type to add.
 	 * @param typeNames The set of type names.
 	 */
-	private static void addTypeName(String typeName, Set<String> typeNames) {
+	/*private static void addTypeName(String typeName, Set<String> typeNames) {
 		typeNames.add(typeName);
 		if (typeName.endsWith("[]"))  // If an array's component type is not loaded, we can crash during evaluation of expressions involving it.
 			addTypeName(typeName.substring(0, typeName.length() - 2), typeNames);
-	}
+	}*/
 
 	/**
 	 * Tries to load the given type names in a batch.
 	 * @param typeNames The type names
 	 * @throws DebugException
 	 */
-	private void tryToLoad(Set<String> typeNames) throws DebugException {
+	/*private void tryToLoad(Set<String> typeNames) throws DebugException {
 		// Filter out types we've already loaded.
 		Set<String> unloadedTypeNames = new HashSet<String>();
 		for (String typeName: typeNames)
@@ -1273,16 +1277,16 @@ public final class DeterministicExpressionGenerator extends ExpressionGenerator 
 		for (String typeName: unloadedTypeNames)
 			if (EclipseUtils.loadClass(typeName, stack, target, typeCache))
 				typeCache.markCheckedLegal(typeName);  // Mark all the type names as legal so we will not have to check if they are illegal one-by-one, which is slow.
-	}
+	}*/
 	
 	/**
 	 * Checks whether the given type name is that of a primitive.
 	 * @param typeName The name of a type.
 	 * @return Whether the given string is the name of a primitive type.
 	 */
-	private static boolean isPrimitive(String typeName) {
+	/*private static boolean isPrimitive(String typeName) {
 		return "int".equals(typeName) || "boolean".equals(typeName) || "long".equals(typeName) || "byte".equals(typeName) || "char".equals(typeName) || "short".equals(typeName) || "float".equals(typeName) || "double".equals(typeName);
-	}
+	}*/
 	
 	/**
 	 * Adds the given expression to the given list

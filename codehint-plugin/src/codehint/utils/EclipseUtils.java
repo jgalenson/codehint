@@ -833,10 +833,11 @@ public final class EclipseUtils {
     			return cachedType;
     		if (typeCache.isIllegal(fullTypeName))
     			return null;
-			if (isIllegalType(fullTypeName, stack, typeCache)) {
+			/*if (isIllegalType(fullTypeName, stack, typeCache)) {  // This code is slow and on a common path but we don't seem to need it anymore.
+				log("Marking " + fullTypeName + " as illegal.");
     			typeCache.markIllegal(fullTypeName);
     			return null;
-			}
+			}*/
 			return getFullyQualifiedTypeIfExistsUnchecked(fullTypeName, target, typeCache);
     	} catch (DebugException e) {
 			throw new RuntimeException(e);
@@ -879,6 +880,7 @@ public final class EclipseUtils {
 	private static boolean isIllegalType(String typeName, IJavaStackFrame stack, TypeCache typeCache) throws DebugException {
 		if (typeCache.isCheckedLegal(typeName))
 			return false;
+		//System.out.println("Checking if type is illegal: " + typeName);
 		return getASTEvaluationEngine(stack).getCompiledExpression(getClassLoadExpression(typeName), stack).hasErrors();
 	}
 	
@@ -1229,15 +1231,43 @@ public final class EclipseUtils {
      * TODO: There must be a better way to do this.
      * @param typeName The name of the type to load.
      * @param stack The current stack frame.
+     * @param target The debug target.
+     * @param typeCache The type cache.
      * @return Whether the type was loaded.
      */
-    public static boolean loadClass(String typeName, IJavaStackFrame stack, IJavaDebugTarget target, TypeCache typeCache) {
+    private static boolean loadClass(String typeName, IJavaStackFrame stack, IJavaDebugTarget target, TypeCache typeCache) {
     	try {
     		//long startTime = System.currentTimeMillis();
     		//System.out.println("Loading class " + typeName);
+    		// Class.forName needs array types to be in signature form.
     		String sigTypeName = typeName;
-    		while (sigTypeName.endsWith("[]"))  // Class.forName needs array types to be in signature form.
-    			sigTypeName = "[L" + sigTypeName.substring(0, sigTypeName.length() - 2) + ";";
+    		int arrIndex = typeName.indexOf("[]");
+    		if (arrIndex != -1) {
+    			String prefix = "";
+    			for (int i = 0; i < typeName.length() - arrIndex; i += 2)
+    				prefix += "[";
+    			String elementName = typeName.substring(0, arrIndex);
+    			if (elementName.equals("boolean"))
+    				elementName = "Z";
+    			else if (elementName.equals("byte"))
+    				elementName = "B";
+    			else if (elementName.equals("char"))
+    				elementName = "C";
+    			else if (elementName.equals("double"))
+    				elementName = "D";
+    			else if (elementName.equals("float"))
+    				elementName = "F";
+    			else if (elementName.equals("int"))
+    				elementName = "I";
+    			else if (elementName.equals("long"))
+    				elementName = "J";
+    			else if (elementName.equals("short"))
+    				elementName = "S";
+    			else
+    				elementName = "L" + elementName + ";";
+    			sigTypeName = prefix + elementName;
+    		}
+    		// Load the actual type.
     		IJavaValue result = ((IJavaClassType)EclipseUtils.getFullyQualifiedType("java.lang.Class", stack, target, typeCache)).sendMessage("forName", "(Ljava/lang/String;)Ljava/lang/Class;", new IJavaValue[] { target.newValue(sigTypeName) }, (IJavaThread)stack.getThread());
     		IJavaType type = ((IJavaClassObject)result).getInstanceType();
     		typeCache.add(typeName, type);
@@ -1263,6 +1293,7 @@ public final class EclipseUtils {
      */
     private static void loadClassSlow(String typeName, IJavaStackFrame stack) {
     	try {
+    		//System.out.println("Loading class " + typeName + " (slow)");
     		int dollar = typeName.indexOf('$');  // For inner classes, we seem to need to load the outer class first.
     		if (dollar != -1)
         		evaluate(getClassLoadExpression(typeName.substring(0, dollar)), stack);
