@@ -701,9 +701,9 @@ public final class DeterministicExpressionGenerator extends ExpressionGenerator 
 		Set<String> calledMethods = new HashSet<String>();
 		OverloadChecker overloadChecker = new OverloadChecker(curType, stack, target, typeCache, subtypeChecker);
 		for (Method method : legalMethods) {
-			if (!isUsefulMethod(method, e, isConstructor))
-				continue;
 			if  (isStatic != method.isStatic())
+				continue;
+			if (!isUsefulMethod(method, e, isConstructor))
 				continue;
 	        if (method.isStatic() && staticAccesses.contains(method.declaringType().name() + " " + method.name() + " " + method.signature()))
 	            continue;

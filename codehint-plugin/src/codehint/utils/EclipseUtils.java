@@ -1242,31 +1242,8 @@ public final class EclipseUtils {
     		// Class.forName needs array types to be in signature form.
     		String sigTypeName = typeName;
     		int arrIndex = typeName.indexOf("[]");
-    		if (arrIndex != -1) {
-    			String prefix = "";
-    			for (int i = 0; i < typeName.length() - arrIndex; i += 2)
-    				prefix += "[";
-    			String elementName = typeName.substring(0, arrIndex);
-    			if (elementName.equals("boolean"))
-    				elementName = "Z";
-    			else if (elementName.equals("byte"))
-    				elementName = "B";
-    			else if (elementName.equals("char"))
-    				elementName = "C";
-    			else if (elementName.equals("double"))
-    				elementName = "D";
-    			else if (elementName.equals("float"))
-    				elementName = "F";
-    			else if (elementName.equals("int"))
-    				elementName = "I";
-    			else if (elementName.equals("long"))
-    				elementName = "J";
-    			else if (elementName.equals("short"))
-    				elementName = "S";
-    			else
-    				elementName = "L" + elementName + ";";
-    			sigTypeName = prefix + elementName;
-    		}
+    		if (arrIndex != -1)
+    			sigTypeName = getSignatureTypeName(typeName);
     		// Load the actual type.
     		IJavaValue result = ((IJavaClassType)EclipseUtils.getFullyQualifiedType("java.lang.Class", stack, target, typeCache)).sendMessage("forName", "(Ljava/lang/String;)Ljava/lang/Class;", new IJavaValue[] { target.newValue(sigTypeName) }, (IJavaThread)stack.getThread());
     		IJavaType type = ((IJavaClassObject)result).getInstanceType();
@@ -1283,6 +1260,36 @@ public final class EclipseUtils {
     		loadClassSlow(typeName, stack);  // For some things (e.g., CodeHint's own libraries?) slow works but fast does not.
     	}
     	return true;
+    }
+    
+    private static String getSignatureTypeName(String typeName) {
+		int arrIndex = typeName.indexOf("[]");
+		String elementName = typeName;
+		String prefix = "";
+		if (arrIndex != -1) {
+			for (int i = 0; i < typeName.length() - arrIndex; i += 2)
+				prefix += "[";
+			elementName = typeName.substring(0, arrIndex);
+		}
+		if (elementName.equals("boolean"))
+			elementName = "Z";
+		else if (elementName.equals("byte"))
+			elementName = "B";
+		else if (elementName.equals("char"))
+			elementName = "C";
+		else if (elementName.equals("double"))
+			elementName = "D";
+		else if (elementName.equals("float"))
+			elementName = "F";
+		else if (elementName.equals("int"))
+			elementName = "I";
+		else if (elementName.equals("long"))
+			elementName = "J";
+		else if (elementName.equals("short"))
+			elementName = "S";
+		else
+			elementName = "L" + elementName + ";";
+		return prefix + elementName;
     }
     
     /**
@@ -1393,9 +1400,16 @@ public final class EclipseUtils {
 				name = name.substring(dollar + 1);
 		} else
 			name = method.name();
+		IMethod best = null;
+		String[] argTypes = new String[method.argumentTypeNames().size()];
+		for (int i = 0; i < argTypes.length; i++)
+			argTypes[i] = getSignatureTypeName(method.argumentTypeNames().get(i));
+		best = itype.getMethod(name, argTypes);
+		if (best != null && best.exists())
+			return best;
+		// The above fast version fails for some things (at least ones with generic types), so we fallback on the slow version.
 		String signature = method.signature();
 		int numArgs = method.argumentTypeNames().size();
-		IMethod best = null;
 		IMethod[] methods = null;
 		try {
 			methods = itype.getMethods();  // Calling getMethods on some anonymous classes throws an exception....

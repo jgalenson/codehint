@@ -242,6 +242,7 @@ public abstract class ExpressionGenerator {
 	protected final IJavaType booleanType;
 	protected final IJavaValue oneValue;
 	protected final Expression one;
+	private final Map<Method, IMethod> imethodCache;
 	
 	protected Map<Set<Effect>, Map<Result, ArrayList<Expression>>> equivalences;
 	protected IImportDeclaration[] imports;
@@ -269,6 +270,7 @@ public abstract class ExpressionGenerator {
 		this.booleanType = EclipseUtils.getFullyQualifiedType("boolean", stack, target, typeCache);
 		this.oneValue = target.newValue(1);
 		this.one = expressionMaker.makeInt(1, oneValue, intType, thread);
+		this.imethodCache = new HashMap<Method, IMethod>();
 	}
 	
 	/**
@@ -371,11 +373,14 @@ public abstract class ExpressionGenerator {
 	public static List<Method> getMethods(IJavaType type, boolean ignoreMethodBlacklist) {
 		try {
 			if (type != null && EclipseUtils.isObject(type)) {
-				List<?> untypedMethods = ((ReferenceType)((JDIType)type).getUnderlyingType()).visibleMethods();
+				Set<String> curMethodBlacklist = methodBlacklist.get(type.getName());
+				List<Method> untypedMethods = ((ReferenceType)((JDIType)type).getUnderlyingType()).visibleMethods();
+				if (ignoreMethodBlacklist || curMethodBlacklist == null)
+					return untypedMethods;
 				ArrayList<Method> methods = new ArrayList<Method>(untypedMethods.size());
 				for (Object o: untypedMethods) {
 					Method method = (Method)o;
-					if (ignoreMethodBlacklist || (!methodBlacklist.containsKey(type.getName()) || !methodBlacklist.get(type.getName()).contains(method.name() + " " + method.signature())))
+					if (!curMethodBlacklist.contains(method.name() + " " + method.signature()))
 						methods.add(method);
 				}
 				return methods;
@@ -480,9 +485,9 @@ public abstract class ExpressionGenerator {
 	protected boolean isUsefulMethod(Method method, Expression receiver, boolean isConstructor) throws DebugException, JavaModelException {
 		// Filter out java.lang.Object methods and fake methods like "<init>".  Note that if we don't filter out Object's methods we do getClass() and then call reflective methods, which is bad times.
 		// TODO: Allow calling protected and package-private things when it's legal.
-		if (!isLegalMethod(method, thisType, isConstructor) || method.equals(((JDIStackFrame)stack).getUnderlyingMethod()))  // Disable explicit recursion (that is, calling the current method), since it is definitely not yet complete.
-			return false;
 		if (!isConstructor && method.returnTypeName().equals("void"))
+			return false;
+		if (!isLegalMethod(method, thisType, isConstructor) || method.equals(((JDIStackFrame)stack).getUnderlyingMethod()))  // Disable explicit recursion (that is, calling the current method), since it is definitely not yet complete.
 			return false;
 		if (receiver.getStaticType().getName().equals("java.lang.String") && (method.name().equals("toString") || method.name().equals("subSequence")))
 			return false;  // Don't call toString on Strings.  Also don't call subSequence because it's the same as substring.
@@ -491,7 +496,12 @@ public abstract class ExpressionGenerator {
 			if (declaringType instanceof IJavaInterfaceType)
 				return false;
         }
-        IMethod imethod = EclipseUtils.getIMethod(method, project);
+        IMethod imethod = imethodCache.get(method);
+        if (imethod == null) {
+        	imethod = EclipseUtils.getIMethod(method, project);
+        	if (imethod != null)
+        		imethodCache.put(method, imethod);
+        }
         if (imethod != null && Flags.isDeprecated(imethod.getFlags()))
         	return false;
         return true;
