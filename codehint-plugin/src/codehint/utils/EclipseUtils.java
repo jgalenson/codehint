@@ -656,13 +656,13 @@ public final class EclipseUtils {
 	 */
     public static IType getThisType(IJavaProject project, IJavaStackFrame stackFrame) throws DebugException, JavaModelException {
     	String thisTypeName = stackFrame.getDeclaringTypeName();
-		IType thisType = project.findType(thisTypeName);
+		IType thisType = project.findType(thisTypeName, (IProgressMonitor)null);
 		if (thisType != null && !thisTypeName.contains("$"))  // Do not use anonymous classes (e.g., Foo$1).
 			return thisType;
 		// The above will fail for anonymous classes (e.g., Foo$1; it gets an itype but it gets weird results later on), so we just get the outer part before the $.
 		if (thisTypeName.contains("$")) {
 			String outerTypeName = thisTypeName.substring(0, thisTypeName.indexOf('$'));
-			return project.findType(outerTypeName);
+			return project.findType(outerTypeName, (IProgressMonitor)null);
 		}
 		return null;
     }
@@ -715,7 +715,7 @@ public final class EclipseUtils {
 				fullTypeName += typeParts[i];
 			}
     		if (varTypeName != null) {
-	        	IType curType = project.findType(fullTypeName);
+	        	IType curType = project.findType(fullTypeName, (IProgressMonitor)null);
 	        	if (curType.getFullyQualifiedName('.').equals(varTypeName))  // The supertype hierarchy doesn't contain the type itself....
 	        		return null;
 	        	for (IType supertype: curType.newSupertypeHierarchy(null).getAllSupertypes(curType))
@@ -1389,7 +1389,7 @@ public final class EclipseUtils {
 	 * @throws JavaModelException
 	 */
 	public static IMethod getIMethod(Method method, IJavaProject project) throws DebugException, JavaModelException {
-		IType itype = project.findType(method.declaringType().name());
+		IType itype = project.findType(method.declaringType().name(), (IProgressMonitor)null);
 		if (itype == null)
 			return null;
 		String name = null;
@@ -1442,7 +1442,7 @@ public final class EclipseUtils {
 	 * @throws JavaModelException
 	 */
 	public static IField getIField(Field field, IJavaProject project) throws JavaModelException {
-		IType itype = project.findType(field.declaringType().name());
+		IType itype = project.findType(field.declaringType().name(), (IProgressMonitor)null);
 		if (itype == null)
 			return null;
 		return itype.getField(field.name());
@@ -1521,7 +1521,7 @@ public final class EclipseUtils {
      * @throws DebugException
      */
     public static List<IJavaType> getPublicSubtypesInSamePackage(IJavaType type, IJavaProject project, IJavaStackFrame stack, IJavaDebugTarget target, TypeCache typeCache, IProgressMonitor monitor, String taskName) throws JavaModelException, DebugException {
-    	IType itype = project.findType(type.getName());
+    	IType itype = project.findType(type.getName(), (IProgressMonitor)null);
     	if (itype == null)
     		return Collections.singletonList(type);
     	String packageName = itype.getPackageFragment().getElementName();

@@ -459,7 +459,7 @@ public abstract class ExpressionGenerator {
 		if (!(curType instanceof IJavaClassType))  // This can happen when something of static type Object is actually an array.
 			return null;
 		while (curType.getName().indexOf('$') != -1 && curType instanceof IJavaClassType) {  // Avoid downcasting to anonymous types.
-			IType itype = project.findType(curType.getName());
+			IType itype = project.findType(curType.getName(), (IProgressMonitor)null);
 			if (itype == null || !itype.isAnonymous())
 				break;
 			curType = ((IJavaClassType)curType).getSuperclass();

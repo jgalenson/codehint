@@ -21,35 +21,41 @@ import org.eclipse.core.runtime.SubMonitor;
 import org.eclipse.debug.core.DebugException;
 import org.eclipse.debug.core.DebugPlugin;
 import org.eclipse.debug.core.model.IBreakpoint;
+import org.eclipse.debug.core.model.IVariable;
 import org.eclipse.jdt.core.Flags;
 import org.eclipse.jdt.core.IField;
 import org.eclipse.jdt.core.IJavaProject;
 import org.eclipse.jdt.core.IMethod;
 import org.eclipse.jdt.core.IType;
 import org.eclipse.jdt.core.JavaModelException;
+import org.eclipse.jdt.core.Signature;
 import org.eclipse.jdt.debug.core.IJavaArray;
 import org.eclipse.jdt.debug.core.IJavaClassPrepareBreakpoint;
+import org.eclipse.jdt.debug.core.IJavaClassType;
 import org.eclipse.jdt.debug.core.IJavaDebugTarget;
+import org.eclipse.jdt.debug.core.IJavaFieldVariable;
 import org.eclipse.jdt.debug.core.IJavaMethodEntryBreakpoint;
 import org.eclipse.jdt.debug.core.IJavaObject;
 import org.eclipse.jdt.debug.core.IJavaStackFrame;
+import org.eclipse.jdt.debug.core.IJavaType;
 import org.eclipse.jdt.debug.core.IJavaValue;
 import org.eclipse.jdt.internal.debug.core.breakpoints.JavaClassPrepareBreakpoint;
 import org.eclipse.jdt.internal.debug.core.breakpoints.JavaMethodEntryBreakpoint;
 import org.eclipse.jdt.internal.debug.core.breakpoints.JavaWatchpoint;
-import org.eclipse.jdt.internal.debug.core.model.JDIClassType;
 import org.eclipse.jdt.internal.debug.core.model.JDIDebugTarget;
+import org.eclipse.jdt.internal.debug.core.model.JDIFieldVariable;
 import org.eclipse.jdt.internal.debug.core.model.JDIObjectValue;
+import org.eclipse.jdt.internal.debug.core.model.JDIValue;
 import org.eclipse.jdt.internal.debug.ui.BreakpointUtils;
 
 import codehint.utils.EclipseUtils;
 import codehint.utils.MutablePair;
 import codehint.utils.Pair;
+import codehint.utils.Utils;
 
 import com.sun.jdi.ArrayReference;
 import com.sun.jdi.ClassNotLoadedException;
 import com.sun.jdi.ClassObjectReference;
-import com.sun.jdi.ClassType;
 import com.sun.jdi.Field;
 import com.sun.jdi.IncompatibleThreadStateException;
 import com.sun.jdi.InvalidTypeException;
@@ -100,8 +106,8 @@ public class SideEffectHandler {
 		if (!enabled)
 			return;
 		SubMonitor curMonitor = SubMonitor.convert(monitor, "Side effect handler setup", IProgressMonitor.UNKNOWN);
-		Map<String, List<IJavaObject>> instancesCache = new HashMap<String, List<IJavaObject>>();
-		List<IField> fields = getAllLoadedMutableFields(stack, project, instancesCache, curMonitor);
+		Map<String, ArrayList<IJavaObject>> instancesCache = new HashMap<String, ArrayList<IJavaObject>>();
+		Collection<IField> fields = getFields(instancesCache, curMonitor);
 		curMonitor.setWorkRemaining(fields.size());
 		addedWatchpoints = getFieldWatchpoints(fields, instancesCache);
 		curMonitor.worked(fields.size());
@@ -128,110 +134,171 @@ public class SideEffectHandler {
 		return types;
 	}
 	
-	private List<IField> getAllLoadedMutableFields(IJavaStackFrame stack, IJavaProject project, Map<String, List<IJavaObject>> instancesCache, SubMonitor monitor) {
-		JDIDebugTarget target = (JDIDebugTarget)stack.getDebugTarget();
-		List<ReferenceType> loadedTypes = getAllLoadedTypes(stack);
-		monitor.setWorkRemaining(loadedTypes.size());
-		//long startTime = System.currentTimeMillis();
-		/*long num = 0;
-		for (Long l: target.getVM().instanceCounts(loadedTypes))
-			num += l;
-		System.out.println("Max num: " + num);
-		//System.out.println("refcounts: " + (System.currentTimeMillis() - startTime));*/
-		long maxID = Long.MIN_VALUE;
-		List<IField> fields = new ArrayList<IField>();
-		for (ReferenceType type: loadedTypes) {
-			try {
-				IType itype = project.findType(type.name());
-				if (itype == null) {
-					//System.out.println("Bad times on " + type.name());
-					continue;
-				}
-				String typeName = itype.getFullyQualifiedName();
-				if (itype.getPackageFragment().getElementName().equals("codehint")
-						|| typeName.equals("java.lang.String")  // A String's value array will never change and we don't care about its hashCode.
-						|| typeName.equals("java.lang.Class")
-						|| typeName.equals("java.lang.CharacterDataLatin1")
-						|| typeName.equals("java.lang.Integer$IntegerCache")
-						|| typeName.equals("java.lang.Integer")
-						|| typeName.equals("sun.nio.cs.StandardCharsets")
-						|| typeName.equals("sun.awt.SunHints")
-						|| typeName.equals("java.awt.RenderingHints"))
-					continue;
-				if (typeName.equals("java.util.concurrent.locks.AbstractQueuedSynchronizer"))
-					continue;  // Heuristically avoiding undoing side effects on sync variables, which can cause hangs in Swing.
-				List<IJavaObject> instances = null;
-				for (IField field: itype.getFields()) {
-					if (neverModifiedFields.contains(typeName.replace("$", ".") + "." + field.getElementName()))
-						continue;
-					if (!Flags.isFinal(field.getFlags()) || canBeArray(field)) {
-						if (Flags.isStatic(field.getFlags())) {
-							if ((typeName.equals("javax.swing.UIDefaults") && field.getElementName().equals("PENDING"))
-									|| (typeName.equals("javax.swing.UIManager") && field.getElementName().equals("classLock"))
-									|| (typeName.equals("java.awt.Component") && field.getElementName().equals("LOCK"))
-									|| (typeName.equals("sun.util.logging.PlatformLogger$Level") && field.getElementName().equals("levelValues")))
-								continue;
-							fields.add(field);
-						} else {
-							if (typeName.equals("javax.swing.MultiUIDefaults") && field.getElementName().equals("tables"))
-								continue;
-							if (instances == null) {
-								instances = getInstances(type, instancesCache, target);
-								for (IJavaObject instance: instances) {
-									long id = instance.getUniqueId();
-									if (id > maxID)
-										maxID = id;
-								}
-							}
-							if (!instances.isEmpty())
-								fields.add(field);
-						}
-					}
-				}
-				//System.out.println(typeName + ": " + (instances == null ? 0 : instances.size()));
-			} catch (JavaModelException e) {
-				//System.out.println("Bad times on " + type.name());
-				continue;  // Calling getFields() on some anonymous classes throws an exception....
-			} catch (DebugException e) {
-				throw new RuntimeException(e);
-			} finally {
-				monitor.worked(1);
-			}
-		}
-		/*try {
-			System.out.println("New object id: " + ((IJavaClassType)target.getJavaTypes("java.lang.Object")[0]).newInstance("()V", new IJavaValue[] { }, (IJavaThread)stack.getThread()).getUniqueId());  // This number seems to be affected by how many instanceCounts/instances calls I make into the VM, so it isn't very useful.
-		} catch (DebugException e) {
-			e.printStackTrace();
-		}*/
-		this.maxID = maxID;
-		//System.out.println("maxID: " + maxID);
-		//System.out.println("fields: " + (System.currentTimeMillis() - startTime));
-		/*for (IField field: fields)
-			System.out.println(field);*/
-		//System.out.println(fields.size() + " fields");
-		return fields;
+	private static boolean isUsefulType(String typeName) {
+		if ((typeName.startsWith("codehint.") && typeName.indexOf('.', 9) == -1)
+				|| typeName.equals("java.lang.String")  // A String's value array will never change and we don't care about its hashCode.
+				|| typeName.equals("java.lang.Class")
+				|| typeName.equals("java.lang.CharacterDataLatin1")
+				|| typeName.equals("java.lang.Integer$IntegerCache")
+				|| typeName.equals("java.lang.Integer")
+				|| typeName.equals("sun.nio.cs.StandardCharsets")
+				|| typeName.equals("sun.awt.SunHints")
+				|| typeName.equals("java.awt.RenderingHints")
+				|| typeName.startsWith("sun.") || typeName.startsWith("java.security.") || typeName.startsWith("java.nio.") || typeName.startsWith("java.lang.invoke.") || typeName.equals("java.lang.ClassLoader") || typeName.equals("java.lang.System") || typeName.equals("java.lang.Shutdown"))
+			return false;
+		if (typeName.equals("java.util.concurrent.locks.AbstractQueuedSynchronizer"))
+			return false;  // Heuristically avoiding undoing side effects on sync variables, which can cause hangs in Swing.
+		return true;
 	}
 	
-	private static List<IJavaObject> getInstances(ReferenceType type, Map<String, List<IJavaObject>> instancesCache, JDIDebugTarget target) throws DebugException {
-		List<IJavaObject> instances = instancesCache.get(type.name());
-		if (instances == null && type instanceof ClassType) {
-			ClassType classType = (ClassType)type;
-			instances = new ArrayList<IJavaObject>();
-			for (IJavaObject instance: (new JDIClassType(target, classType)).getInstances(Long.MAX_VALUE))
-				instances.add(instance);
-			for (ClassType subtype: classType.subclasses())
-				instances.addAll(getInstances(subtype, instancesCache, target));
-			instancesCache.put(type.name(), instances);
-		}
-		return instances;
+	private boolean isUsefulField(String typeName, String fieldName) {
+		if (neverModifiedFields.contains(typeName.replace("$", ".") + "." + fieldName))
+			return false;
+		if ((typeName.equals("javax.swing.UIDefaults") && fieldName.equals("PENDING"))
+				|| (typeName.equals("javax.swing.UIManager") && fieldName.equals("classLock"))
+				|| (typeName.equals("java.awt.Component") && fieldName.equals("LOCK"))
+				|| (typeName.equals("sun.util.logging.PlatformLogger$Level") && fieldName.equals("levelValues")))
+			return false;
+		if (typeName.equals("javax.swing.MultiUIDefaults") && fieldName.equals("tables"))
+			return false;
+		return true;
 	}
 	
 	private static boolean canBeArray(IField field) throws JavaModelException {
 		String typeSig = field.getTypeSignature();
 		return typeSig.contains("[") || typeSig.equals("Ljava.lang.Object;") || typeSig.equals("QObject;");
 	}
+
+	private Set<IJavaObject> getAllReachableObjects(SubMonitor monitor) {
+		try {
+			Set<IJavaObject> objs = new HashSet<IJavaObject>();
+			getReachableObjects(stack.getThis(), objs);
+			for (IVariable var: stack.getLocalVariables())
+				getReachableObjects((IJavaValue)var.getValue(), objs);
+			for (ReferenceType type: getAllLoadedTypes(stack)) {
+				for (Field field: type.allFields())
+					if (field.isStatic() && isUsefulStaticDFSField(type.name(), field))
+						getReachableObjects(JDIValue.createValue((JDIDebugTarget)stack.getDebugTarget(), type.getValue(field)), objs);
+				monitor.worked(1);
+			}
+			return objs;
+		} catch (DebugException e) {
+			throw new RuntimeException(e);
+		}
+	}
 	
-	private List<MyJavaWatchpoint> getFieldWatchpoints(final Collection<IField> fields, final Map<String, List<IJavaObject>> instancesCache) {
+	private static boolean isUsefulStaticDFSField(String typeName, Field field) {
+		String fieldName = field.name();
+		return !((typeName.startsWith("codehint.") && typeName.indexOf('.', 9) == -1)
+				|| typeName.equals("java.lang.Integer$IntegerCache")
+				|| typeName.equals("java.lang.Short$ShortCache")
+				|| typeName.equals("java.lang.Long$LongCache")
+				|| typeName.equals("java.lang.Character$CharacterCache")
+				|| typeName.equals("java.lang.Byte$ByteCache")
+				|| (typeName.equals("sun.misc.VM") && fieldName.equals("savedProps"))
+				|| (typeName.equals("java.lang.System") && fieldName.equals("props"))
+				|| typeName.equals("java.util.Locale")
+				|| typeName.equals("sun.util.locale.BaseLocale")
+				|| typeName.equals("java.lang.CharacterDataLatin1")
+				|| typeName.equals("java.lang.invoke.LambdaForm$NamedFunction")
+				|| typeName.equals("java.lang.invoke.MethodType")
+				|| typeName.equals("sun.util.calendar.ZoneInfoFile")
+				|| (typeName.equals("java.lang.SecurityManager") && fieldName.equals("packageAccess"))
+				|| (typeName.equals("java.lang.SecurityManager") && fieldName.equals("rootGroup"))
+				|| (typeName.equals("java.security.Security") && fieldName.equals("props"))
+				|| (typeName.equals("sun.security.provider.PolicyFile") && fieldName.equals("policy"))
+				|| (typeName.equals("java.security.Policy") && fieldName.equals("policy"))
+				|| typeName.equals("sun.launcher.LauncherHelper")
+				|| typeName.startsWith("sun.misc.Launcher")
+				|| (typeName.equals("java.net.URLClassLoader") && fieldName.equals("scl"))
+				|| (typeName.equals("java.security.SecureClassLoader") && fieldName.equals("scl"))
+				|| (typeName.equals("java.lang.ClassLoader") && fieldName.equals("scl"))
+				|| (typeName.equals("sun.misc.MetaIndex") && fieldName.equals("jarMap"))
+				|| typeName.startsWith("sun.nio.cs.")
+				|| (typeName.equals("java.io.File") && fieldName.equals("fs"))
+				|| (typeName.equals("java.lang.ClassLoader") && fieldName.equals("classes"))
+				|| typeName.equals("java.lang.Class")
+				|| typeName.startsWith("sun.") || typeName.startsWith("java.security.") || typeName.startsWith("java.nio.") || typeName.startsWith("java.lang.ref.") || typeName.startsWith("java.lang.invoke.") || typeName.startsWith("java.lang.ClassLoader"));
+	}
+	
+	private void getReachableObjects(IJavaValue value, Set<IJavaObject> objs) throws DebugException {
+		if (value instanceof IJavaArray) {
+			IJavaArray arr = (IJavaArray)value;
+			if (objs.add(arr) && !EclipseUtils.isPrimitive(Signature.getElementType(arr.getSignature())) && !arr.getSignature().equals("[Ljava/lang/String;"))
+				for (IJavaValue elem: arr.getValues())
+					getReachableObjects(elem, objs);
+		} else if (value instanceof IJavaObject) {
+			IJavaObject obj = (IJavaObject)value;
+			if (objs.add(obj)) {
+				// We use the internal API here because the Eclipse one must get each field's value one-by-one and so is much slower.
+				ObjectReference obj2 = ((JDIObjectValue)obj).getUnderlyingObject();
+				if (obj2 != null)  // null values fail this test
+					for (Map.Entry<Field, Value> field: obj2.getValues(obj2.referenceType().allFields()).entrySet())
+						if (isUsefulStaticDFSField(field.getKey().declaringType().name(), field.getKey()))
+							getReachableObjects(JDIValue.createValue((JDIDebugTarget)stack.getDebugTarget(), field.getValue()), objs);
+			}
+		}
+	}
+	
+	private Set<IField> getFields(Map<String, ArrayList<IJavaObject>> instancesCache, SubMonitor monitor) {
+		try {
+			//long startTime = System.currentTimeMillis();
+			List<ReferenceType> loadedTypes = getAllLoadedTypes(stack);
+			monitor.setWorkRemaining(loadedTypes.size());
+			Set<IJavaObject> objs = getAllReachableObjects(monitor);
+			Set<String> types = new HashSet<String>();
+			Map<String, IType> itypes = new HashMap<String, IType>();
+			Set<IField> fields = new HashSet<IField>();
+			// Add fields from reachable locals.
+			monitor.setWorkRemaining(objs.size());
+			for (IJavaObject obj: objs) {
+				String typeName = obj.getReferenceTypeName();
+				if (types.add(typeName) && isUsefulType(typeName))
+					for (IVariable field: obj.getVariables())
+						if (field instanceof IJavaFieldVariable)
+							addField(((JDIFieldVariable)field).getDeclaringType().getName(), field.getName(), fields, itypes);
+				for (IJavaType type = obj.getJavaType(); type instanceof IJavaClassType; type = ((IJavaClassType)type).getSuperclass())
+					Utils.addToListMap(instancesCache, type.getName(), obj);
+				long id = obj.getUniqueId();
+				if (id > maxID)
+					maxID = id;
+				monitor.worked(1);
+			}
+			// Add static fields from loaded classes.
+			for (ReferenceType type: loadedTypes)
+				if (isUsefulType(type.name()))
+					for (Field field: type.fields())
+						if (field.isStatic())
+							addField(type.name(), field.name(), fields, itypes);
+			//System.out.println("maxID: " + maxID);
+			//System.out.println("fields: " + (System.currentTimeMillis() - startTime));
+			/*for (IField field: fields)
+				System.out.println(field);*/
+			//System.out.println(fields.size() + " fields");
+			return fields;
+		} catch (DebugException e) {
+			throw new RuntimeException(e);
+		} catch (JavaModelException e) {
+			throw new RuntimeException(e);
+		}
+	}
+
+	private void addField(String declName, String fieldName, Set<IField> fields, Map<String, IType> itypes) throws JavaModelException {
+		if (isUsefulType(declName) && isUsefulField(declName, fieldName)) {
+			IType itype = itypes.get(declName);
+			if (itype == null) {
+				itype = project.findType(declName, (IProgressMonitor)null);
+				itypes.put(declName, itype);
+			}
+			if (itype != null) {
+				IField ifield = itype.getField(fieldName);
+				if (ifield.exists() && (!Flags.isFinal(ifield.getFlags()) || canBeArray(ifield)))
+					fields.add(ifield);
+			}
+		}
+	}
+	
+	private List<MyJavaWatchpoint> getFieldWatchpoints(final Collection<IField> fields, final Map<String, ArrayList<IJavaObject>> instancesCache) {
 		try {
 			final List<MyJavaWatchpoint> watchpoints = new ArrayList<MyJavaWatchpoint>(fields.size());
 			IWorkspaceRunnable wr = new IWorkspaceRunnable() {
@@ -487,7 +554,7 @@ public class SideEffectHandler {
 			//long startTime = System.currentTimeMillis();
 			//System.out.println("Prepare " + event.referenceType().name());
 			try {
-				IType itype = project.findType(event.referenceType().name());
+				IType itype = project.findType(event.referenceType().name(), (IProgressMonitor)null);
 				List<IField> fields = new ArrayList<IField>();
 				if (itype == null) {
 					//System.out.println("Bad times on " + event.referenceType().name());
