@@ -1607,7 +1607,7 @@ public final class DeterministicExpressionGenerator extends ExpressionGenerator 
 			for (Expression expr: getEquivalentExpressions(result, null, typeConstraint, Collections.<Effect>emptySet(), maxDepth))
 				if (typeConstraint.isFulfilledBy(expr.getStaticType(), subtypeChecker, typeCache, stack, target) && getDepth(expr) <= maxDepth) {
 					expressionEvaluator.setResultString(expr, valueString);
-					if (!exprsSet.contains(expr))
+					if (exprsSet.add(expr))
 						results.add(expr);
 				}
 		}
