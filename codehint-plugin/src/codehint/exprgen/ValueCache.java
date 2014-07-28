@@ -115,6 +115,7 @@ public class ValueCache {
 			throw new RuntimeException(e);
 		}
 		collectionDisableds.clear();
+		stringVals.clear();
 	}
 
 	/**
