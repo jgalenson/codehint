@@ -144,7 +144,8 @@ public class SideEffectHandler {
 				|| typeName.equals("sun.nio.cs.StandardCharsets")
 				|| typeName.equals("sun.awt.SunHints")
 				|| typeName.equals("java.awt.RenderingHints")
-				|| typeName.startsWith("sun.") || typeName.startsWith("java.security.") || typeName.startsWith("java.nio.") || typeName.startsWith("java.lang.invoke.") || typeName.equals("java.lang.ClassLoader") || typeName.equals("java.lang.System") || typeName.equals("java.lang.Shutdown"))
+				|| typeName.startsWith("sun.") || typeName.startsWith("java.security.") || typeName.startsWith("java.nio.") || typeName.startsWith("java.lang.invoke.") || typeName.startsWith("java.lang.ClassLoader") || typeName.equals("java.lang.System") || typeName.equals("java.lang.Shutdown")
+				|| typeName.equals("java.lang.SecurityManager") || typeName.startsWith("java.util.Collections$Unmodifiable") || typeName.equals("java.awt.color.ColorSpace") || typeName.equals("java.lang.Math") || typeName.equals("java.util.jar.JarFile") || typeName.startsWith("jdk.internal.org.objectweb.asm"))
 			return false;
 		if (typeName.equals("java.util.concurrent.locks.AbstractQueuedSynchronizer"))
 			return false;  // Heuristically avoiding undoing side effects on sync variables, which can cause hangs in Swing.
@@ -160,6 +161,8 @@ public class SideEffectHandler {
 				|| (typeName.equals("sun.util.logging.PlatformLogger$Level") && fieldName.equals("levelValues")))
 			return false;
 		if (typeName.equals("javax.swing.MultiUIDefaults") && fieldName.equals("tables"))
+			return false;
+		if (typeName.equals("java.awt.image.DirectColorModel"))
 			return false;
 		return true;
 	}
@@ -273,7 +276,7 @@ public class SideEffectHandler {
 			//System.out.println("maxID: " + maxID);
 			//System.out.println("fields: " + (System.currentTimeMillis() - startTime));
 			/*for (IField field: fields)
-				System.out.println(field);*/
+				System.out.println(field.getDeclaringType().getFullyQualifiedName() + "." + field.getElementName());*/
 			//System.out.println(fields.size() + " fields");
 			return fields;
 		} catch (DebugException e) {

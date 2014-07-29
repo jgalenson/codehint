@@ -29,9 +29,12 @@ public class Utils {
 	 * @param value The value.
 	 */
 	public static <K, V> void addToListMap(Map<K, ArrayList<V>> map, K key, V value) {
-		if (!map.containsKey(key))
-			map.put(key, new ArrayList<V>());
-		map.get(key).add(value);
+		ArrayList<V> list = map.get(key);
+		if (list == null) {
+			list = new ArrayList<V>();
+			map.put(key,  list);
+		}
+		list.add(value);
 	}
 	
 	/**
@@ -42,9 +45,12 @@ public class Utils {
 	 * @param value The value.
 	 */
 	public static <K1, K2, V> void addToMapMap(Map<K1, Map<K2, V>> map, K1 key1, K2 key2, V value) {
-		if (!map.containsKey(key1))
-			map.put(key1, new HashMap<K2, V>());
-		map.get(key1).put(key2, value);
+		Map<K2, V> innerMap = map.get(key1);
+		if (innerMap == null) {
+			innerMap = new HashMap<K2, V>();
+			map.put(key1,  innerMap);
+		}
+		innerMap.put(key2, value);
 	}
 	
 	/**
@@ -54,9 +60,12 @@ public class Utils {
 	 * @param value The value.
 	 */
 	public static <K, V> void addToSetMap(Map<K, Set<V>> map, K key, V value) {
-		if (!map.containsKey(key))
-			map.put(key, new HashSet<V>());
-		map.get(key).add(value);
+		Set<V> set = map.get(key);
+		if (set == null) {
+			set = new HashSet<V>();
+			map.put(key,  set);
+		}
+		set.add(value);
 	}
 	
 	/**
@@ -66,9 +75,12 @@ public class Utils {
 	 * @param values The values.
 	 */
 	public static <K, V> void addAllToListMap(Map<K, ArrayList<V>> map, K key, ArrayList<V> values) {
-		if (!map.containsKey(key))
-			map.put(key, new ArrayList<V>());
-		map.get(key).addAll(values);
+		ArrayList<V> list = map.get(key);
+		if (list == null) {
+			list = new ArrayList<V>();
+			map.put(key,  list);
+		}
+		list.addAll(values);
 	}
 	
 	public static String plural(String str, String suffix, int count) {
