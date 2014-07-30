@@ -1387,26 +1387,29 @@ public final class DeterministicExpressionGenerator extends ExpressionGenerator 
 	 * @throws DebugException
 	 */
 	private Expression downcast(Expression e) throws DebugException {
-		IJavaType downcastType = getDowncastType(e.getStaticType());
+		IJavaType downcastType = getDowncastType(e);
 		if (downcastType == null)  // we can't downcast the static type, so use the dynamic type, which was what we used when we checked if a downcast would be useful.
 			downcastType = expressionEvaluator.getValue(e, Collections.<Effect>emptySet()).getJavaType();
 		return downcast(e, downcastType);
 	}
 	
 	/**
-	 * Gets a type to which we should downcast the given type
+	 * Gets a type to which we should downcast the given expression
 	 * so that it satisfies the constraint.  Such a type must
 	 * exist.
-	 * @param curType The type we want to downcast.
+	 * @param e The expression to downcast.
 	 * @return The type to which we should downtype the given
-	 * type so that it satisfies the constraint.
+	 * expression so that it satisfies the constraint.
+	 * @throws DebugException 
 	 */
-	private IJavaType getDowncastType(IJavaType curType) {
+	private IJavaType getDowncastType(Expression e) throws DebugException {
 		IJavaType[] constraintTypes = typeConstraint.getTypes(stack, target, typeCache);
 		if (constraintTypes.length == 1)  // Short-circuit for efficiency: if there is only one constraint type, it must be valid.
 			return constraintTypes[0];
+		IJavaType curType = e.getStaticType();
+		IJavaType valueType = expressionEvaluator.getValue(e, Collections.<Effect>emptySet()).getJavaType();  // Ensure we choose a valid type.
 		for (IJavaType constraintType: constraintTypes)
-			if (subtypeChecker.isSubtypeOf(constraintType, curType))
+			if (subtypeChecker.isSubtypeOf(constraintType, curType) && subtypeChecker.isSubtypeOf(valueType, constraintType))
 				return constraintType;
 		return null;
 	}
