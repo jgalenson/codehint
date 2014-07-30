@@ -272,7 +272,7 @@ public abstract class SynthesisDialog extends ModelessDialog {
 		this.nativeHandler = new NativeHandler(thread, stack, target, typeCache);
 		this.sideEffectHandler = new SideEffectHandler(stack, project);
 		expressionEvaluator = new ExpressionEvaluator(stack, valueCache, typeCache, subtypeChecker, timeoutChecker, nativeHandler, sideEffectHandler, Synthesizer.getMetadata());
-		this.expressionMaker = new ExpressionMaker(stack, expressionEvaluator, valueCache);
+		this.expressionMaker = new ExpressionMaker(stack, expressionEvaluator, valueCache, typeCache);
 		this.evalManager = new EvaluationManager(varType == null, true, stack, expressionEvaluator, subtypeChecker, typeCache, valueCache, timeoutChecker, sideEffectHandler);
 		this.staticEvaluator = new StaticEvaluator(stack, expressionEvaluator, typeCache, valueCache);
 		Weights weights = new Weights();

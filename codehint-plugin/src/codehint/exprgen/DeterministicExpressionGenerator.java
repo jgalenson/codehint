@@ -62,6 +62,8 @@ import codehint.effects.Effect;
 import codehint.effects.SideEffectHandler;
 import codehint.expreval.EvaluationManager;
 import codehint.expreval.StaticEvaluator;
+import codehint.exprgen.SubtypeChecker.StringSubtype;
+import codehint.exprgen.typeconstraint.DesiredType;
 import codehint.exprgen.typeconstraint.FieldConstraint;
 import codehint.exprgen.typeconstraint.MethodConstraint;
 import codehint.exprgen.typeconstraint.SupertypeBound;
@@ -711,10 +713,14 @@ public final class DeterministicExpressionGenerator extends ExpressionGenerator 
 				continue;
             if (calledMethods.contains(method.name() + "~" + method.signature()))
             	continue;  // visibleMethods can return duplicates, so we filter them out.
-			IJavaType returnType = getReturnType(e, method, isConstructor);
+			IJavaType returnType = isConstructor ? e.getStaticType() : null;
+			// When side effect handling is enabled, loading types is slow, so we delay it as long as possible by checking the type names.  Then once we evaluate the expression, the type will be loaded, so we can get it quickly.
+			StringSubtype stringIsSubtype = stringIsSubtypeOf(method.returnTypeName());
+			if (returnType == null && (stringIsSubtype == StringSubtype.UNKNOWN || (depth < maxDepth && stringIsSubtype == StringSubtype.NOT_SUBTYPE)))
+				returnType = getReturnType(e, method, isConstructor);
 			/*if (returnType == null)
 				System.err.println("I cannot get the class of the return type of " + objTypeImpl.name() + "." + method.name() + "() (" + method.returnTypeName() + ")");*/
-			if (returnType != null && (isHelpfulType(returnType, depth, maxDepth) || method.isConstructor() || mightBeHelpfulWithDowncast(returnType, typeConstraint))) {  // Constructors have void type...
+			if (stringIsSubtype == stringIsSubtype.SUBTYPE || (returnType != null && (isHelpfulType(returnType, depth, maxDepth) || method.isConstructor() || mightBeHelpfulWithDowncast(returnType, typeConstraint)))) {  // Constructors have void type...
 				List<?> argumentTypeNames = method.argumentTypeNames();
 				// TODO: Improve overloading detection.
 				overloadChecker.setMethod(method);
@@ -745,6 +751,31 @@ public final class DeterministicExpressionGenerator extends ExpressionGenerator 
 		}
 	}
 	
+	/**
+	 * Checks whether the given string is the name of a subtype
+	 * that fulfills the given constraint simply by looking at its name.
+	 * Note that this check is not complete and hence can return unknown.
+	 * If it might fulfill the constraint with a downcast, we return unknown as well.
+	 * @param returnTypeName The name of the type to check.
+	 * @return Whether the given string can fulfill the constraint.
+	 * @throws DebugException
+	 */
+	private StringSubtype stringIsSubtypeOf(String returnTypeName) throws DebugException {
+		if (typeConstraint instanceof DesiredType) {
+			if (returnTypeName.equals(((DesiredType)typeConstraint).getDesiredType().getName()))
+				return StringSubtype.SUBTYPE;
+			else
+				return StringSubtype.NOT_SUBTYPE;
+		} else if (typeConstraint instanceof SupertypeBound) {
+			StringSubtype stringSubtype = subtypeChecker.stringIsSubtypeOf(returnTypeName, ((SupertypeBound)typeConstraint).getSupertypeBound().getName());
+			if (stringSubtype != StringSubtype.SUBTYPE && subtypeChecker.stringIsSubtypeOf(((SupertypeBound)typeConstraint).getSupertypeBound().getName(), returnTypeName) == StringSubtype.SUBTYPE)
+				return StringSubtype.UNKNOWN;
+			else
+				return stringSubtype;
+		}
+		return StringSubtype.UNKNOWN;
+	}
+
 	@Override
 	protected Expression getArgExpression(Expression a, OverloadChecker overloadChecker, IJavaType argType, int curArgIndex, int maxArgDepth) {
 		a = castArgIfNecessary(a, overloadChecker, argType, curArgIndex);

@@ -1,10 +1,13 @@
 package codehint.exprgen;
 
+import java.io.IOException;
+import java.io.ObjectInputStream;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
+import java.util.zip.GZIPInputStream;
 
 import org.eclipse.debug.core.DebugException;
 import org.eclipse.jdt.debug.core.IJavaArrayType;
@@ -29,12 +32,22 @@ public class SubtypeChecker {
 	private final IJavaStackFrame stack;
 	private final IJavaDebugTarget target;
 	private final TypeCache typeCache;
+	private final Map<String, Set<String>> supertypes;
 	
 	public SubtypeChecker(IJavaStackFrame stack, IJavaDebugTarget target, TypeCache typeCache) {
 		this.supertypesMap = new HashMap<IJavaType, Set<IJavaType>>();
 		this.stack = stack;
 		this.target = target;
 		this.typeCache = typeCache;
+		try {
+			ObjectInputStream is = new ObjectInputStream(new GZIPInputStream(EclipseUtils.getFileFromBundle("data" + System.getProperty("file.separator") + "supertypes.gz")));
+			supertypes = (Map<String, Set<String>>)is.readObject();
+			is.close();
+		} catch (IOException e) {
+			throw new RuntimeException(e);
+		} catch (ClassNotFoundException e) {
+			throw new RuntimeException(e);
+		}
 	}
 	
 	/**
@@ -128,6 +141,35 @@ public class SubtypeChecker {
 		} catch (DebugException e) {
 			throw new RuntimeException(e);
 		}
+	}
+	
+	enum StringSubtype { SUBTYPE, NOT_SUBTYPE, UNKNOWN }
+	
+	/**
+	 * Checks whether the first string is a type that is a subtype
+	 * of the second string.
+	 * @param cur The name of the type to check.
+	 * @param expected The name of the expected type.
+	 * @return Whether the first string is the name of a subtype of the second.
+	 */
+	public StringSubtype stringIsSubtypeOf(String cur, String expected) {
+		if (cur.equals(expected) || expected.equals("java.lang.Object"))
+			return StringSubtype.SUBTYPE;
+		while (expected.endsWith("[]")) {
+			if (!cur.endsWith("[]"))
+				return StringSubtype.NOT_SUBTYPE;
+			cur = cur.substring(0, cur.length() - 2);
+			expected = expected.substring(0, expected.length() - 2);
+		}
+		if (cur.endsWith("[]"))
+			return StringSubtype.NOT_SUBTYPE;
+		Set<String> curSupertypes = supertypes.get(cur.replace('$', '.'));
+		if (curSupertypes == null)
+			return StringSubtype.UNKNOWN;
+		else if (curSupertypes.contains(expected.replace('$', '.')))
+			return StringSubtype.SUBTYPE;
+		else
+			return StringSubtype.NOT_SUBTYPE;
 	}
 
 }

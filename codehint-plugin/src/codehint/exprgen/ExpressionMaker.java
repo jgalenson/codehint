@@ -62,11 +62,15 @@ public class ExpressionMaker {
 	private final IJavaDebugTarget target;
 	private final ExpressionEvaluator expressionEvaluator;
 	private final ValueCache valueCache;
+	private final IJavaStackFrame stack;
+	private final TypeCache typeCache;
 	
-	public ExpressionMaker(IJavaStackFrame stack, ExpressionEvaluator expressionEvaluator, ValueCache valueCache) {
+	public ExpressionMaker(IJavaStackFrame stack, ExpressionEvaluator expressionEvaluator, ValueCache valueCache, TypeCache typeCache) {
 		this.target = (IJavaDebugTarget)stack.getDebugTarget();
 		this.expressionEvaluator = expressionEvaluator;
 		this.valueCache = valueCache;
+		this.stack = stack;
+		this.typeCache = typeCache;
 	}
 	
 	/*
@@ -253,6 +257,8 @@ public class ExpressionMaker {
 
 	public Expression makeCall(String name, Expression receiver, ArrayList<Expression> args, IJavaType returnType, IJavaType thisType, Method method, IJavaThread thread, StaticEvaluator staticEvaluator) {
 		Result result = expressionEvaluator.computeCall(method, receiver, args, staticEvaluator);
+		if (returnType == null)
+			returnType = EclipseUtils.getTypeAndLoadIfNeeded(method.returnTypeName(), stack, target, typeCache);
 		return makeCall(name, receiver, args, returnType, thisType, method, result);
 	}
 	
