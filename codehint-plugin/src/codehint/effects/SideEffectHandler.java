@@ -162,7 +162,10 @@ public class SideEffectHandler {
 			return false;
 		if (typeName.equals("javax.swing.MultiUIDefaults") && fieldName.equals("tables"))
 			return false;
-		if (typeName.equals("java.awt.image.DirectColorModel"))
+		if (typeName.equals("java.awt.image.DirectColorModel")
+				|| ((typeName.startsWith("java.awt.") || typeName.startsWith("javax.swing.")) && fieldName.equals("accessibleContext"))
+				|| (typeName.equals("java.lang.ref.SoftReference") && fieldName.equals("timestamp"))
+				|| (typeName.equals("java.util.HashSet") && fieldName.equals("PRESENT")))
 			return false;
 		return true;
 	}
@@ -213,15 +216,29 @@ public class SideEffectHandler {
 				|| (typeName.equals("java.security.Policy") && fieldName.equals("policy"))
 				|| typeName.equals("sun.launcher.LauncherHelper")
 				|| typeName.startsWith("sun.misc.Launcher")
-				|| (typeName.equals("java.net.URLClassLoader") && fieldName.equals("scl"))
-				|| (typeName.equals("java.security.SecureClassLoader") && fieldName.equals("scl"))
-				|| (typeName.equals("java.lang.ClassLoader") && fieldName.equals("scl"))
+				|| (typeName.startsWith("java.") && typeName.endsWith("ClassLoader") && fieldName.equals("scl"))
 				|| (typeName.equals("sun.misc.MetaIndex") && fieldName.equals("jarMap"))
 				|| typeName.startsWith("sun.nio.cs.")
 				|| (typeName.equals("java.io.File") && fieldName.equals("fs"))
 				|| (typeName.equals("java.lang.ClassLoader") && fieldName.equals("classes"))
 				|| typeName.equals("java.lang.Class")
-				|| typeName.startsWith("sun.") || typeName.startsWith("java.security.") || typeName.startsWith("java.nio.") || typeName.startsWith("java.lang.ref.") || typeName.startsWith("java.lang.invoke.") || typeName.startsWith("java.lang.ClassLoader"));
+				|| typeName.startsWith("sun.") || typeName.startsWith("java.security.") || typeName.startsWith("java.nio.") || typeName.startsWith("java.lang.ref.") || typeName.startsWith("java.lang.invoke.") || typeName.startsWith("java.lang.ClassLoader")
+				|| (typeName.equals("java.lang.reflect.Proxy") && fieldName.equals("proxyClassCache"))
+				|| ((typeName.equals("javax.swing.KeyStroke") || typeName.equals("java.awt.AWTKeyStroke")) && fieldName.equals("modifierKeywords"))  // Only initialized once.
+				|| (typeName.equals("java.awt.VKCollection") && fieldName.equals("code2name"))  // A cache.
+				|| (typeName.equals("java.awt.VKCollection") && fieldName.equals("name2code"))  // A cache.
+				|| (typeName.equals("java.lang.Package") && fieldName.equals("pkgs"))
+				|| (typeName.equals("java.lang.Package") && fieldName.equals("mans"))
+				|| (typeName.equals("java.lang.Package") && fieldName.equals("urls"))
+				|| (typeName.equals("com.sun.swing.internal.plaf.basic.resources.basic") && fieldName.equals("NONEXISTENT_BUNDLE"))
+				|| (typeName.equals("java.lang.ProcessEnvironment") && fieldName.equals("theEnvironment"))  // Never modified.
+				|| (typeName.equals("java.lang.ProcessEnvironment") && fieldName.equals("theUnmodifiableEnvironment"))  // Unmodifiable.
+				|| (typeName.equals("java.lang.ApplicationShutdownHooks") && fieldName.equals("hooks"))
+				|| (typeName.equals("java.awt.Toolkit") && fieldName.equals("desktopProperties"))
+				|| (typeName.equals("java.awt.Toolkit") && fieldName.equals("resources"))
+				|| ((typeName.equals("java.awt.font.TextAttribute") || typeName.equals("java.text.AttributedCharacterIterator$Attribute")) && fieldName.equals("instanceMap"))  // Never changes after static initializations.
+				|| (typeName.equals("java.awt.RenderingHints$Key") && fieldName.equals("identitymap"))
+				|| typeName.equals("java.util.ResourceBundle$RBClassLoader"));  // Never changes after static initializations.
 	}
 	
 	private void getReachableObjects(IJavaValue value, Set<IJavaObject> objs) throws DebugException {
@@ -276,7 +293,7 @@ public class SideEffectHandler {
 			//System.out.println("maxID: " + maxID);
 			//System.out.println("fields: " + (System.currentTimeMillis() - startTime));
 			/*for (IField field: fields)
-				System.out.println(field.getDeclaringType().getFullyQualifiedName() + "." + field.getElementName());*/
+				System.out.println(field.getDeclaringType().getFullyQualifiedName() + "." + field.getElementName() + ": " + instancesCache.get(field.getDeclaringType().getFullyQualifiedName()).size());*/
 			//System.out.println(fields.size() + " fields");
 			return fields;
 		} catch (DebugException e) {
@@ -300,6 +317,47 @@ public class SideEffectHandler {
 			}
 		}
 	}
+
+	/*private Set<IJavaObject> printAllReachableObjects(SubMonitor monitor) {
+		try {
+			Set<IJavaObject> objs = new HashSet<IJavaObject>();
+			printReachableObjects(stack.getThis(), objs, "this");
+			for (IVariable var: stack.getLocalVariables())
+				printReachableObjects((IJavaValue)var.getValue(), objs, var.getName());
+			for (ReferenceType type: getAllLoadedTypes(stack)) {
+				for (Field field: type.allFields())
+					if (field.isStatic() && isUsefulStaticDFSField(type.name(), field))
+						printReachableObjects(JDIValue.createValue((JDIDebugTarget)stack.getDebugTarget(), type.getValue(field)), objs, type.name() + "." + field.name());
+				monitor.worked(1);
+			}
+			return objs;
+		} catch (DebugException e) {
+			throw new RuntimeException(e);
+		}
+	}
+	
+	private void printReachableObjects(IJavaValue value, Set<IJavaObject> objs, String path) throws DebugException {
+		if (value != null && !objs.contains(value) && value.toString().contains("HashMap"))
+			System.out.println(path + ": " + value);
+		if (value instanceof IJavaArray) {
+			IJavaArray arr = (IJavaArray)value;
+			if (objs.add(arr) && !EclipseUtils.isPrimitive(Signature.getElementType(arr.getSignature())) && !arr.getSignature().equals("[Ljava/lang/String;")) {
+				int i = 0;
+				for (IJavaValue elem: arr.getValues())
+					printReachableObjects(elem, objs, path + "[" + i++ + "]");
+			}
+		} else if (value instanceof IJavaObject) {
+			IJavaObject obj = (IJavaObject)value;
+			if (objs.add(obj)) {
+				// We use the internal API here because the Eclipse one must get each field's value one-by-one and so is much slower.
+				ObjectReference obj2 = ((JDIObjectValue)obj).getUnderlyingObject();
+				if (obj2 != null)  // null values fail this test
+					for (Map.Entry<Field, Value> field: obj2.getValues(obj2.referenceType().allFields()).entrySet())
+						if (isUsefulStaticDFSField(field.getKey().declaringType().name(), field.getKey()))
+							printReachableObjects(JDIValue.createValue((JDIDebugTarget)stack.getDebugTarget(), field.getValue()), objs, path + "." + field.getKey().name());
+			}
+		}
+	}*/
 	
 	private List<MyJavaWatchpoint> getFieldWatchpoints(final Collection<IField> fields, final Map<String, ArrayList<IJavaObject>> instancesCache) {
 		try {
@@ -309,7 +367,8 @@ public class SideEffectHandler {
 				public void run(IProgressMonitor monitor) throws CoreException {
 					for (IField field: fields) {
 						List<IJavaObject> instances = instancesCache == null ? null : instancesCache.get(field.getDeclaringType().getFullyQualifiedName());
-						if (instances != null && (instances.size() == 1 || field.getDeclaringType().getFullyQualifiedName().equals("java.lang.AbstractStringBuilder")))  // Special case: Use instance filters for StringBuilders, since they come up a lot and slow us down a lot.
+						if (instances != null && (instances.size() == 1 || field.getDeclaringType().getFullyQualifiedName().equals("java.lang.AbstractStringBuilder")  // Special case: Use instance filters for StringBuilders, since they come up a lot and slow us down a lot.
+								/*|| (field.getDeclaringType().getFullyQualifiedName().contains("Map") && instances.size() < 10)*/))  // HashMap breakpoints can slow some things down a lot, so I want to think about optimizing them like this.
 							for (IJavaObject instance: instances)
 								watchpoints.add(new MyJavaWatchpoint(field, instance));
 						else
@@ -562,9 +621,12 @@ public class SideEffectHandler {
 				if (itype == null) {
 					//System.out.println("Bad times on " + event.referenceType().name());
 				} else {
-					for (IField field: itype.getFields())
-						if ((!Flags.isFinal(field.getFlags()) || field.getTypeSignature().contains("[")) && Flags.isStatic(field.getFlags()))
-							fields.add(field);
+					String typeName = itype.getFullyQualifiedName();
+					if (isUsefulType(typeName))
+						for (IField field: itype.getFields())
+							if ((!Flags.isFinal(field.getFlags()) || field.getTypeSignature().contains("[")) && Flags.isStatic(field.getFlags())
+									&& isUsefulField(typeName, field.getElementName()))
+								fields.add(field);
 					List<MyJavaWatchpoint> newWatchpoints = getFieldWatchpoints(fields, null);
 					addedWatchpoints.addAll(newWatchpoints);
 				}
