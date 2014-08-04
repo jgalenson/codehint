@@ -352,6 +352,7 @@ public class ExpressionEvaluator {
 		Set<Effect> receiverEffects = method.isConstructor() ? Collections.<Effect>emptySet() : receiverResult.getEffects();
 		IJavaValue[] argValues = new IJavaValue[args.size()];
 		Set<Effect> argEffects = getArgValues(receiverEffects, args, argValues);
+		//System.out.println("Calling " + receiver.toString().replace("\n", "\\n") + "." + method.name() + " with args " + java.util.Arrays.toString(argValues));
 		return computeCall(method, receiver.getStaticType(), receiverResult == null ? null : receiverResult.getValue().getValue(), argValues, argEffects, true);
 	}
 	

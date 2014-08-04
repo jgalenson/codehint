@@ -152,7 +152,7 @@ public class SideEffectHandler {
 		return true;
 	}
 	
-	private boolean isUsefulField(String typeName, String fieldName) {
+	private boolean isUsefulField(String typeName, String fieldName, String objTypeName) {
 		if (neverModifiedFields.contains(typeName.replace("$", ".") + "." + fieldName))
 			return false;
 		if ((typeName.equals("javax.swing.UIDefaults") && fieldName.equals("PENDING"))
@@ -165,7 +165,15 @@ public class SideEffectHandler {
 		if (typeName.equals("java.awt.image.DirectColorModel")
 				|| ((typeName.startsWith("java.awt.") || typeName.startsWith("javax.swing.")) && fieldName.equals("accessibleContext"))
 				|| (typeName.equals("java.lang.ref.SoftReference") && fieldName.equals("timestamp"))
-				|| (typeName.equals("java.util.HashSet") && fieldName.equals("PRESENT")))
+				|| (typeName.equals("java.util.HashSet") && fieldName.equals("PRESENT"))
+				|| (typeName.equals("java.lang.StringBuffer") && fieldName.equals("toStringCache"))  // This is just a cache.
+				|| (typeName.equals("java.util.AbstractMap") && objTypeName.startsWith("java.util.") && fieldName.equals("keySet"))  // This is a writeonce field that simply creates a wrapper.  But we need to be sure it's not a subclass that has overriden this behavior.
+				|| (typeName.equals("java.util.AbstractMap") && objTypeName.startsWith("java.util.") && fieldName.equals("values"))  // This is a writeonce field that simply creates a wrapper.  But we need to be sure it's not a subclass that has overriden this behavior.
+				|| (objTypeName.equals("java.util.concurrent.ConcurrentHashMap") && fieldName.equals("keySet"))  // This is a writeonce field that simply creates a wrapper.  But we need to be sure it's not a subclass that has overriden this behavior.
+				|| (objTypeName.equals("java.util.concurrent.ConcurrentHashMap") && fieldName.equals("values"))  // This is a writeonce field that simply creates a wrapper.  But we need to be sure it's not a subclass that has overriden this behavior.
+				|| (objTypeName.equals("java.util.concurrent.ConcurrentHashMap") && fieldName.equals("entrySet"))  // This is a writeonce field that simply creates a wrapper.  But we need to be sure it's not a subclass that has overriden this behavior.
+				|| (typeName.equals("java.lang.Throwable") && fieldName.equals("UNASSIGNED_STACK"))  // This is a constant empty array.
+				|| (typeName.equals("java.awt.Container") && fieldName.equals("EMPTY_ARRAY")))  // This is a constant empty array.
 			return false;
 		return true;
 	}
@@ -272,11 +280,11 @@ public class SideEffectHandler {
 			// Add fields from reachable locals.
 			monitor.setWorkRemaining(objs.size());
 			for (IJavaObject obj: objs) {
-				String typeName = obj.getReferenceTypeName();
+				String typeName = EclipseUtils.removeGenerics(obj.getReferenceTypeName());
 				if (types.add(typeName) && isUsefulType(typeName))
 					for (IVariable field: obj.getVariables())
 						if (field instanceof IJavaFieldVariable)
-							addField(((JDIFieldVariable)field).getDeclaringType().getName(), field.getName(), fields, itypes);
+							addField(((JDIFieldVariable)field).getDeclaringType().getName(), field.getName(), typeName, fields, itypes);
 				for (IJavaType type = obj.getJavaType(); type instanceof IJavaClassType; type = ((IJavaClassType)type).getSuperclass())
 					Utils.addToListMap(instancesCache, type.getName(), obj);
 				long id = obj.getUniqueId();
@@ -289,11 +297,11 @@ public class SideEffectHandler {
 				if (isUsefulType(type.name()))
 					for (Field field: type.fields())
 						if (field.isStatic())
-							addField(type.name(), field.name(), fields, itypes);
+							addField(type.name(), field.name(), type.name(), fields, itypes);
 			//System.out.println("maxID: " + maxID);
 			//System.out.println("fields: " + (System.currentTimeMillis() - startTime));
 			/*for (IField field: fields)
-				System.out.println(field.getDeclaringType().getFullyQualifiedName() + "." + field.getElementName() + ": " + instancesCache.get(field.getDeclaringType().getFullyQualifiedName()).size());*/
+				System.out.println(field.getDeclaringType().getFullyQualifiedName() + "." + field.getElementName() + ": " + instancesCache.get(field.getDeclaringType().getFullyQualifiedName()));*/
 			//System.out.println(fields.size() + " fields");
 			return fields;
 		} catch (DebugException e) {
@@ -303,8 +311,8 @@ public class SideEffectHandler {
 		}
 	}
 
-	private void addField(String declName, String fieldName, Set<IField> fields, Map<String, IType> itypes) throws JavaModelException {
-		if (isUsefulType(declName) && isUsefulField(declName, fieldName)) {
+	private void addField(String declName, String fieldName, String objTypeName, Set<IField> fields, Map<String, IType> itypes) throws JavaModelException {
+		if (isUsefulType(declName) && isUsefulField(declName, fieldName, objTypeName)) {
 			IType itype = itypes.get(declName);
 			if (itype == null) {
 				itype = project.findType(declName, (IProgressMonitor)null);
@@ -366,9 +374,15 @@ public class SideEffectHandler {
 				@Override
 				public void run(IProgressMonitor monitor) throws CoreException {
 					for (IField field: fields) {
-						List<IJavaObject> instances = instancesCache == null ? null : instancesCache.get(field.getDeclaringType().getFullyQualifiedName());
-						if (instances != null && (instances.size() == 1 || field.getDeclaringType().getFullyQualifiedName().equals("java.lang.AbstractStringBuilder")  // Special case: Use instance filters for StringBuilders, since they come up a lot and slow us down a lot.
-								/*|| (field.getDeclaringType().getFullyQualifiedName().contains("Map") && instances.size() < 10)*/))  // HashMap breakpoints can slow some things down a lot, so I want to think about optimizing them like this.
+						String typeName = field.getDeclaringType().getFullyQualifiedName();
+						List<IJavaObject> instances = instancesCache == null || Flags.isStatic(field.getFlags()) ? null : instancesCache.get(typeName);
+						if (instances != null && (instances.size() == 1 || typeName.equals("java.lang.AbstractStringBuilder")  // Special case: Use instance filters for StringBuilders, since they come up a lot and slow us down a lot.
+								|| (typeName.startsWith("java.util.") && typeName.contains("Map") && instances.size() <= 2)  // HashMap breakpoints can slow some things down a lot, so I want to think about optimizing them like this.
+								|| (typeName.equals("java.util.ArrayList") && instances.size() <= 10)  // ArrayList breakpoints can slow some things down a lot, so I want to think about optimizing them like this.
+								|| (typeName.equals("java.util.Vector") && instances.size() <= 10)  // Vector breakpoints can slow some things down a lot, so I want to think about optimizing them like this.
+								|| (typeName.equals("java.util.Hashtable") && instances.size() <= 10)  // Hashtable breakpoints can slow some things down a lot, so I want to think about optimizing them like this.
+								|| (typeName.equals("java.util.Arrays$ArrayList") && instances.size() <= 10)  // Arrays$ArrayList breakpoints can slow some things down a lot, so I want to think about optimizing them like this.
+								|| (typeName.equals("java.util.AbstractList") && instances.size() <= 20)))  // AbstractList breakpoints can slow some things down a lot, so I want to think about optimizing them like this.
 							for (IJavaObject instance: instances)
 								watchpoints.add(new MyJavaWatchpoint(field, instance));
 						else
@@ -420,12 +434,14 @@ public class SideEffectHandler {
 		
 		private final boolean canBeArray;
 		private final boolean isFinal;
+		private final boolean canDisable;
 		
 		public MyJavaWatchpoint(IField field, IJavaObject instance) throws CoreException {
 			//super(BreakpointUtils.getBreakpointResource(field.getDeclaringType()), field.getDeclaringType().getElementName(), field.getElementName(), -1, -1, -1, 0, false, new HashMap<String, Object>(10));
 			
 			canBeArray = canBeArray(field);
 			isFinal = Flags.isFinal(field.getFlags());
+			canDisable = Flags.isStatic(field.getFlags()) || instance != null;
 
 			IType type = field.getDeclaringType();
 			IResource resource = BreakpointUtils.getBreakpointResource(field.getDeclaringType());
@@ -478,8 +494,18 @@ public class SideEffectHandler {
 					} else if (watchEvent instanceof AccessWatchpointEvent) {
 						AccessWatchpointEvent readEvent = (AccessWatchpointEvent)watchEvent;
 						Value oldVal = readEvent.valueCurrent();
-						if (oldVal instanceof ArrayReference)
-							backupArray(FieldLVal.makeFieldLVal(obj, readEvent.field()), oldVal);
+						if (oldVal instanceof ArrayReference) {
+							FieldLVal lval = FieldLVal.makeFieldLVal(obj, readEvent.field());
+							backupArray(lval, oldVal);
+							if (canDisable && !changedFields.contains(lval) && Utils.incrementMap(accessCounts, this) >= 10) {  // Disabling is slow, so we only do it for frequently-accessed fields.
+								try {
+									disabledWatchpoints.add(this);
+									setEnabled(false);
+								} catch (CoreException e) {
+									throw new RuntimeException(e);
+								}
+							}
+						}
 						/*else
 						System.out.println("Ignoring read on non-array Object");*/
 						return true;
@@ -625,7 +651,7 @@ public class SideEffectHandler {
 					if (isUsefulType(typeName))
 						for (IField field: itype.getFields())
 							if ((!Flags.isFinal(field.getFlags()) || field.getTypeSignature().contains("[")) && Flags.isStatic(field.getFlags())
-									&& isUsefulField(typeName, field.getElementName()))
+									&& isUsefulField(typeName, field.getElementName(), typeName))
 								fields.add(field);
 					List<MyJavaWatchpoint> newWatchpoints = getFieldWatchpoints(fields, null);
 					addedWatchpoints.addAll(newWatchpoints);
@@ -652,6 +678,8 @@ public class SideEffectHandler {
 	private Set<FieldLVal> readArrays;
 	private Set<ArrayReference> backedUpArrays;
 	private Set<Effect> manualEffects;
+	private Map<MyJavaWatchpoint, Integer> accessCounts;
+	private List<MyJavaWatchpoint> disabledWatchpoints;
 	
 	public synchronized void startHandlingSideEffects() {
 		if (!enabled)
@@ -664,6 +692,8 @@ public class SideEffectHandler {
 			readArrays = new HashSet<FieldLVal>();
 			backedUpArrays = new HashSet<ArrayReference>();
 			manualEffects = new HashSet<Effect>();
+			accessCounts = new HashMap<MyJavaWatchpoint, Integer>();
+			disabledWatchpoints = new ArrayList<MyJavaWatchpoint>();
 		}
 	}
 
@@ -707,6 +737,15 @@ public class SideEffectHandler {
 		readArrays = null;
 		backedUpArrays = null;
 		manualEffects = null;
+		try {
+			for (MyJavaWatchpoint wp: disabledWatchpoints) {
+				wp.setEnabled(true);
+			}
+		} catch (CoreException e) {
+			throw new RuntimeException(e);
+		}
+		accessCounts = null;
+		disabledWatchpoints = null;
 		undoEffects(effects);
 		return effects;
 	}

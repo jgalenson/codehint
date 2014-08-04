@@ -168,10 +168,13 @@ public class Utils {
 	 * key in the given map.
 	 * @param map The map.
 	 * @param key The key.
+	 * @returns The new integer.
 	 */
-	public static <T> void incrementMap(Map<T, Integer> map, T key) {
-		Integer numValuesSeenOfType = map.get(key);
-		map.put(key, numValuesSeenOfType == null ? 1 : numValuesSeenOfType + 1);
+	public static <T> int incrementMap(Map<T, Integer> map, T key) {
+		Integer num = map.get(key);
+		int newNum = num == null ? 1 : num + 1;
+		map.put(key, newNum);
+		return newNum;
 	}
 	
 	/**

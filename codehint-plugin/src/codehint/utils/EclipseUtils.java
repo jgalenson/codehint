@@ -1560,5 +1560,29 @@ public final class EclipseUtils {
 		typeName += type.getTypeQualifiedName('$');
 		return typeName;
     }
+    
+    /**
+     * Removes the generic part of a type name.
+     * For example, changes "List<String>" to "List".
+     * @param s The string to change.
+     * @return The string with generics removed.
+     */
+    public static String removeGenerics(String s) {
+    	int startIndex = -1;
+    	int numOpens = 0;
+    	for (int i = 0; i < s.length(); i++) {
+    		char ch = s.charAt(i);
+    		if (ch == '<') {
+    			if (startIndex == -1)
+    				startIndex = i;
+    			numOpens += 1;
+    		} else if (ch == '>') {
+    			numOpens -= 1;
+    			if (numOpens == 0)
+    				return s.substring(0, startIndex) + removeGenerics(s.substring(i + 1));
+    		}
+    	}
+    	return s;
+    }
 
 }
