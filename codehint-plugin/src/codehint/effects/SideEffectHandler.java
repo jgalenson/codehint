@@ -729,6 +729,8 @@ public class SideEffectHandler {
 	}
 	
 	public synchronized Set<Effect> stopHandlingSideEffects() {
+		if (!enabled)
+			return Collections.emptySet();
 		Set<Effect> effects = getSideEffects();
 		effectsMap = null;
 		readFieldsMap = null;
