@@ -1,0 +1,142 @@
+import java.awt.Component;
+import java.awt.Dimension;
+import java.awt.LayoutManager;
+import java.awt.Window;
+import java.awt.event.ActionEvent;
+import java.awt.event.ActionListener;
+import java.awt.event.KeyEvent;
+import java.awt.event.MouseAdapter;
+import java.awt.event.MouseEvent;
+
+import javax.swing.JFrame;
+import javax.swing.JMenu;
+import javax.swing.JMenuBar;
+import javax.swing.JMenuItem;
+import javax.swing.JTree;
+import javax.swing.KeyStroke;
+import javax.swing.SwingUtilities;
+import javax.swing.tree.DefaultMutableTreeNode;
+
+import codehint.CodeHint;
+
+@SuppressWarnings("unused")
+public class Tutorial {
+
+	/*
+	 * A JTree displays data in a hierarchical form, where child nodes can be hidden or expanded as necessary.
+	 * When run, this code will make a small JTree that will pop up on the screen.
+	 */
+	private static void configureTree(final JTree jtree) {
+		
+		Window window = null;
+		// TO WRITE: Get the window in which the JTree is contained.
+		configureWindow(window);
+		
+		/*
+		 * This adds a mouse handler that triggers whenever the user clicks on the tree.
+		 */
+		jtree.addMouseListener(new MouseAdapter() {
+			public void mousePressed(MouseEvent e) {
+				JTree tree = jtree;
+				int mouseX = e.getX();
+				int mouseY = e.getY();
+				
+				int clickedRow = 0;
+				// TO WRITE: Set clickedRow to the index of the clicked element.
+				System.out.println(clickedRow);
+				
+				
+				Object x = null;
+				// TO WRITE: Set x to somehow represent the clicked element.
+				System.out.println(x);
+			}
+		});
+		
+		// Continue search.
+		LayoutManager menuLayoutManager = null;
+		useMenuLayoutManager(menuLayoutManager);
+		
+		// Constructors.
+		String menuName = "Hi";
+		JMenuItem menuItem = null;
+		addMenu(menuItem);
+		
+		// Free search and operators.
+		System.out.println("I can get 42: ");
+		
+		// Find the size of the tree.
+		Dimension treeSize = null;
+		System.out.println(treeSize);
+		
+		// Side effects.
+		long l = 0;
+		System.out.println(count);
+	}
+	
+	private static long count = 0;
+	
+	private static long addComponent(Component cmp) {
+		return ++count;
+	}
+
+	public static void main(String[] args) {
+        SwingUtilities.invokeLater(new Runnable() {
+            public void run() {
+        		JFrame frame = new JFrame("Swing test");
+        		frame.setPreferredSize(new Dimension(100, 200));
+        		makeMenu(frame);
+        		JTree tree = createExampleTree();
+        		frame.add(tree);
+        		configureTree(tree);
+        		showFrame(frame);
+            }
+        });
+	}
+	
+	private static void makeMenu(final JFrame frame) {
+		JMenuBar menuBar = new JMenuBar();
+		JMenu file = new JMenu("File");
+		file.setMnemonic(KeyEvent.VK_F);
+		JMenuItem quit = new JMenuItem("Quit");
+		quit.setMnemonic(KeyEvent.VK_Q);
+		quit.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_Q, ActionEvent.CTRL_MASK));
+		quit.addActionListener(new ActionListener() {
+			public void actionPerformed(ActionEvent e) {
+				frame.dispose();
+				System.exit(0);
+			}
+		});
+		file.add(quit);
+		menuBar.add(file);
+		frame.setJMenuBar(menuBar);
+	}
+	
+	private static JTree createExampleTree() {
+		DefaultMutableTreeNode top = new DefaultMutableTreeNode("home");
+		top.add(new DefaultMutableTreeNode("Alice"));
+		top.add(new DefaultMutableTreeNode("Bob"));
+		top.add(new DefaultMutableTreeNode("Eve"));
+		JTree tree = new JTree(top);
+		return tree;
+	}
+	
+	private static void showFrame(JFrame frame) {
+		frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+		frame.pack();
+		frame.setVisible(true);
+	}
+	
+	private static void configureWindow(Window window) {
+		if (window != null)
+			window.setAlwaysOnTop(true);
+	}
+
+	private static void useMenuLayoutManager(LayoutManager menuLayoutManager) {
+		
+	}
+
+	private static void addMenu(JMenuItem menuItem) {
+		
+	}
+
+}

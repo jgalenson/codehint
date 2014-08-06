@@ -1,0 +1,405 @@
+<html>
+  <head>
+    <title>CodeHint tutorial</title>
+
+    <!-- Syntax highlighting stuff from http://alexgorbatchev.com/SyntaxHighlighter/. -->
+    <script type="text/javascript" src="js/shCore.js"></script>
+    <script type="text/javascript" src="js/shBrushJava.js"></script>
+    <link href="css/shCore.css" rel="stylesheet" type="text/css" />
+    <link href="css/shThemeEclipse.css" rel="stylesheet" type="text/css" />
+    <script type="text/javascript">
+      SyntaxHighlighter.all()
+    </script>
+    
+    <script>
+  (function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
+  (i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
+  m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
+  })(window,document,'script','//www.google-analytics.com/analytics.js','ga');
+
+  ga('create', 'UA-46493232-1', 'berkeley.edu');
+  ga('send', 'pageview');
+    </script>
+  </head>
+  <body>
+
+    <h2>Introduction</h2>
+
+    <p>
+      CodeHint is a plugin for Eclipse that synthesizes Java code.  You can think of it as a drastically improved autocomplete: it uses the dynamic context to find more results, the user-provided specification to find correct results, and advanced synthesis techniques to find complicated code snippets.  If you're not sure how to write a piece of code, CodeHint can often help you find it.  See its <a href="http://www.cs.berkeley.edu/~joel/codehint/">homepage</a> for more details.
+    </p>
+
+    <h2>Demo</h2>
+
+    <p>
+      You can download the full source code of the example <a href="java/Tutorial.java">here</a> to follow along and try CodeHint out yourself.
+    </p>
+
+    <h3><a id="type">Finding an object of a certain type</a></h3>
+
+    <p>
+      Imagine that we are writing a small GUI application using the Java Swing library to display a tree of elements such as the one below.
+      <br/>
+      <center><img src="imgs/tree.png"/></center>
+      <br/>
+      We might start with some standard code that creates the GUI:
+      <pre class="brush: java; toolbar: false;">
+	public static void main(String[] args) {
+        SwingUtilities.invokeLater(new Runnable() {
+            public void run() {
+        		JFrame frame = new JFrame("Swing test");
+        		frame.setPreferredSize(new Dimension(100, 200));
+        		JTree tree = createExampleTree();
+        		frame.add(tree);
+        		configureTree(tree);
+        		showFrame(frame);
+            }
+        });
+	}
+	
+	private static void configureTree(final JTree jtree) {
+		// Our code will go here.
+	}
+      </pre>
+    </p>
+
+    <p>
+      For our first task we want to write code that gets the window that contains the <code>jtree</code> (perhaps because we want to ensure that it is always on top of other windows).  We thus might write some code like this:
+      <pre class="brush: java; toolbar: false;">
+	Window window = null;
+	// How do I get the window object?
+	configureWindow(window);
+      </pre>
+    </p>
+
+    <p>
+      To use CodeHint, we must run the program to the point where we want to insert the code.  In this example, we can do that by setting a breakpoint just after the window declaration (line 3 in the above snippet) and then running the code until that breakpoint is hit.  Since we know that we want to modify the <code>window</code> variable, we can right-click on it in the Variables view of Eclipse, which is usually in the top-right of the window in Debug mode.  This will show us a menu like this:
+      <center><img src="imgs/right-click.jpg"/></center>
+      Since we know the type of the variable we want (a <code>Window</code>), we can select "Demonstrate type".  We will then see the main default CodeHint dialog, which currently looks like this:
+      <center><img src="imgs/dialog1.png" width="600"/></center>
+      We will discuss more advanced features of this dialog later.  For now, we note that it is pre-filled to use the static type of the variable, which is what we want.  We can thus press enter or the "Search" button to start the search.  After about a second, the dialog will contain some expressions, as shown below.
+      <center><img src="imgs/dialog2.png" width="600"/></center>
+      We can see that CodeHint has found five expressions that return windows as well as their toStrings.  By hovering the mouse over an expression, we can see its Javadoc.  To use an expression and insert it into the code, select the checkbox next to it (or double-click it), press OK, and then stop the debugger.  This will leave us with the following code.
+      <pre class="brush: java; toolbar: false;">
+	Window window = null;
+	// How do I get the window object?
+	window = SwingUtilities.getWindowAncestor(jtree);
+	configureWindow(window);
+      </pre>
+    </p>
+
+    <h3><a id="value">Finding an  object of a certain value</a></h3>
+
+    <p>
+      Imagine that we now want to let users click on elements in the graphical tree.  We want to be able to figure out the element they clicked.  Specifically, we might want to write code like the following to compute the row in the tree that the user clicked.
+      <pre class="brush: java; toolbar: false;">
+		jtree.addMouseListener(new MouseAdapter() {
+			public void mousePressed(MouseEvent e) {
+				int x = e.getX();
+				int y = e.getY();
+				int clickedRow = 0;
+				// We want to get the row the user clicked.
+				System.out.println(clickedRow);
+			}
+		});
+      </pre>
+      As before, to use CodeHint we can set a breakpoint where we want to insert code (line 7 in the above snippet), run the code, and click on an element so that the breakpoint is hit.
+    </p>
+
+    <p>
+      In this case we likely do not want to ask for all integers, similar to the previous example, as there would likely be too many.  However, since CodeHint works while the program is debugging, we can easily take advantage of the dynamic state of the program.  Specifically, we can enter the value of the row we want and find expressions that evaluate to that value.  For example, if we clicked the top row, we can enter <code>0</code>.
+    </p>
+
+    <p>
+      We can give this demonstration by setting a breakpoint at the right line (7 in the above snippet), running the code, clicking on the top row, right-clicking the variable <code>row</code> in the Variables view, and choosing "Demonstrate value".  Once we do this, CodeHint will find approximately 15 expressions that evaluate to 0, including constants and method calls.  The results are initially sorted by how often they appear in real-world code, so we can start at the top of the list and read down.  By looking at the first method call and its Javadoc, we will be able to see that it seems correct and use it.
+      <pre class="brush: java; toolbar: false;">
+				clickedRow = jtree.getRowForLocation(mouseX, mouseY);
+      </pre>
+    </p>
+
+    <p>
+      As an alternative, instead of manually finding the correct expression, you may also give further demonstrations in different contexts through a process we call refinement, which is discussed <a href="#refinement">below</a>.
+    </p>
+
+    <h3><a id="property">More general specifications</a></h3>
+
+    <p>
+      The previous examples have shown how CodeHint makes it easy to find expressions of a certain type or value.  However, in many cases you either cannot express such a property or need something stronger to reduce the number of candidate expressions.
+    </p>
+
+    <p>
+      As an example, let us imagine that in the previous example we want to find the actual element the user clicked, not just its row, with code such as this.
+      <pre class="brush: java; toolbar: false;">
+		jtree.addMouseListener(new MouseAdapter() {
+			public void mousePressed(MouseEvent e) {
+				int x = e.getX();
+				int y = e.getY();
+				Object x = null;
+				// We want to get the object the user clicked.
+				handleClick(x);
+			}
+		});
+      </pre>
+      In this case, we don't even know the type of expression we want.  Is it the string of the text of the element, some class of the GUI toolkit (perhaps a node in the tree), or some user-specified type representing the data?
+    </p>
+
+    <p>
+      Even though we don't know the type that we want, we can still express some property about it.  CodeHint allows us to write an arbitrary boolean predicate that we would like to hold after executing the missing code.  These predicates are normal Java code with the exception that when referring to a variable <code>x</code>, <code>x</code> is its value before the missing code is executed and <code>x'</code> is its value afterwards.<sup><a href="#fn1">1</a></sup>
+    </p>
+
+    <p>
+      Back in our example, while we do not know the correct type, we can try to write some more general property.  One possibility is to remember that in Java most values have a <code>toString</code> method that prints out some useful string representation of them.  In this case, if we click on an element labeled "Eve", the <code>toString</code> method of the correct result likely contains that same string.  We can thus write the following property.
+      <pre class="brush: java; toolbar: false;">
+	x'.toString().contains("Eve")
+      </pre>
+    </p>
+
+    <p>
+      CodeHint can search for expressions that satisfy this property once we set a breakpoint at the desired location, run to it by clicking on the element "Eve", right-clicking the variable <code>x</code>, pressing "Demonstrate property", and entering the specification.  It will then show us some results:
+      <center><img src="imgs/tostring-results.png" width="600"/></center>
+      We can see that some are obviously not correct, such as the Mouse<i>Eve</i>nts.  But a number of the others look and sound correct depending on the exact use case, so we can pick one of them.
+    </p>
+
+    <p>
+      As with the above example, this can also be a good demonstration of our <a href="#refinement">refinement</a> methodology.
+    </p>
+
+    <h2>Pdspecs</h2>
+
+    <p>
+      We have seen in the above examples that CodeHint allows a variety of specifications.  We call these <i>pdspecs</i> (short for "partial dynamic specifications").
+    </p>
+
+    <p>
+      When you right-click on a variable in the Variables view, CodeHint offers three options: "Demonstrate value", "Demonstrate type", and "Demonstrate property".  The first two are just special cases of the third, which we will describe now.
+    </p>
+
+    <p>
+      When asked to demonstrate a property, or a pdspec, you can enter an arbitrary boolean predicate.  This can contain any normal Java code, including method calls, except that, for any variable <code>x</code>, <code>x</code> refers to the value of the variable before the missing code is executed and <code>x'</code> refers to its value afterwards.<sup><a href="#fn1">1</a></sup>  Thus the pdspec <code>x' > x</code> will find expressions that increase the value of <code>x</code>.  Most of the specifications we have written involve all primed variables.
+    </p>
+
+    <p>
+      We can now describe the two special cases of pdspecs in terms of the general case.  When you demonstrate an expression or value <code>e</code> to assign to variable <code>x</code>, that is equivalent to the following pdspec.
+      <ul>
+	<li>If <code>x</code> is a primitive, <code>x' == e</code>.</li>
+	<li>If <code>x</code> is an object, <code>x' == null ? e == null : x'.equals(e)</code>.</li>
+	<li>If <code>x</code> is an array, <code>java.util.Arrays.equals(x', e)</code>.</li>
+      </ul>
+      When you demonstrate a type <code>T</code>, that is equivalent to the following pdspec.
+      <ul>
+	<li>If <code>x</code> is not a primitive, <code>x' instanceof T</code>.</li>
+	<li>If <code>x</code> is a primitive, <code>true</code>.<sup><a href="#fn2">2</a></li>
+      </ul>
+    </p>
+
+    <p>
+      There is a wide spectrum of pdspecs that users may enter.  The specifications can be very strong, such as <code>isSorted(list)</code>, or very weak, such as asking for all <code>String</code>s.  They can also be very dependent on the context, such as in the above example where we asked for expressions that evaluate to <code>0</code> when we clicked on the top row, or completely independent of it, such as <code>isSorted(list)</code>.  They can also be in between these extremes, such as the <code>x'.toString().contains("Eve")</code> pdspec we saw earlier.
+    </p>
+
+    <h2><a id="refinement">Refinement</a></h2>
+
+    <p>
+      The above examples have shown how CodeHint can generate code given a single specification in a single state.  However, in some cases there will be too many results returned to easily find a correct one.  In such cases, it is often beneficial to filter results by giving more specifications in different states.  We call this process <i>refinement</i>.
+    </p>
+
+    <p>
+      To show how this work, let us continue the example <a href="#value">above</a> where we were trying to find the row the user clicked.  After we clicked on the top row and asked for expressions that evaluate to 0, CodeHint found approximately 15 expressions.  Instead of manually looking through them and finding the correct one, as we did before, we can instead, give another demonstration.  To do this, we can click the "Check all" button and then press the "OK" button to insert all of them into the code.
+    </p>
+
+    <p>
+      We can then tell the debugger to continue by pressing F8.  To stop at the breakpoint again, we can click on a different row, perhaps the one below the top.  CodeHint will then stop at the breakpoint and pop up a dialog asking us for another demonstration.
+      <center><img src="imgs/refinement.png" width="600"/></center>
+      We can see the expressions from the previous demonstration and their values in the current context.  We can enter any new pdspec we want and click the "Refine" button to ask CodeHint to filter the results and keep only those that satisfy the new pdspec.  For example, if we enter the value <code>1</code> and press "Refine", it will show only three values.  We can also directly select the expressions we want to keep.  Pressing the "Search" button will start a completely new search, ignoring the results from the previous demonstration.  Pressing the "Clear" button will show the list of all candidates from the previous demonstration (if we hid them with "Refine" or "Search").
+    </p>
+
+    <p>
+      We can continue this process as much as we want.  For example, we could now click below all the objects on nothing.  The dialog that pops up will tell us that the remaining expressions evaluate to <code>3</code>, <code>1</code>, and <code>-1</code>.  If we know that we want <code>-1</code> in this case, we can select the one expression that returns it.  We note that we could also enter the pdspec <code>clickedRow' < 0</code> if we knew we wanted some negative number but did not care about its exact value.
+    </p>
+
+    <p>
+      As another example, we will continue the <a href="#property">third</a> example we gave above where we gave the pdspec <code>x'.toString().contains("Eve")</code>.  When shown the twelve or so results, instead of manually choosing the correct one, we can again select "Check all" and then "OK" to insert them all into the code.  After continuing with the execution, we can click below all the elements in the tree (i.e., on nothing).  If we know we want <code>null</code> in this case, we can see that only one expression returns it and use that.
+    </p>
+      
+    <h2>Controlling the search</h2>
+
+    <h3>Starting the search</h3>
+
+    <p>
+      Thus far we have used CodeHint to assign to an existing variable.  However, you often want to search for code not in an assignment or for which the desired variable does not yet exist.  To  use CodeHint in these cases, you can simply run the code to the desired point as usual and then click the "CH free" button near the top of the Eclipse window:
+      <center><img src="imgs/free-search.png" width="1100"/></center>
+    </p>
+
+    <p>
+      This will bring up the normal CodeHint dialog, which you can use as desired.  Interestingly, you can use this feature to get a form of <a href="http://en.wikipedia.org/wiki/Duck_typing">duck typing</a>:
+      <center><img src="imgs/duck-typing.png" width="600"/></center>
+    </p>
+
+    <p>
+      When using this feature, you will often want to hand-modify the generated code to fit it into the surrounding code.  This can be true of the normal usage as well.
+    </p>
+
+    <h3>Continuing the search</h3>
+
+    <p>
+      Up until now we have treated CodeHint's search for code as a black box.  We now show how you can guide it towards the code you want.
+    </p>
+
+    <p>
+      Assume that we want to find the <icode>LayoutManager</icode> for the menu bar of our application.  Using our knowledge of CodeHint, we can easily write code like that below and search for expressions of the correct type.
+      <pre class="brush: java; toolbar: false;">
+		LayoutManager menuLayoutManager = null;
+		useMenuLayoutManager(menuLayoutManager);
+      </pre>
+      When we do, we will find the expression <icode>window.getLayout()</icode>, which we can tell is probably not what we want.
+    </p>
+
+    <p>
+      We can press the "Continue Search" button to tell CodeHint to keep searching.  When we do so, it will find a few more expressions, one of which seems to be what we want:
+      <pre class="brush: java; toolbar: false;">
+		LayoutManager menuLayoutManager = null;
+		menuLayoutManager = ((JFrame)window).getJMenuBar().getLayout();
+		useMenuLayoutManager(menuLayoutManager);
+      </pre>
+    </p>
+
+    <p>
+      It is important to note that pressing "Continue Search" causes CodeHint to search a much larger search space, which can take a significant amount of time or even run out of memory.  In our testing, we have found that pressing it once usually completes relatively quickly and pressing it a second time usually completes in a reasonable amount of time, but after that it usually takes too long.  If this happens, you can easily stop a search by pressing the "Cancel" button.
+      <center><img src="imgs/cancel.png" width="600"/></center>
+    </p>
+
+    <h3>Search options</h3>
+
+    <p>
+      By default, CodeHint only searches certain types of expressions (such as method calls) and not others (such as constructors or integer addition).  Luckily, you can easily tell it to search a wider class of expressions by using the provided buttons.
+    </p>
+
+    <p>
+      CodeHint does not search constructors by default for efficiency, but when you know what you want to construct a new object, it is easy to do so by checking the "Search constructors" button.  As an example, consider the following code:
+      <pre class="brush: java; toolbar: false;">
+		String menuName = "Hello, world";
+		JMenuItem menuItem = null;
+		addMenu(menuItem);
+      </pre>
+      If we ask CodeHint for a <icode>JMenuItem</icode>, it will find nothing useful.  However, if in this case we know that we want to create a new object, we can simply check the "Search constructors" button and CodeHint will call constructors of various subtypes of <icode>JMenuItem</icode>.<sup><a href="#fn3">3</a></sup>
+      <center><img src="imgs/constructors.png" width="600"/></center>
+    </p>
+
+    <p>
+      You can similarly tell CodeHint to search operators such as <icode>+</icode> and <icode>&lt;</icode> by checking the "Search operators" button.  As an example, imagine that we want to solve the important task of finding expressions that evaluate to <icode>42</icode>.  By default, CodeHint will likely not find anything other than the constant itself.  But if we tell it to search operators (and continue the search once in this example file), it will find a number of results.
+    </p>
+
+    <h3><a id="skeletons">Skeletons</a></h3>
+
+    <p>
+      You may guide CodeHint's search precisely by using its skeletons.  These allow you to write a piece of code with some parts left out for CodeHint to synthesize.  Specifically, a skeleton is an arbitrary Java expression with the following additional symbols:
+      <ul>
+	<li><icode>??</icode> stands for either an arbitrary expression or an arbitrary method or field name.</li>
+	<li><icode>**</icode> stands for an unknown number of arguments.</li>
+	<li><icode>??{e1,e2,...}</icode> represents one of the given expressions.</li>
+      </ul>
+    </p>
+
+    <p>
+      To make this more concrete, here are a few examples:
+      <ul>
+	<li><code>??</code> (which is the default) will search for an arbitrary expression.</li>
+	<li><code>foo.??</code> will search for a field access on the <code>foo</code> object.</li>
+	<li><code>foo.??(x)</code> will search for calls to one-argument methods of the <code>foo</code> object with <code>x</code> as the argument.</li>
+	<li><code>??.??().??</code> will search for field accesses of zero-argument method calls of arbitrary expressions.</li>
+	<li><code>foo.??(**)</code> will search for calls to methods of the <code>foo</code> object with any number of unknown expressions.
+	<li><code>x + ??{foo(),bar()}</code> searches both <code>x + foo()</code> and <code>x + bar()</code>.</li>
+      </ul>
+    </p>
+
+    <p>
+      Skeletons are often useful to require methods to use certain arguments.  As an example, consider the example <a href="#value">above</a> where wanted to find the row in the tree that the user clicked.  If we use the default skeleton of <code>??</code>, we will receive obviously incorrect results such as <code>SwingUtilities.computeStringWidth(null, null)</code>.  But if we recognize that we want a method on the <code>JTree</code>, we can use the skeleton <code>jtree.??(**)</code> to find only expressions that call methods on <code>jtree</code>.
+    </p>
+
+    <p>
+      These skeletons can also be useful for searching expressions that involve constants.  For example, the <code>java.awt.event.KeyEvent</code> class has almost 200 constants representing various keys.  Skeletons can easily restrict the expressions CodeHint searches to these constants.  Given the skeleton <code>KeyStroke.getKeyStroke(KeyEvent.VK_PLUS, KeyEvent.??)</code>, for example, CodeHint will show many results and find oddities such as the fact that <code>VK_CTRL_MASK</code>, <code>VK_ALT</code>, and <code>VK_NUM_LOCK</code> are all equivalent when passed as the second parameter.
+    </p>
+    
+    <h2>Finding the desired result</h2>
+
+    <h3>Finding the needle in the haystack</h3>
+
+    <p>
+      CodeHint will sometimes return a large number of results, making it difficult to find a correct result.  We have already discussed how <a href="#refinement">refinement</a> can be useful in this case; we now present some additional techniques in the context of the example <a href="#value">above</a> where we tried to find the row the user clicked.
+    </p>
+
+    <p>
+      Even if there are a large number of results, CodeHint sorts them by how likely they are to occur in real Java code.  Thus the correct results are more likely to be closer to the top of the list, so it is often worthwhile to scan through some of the entries near the top.
+    </p>
+
+    <p>
+      As an example of this, examine the order of the results when we try to find the row the user clicked the way we did <a href="#value">above</a>:
+      <center><img src="imgs/probability.png" width="300"/></center>
+      We can see that the correct result is in the third entry, quite close to the top.  The entries closer to the bottom, in contrast, use less-common methods and fields.
+    </p>
+
+    <p>
+      Another useful technique is sorting the list of results.  As with many tables, the results can be sorted alphabetically by either the text of the expression, the result, or its toString by clicking on the column headers.  Sorting by expression is often useful for grouping together calls to the same receiver and sorting by result can make it easy to find expressions with the same result.  In this example, the former can help us focus on the small number of results that call methods on the same objects (similar to what we did with <a href="#skeletons">skeletons</a>) and the latter lets us quickly examine expressions that return multiple values, perhaps because we are unsure if the top row should be <code>0</code> or <code>1</code> (which we could also solve with the pdspec <code>clickedRow' >= 0 && clickedRow' <= 1</code>):
+      <center><img src="imgs/sort-expr.png" height="300"/>&nbsp;<img src="imgs/sort-value.png" height="300"/></center>
+    </p>
+
+    <p>
+      In addition, CodeHint allows you to filter the results and keep only those that contain certain words.  To use this feature, simply type into the "Filter" text box near the bottom of the dialog and then press enter or "Filter".  CodeHint will keep only the results whose text, result text, or Javadoc contains the words you entered.  In the example above, we can see that filtering by the word "row" (which we might guess should be in the result somehow) reduces the number of results from over 200 to something manageable, with the correct result right near the top:
+      <center><img src="imgs/filter.png" width="600"/></center>
+      The <code>KeyEvent</code> constants are included in this list because their Javadocs contain the term "arrow", which contains the string "row".
+    </p>
+    
+    <h3>Viewing the result</h3>
+
+    <p>
+      CodeHint shows a string representation of all the results it finds.  For objects, this is the result of calling their <code>toString</code> method.  Examining this result can often be useful in finding a correct expression.
+    </p>
+
+    <p>
+      As an example, let us say that we want to find the size of our tree.  We can easily ask CodeHint to find us <code>Dimension</code> objects, and it will present us the following results:
+      <center><img src="imgs/result-strs.png" width="600"/></center>
+      At first glance, we might expect to choose the <code>jtree.getSize()</code> method.  But by examining its result, we can see that it returns an empty size, which is likely not what we want.  Instead, we can see that <code>jtree.getPreferredSize()</code> returns a more reasonable value and hence is probably the result we want.
+    </p>
+
+    <h2>Handling effects</h2>
+
+    <h3>Side effects</h3>
+
+    <p>
+      CodeHint works by actually executing the statements that it generates.  If those expressions have side effects, they will change the state of memory, potentially causing future evaluations to get the wrong answer.
+    </p>
+
+    <p>
+      As an example, assume that we have the following field and method.
+      <pre class="brush: java; toolbar: false;">
+	private static long count = 0;
+	
+	private static long addComponent(Component cmp) {
+		return ++count;
+	}
+      </pre>
+      If we ask CodeHint to find us <code>long</code> values, it will call this <code>addComponent</code> method multiple times and hence change the <code>count</code> variable, causing any future code that uses it to compute the wrong result.  To stop this behavior, we can check the "Log and undo side effects" button in CodeHint.  This will slow down the search noticeably, but it will recognize and undo any side effects caused by evaluations and display them to the user:
+      <center><img src="imgs/side-effects.png" width="600"/></center>
+    </p>
+
+    <h3>External effects</h3>
+
+    <p>
+      After reading that CodeHint actually executes statements, you might wonder what it does about external side effects.  If there's a <code>File</code> object and something calls <code>delete</code> on it, can we actually cause dataloss?  We prevent these cases by blocking calls that have external effects such as deleting a file or executing a new process.
+    </p>
+
+    <p>
+      However, such external effects could occur inside a native method, where the techniques we used above would not work.  To prevent this case, we allow users to uncheck the "Call non-standard native methods" button.  When unchecked, CodeHint aborts on calls to native methods outside the standard library (those inside it should be covered by the above techniques).  You should do this if you know there is some library that could cause undesired side effects (e.g., a database library connected to a real database that contains methods to delete data).
+    </p>
+
+    <hr>
+
+    <p>
+      <sup id="fn1">1. Actually, our current implementation only makes a shallow copy of the initial state before executing the code.  So this will work if the unprimed variable is a primitive but might fail if it is an object or we are calling a method on it.</sup>
+      <br/>
+      <sup id="fn2">2. This works because Java's static type system ensures that anything of an incomparable type does not satisfy the constraint.</sup>
+      <br/>
+      <sup id="fn3">3. Our current implementation only calls top-level constructors.  That is, it will not call constructors for subexpressions.  We will presumably change this at some point.</sup>
+    </p>
+    
+  </body>
+</html>

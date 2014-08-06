@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<site>
+   <feature url="features/codehint.feature_1.0.0.201407071454.jar" id="codehint.feature" version="1.0.0.201407071454">
+      <category name="codehint"/>
+   </feature>
+   <category-def name="codehint" label="CodeHint">
+      <description>
+         CodeHint is a tool that synthesizes code from user-provided partial dynamic specifications of the desired behavior.
+      </description>
+   </category-def>
+</site>

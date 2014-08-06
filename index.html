@@ -30,73 +30,90 @@
         <h1>
 <a name="codehint" class="anchor" href="#codehint"><span class="octicon octicon-link"></span></a>CodeHint</h1>
 
-<p>CodeHint is a tool that synthesizes code from user-provided partial dynamic specifications of the desired behavior.  <a href="http://www.cs.berkeley.edu/%7Ejoel/codehint/demo.html">Here</a> is a demo.</p>
+<p>Created by Joel Galenson, Philip Reames, Rastislav Bodik, and Koushik Sen.</p>
+
+<p>CodeHint is a tool that synthesizes code from user-provided partial dynamic specifications of the desired behavior.  Here is a demo (you can download the .java file used in the video <a href="demos/LIVE.java">here</a>):
+  <iframe src="http://www.youtube.com/embed/SnkskEgcbuQ?rel=0" width="480" height="360" frameborder="0"></iframe>
+  <br/>
+An older demo is available <a href="http://www.youtube.com/watch?v=qn5yIEe9kks">here</a>.
+</p>
+
+<p>CodeHint received second place at the <a href="http://liveprogramming.github.io/2013/index.html">LIVE 2013 workshop</a>.</p>
 
 <p>If you find any bugs, would like to request any features, or have any general comments, please email joel at cs dot berkeley dot edu.</p>
 
+<p>The source code is available at <a href="https://github.com/jgalenson/codehint">GitHub</a>.</p>
+
+<p>We have also developed a preliminary JavaScript version of CodeHint, which is available <a href="https://github.com/jgalenson/codehint.js">here</a>.</p>
+
 <p><em>Warning</em>: CodeHint actually executes some expressions, which could contain external side effects. We use Java's security manager to stop effects like deleting files, but it is possible that there will be undesirable external side effects inside native calls. Users may disallow native calls to methods outside the standard library when using CodeHint and so should be careful when the current context contains objects with such external side effects in native calls.</p>
 
-<h3>
-<a name="requirements" class="anchor" href="#requirements"><span class="octicon octicon-link"></span></a>Requirements:</h3>
+<h3><a name="requirements" class="anchor" href="#requirements"><span class="octicon octicon-link"></span></a>Requirements:</h3>
 
 <ul>
-<li>Java (tested with Oracle's VM versions 6 and 7, though 5 should work).</li>
-<li>A new version of Eclipse (3.7/Indigo, 4.2/Juno, or 4.3/Kepler) with the Java plugins.</li>
-</ul><h3>
-<a name="installing-the-plugin" class="anchor" href="#installing-the-plugin"><span class="octicon octicon-link"></span></a>Installing the plugin:</h3>
+  <li>Java (tested with Oracle's VM versions 6, 7, and 8, though 5 should work).</li>
+  <li>A new version of Eclipse (3.7/Indigo, 4.2/Juno, 4.3/Kepler, or 4.4/Luna) with the Java plugins.</li>
+</ul>
+
+<h3><a name="installing-the-plugin" class="anchor" href="#installing-the-plugin"><span class="octicon octicon-link"></span></a>Installing the plugin:</h3>
 
 <ol>
-<li>Open Eclipse and choose the "Help -&gt; Install New Software" menu item.</li>
-<li>In the "Work with" box at the top, enter "<a href="http://www.cs.berkeley.edu/%7Ejoel/codehint/eclipse/">http://www.cs.berkeley.edu/~joel/codehint/eclipse/</a>".  Click "Add", name the site, and press "OK".</li>
-<li>Select the plugin in the list below, install it by clicking "Next" a few times, and restart Eclipse when prompted.</li>
-<li>When the plugin loads for the first time, it will open the preferences page to ask if you want to allow it to report anonymous usage information. We would appreciate it if you allow it to do so. You may change this setting at any time by returning to the preferences page.
+  <li>Open Eclipse and choose the "Help -&gt; Install New Software" menu item.</li>
+  <li>In the "Work with" box at the top, enter "<a href="http://jgalenson.github.io/codehint/eclipse/">http://jgalenson.github.io/codehint/eclipse/</a>".  Click "Add", name the site, and press "OK".</li>
+  <li>Select the plugin in the list below, install it by clicking "Next" a few times, and restart Eclipse when prompted.</li>
+  <li>When the plugin loads for the first time, it will open the preferences page to ask if you want to allow it to report anonymous usage information. We would appreciate it if you allow it to do so. You may change this setting at any time by returning to the preferences page.
 
-<ul>
-<li>The information collected contains data about how you use CodeHint and how it performs.  This information includes the specifications you give but none of your code.</li>
-</ul>
-</li>
-</ol><h3>
-<a name="brief-user-guide" class="anchor" href="#brief-user-guide"><span class="octicon octicon-link"></span></a>Brief user guide:</h3>
-
-<p>A more detailed tutorial is available <a href="http://www.cs.berkeley.edu/%7Ejoel/codehint/tutorial/tutorial.html">here</a>.</p>
-
-<ol>
-<li>Open Eclipse to a Java project and navigate to where you want to add code.</li>
-<li>Set a breakpoint where you want to add code, start the debugger, and navigate to that breakpoint.</li>
-<li>If you want to change the value of a variable, right-click the variable whose value you want to change in the Variables View window in the top-right of the Debug perspective. You may also click the "Synthesize" button (labelled "CH free") in the toolbar. You can now give one of the following types of specifications:
-
-<ul>
-<li>Demonstrate type: Enter the name of a type to find expressions that evaluate to values of that type. This can be useful when trying to use an unfamiliar API.</li>
-<li>Demonstrate value: Enter an expression to find expressions that evaluate to the same value. This is often useful when searching for integers and strings or as a small unit test.</li>
-<li>Demonstrate property: Enter an expression that refers to the pre- and post-states of variables (where the latter are primed). This allows you to enter an arbitrary Java expression to use as a specification. Some examples are:
-
-<ul>
-<li>
-<code>x' &gt; x</code> will find expressions that increase <code>x</code>.</li>
-<li>
-<code>x'.contains("--arg")</code> can be used to find lists that contain a certain element, for example.</li>
-<li>
-<code>x'.toString().contains("Hello")</code> will find expressions whose <code>toString</code> contains <code>"Hello"</code>. This can be useful when you have only a vague idea about what you want. </li>
-</ul>
-</li>
-</ul>
-</li>
-<li>Optional Enter a skeleton of what the missing code should look like. A <code>??</code> stands for missing expressions or names and a <code>**</code> stands for an unknown number of arguments. Examples include:</li>
-<li>
-<code>??</code>, which is the default, will search for an arbitrary expression.</li>
-<li>
-<code>foo.??</code> will search for a field access on the <code>foo</code> object.</li>
-<li>
-<code>foo.??(x)</code> will search for calls to one-argument methods of the <code>foo</code> object with <code>x</code> as the argument.</li>
-<li>
-<code>??.??().??</code> will search for field accesses of zero-argument method calls of arbitrary expressions.</li>
-<li>
-<code>foo.??(**)</code> will search for calls to methods of the <code>foo</code> object with any number of unknown expressions. </li>
-<li>If you want to search calls to constructors of the desired type, check the "Search constructors" button. If you want to search operators such as <code>+</code> and <code>&lt;</code>, check the "Search operators" button. If you want to avoid making calls to native methods to avoid any external side effects, uncheck the "Call native methods" button, which will block such calls at the cost of slowing down the search. If you want to see all the side effects of the expressions and undo them so they do not affect subsequent evaluations, check the "Log and undo side effects" button, which will slow down the search.</li>
-<li>Click the "Search" button. You will be shown expressions that satisfy your specifications and their values. Select the ones you wish to insert into the code and click "OK". If you do not see an expression you want, you may modify your specification and/or skeleton and try again. You may also click "Continue Search" to search more expressions with the same specification, but be aware that this search may take a long time and need to be cancelled.  You may type words in the filter box at the bottom of the dialog and press "Filter" to keep only expressions whose text, result, or Javadocs contain the given words.</li>
-<li>The desired expressions will be inserted into the code. You can look through them and select the correct one (by manually editing the code) if you desire. Alternatively, you can bring the debugger back to this line (perhaps by continuing the execution or giving another testcase) and give another specification in this new state to prune the set of candidate expressions.</li>
-<li>Optional The added code contains calls to a small runtime library. If you want this code to be executable, you may download the library from <a href="http://www.cs.berkeley.edu/%7Ejoel/codehint/codehint-lib.jar">here</a> and add it to the classpath of the current project.  This will additionally provide some performance improvements.</li>
+    <ul>
+      <li>The information collected contains data about how you use CodeHint and how it performs.  This information includes the specifications you give but none of your code.</li>
+    </ul>
+  </li>
 </ol>
+
+<h3><a name="brief-user-guide" class="anchor" href="#brief-user-guide"><span class="octicon octicon-link"></span></a>Brief user guide:</h3>
+
+<p>A more detailed tutorial is available <a href="tutorial/tutorial.html">here</a>.</p>
+
+<ol>
+  <li>Open Eclipse to a Java project and navigate to where you want to add code.</li>
+  <li>Set a breakpoint where you want to add code, start the debugger, and navigate to that breakpoint.</li>
+  <li>If you want to change the value of a variable, right-click the variable whose value you want to change in the Variables View window in the top-right of the Debug perspective. You may also click the "Synthesize" button (labelled "CH free") in the toolbar. You can now give one of the following types of specifications:
+
+    <ul>
+      <li>Demonstrate type: Enter the name of a type to find expressions that evaluate to values of that type. This can be useful when trying to use an unfamiliar API.</li>
+      <li>Demonstrate value: Enter an expression to find expressions that evaluate to the same value. This is often useful when searching for integers and strings or as a small unit test.</li>
+      <li>Demonstrate property: Enter an expression that refers to the pre- and post-states of variables (where the latter are primed). This allows you to enter an arbitrary Java expression to use as a specification. Some examples are:
+
+	<ul>
+	  <li>
+	    <code>x' &gt; x</code> will find expressions that increase <code>x</code>.</li>
+	  <li>
+	    <code>x'.contains("--arg")</code> can be used to find lists that contain a certain element, for example.</li>
+	  <li>
+	    <code>x'.toString().contains("Hello")</code> will find expressions whose <code>toString</code> contains <code>"Hello"</code>. This can be useful when you have only a vague idea about what you want. </li>
+	</ul>
+      </li>
+    </ul>
+  </li>
+  <li>Optional Enter a skeleton of what the missing code should look like. A <code>??</code> stands for missing expressions or names and a <code>**</code> stands for an unknown number of arguments. Examples include:</li>
+  <li>
+    <code>??</code>, which is the default, will search for an arbitrary expression.</li>
+  <li>
+    <code>foo.??</code> will search for a field access on the <code>foo</code> object.</li>
+  <li>
+    <code>foo.??(x)</code> will search for calls to one-argument methods of the <code>foo</code> object with <code>x</code> as the argument.</li>
+  <li>
+    <code>??.??().??</code> will search for field accesses of zero-argument method calls of arbitrary expressions.</li>
+  <li>
+    <code>foo.??(**)</code> will search for calls to methods of the <code>foo</code> object with any number of unknown expressions. </li>
+  <li>If you want to search calls to constructors of the desired type, check the "Search constructors" button. If you want to search operators such as <code>+</code> and <code>&lt;</code>, check the "Search operators" button. If you want to avoid making calls to native methods to avoid any external side effects, uncheck the "Call native methods" button, which will block such calls at the cost of slowing down the search. If you want to see all the side effects of the expressions and undo them so they do not affect subsequent evaluations, check the "Log and undo side effects" button, which will slow down the search.</li>
+  <li>Click the "Search" button. You will be shown expressions that satisfy your specifications and their values. Select the ones you wish to insert into the code and click "OK". If you do not see an expression you want, you may modify your specification and/or skeleton and try again. You may also click "Continue Search" to search more expressions with the same specification, but be aware that this search may take a long time and need to be cancelled.  You may type words in the filter box at the bottom of the dialog and press "Filter" to keep only expressions whose text, result, or Javadocs contain the given words.</li>
+  <li>The desired expressions will be inserted into the code. You can look through them and select the correct one (by manually editing the code) if you desire. Alternatively, you can bring the debugger back to this line (perhaps by continuing the execution or giving another testcase) and give another specification in this new state to prune the set of candidate expressions.</li>
+  <li><i>Optional</i> The added code contains calls to a small runtime library. If you want this code to be executable, you may download the library from <a href="codehint-lib.jar">here</a> and add it to the classpath of the current project.  This will additionally provide some performance improvements.</li>
+</ol>
+
+<h4>Acknowledgements</h4>
+
+<p>This project is supported in part by a gift from Samsung and in part by Microsoft (Award #024263) and Intel (Award #024894) funding and by matching funding by U.C. Discovery (Award #DIG07-10227).</p>
       </section>
     </div>
     <footer>
