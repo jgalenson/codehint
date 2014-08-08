@@ -1,14 +1,14 @@
 # CodeHint
 
-CodeHint is a tool that synthesizes code from user-provided partial dynamic specifications of the desired behavior.  [Here](http://www.cs.berkeley.edu/~joel/codehint/demo.html) is a demo.
+CodeHint is a tool that synthesizes code from user-provided partial dynamic specifications of the desired behavior.  [Here](http://jgalenson.github.io/codehint/) is a demo.
 
 If you find any bugs, would like to request any features, or have any general comments, please email joel at cs dot berkeley dot edu.
 
 *Warning*: CodeHint actually executes some expressions, which could contain external side effects. We use Java's security manager to stop effects like deleting files, but it is possible that there will be undesirable external side effects inside native calls. Users may disallow native calls to methods outside the standard library when using CodeHint and so should be careful when the current context contains objects with such external side effects in native calls.
 
 ### Requirements:
-- Java (tested with Oracle's VM versions 6 and 7, though 5 should work).
-- A new version of Eclipse (3.7/Indigo, 4.2/Juno, or 4.3/Kepler) with the Java plugins.
+- Java (tested with Oracle's VM versions 6, 7, and 8, though 5 should work).
+- A new version of Eclipse (3.7/Indigo, 4.2/Juno, 4.3/Kepler, or 4.4/Luna) with the Java plugins.
 
 ### Installing the plugin:
 1. Open Eclipse and choose the "Help -> Install New Software" menu item.
