@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <site>
-   <feature url="features/codehint.feature_1.0.0.201407071454.jar" id="codehint.feature" version="1.0.0.201407071454">
+   <feature url="features/codehint.feature_1.0.0.201408110922.jar" id="codehint.feature" version="1.0.0.201408110922">
       <category name="codehint"/>
    </feature>
    <category-def name="codehint" label="CodeHint">
